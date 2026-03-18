@@ -61,7 +61,7 @@ export default function Home() {
                         <span className="text-sm font-medium tracking-wide">The Premier Network for Biotech</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tight mb-8 max-w-5xl leading-tight">
+                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-8 max-w-5xl leading-tight">
                         Innovate Faster with <br />
                         <span className="text-primary">Pharmasocii</span>
                     </h1>

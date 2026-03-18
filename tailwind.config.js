@@ -17,7 +17,15 @@ module.exports = {
 		},
 		extend: {
 			fontFamily: {
-				sans: ['Inter', 'sans-serif'],
+				sans: ['"DM Sans"', 'sans-serif'],
+			},
+			letterSpacing: {
+				tighter: '-0.075em',
+				tight: '-0.04em',
+				normal: '-0.015em',
+				wide: '0em',
+				wider: '0.025em',
+				widest: '0.05em',
 			},
 			colors: {
 				border: 'hsl(var(--border))',
