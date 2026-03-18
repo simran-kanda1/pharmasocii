@@ -49,13 +49,13 @@ export default function Login() {
     return (
         <div className="flex-1 flex flex-col md:flex-row w-full bg-background text-foreground">
             {/* Left side banner */}
-            <div className="hidden md:flex flex-1 relative bg-black/40 overflow-hidden items-center justify-center p-12">
+            <div className="hidden md:flex flex-1 relative bg-muted/40 overflow-hidden items-center justify-center p-12">
                 <div className="absolute inset-0 bg-primary/20 mix-blend-overlay z-10" />
                 <div className="absolute inset-0 z-0">
                     <img src="https://images.unsplash.com/photo-1579165466741-7f35e4755660?auto=format&fit=crop&q=80" className="w-full h-full object-cover opacity-30" alt="Microscope" />
                 </div>
                 <div className="relative z-20 max-w-lg text-left">
-                    <div className="inline-flex py-1 px-3 mb-6 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm text-sm font-medium">
+                    <div className="inline-flex py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 backdrop-blur-sm text-sm font-medium">
                         <Activity className="w-4 h-4 mr-2 text-secondary" /> Empowering the Biotech World
                     </div>
                     <h2 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
@@ -70,7 +70,7 @@ export default function Login() {
             {/* Right side login form */}
             <div className="flex-1 flex items-center justify-center p-8 bg-background relative overflow-hidden">
 
-                <Card className="w-full max-w-md bg-white/5 border-white/10 backdrop-blur-xl relative z-10 shadow-2xl">
+                <Card className="w-full max-w-md bg-foreground/5 border-foreground/10 backdrop-blur-xl relative z-10 shadow-2xl">
                     <CardHeader className="space-y-2 pb-8">
                         <CardTitle className="text-3xl font-bold text-center tracking-tight">Welcome back</CardTitle>
                         <CardDescription className="text-center text-base">Enter your credentials to access your account</CardDescription>
@@ -90,7 +90,7 @@ export default function Login() {
                                         id="email"
                                         type="email"
                                         required
-                                        className="pl-10 h-10 border-white/10 bg-black/40 focus:bg-white/5 transition-colors"
+                                        className="pl-10 h-10 border-foreground/10 bg-muted/40 focus:bg-foreground/5 transition-colors"
                                         placeholder="researcher@biotech.com"
                                         value={email}
                                         onChange={(e) => setEmail(e.target.value)}
@@ -108,7 +108,7 @@ export default function Login() {
                                         id="password"
                                         type="password"
                                         required
-                                        className="pl-10 h-10 border-white/10 bg-black/40 focus:bg-white/5 transition-colors"
+                                        className="pl-10 h-10 border-foreground/10 bg-muted/40 focus:bg-foreground/5 transition-colors"
                                         placeholder="••••••••"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}

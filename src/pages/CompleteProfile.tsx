@@ -197,13 +197,13 @@ export default function CompleteProfile() {
 
             <div className="container max-w-5xl mx-auto relative z-10">
 
-                <div className="mb-10 text-center md:text-left border-b border-white/10 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div className="mb-10 text-center md:text-left border-b border-foreground/10 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight text-white mb-2">Complete Your Profile</h1>
+                        <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Complete Your Profile</h1>
                         <p className="text-muted-foreground">Please fill out the remainder of your partner business information.</p>
                     </div>
-                    <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-4 py-2 rounded-full text-sm text-primary">
-                        <Building2 className="w-4 h-4" /> Partner Status: <span className="text-white font-medium">Pending Verification</span>
+                    <div className="inline-flex items-center gap-2 bg-foreground/5 border border-foreground/10 px-4 py-2 rounded-full text-sm text-primary">
+                        <Building2 className="w-4 h-4" /> Partner Status: <span className="text-foreground font-medium">Pending Verification</span>
                     </div>
                 </div>
 
@@ -214,7 +214,7 @@ export default function CompleteProfile() {
                 )}
 
                 {success && (
-                    <div className="mb-8 p-4 bg-green-500/20 border border-green-500/50 rounded-lg text-green-200">
+                    <div className="mb-8 p-4 bg-primary/20 border border-primary/50 rounded-lg text-primary/80">
                         {success}
                     </div>
                 )}
@@ -222,23 +222,23 @@ export default function CompleteProfile() {
                 <form onSubmit={handleSubmit}>
                     <div className="space-y-8">
                         {/* Core Info Row */}
-                        <Card className="bg-white/5 border-white/10 backdrop-blur-md">
-                            <CardHeader className="border-b border-white/5 pb-4">
+                        <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
+                            <CardHeader className="border-b border-foreground/10 pb-4">
                                 <CardTitle className="text-xl">Partner Information</CardTitle>
                                 <CardDescription>Primary and alternate contact details for your account</CardDescription>
                             </CardHeader>
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <Label htmlFor="firstName">First name *</Label>
-                                    <Input id="firstName" value={formData.firstName} onChange={handleChange} required className="bg-black/40 border-white/10" />
+                                    <Input id="firstName" value={formData.firstName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="lastName">Last name *</Label>
-                                    <Input id="lastName" value={formData.lastName} onChange={handleChange} required className="bg-black/40 border-white/10" />
+                                    <Input id="lastName" value={formData.lastName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="email">Email *</Label>
-                                    <Input id="email" type="email" value={formData.email} onChange={handleChange} required className="bg-black/40 border-white/10" disabled={!!auth.currentUser} />
+                                    <Input id="email" type="email" value={formData.email} onChange={handleChange} required className="bg-muted/40 border-foreground/10" disabled={!!auth.currentUser} />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="phone">Phone *</Label>
@@ -248,25 +248,25 @@ export default function CompleteProfile() {
                                         defaultCountry="US"
                                         value={formData.phone}
                                         onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}
-                                        className="flex h-10 w-full rounded-md border border-white/10 bg-black/40 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="flex h-10 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     />
                                 </div>
-                                <div className="space-y-2 pt-4 border-t border-white/5 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2 pt-4 border-t border-foreground/10 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <Label htmlFor="altName">Alternate contact first & last name</Label>
-                                        <Input id="altName" value={formData.altName} onChange={handleChange} className="bg-black/40 border-white/10" />
+                                        <Input id="altName" value={formData.altName} onChange={handleChange} className="bg-muted/40 border-foreground/10" />
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="altEmail">Alternate email address</Label>
-                                        <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} className="bg-black/40 border-white/10" />
+                                        <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} className="bg-muted/40 border-foreground/10" />
                                     </div>
                                 </div>
                             </CardContent>
                         </Card>
 
                         {/* Business Details Row */}
-                        <Card className="bg-white/5 border-white/10 backdrop-blur-md">
-                            <CardHeader className="border-b border-white/5 pb-4">
+                        <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
+                            <CardHeader className="border-b border-foreground/10 pb-4">
                                 <CardTitle className="text-xl">Business Details</CardTitle>
                                 <CardDescription>Company information visible to the network</CardDescription>
                             </CardHeader>
@@ -275,14 +275,14 @@ export default function CompleteProfile() {
                                     <Label htmlFor="companyName">Company name *</Label>
                                     <div className="relative">
                                         <Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input id="companyName" value={formData.companyName} onChange={handleChange} required className="pl-9 bg-black/40 border-white/10" />
+                                        <Input id="companyName" value={formData.companyName} onChange={handleChange} required className="pl-9 bg-muted/40 border-foreground/10" />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="companyWebsite">Company website *</Label>
                                     <div className="relative">
                                         <Globe className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input id="companyWebsite" type="url" placeholder="https://" value={formData.companyWebsite} onChange={handleChange} required className="pl-9 bg-black/40 border-white/10" />
+                                        <Input id="companyWebsite" type="url" placeholder="https://" value={formData.companyWebsite} onChange={handleChange} required className="pl-9 bg-muted/40 border-foreground/10" />
                                     </div>
                                 </div>
                                 <div className="space-y-2">
@@ -293,47 +293,47 @@ export default function CompleteProfile() {
                                         defaultCountry="US"
                                         value={formData.businessPhone}
                                         onChange={(value) => setFormData(prev => ({ ...prev, businessPhone: value || '' }))}
-                                        className="flex h-10 w-full rounded-md border border-white/10 bg-black/40 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                                        className="flex h-10 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                                     />
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="linkedin">LinkedIn profile</Label>
                                     <div className="relative">
                                         <Linkedin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input id="linkedin" value={formData.linkedin} onChange={handleChange} placeholder="https://linkedin.com/company/..." className="pl-9 bg-black/40 border-white/10" />
+                                        <Input id="linkedin" value={formData.linkedin} onChange={handleChange} placeholder="https://linkedin.com/company/..." className="pl-9 bg-muted/40 border-foreground/10" />
                                     </div>
                                 </div>
 
                                 <div className="space-y-2 md:col-span-2 pt-2">
                                     <Label>Company logo</Label>
                                     <div className="flex items-center gap-4">
-                                        <div className="h-20 w-20 flex-shrink-0 bg-black/60 rounded-xl border border-dashed border-white/20 flex items-center justify-center text-muted-foreground">
+                                        <div className="h-20 w-20 flex-shrink-0 bg-black/60 rounded-xl border border-dashed border-foreground/20 flex items-center justify-center text-muted-foreground">
                                             <UploadCloud className="h-6 w-6" />
                                         </div>
                                         <div className="flex-1">
-                                            <Input type="file" className="bg-black/40 border-white/10 text-sm h-10 pt-2 cursor-pointer" accept="image/jpeg, image/png" />
+                                            <Input type="file" className="bg-muted/40 border-foreground/10 text-sm h-10 pt-2 cursor-pointer" accept="image/jpeg, image/png" />
                                             <p className="text-xs text-muted-foreground mt-2">Formats: JPG, JPEG, PNG | Max size: 2MB | Dimensions: 200px x 200px</p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="space-y-2 pt-4 border-t border-white/5 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-2 pt-4 border-t border-foreground/10 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
                                         <Label htmlFor="billingEmail">Billing / finance email address</Label>
                                         <div className="relative">
                                             <Receipt className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                            <Input id="billingEmail" type="email" value={formData.billingEmail} onChange={handleChange} className="pl-9 bg-primary/10 border-primary/30 text-white placeholder:text-white/50 focus-visible:ring-primary" />
+                                            <Input id="billingEmail" type="email" value={formData.billingEmail} onChange={handleChange} className="pl-9 bg-primary/10 border-primary/30 text-foreground placeholder:text-foreground/50 focus-visible:ring-primary" />
                                         </div>
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="businessId">VAT/ABN/EIN/Business ID</Label>
-                                        <Input id="businessId" value={formData.businessId} onChange={handleChange} className="bg-primary/10 border-primary/30 text-white placeholder:text-white/50 focus-visible:ring-primary" placeholder="(recommended for accurate invoicing and taxes)" />
+                                        <Input id="businessId" value={formData.businessId} onChange={handleChange} className="bg-primary/10 border-primary/30 text-foreground placeholder:text-foreground/50 focus-visible:ring-primary" placeholder="(recommended for accurate invoicing and taxes)" />
                                     </div>
                                 </div>
 
                                 <div className="space-y-2 md:col-span-1">
                                     <Label htmlFor="companyProfile">Company profile *</Label>
-                                    <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} required className="h-40 bg-black/40 border-white/10 resize-none font-mono text-sm" placeholder="Briefly describe your company's mission and offerings..." />
+                                    <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} required className="h-40 bg-muted/40 border-foreground/10 resize-none font-mono text-sm" placeholder="Briefly describe your company's mission and offerings..." />
                                     <div className="flex justify-between mt-1 text-xs text-muted-foreground">
                                         <span>1000 Characters left</span>
                                     </div>
@@ -341,7 +341,7 @@ export default function CompleteProfile() {
 
                                 <div className="space-y-2 md:col-span-1">
                                     <Label htmlFor="businessAddress">Business address</Label>
-                                    <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} className="h-40 bg-black/40 border-white/10 resize-none font-mono text-sm" placeholder="123 Science Way&#10;Suite 100&#10;San Francisco, CA 94107" />
+                                    <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} className="h-40 bg-muted/40 border-foreground/10 resize-none font-mono text-sm" placeholder="123 Science Way&#10;Suite 100&#10;San Francisco, CA 94107" />
                                     <div className="flex justify-between mt-1 text-xs text-muted-foreground">
                                         <span>1000 Characters left</span>
                                     </div>
@@ -350,15 +350,15 @@ export default function CompleteProfile() {
                         </Card>
 
                         {/* Selection Row */}
-                        <Card className="bg-white/5 border-white/10 backdrop-blur-md">
+                        <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
                                 <div className="space-y-3">
                                     <Label>Select group *</Label>
                                     <Select value={formData.group} onValueChange={(val) => handleSelectChange("group", val)} required>
-                                        <SelectTrigger className="w-full h-12 bg-black/40 border-white/10">
+                                        <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10">
                                             <SelectValue placeholder="Select group" />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-black/90 border-white/10">
+                                        <SelectContent className="bg-background/90 border-foreground/10">
                                             <SelectItem value="business_offerings">Business offerings</SelectItem>
                                             <SelectItem value="consulting">Consulting services</SelectItem>
                                             <SelectItem value="events">Events & conferences</SelectItem>
@@ -370,10 +370,10 @@ export default function CompleteProfile() {
                                 <div className="space-y-3">
                                     <Label>Payment plans *</Label>
                                     <Select value={formData.plan} onValueChange={(val) => handleSelectChange("plan", val)} required disabled={!formData.group}>
-                                        <SelectTrigger className="w-full h-12 bg-black/40 border-white/10">
+                                        <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10">
                                             <SelectValue placeholder={formData.group ? "Select plan" : "Select a group first"} />
                                         </SelectTrigger>
-                                        <SelectContent className="bg-black/90 border-white/10">
+                                        <SelectContent className="bg-background/90 border-foreground/10">
                                             {getPlansForGroup(formData.group).map(plan => (
                                                 <SelectItem key={plan.value} value={plan.value}>{plan.label}</SelectItem>
                                             ))}
@@ -382,13 +382,13 @@ export default function CompleteProfile() {
                                 </div>
 
                                 {formData.group && (
-                                    <div className="space-y-3 md:col-span-2 pt-4 border-t border-white/5">
+                                    <div className="space-y-3 md:col-span-2 pt-4 border-t border-foreground/10">
                                         <Label>Separate Feature Package (Optional Upgrade)</Label>
                                         <Select value={formData.addon} onValueChange={(val) => handleSelectChange("addon", val)}>
-                                            <SelectTrigger className="w-full h-12 bg-primary/10 border-primary/30 text-white focus-visible:ring-primary">
+                                            <SelectTrigger className="w-full h-12 bg-primary/10 border-primary/30 text-foreground focus-visible:ring-primary">
                                                 <SelectValue placeholder="No additional features selected" />
                                             </SelectTrigger>
-                                            <SelectContent className="bg-black/90 border-white/10">
+                                            <SelectContent className="bg-background/90 border-foreground/10">
                                                 <SelectItem value="none">No additional features</SelectItem>
                                                 {getAddonsForGroup(formData.group).map(addon => (
                                                     <SelectItem key={addon.value} value={addon.value}>{addon.label}</SelectItem>

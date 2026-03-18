@@ -62,17 +62,17 @@ export default function CreateEvent() {
     return (
         <div className="flex-1 w-full bg-background p-8 md:p-12 lg:p-16">
             <div className="max-w-4xl mx-auto space-y-8">
-                <Button variant="ghost" className="text-muted-foreground hover:text-white mb-6 -ml-4" onClick={() => navigate("/partner/dashboard")}>
+                <Button variant="ghost" className="text-muted-foreground hover:text-foreground mb-6 -ml-4" onClick={() => navigate("/partner/dashboard")}>
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
                 </Button>
 
-                <Card className="bg-white/5 border-white/10 backdrop-blur-md shadow-2xl">
-                    <CardHeader className="pb-8 border-b border-white/5">
+                <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-2xl">
+                    <CardHeader className="pb-8 border-b border-foreground/10">
                         <div className="flex items-center gap-3 mb-2">
                             <div className="bg-primary/20 p-2 rounded-lg border border-primary/30 text-primary">
                                 <Calendar className="w-6 h-6" />
                             </div>
-                            <CardTitle className="text-3xl text-white">Post an Event</CardTitle>
+                            <CardTitle className="text-3xl text-foreground">Post an Event</CardTitle>
                         </div>
                         <CardDescription className="text-base text-muted-foreground ml-1">
                             Payment verified cleanly. Please configure your new event listing below. Use commas for categories.
@@ -82,41 +82,41 @@ export default function CreateEvent() {
                         <form onSubmit={handleSubmit} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="eventName" className="text-white/80">Event Name *</Label>
-                                    <Input id="eventName" required placeholder="e.g. Global Biotech Summit '26" value={formData.eventName} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="eventName" className="text-foreground/80">Event Name *</Label>
+                                    <Input id="eventName" required placeholder="e.g. Global Biotech Summit '26" value={formData.eventName} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="startDate" className="text-white/80">Start Date *</Label>
-                                    <Input id="startDate" type="date" required value={formData.startDate} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="startDate" className="text-foreground/80">Start Date *</Label>
+                                    <Input id="startDate" type="date" required value={formData.startDate} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="eventLink" className="text-white/80">Event Link / Tickets *</Label>
-                                    <Input id="eventLink" type="url" required placeholder="https://example.com/event" value={formData.eventLink} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="eventLink" className="text-foreground/80">Event Link / Tickets *</Label>
+                                    <Input id="eventLink" type="url" required placeholder="https://example.com/event" value={formData.eventLink} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="location" className="text-white/80">Venue / Location Name *</Label>
-                                    <Input id="location" required placeholder="e.g. Moscone Center, Virtual" value={formData.location} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="location" className="text-foreground/80">Venue / Location Name *</Label>
+                                    <Input id="location" required placeholder="e.g. Moscone Center, Virtual" value={formData.location} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="city" className="text-white/80">City *</Label>
-                                    <Input id="city" required placeholder="e.g. San Francisco" value={formData.city} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="city" className="text-foreground/80">City *</Label>
+                                    <Input id="city" required placeholder="e.g. San Francisco" value={formData.city} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="state" className="text-white/80">State / Region</Label>
-                                    <Input id="state" placeholder="e.g. CA" value={formData.state} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="state" className="text-foreground/80">State / Region</Label>
+                                    <Input id="state" placeholder="e.g. CA" value={formData.state} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="country" className="text-white/80">Country *</Label>
-                                    <Input id="country" required placeholder="e.g. United States" value={formData.country} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="country" className="text-foreground/80">Country *</Label>
+                                    <Input id="country" required placeholder="e.g. United States" value={formData.country} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="categories" className="text-white/80">Categories (Comma-separated)</Label>
-                                    <Input id="categories" placeholder="e.g. Conference, Networking, Life Sciences" value={formData.categories} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="categories" className="text-foreground/80">Categories (Comma-separated)</Label>
+                                    <Input id="categories" placeholder="e.g. Conference, Networking, Life Sciences" value={formData.categories} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                             </div>
 
-                            <div className="pt-8 border-t border-white/10 flex justify-end">
-                                <Button type="button" variant="outline" className="mr-4 border-white/10 text-white hover:bg-white/10" onClick={() => navigate("/partner/dashboard")}>
+                            <div className="pt-8 border-t border-foreground/10 flex justify-end">
+                                <Button type="button" variant="outline" className="mr-4 border-foreground/10 text-foreground hover:bg-foreground/10" onClick={() => navigate("/partner/dashboard")}>
                                     Cancel
                                 </Button>
                                 <Button type="submit" disabled={loading} className="px-8 shadow-lg shadow-primary/20 hover:shadow-primary/40 text-black">

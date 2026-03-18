@@ -56,7 +56,7 @@ export default function Home() {
                 </div>
 
                 <div className="container relative z-10 px-4 py-32 mx-auto flex flex-col items-center text-center">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8">
+                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground/5 border border-foreground/10 backdrop-blur-md mb-8">
                         <ShieldCheck className="w-4 h-4 text-secondary" />
                         <span className="text-sm font-medium tracking-wide">The Premier Network for Biotech</span>
                     </div>
@@ -76,7 +76,7 @@ export default function Home() {
                                 Join the Marketplace <ArrowRight className="ml-2 w-5 h-5" />
                             </Link>
                         </Button>
-                        <Button size="lg" variant="outline" className="h-14 px-8 text-base font-semibold border-white/20 bg-white/5 hover:bg-white/10 backdrop-blur-md rounded-full" asChild>
+                        <Button size="lg" variant="outline" className="h-14 px-8 text-base font-semibold border-foreground/20 bg-foreground/5 hover:bg-foreground/10 backdrop-blur-md rounded-full" asChild>
                             <Link to="/community">
                                 <PlayCircle className="mr-2 w-5 h-5 text-secondary" /> Explore Community
                             </Link>
@@ -98,7 +98,7 @@ export default function Home() {
                         {featuredBusinesses.length > 0 ? featuredBusinesses.map((b, i) => (
                             <TileCard key={b.id} title={b.businessName} subtitle={b.selectedGroup?.replace(/_/g, ' ') || "Partner"} img={`https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=800&sig=${i}`} />
                         )) : (
-                            <div className="col-span-full h-40 flex items-center justify-center text-muted-foreground bg-white/5 border border-white/10 rounded-xl">No featured businesses available.</div>
+                            <div className="col-span-full h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured businesses available.</div>
                         )}
                     </div>
 
@@ -110,7 +110,7 @@ export default function Home() {
                         />
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
                             {featuredConsulting.length > 0 ? featuredConsulting.map((c) => (
-                                <Card key={c.id} className="group overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer flex flex-col">
+                                <Card key={c.id} className="group overflow-hidden border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer flex flex-col">
                                     <CardContent className="p-6 flex flex-col h-full">
                                         <div className="mb-4">
                                             <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary mb-2 uppercase tracking-wider">
@@ -121,19 +121,19 @@ export default function Home() {
                                                 <MapPin className="w-3.5 h-3.5 shrink-0" /> {c.businessAddress}
                                             </p>
                                         </div>
-                                        <p className="text-sm text-white/70 line-clamp-3 mb-6 flex-1">
+                                        <p className="text-sm text-muted-foreground line-clamp-3 mb-6 flex-1">
                                             {c.companyProfileText}
                                         </p>
-                                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-white/10">
+                                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-foreground/10">
                                             <span className="text-sm font-medium">View Service</span>
-                                            <Button size="icon" variant="ghost" className="rounded-full w-8 h-8 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button size="icon" variant="ghost" className="rounded-full w-8 h-8 bg-foreground/5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <ArrowRight className="w-4 h-4 text-primary" />
                                             </Button>
                                         </div>
                                     </CardContent>
                                 </Card>
                             )) : (
-                                <div className="col-span-full h-40 flex items-center justify-center text-muted-foreground bg-white/5 border border-white/10 rounded-xl">No featured consulting services available.</div>
+                                <div className="col-span-full h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured consulting services available.</div>
                             )}
                         </div>
                     </div>
@@ -147,19 +147,19 @@ export default function Home() {
                             />
                             <div className="space-y-4 mt-8">
                                 {featuredJobs.length > 0 ? featuredJobs.map((job) => (
-                                    <Card key={job.id} className="group overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                                    <Card key={job.id} className="group overflow-hidden border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer">
                                         <CardContent className="p-6 flex items-center justify-between">
                                             <div>
                                                 <h4 className="text-xl font-bold group-hover:text-primary transition-colors">{job.jobTitle}</h4>
                                                 <p className="text-sm text-muted-foreground mt-1">{job.businessName} &bull; {job.city || job.workModel}</p>
                                             </div>
-                                            <Button size="icon" variant="ghost" className="rounded-full bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button size="icon" variant="ghost" className="rounded-full bg-foreground/5 opacity-0 group-hover:opacity-100 transition-opacity">
                                                 <ArrowRight className="w-4 h-4 text-primary" />
                                             </Button>
                                         </CardContent>
                                     </Card>
                                 )) : (
-                                    <div className="h-40 flex items-center justify-center text-muted-foreground bg-white/5 border border-white/10 rounded-xl">No featured jobs available.</div>
+                                    <div className="h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured jobs available.</div>
                                 )}
                             </div>
                         </div>
@@ -176,9 +176,9 @@ export default function Home() {
                                     const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
                                     const day = dateObj.getUTCDate();
                                     return (
-                                        <Card key={evt.id} className="group overflow-hidden border-white/10 bg-white/5 hover:bg-white/10 transition-colors cursor-pointer">
+                                        <Card key={evt.id} className="group overflow-hidden border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer">
                                             <CardContent className="p-0 flex items-stretch h-24">
-                                                <div className="w-24 bg-primary/20 flex flex-col items-center justify-center p-4 border-r border-white/10">
+                                                <div className="w-24 bg-primary/20 flex flex-col items-center justify-center p-4 border-r border-foreground/10">
                                                     <span className="text-sm font-semibold text-primary">{month}</span>
                                                     <span className="text-2xl font-bold">{day}</span>
                                                 </div>
@@ -192,7 +192,7 @@ export default function Home() {
                                         </Card>
                                     );
                                 }) : (
-                                    <div className="h-40 flex items-center justify-center text-muted-foreground bg-white/5 border border-white/10 rounded-xl">No featured events available.</div>
+                                    <div className="h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured events available.</div>
                                 )}
                             </div>
                         </div>
@@ -201,18 +201,18 @@ export default function Home() {
             </section>
 
             {/* COMMUNITY HIGHLIGHTS */}
-            <section className="py-24 bg-black/40 border-y border-white/5 relative">
+            <section className="py-24 bg-muted/40 border-y border-foreground/10 relative">
                 <div className="container mx-auto px-4">
                     <SectionHeader
                         title="Community Highlights"
                         subtitle="Trending discussions directly from the network."
                         icon={<MessageSquare className="w-6 h-6 text-primary" />}
-                        action={<Button variant="outline" className="border-white/20 bg-white/5">View Community <ArrowRight className="ml-2 w-4 h-4" /></Button>}
+                        action={<Button variant="outline" className="border-foreground/20 bg-foreground/5">View Community <ArrowRight className="ml-2 w-4 h-4" /></Button>}
                     />
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
                         {[1, 2, 3].map((i) => (
-                            <Card key={i} className="bg-background/50 border-white/10 backdrop-blur-sm hover:border-primary/50 transition-colors">
+                            <Card key={i} className="bg-background/50 border-foreground/10 backdrop-blur-sm hover:border-primary/50 transition-colors">
                                 <CardContent className="p-6">
                                     <div className="flex items-center gap-4 mb-4">
                                         <Avatar>
@@ -227,7 +227,7 @@ export default function Home() {
                                     <p className="text-sm leading-relaxed text-muted-foreground line-clamp-3 mb-4">
                                         Just published our latest findings on CRISPR applications in agricultural science. The implications for drought resistance are monumental. Let's discuss the ethical frameworks needed for commercialization!
                                     </p>
-                                    <div className="flex items-center gap-4 pt-4 border-t border-white/10 text-xs text-muted-foreground">
+                                    <div className="flex items-center gap-4 pt-4 border-t border-foreground/10 text-xs text-muted-foreground">
                                         <span className="flex items-center gap-1.5 hover:text-primary cursor-pointer"><ArrowRight className="w-3 h-3 rotate-45" /> 24 upvotes</span>
                                         <span className="flex items-center gap-1.5 hover:text-primary cursor-pointer"><MessageSquare className="w-3 h-3" /> 12 comments</span>
                                     </div>
@@ -247,25 +247,25 @@ export default function Home() {
                     </div>
 
                     <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="item-1" className="border-white/10">
+                        <AccordionItem value="item-1" className="border-foreground/10">
                             <AccordionTrigger className="text-left text-lg hover:text-primary py-6">How do I list my business?</AccordionTrigger>
                             <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-6">
                                 Listing your business is straightforward. Simply create an account, navigate to the Partner Dashboard, and fill out your organization's details including services, biosafety levels, and certifications. Once approved by our team, your business will instantly appear in the marketplace.
                             </AccordionContent>
                         </AccordionItem>
-                        <AccordionItem value="item-2" className="border-white/10">
+                        <AccordionItem value="item-2" className="border-foreground/10">
                             <AccordionTrigger className="text-left text-lg hover:text-primary py-6">How do I post a job?</AccordionTrigger>
                             <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-6">
                                 Active partners can post jobs directly from their dashboard. Jobs will be featured in the marketplace and recommended to relevant talent in our community network based on tags and industry matching.
                             </AccordionContent>
                         </AccordionItem>
-                        <AccordionItem value="item-3" className="border-white/10">
+                        <AccordionItem value="item-3" className="border-foreground/10">
                             <AccordionTrigger className="text-left text-lg hover:text-primary py-6">How do I become a partner?</AccordionTrigger>
                             <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-6">
                                 Partnership is open to verified biotech entities and consultants. Visit our Partner page, select a subscription plan, and verify your credentials. Partners receive enhanced visibility, job posting capabilities, and analytics.
                             </AccordionContent>
                         </AccordionItem>
-                        <AccordionItem value="item-4" className="border-white/10">
+                        <AccordionItem value="item-4" className="border-foreground/10">
                             <AccordionTrigger className="text-left text-lg hover:text-primary py-6">What industries are supported?</AccordionTrigger>
                             <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-6">
                                 We support a wide range of life sciences sectors including Pharmaceuticals, Genomics, Medical Devices, Agricultural Biotech, Bioinformatics, and Clinical Research among others.
@@ -282,10 +282,10 @@ export default function Home() {
 
 function SectionHeader({ title, subtitle, icon, action }: { title: string, subtitle: string, icon?: React.ReactNode, action?: React.ReactNode }) {
     return (
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-white/10">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-foreground/10">
             <div>
                 <div className="inline-flex items-center gap-3 mb-3">
-                    {icon && <div className="p-2 rounded-lg bg-white/5 border border-white/10">{icon}</div>}
+                    {icon && <div className="p-2 rounded-lg bg-foreground/5 border border-foreground/10">{icon}</div>}
                     <h2 className="text-3xl md:text-4xl font-bold tracking-tight">{title}</h2>
                 </div>
                 <p className="text-muted-foreground text-lg">{subtitle}</p>
@@ -297,14 +297,14 @@ function SectionHeader({ title, subtitle, icon, action }: { title: string, subti
 
 function TileCard({ title, subtitle, img }: { title: string, subtitle: string, img: string }) {
     return (
-        <div className="group relative h-[400px] rounded-2xl overflow-hidden cursor-pointer border border-white/10">
-            <div className="absolute inset-0 bg-black/40 z-10 transition-opacity duration-500 group-hover:bg-black/20" />
-            <div className="absolute inset-0 bg-black/50 z-10" />
+        <div className="group relative h-[400px] rounded-2xl overflow-hidden cursor-pointer border border-foreground/10">
+            <div className="absolute inset-0 bg-muted/40 z-10 transition-opacity duration-500 group-hover:bg-black/20" />
+            <div className="absolute inset-0 bg-muted/50 z-10" />
             <img src={img} alt={title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
 
             <div className="absolute bottom-0 left-0 right-0 p-8 z-20 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
-                <h3 className="text-2xl font-bold text-white mb-2">{title}</h3>
-                <p className="text-white/80 font-medium mb-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">{subtitle}</p>
+                <h3 className="text-2xl font-bold text-foreground mb-2">{title}</h3>
+                <p className="text-foreground/80 font-medium mb-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">{subtitle}</p>
 
                 <div className="flex items-center gap-2 text-primary font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-200">
                     <span>View Profile</span>

@@ -73,17 +73,17 @@ export default function CreateConsulting() {
     return (
         <div className="flex-1 w-full bg-background p-8 md:p-12 lg:p-16">
             <div className="max-w-4xl mx-auto space-y-8">
-                <Button variant="ghost" className="text-muted-foreground hover:text-white mb-6 -ml-4" onClick={() => navigate("/partner/dashboard")}>
+                <Button variant="ghost" className="text-muted-foreground hover:text-foreground mb-6 -ml-4" onClick={() => navigate("/partner/dashboard")}>
                     <ArrowLeft className="w-4 h-4 mr-2" /> Back to Dashboard
                 </Button>
 
-                <Card className="bg-white/5 border-white/10 backdrop-blur-md shadow-2xl">
-                    <CardHeader className="pb-8 border-b border-white/5">
+                <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-2xl">
+                    <CardHeader className="pb-8 border-b border-foreground/10">
                         <div className="flex items-center gap-3 mb-2">
                             <div className="bg-primary/20 p-2 rounded-lg border border-primary/30 text-primary">
                                 <Users className="w-6 h-6" />
                             </div>
-                            <CardTitle className="text-3xl text-white">Create Consulting Service</CardTitle>
+                            <CardTitle className="text-3xl text-foreground">Create Consulting Service</CardTitle>
                         </div>
                         <CardDescription className="text-base text-muted-foreground ml-1">
                             Payment verified cleanly. Please construct your consulting profile below. This will appear under Consulting Services in the marketplace.
@@ -93,25 +93,25 @@ export default function CreateConsulting() {
                         <form onSubmit={handleSubmit} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3">
-                                    <Label htmlFor="primaryName" className="text-white/80">Consultant / Primary Name *</Label>
-                                    <Input id="primaryName" required placeholder="e.g. Dr. Sarah Jenkins" value={formData.primaryName} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="primaryName" className="text-foreground/80">Consultant / Primary Name *</Label>
+                                    <Input id="primaryName" required placeholder="e.g. Dr. Sarah Jenkins" value={formData.primaryName} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="businessName" className="text-white/80">Company / Affiliation *</Label>
-                                    <Input id="businessName" required placeholder="e.g. BioTech Innovations LLC" value={formData.businessName} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="businessName" className="text-foreground/80">Company / Affiliation *</Label>
+                                    <Input id="businessName" required placeholder="e.g. BioTech Innovations LLC" value={formData.businessName} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="businessAddress" className="text-white/80">Location / Remote Status *</Label>
-                                    <Input id="businessAddress" required placeholder="e.g. Remote, or New York, NY" value={formData.businessAddress} onChange={handleChange} className="h-12 bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="businessAddress" className="text-foreground/80">Location / Remote Status *</Label>
+                                    <Input id="businessAddress" required placeholder="e.g. Remote, or New York, NY" value={formData.businessAddress} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="companyProfileText" className="text-white/80">Consulting Overview & Expertise *</Label>
-                                    <Textarea id="companyProfileText" required placeholder="Describe your specialized knowledge, services offered, and prior consulting experience..." value={formData.companyProfileText} onChange={handleChange} className="min-h-[160px] bg-black/40 border-white/10 text-white" />
+                                    <Label htmlFor="companyProfileText" className="text-foreground/80">Consulting Overview & Expertise *</Label>
+                                    <Textarea id="companyProfileText" required placeholder="Describe your specialized knowledge, services offered, and prior consulting experience..." value={formData.companyProfileText} onChange={handleChange} className="min-h-[160px] bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                             </div>
 
-                            <div className="pt-8 border-t border-white/10 flex justify-end">
-                                <Button type="button" variant="outline" className="mr-4 border-white/10 text-white hover:bg-white/10" onClick={() => navigate("/partner/dashboard")}>
+                            <div className="pt-8 border-t border-foreground/10 flex justify-end">
+                                <Button type="button" variant="outline" className="mr-4 border-foreground/10 text-foreground hover:bg-foreground/10" onClick={() => navigate("/partner/dashboard")}>
                                     Cancel
                                 </Button>
                                 <Button type="submit" disabled={loading} className="px-8 shadow-lg shadow-primary/20 hover:shadow-primary/40 text-black">

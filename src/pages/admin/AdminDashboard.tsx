@@ -61,9 +61,9 @@ export default function AdminDashboard() {
 
     return (
         <div className="flex-1 bg-background min-h-screen text-foreground p-8">
-            <div className="flex justify-between items-center mb-10 border-b border-white/10 pb-6">
+            <div className="flex justify-between items-center mb-10 border-b border-foreground/10 pb-6">
                 <div>
-                    <h1 className="text-4xl font-bold tracking-tight text-white flex items-center gap-3">
+                    <h1 className="text-4xl font-bold tracking-tight text-foreground flex items-center gap-3">
                         <ShieldCheck className="w-8 h-8 text-primary" /> Root Admin Console
                     </h1>
                     <p className="text-muted-foreground mt-2">Manage partners, plans, and approvals globally.</p>
@@ -79,7 +79,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className="space-y-6 max-w-7xl mx-auto">
-                <Card className="bg-white/5 border-white/10 backdrop-blur-md">
+                <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
                     <CardHeader>
                         <CardTitle className="text-2xl">Registered Partners Queue</CardTitle>
                         <CardDescription>All partners who have initiated or completed setup.</CardDescription>
@@ -92,34 +92,34 @@ export default function AdminDashboard() {
                         ) : (
                             <div className="space-y-4">
                                 {partners.map((partner) => (
-                                    <div key={partner.id} className="p-6 bg-black/40 border border-white/10 rounded-xl flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
+                                    <div key={partner.id} className="p-6 bg-muted/40 border border-foreground/10 rounded-xl flex flex-col md:flex-row gap-6 justify-between items-start md:items-center">
 
                                         <div className="flex-1 space-y-2">
                                             <div className="flex items-center gap-3 mb-1">
-                                                <h3 className="text-xl font-bold text-white">{partner.businessName || "Unnamed Company"}</h3>
+                                                <h3 className="text-xl font-bold text-foreground">{partner.businessName || "Unnamed Company"}</h3>
                                                 {partner.partnerStatus === "Approved" ? (
-                                                    <Badge className="bg-green-500/20 text-green-400 hover:bg-green-500/30 border-green-500/50"><CheckCircle2 className="w-3 h-3 mr-1" /> Approved</Badge>
+                                                    <Badge className="bg-primary/20 text-primary hover:bg-primary/30 border-primary/50"><CheckCircle2 className="w-3 h-3 mr-1" /> Approved</Badge>
                                                 ) : partner.selectedGroup && partner.selectedPlan ? (
                                                     <Badge className="bg-yellow-500/20 text-yellow-500 hover:bg-yellow-500/30 border-yellow-500/50"><Clock className="w-3 h-3 mr-1" /> Needs Approval</Badge>
                                                 ) : (
-                                                    <Badge variant="outline" className="text-muted-foreground border-white/20"><XCircle className="w-3 h-3 mr-1" /> Profile Incomplete</Badge>
+                                                    <Badge variant="outline" className="text-muted-foreground border-foreground/20"><XCircle className="w-3 h-3 mr-1" /> Profile Incomplete</Badge>
                                                 )}
                                             </div>
 
-                                            <div className="text-sm text-white/70 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
+                                            <div className="text-sm text-muted-foreground grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2">
                                                 <p><span className="text-muted-foreground font-mono">Contact:</span> {partner.primaryName} ({partner.primaryEmail})</p>
                                                 <p><span className="text-muted-foreground font-mono">Phone:</span> {partner.phoneNumber || "N/A"}</p>
                                                 <p><span className="text-muted-foreground font-mono">Group:</span> <span className="text-primary font-medium">{partner.selectedGroup || "Not selected"}</span></p>
-                                                <p><span className="text-muted-foreground font-mono">Plan:</span> <span className="text-white font-medium">{partner.selectedPlan || "Not selected"}</span></p>
+                                                <p><span className="text-muted-foreground font-mono">Plan:</span> <span className="text-foreground font-medium">{partner.selectedPlan || "Not selected"}</span></p>
                                                 {partner.selectedAddon && partner.selectedAddon !== "" && (
                                                     <p className="md:col-span-2"><span className="text-muted-foreground font-mono">Addon Module:</span> <Badge variant="secondary" className="ml-2 font-mono">{partner.selectedAddon}</Badge></p>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <div className="flex gap-3 w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t md:border-none border-white/10">
+                                        <div className="flex gap-3 w-full md:w-auto mt-4 md:mt-0 pt-4 md:pt-0 border-t md:border-none border-foreground/10">
                                             {partner.selectedGroup && partner.selectedPlan && partner.partnerStatus !== "Approved" && (
-                                                <Button size="sm" className="bg-green-600 hover:bg-green-500 text-white w-full md:w-auto" onClick={() => approvePartner(partner.id)}>
+                                                <Button size="sm" className="bg-primary hover:bg-primary/90 text-foreground w-full md:w-auto" onClick={() => approvePartner(partner.id)}>
                                                     Approve Partner
                                                 </Button>
                                             )}

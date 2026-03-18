@@ -103,31 +103,31 @@ export default function PartnerRegister() {
     return (
         <div className="flex-1 flex flex-col md:flex-row w-full bg-background text-foreground">
             {/* LEFT COLUMN: The Form (Dark Mode aesthetic) */}
-            <div className="w-full md:w-[450px] lg:w-[500px] bg-black/90 p-8 md:p-12 overflow-y-auto border-r border-white/10 shrink-0 relative">
+            <div className="w-full md:w-[450px] lg:w-[500px] bg-background/90 p-8 md:p-12 overflow-y-auto border-r border-foreground/10 shrink-0 relative">
 
 
                 <div className="mb-8">
                     <Link to="/" className="flex items-center gap-2 mb-8">
                         <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                            <div className="h-3 w-3 bg-white/20 rounded-full" />
+                            <div className="h-3 w-3 bg-foreground/20 rounded-full" />
                         </div>
-                        <span className="font-bold text-lg tracking-tight text-white">Pharmasocii</span>
+                        <span className="font-bold text-lg tracking-tight text-foreground">Pharmasocii</span>
                     </Link>
                 </div>
 
                 {success ? (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-6 py-20">
-                        <MailCheck className="w-20 h-20 text-green-500 animate-pulse" />
-                        <h3 className="text-3xl font-bold text-white">Verify Your Email</h3>
+                        <MailCheck className="w-20 h-20 text-primary animate-pulse" />
+                        <h3 className="text-3xl font-bold text-foreground">Verify Your Email</h3>
                         <p className="text-muted-foreground leading-relaxed max-w-[280px]">
-                            We've sent a verification link to <span className="text-white font-medium">{formData.email}</span>. Please check your inbox and confirm your email.
+                            We've sent a verification link to <span className="text-foreground font-medium">{formData.email}</span>. Please check your inbox and confirm your email.
                         </p>
                         <p className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-8">
                             Proceeding to the next step... <Activity className="w-4 h-4 animate-spin" />
                         </p>
                     </div>
                 ) : (
-                    <form onSubmit={handleRegister} className="space-y-5 text-left relative z-10 text-white/90">
+                    <form onSubmit={handleRegister} className="space-y-5 text-left relative z-10 text-foreground/90">
                         {error && (
                             <div className="p-3 bg-destructive/20 border border-destructive/50 rounded-md text-destructive-foreground text-sm">
                                 {error}
@@ -135,45 +135,45 @@ export default function PartnerRegister() {
                         )}
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="firstName" className="text-white/80">First name *</Label>
-                            <Input id="firstName" value={formData.firstName} onChange={handleChange} required className="bg-white/5 border-white/10 text-white focus-visible:ring-primary/50" />
+                            <Label htmlFor="firstName" className="text-foreground/80">First name *</Label>
+                            <Input id="firstName" value={formData.firstName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="lastName" className="text-white/80">Last name *</Label>
-                            <Input id="lastName" value={formData.lastName} onChange={handleChange} required className="bg-white/5 border-white/10 text-white focus-visible:ring-primary/50" />
+                            <Label htmlFor="lastName" className="text-foreground/80">Last name *</Label>
+                            <Input id="lastName" value={formData.lastName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="email" className="text-white/80">Email *</Label>
-                            <Input id="email" type="email" value={formData.email} onChange={handleChange} required className="bg-white/5 border-white/10 text-white focus-visible:ring-primary/50" />
+                            <Label htmlFor="email" className="text-foreground/80">Email *</Label>
+                            <Input id="email" type="email" value={formData.email} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="password" className="text-white/80">Password *</Label>
-                            <Input id="password" type="password" value={formData.password} onChange={handleChange} required className="bg-white/5 border-white/10 text-white focus-visible:ring-primary/50" />
+                            <Label htmlFor="password" className="text-foreground/80">Password *</Label>
+                            <Input id="password" type="password" value={formData.password} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="confirmPassword" className="text-white/80">Confirm password *</Label>
-                            <Input id="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleChange} required className="bg-white/5 border-white/10 text-white focus-visible:ring-primary/50" />
+                            <Label htmlFor="confirmPassword" className="text-foreground/80">Confirm password *</Label>
+                            <Input id="confirmPassword" type="password" value={formData.confirmPassword} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="phone" className="text-white/80">Phone number *</Label>
+                            <Label htmlFor="phone" className="text-foreground/80">Phone number *</Label>
                             <PhoneInput
                                 id="phone"
                                 international
                                 defaultCountry="US"
                                 value={formData.phone}
                                 onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}
-                                className="flex h-10 w-full rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50 text-white"
+                                className="flex h-10 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50 text-foreground"
                             />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="companyName" className="text-white/80">Company name *</Label>
-                            <Input id="companyName" value={formData.companyName} onChange={handleChange} required className="bg-white/5 border-white/10 text-white focus-visible:ring-primary/50" />
+                            <Label htmlFor="companyName" className="text-foreground/80">Company name *</Label>
+                            <Input id="companyName" value={formData.companyName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         {/* Alternate Contact Section */}
@@ -182,18 +182,18 @@ export default function PartnerRegister() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altFirstName" className="text-white/80">First name (alternate contact)</Label>
-                            <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} className="bg-white/5 border-white/10 text-white focus-visible:ring-primary/50" />
+                            <Label htmlFor="altFirstName" className="text-foreground/80">First name (alternate contact)</Label>
+                            <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altLastName" className="text-white/80">Last name (alternate contact)</Label>
-                            <Input id="altLastName" value={formData.altLastName} onChange={handleChange} className="bg-white/5 border-white/10 text-white focus-visible:ring-primary/50" />
+                            <Label htmlFor="altLastName" className="text-foreground/80">Last name (alternate contact)</Label>
+                            <Input id="altLastName" value={formData.altLastName} onChange={handleChange} className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altEmail" className="text-white/80">Email (alternate contact)</Label>
-                            <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} className="bg-white/5 border-white/10 text-white focus-visible:ring-primary/50" />
+                            <Label htmlFor="altEmail" className="text-foreground/80">Email (alternate contact)</Label>
+                            <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="pt-4">
@@ -215,7 +215,7 @@ export default function PartnerRegister() {
                 <div className="max-w-3xl mx-auto space-y-12 relative z-10">
 
                     {/* Top informative banner boxes */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white/5 border border-white/10 rounded-2xl p-6 lg:p-8 backdrop-blur-sm">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-foreground/5 border border-foreground/10 rounded-2xl p-6 lg:p-8 backdrop-blur-sm">
                         <div className="space-y-3">
                             <div className="flex items-center gap-2 text-primary">
                                 <Building2 className="w-5 h-5" />
@@ -244,7 +244,7 @@ export default function PartnerRegister() {
 
                             <div className="space-y-10 relative">
                                 {/* Visual connecting line */}
-                                <div className="absolute left-[11px] top-2 bottom-4 w-[2px] bg-white/10" />
+                                <div className="absolute left-[11px] top-2 bottom-4 w-[2px] bg-foreground/10" />
 
                                 <div className="relative pl-10">
                                     <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-primary/20 border-2 border-primary flex items-center justify-center">
@@ -257,7 +257,7 @@ export default function PartnerRegister() {
                                 </div>
 
                                 <div className="relative pl-10">
-                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white/5 border-2 border-white/20 flex items-center justify-center" />
+                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-foreground/5 border-2 border-foreground/20 flex items-center justify-center" />
                                     <h3 className="text-xl font-semibold mb-2">Begin registration</h3>
                                     <p className="text-muted-foreground leading-relaxed">
                                         Once your profile is set up, begin the partner registration process.
@@ -265,7 +265,7 @@ export default function PartnerRegister() {
                                 </div>
 
                                 <div className="relative pl-10">
-                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white/5 border-2 border-white/20 flex items-center justify-center" />
+                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-foreground/5 border-2 border-foreground/20 flex items-center justify-center" />
                                     <h3 className="text-xl font-semibold mb-2">Select a group</h3>
                                     <p className="text-muted-foreground leading-relaxed mb-3">
                                         Choose one of the following groups:
@@ -282,7 +282,7 @@ export default function PartnerRegister() {
                                 </div>
 
                                 <div className="relative pl-10">
-                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white/5 border-2 border-white/20 flex items-center justify-center" />
+                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-foreground/5 border-2 border-foreground/20 flex items-center justify-center" />
                                     <h3 className="text-xl font-semibold mb-2">Choose a plan</h3>
                                     <p className="text-muted-foreground leading-relaxed">
                                         Pick a monthly or annual plan and enter your payment information to complete the registration.
@@ -290,7 +290,7 @@ export default function PartnerRegister() {
                                 </div>
 
                                 <div className="relative pl-10">
-                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-white/5 border-2 border-white/20 flex items-center justify-center" />
+                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-foreground/5 border-2 border-foreground/20 flex items-center justify-center" />
                                     <h3 className="text-xl font-semibold mb-2">Review and go live</h3>
                                     <p className="text-muted-foreground leading-relaxed">
                                         Business offerings and consulting services listings will be reviewed by our team before publishing. Events & conferences and jobs listings go live immediately after submission and successful payment.
@@ -299,7 +299,7 @@ export default function PartnerRegister() {
                             </div>
                         </div>
 
-                        <div className="pt-8 border-t border-white/10">
+                        <div className="pt-8 border-t border-foreground/10">
                             <p className="text-sm text-muted-foreground">
                                 <span className="font-semibold text-foreground">Need help?</span> visit our FAQs or <a href="#" className="text-primary hover:underline">contact us anytime</a> — we're here to support you.
                             </p>

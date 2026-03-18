@@ -35,12 +35,12 @@ export default function AdminLogin() {
     return (
         <div className="flex-1 flex items-center justify-center p-8 bg-background relative overflow-hidden">
             <div className="absolute inset-0 bg-primary/5 mix-blend-overlay z-0 pointer-events-none" />
-            <Card className="w-full max-w-md bg-white/5 border-primary/20 backdrop-blur-xl relative z-10 shadow-2xl">
+            <Card className="w-full max-w-md bg-foreground/5 border-primary/20 backdrop-blur-xl relative z-10 shadow-2xl">
                 <CardHeader className="space-y-3 pb-8 text-center">
                     <div className="mx-auto bg-primary/20 w-16 h-16 rounded-full flex items-center justify-center mb-2 shadow-lg shadow-primary/20 border border-primary/30">
                         <ShieldAlert className="w-8 h-8 text-primary" />
                     </div>
-                    <CardTitle className="text-3xl font-bold tracking-tight text-white">Pharmasocii Root</CardTitle>
+                    <CardTitle className="text-3xl font-bold tracking-tight text-foreground">Pharmasocii Root</CardTitle>
                     <CardDescription className="text-base text-primary/70">Admin System Access Gateway</CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -51,24 +51,24 @@ export default function AdminLogin() {
                             </div>
                         )}
                         <div className="space-y-2">
-                            <Label htmlFor="email" className="text-white/80">Admin Identifer</Label>
+                            <Label htmlFor="email" className="text-foreground/80">Admin Identifer</Label>
                             <Input
                                 id="email"
                                 type="email"
                                 required
-                                className="h-12 border-white/10 bg-black/60 focus:bg-white/5 transition-colors text-white focus-visible:ring-primary/50"
+                                className="h-12 border-foreground/10 bg-black/60 focus:bg-foreground/5 transition-colors text-foreground focus-visible:ring-primary/50"
                                 placeholder="root@pharmasocii.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="password" className="text-white/80">Access Key</Label>
+                            <Label htmlFor="password" className="text-foreground/80">Access Key</Label>
                             <Input
                                 id="password"
                                 type="password"
                                 required
-                                className="h-12 border-white/10 bg-black/60 focus:bg-white/5 transition-colors text-white focus-visible:ring-primary/50"
+                                className="h-12 border-foreground/10 bg-black/60 focus:bg-foreground/5 transition-colors text-foreground focus-visible:ring-primary/50"
                                 placeholder="••••••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
