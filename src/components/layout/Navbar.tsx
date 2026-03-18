@@ -67,7 +67,7 @@ export default function Navbar() {
                         </Link>
                         <DropdownMenu>
                             <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors text-muted-foreground outline-none">
-                                Marketplace <ChevronDown className="h-4 w-4" />
+                                All Categories <ChevronDown className="h-4 w-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="w-48 bg-background border-foreground/10 shadow-2xl">
                                 <DropdownMenuItem asChild className="cursor-pointer">
@@ -91,14 +91,6 @@ export default function Navbar() {
                 </div>
 
                 <div className="flex items-center gap-4">
-                    <div className="hidden md:flex relative group">
-                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-                        <Input
-                            type="search"
-                            placeholder="Search..."
-                            className="w-[200px] lg:w-[300px] bg-foreground/5 border-foreground/10 pl-9 focus-visible:ring-primary placeholder:text-muted-foreground transition-all duration-300 focus:bg-foreground/10"
-                        />
-                    </div>
 
                     <div className="hidden sm:flex items-center gap-2">
                         {user ? (

@@ -20,7 +20,7 @@ export default function Home() {
         const fetchFeaturedData = async () => {
             try {
                 // Fetch featured partners
-                const ptQuery = query(collection(db, "partnersCollection"), where("isFeatured", "==", true), where("partnerStatus", "==", "Approved"), limit(3));
+                const ptQuery = query(collection(db, "partnersCollection"), where("isFeatured", "==", true), where("partnerStatus", "==", "Approved"), limit(12));
                 const ptDocs = await getDocs(ptQuery);
                 setFeaturedBusinesses(ptDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })));
 
@@ -35,7 +35,7 @@ export default function Home() {
                 setFeaturedEvents(evtDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })));
 
                 // Fetch featured consulting
-                const consultingQuery = query(collection(db, "consultingCollection"), where("isFeatured", "==", true), where("active", "==", true), limit(4));
+                const consultingQuery = query(collection(db, "consultingCollection"), where("isFeatured", "==", true), where("active", "==", true), limit(12));
                 const consultingDocs = await getDocs(consultingQuery);
                 setFeaturedConsulting(consultingDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })));
             } catch (err) {
@@ -73,24 +73,20 @@ export default function Home() {
                 </div>
 
                 <div className="container relative z-10 px-4 py-32 mx-auto flex flex-col items-center text-center">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground/5 border border-foreground/10 backdrop-blur-md mb-8">
-                        <ShieldCheck className="w-4 h-4 text-primary" />
-                        <span className="text-sm font-medium tracking-wide">The Premier Network for Biotech</span>
-                    </div>
 
                     <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-8 max-w-5xl leading-tight text-foreground drop-shadow-sm">
-                        Innovate Faster with <br />
-                        <span className="text-primary">Pharmasocii</span>
+                        Building a Connected Ecosystem for<br />
+                        <span className="text-primary">Life Sciences</span>
                     </h1>
 
                     <p className="text-lg md:text-2xl text-muted-foreground max-w-3xl mb-12 font-light leading-relaxed">
-                        Join the ultimate marketplace and community connecting pioneering biotech businesses, industry experts, groundbreaking events, and top-tier talent.
+                        Bridging disciplines, sectors, and borders across the industry.
                     </p>
 
                     <div className="flex flex-col sm:flex-row items-center gap-6">
                         <Button size="lg" className="h-14 px-8 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/50 transition-all rounded-full" asChild>
                             <Link to="/signup">
-                                Join the Marketplace <ArrowRight className="ml-2 w-5 h-5" />
+                                Become a Partner <ArrowRight className="ml-2 w-5 h-5" />
                             </Link>
                         </Button>
                         <Button size="lg" variant="outline" className="h-14 px-8 text-base font-semibold border-foreground/20 bg-foreground/5 hover:bg-foreground/10 backdrop-blur-md rounded-full" asChild>
@@ -102,111 +98,218 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* FEATURED SECTIONS */}
-            <section className="py-24 bg-background relative z-10">
-                <div className="container mx-auto px-4">
-                    <SectionHeader
-                        title="Featured Businesses"
-                        subtitle="Discover top companies driving biotech innovation."
-                        icon={<Building2 className="w-6 h-6 text-primary" />}
-                        action={<Button variant="ghost" className="text-primary hover:text-primary hover:bg-primary/10">Add your business <ArrowRight className="ml-2 w-4 h-4" /></Button>}
-                    />
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mt-12">
-                        {featuredBusinesses.length > 0 ? featuredBusinesses.map((b, i) => (
-                            <TileCard key={b.id} title={b.businessName} subtitle={b.selectedGroup?.replace(/_/g, ' ') || "Partner"} img={`https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=800&sig=${i}`} />
-                        )) : (
-                            <div className="col-span-full h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured businesses available.</div>
-                        )}
+            {/* PARTNER CAROUSEL */}
+            {featuredBusinesses.length > 0 && (
+                <section className="py-12 bg-muted/20 border-y border-foreground/10 overflow-hidden">
+                    <div className="container mx-auto px-4 mb-8">
+                        <h3 className="text-center text-sm font-semibold uppercase tracking-widest text-muted-foreground">Trusted by Leading Organizations</h3>
                     </div>
+                    <div className="relative flex w-full overflow-hidden">
+                        {/* Gradient masks for smooth fading edges */}
+                        <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                        <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-                    <div className="mt-32">
-                        <SectionHeader
-                            title="Featured Consulting Services"
-                            subtitle="Connect with leading minds in research and development."
-                            icon={<Users className="w-6 h-6 text-secondary" />}
-                        />
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
-                            {featuredConsulting.length > 0 ? featuredConsulting.map((c) => (
-                                <Card key={c.id} className="group overflow-hidden border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer flex flex-col">
-                                    <CardContent className="p-6 flex flex-col h-full">
-                                        <div className="mb-4">
-                                            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-secondary mb-2 uppercase tracking-wider">
-                                                Consulting Service
-                                            </div>
-                                            <h4 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-1">{c.businessName}</h4>
-                                            <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5 truncate">
-                                                <MapPin className="w-3.5 h-3.5 shrink-0" /> {c.businessAddress}
-                                            </p>
-                                        </div>
-                                        <p className="text-sm text-muted-foreground line-clamp-3 mb-6 flex-1">
-                                            {c.companyProfileText}
-                                        </p>
-                                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-foreground/10">
-                                            <span className="text-sm font-medium">View Service</span>
-                                            <Button size="icon" variant="ghost" className="rounded-full w-8 h-8 bg-foreground/5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <ArrowRight className="w-4 h-4 text-primary" />
-                                            </Button>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            )) : (
-                                <div className="col-span-full h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured consulting services available.</div>
-                            )}
+                        <div className="flex w-fit animate-marquee hover:[animation-play-state:paused] gap-6 px-3">
+                            {Array(20).fill(featuredBusinesses).flat().map((p, i) => (
+                                <div key={`carousel-${i}`} className="flex items-center justify-center min-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+                                    <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{p.businessName}</span>
+                                </div>
+                            ))}
                         </div>
                     </div>
+                </section>
+            )}
 
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 mt-32">
-                        <div>
-                            <SectionHeader
-                                title="Featured Jobs"
-                                subtitle="Your next career move in biotech."
-                                icon={<Briefcase className="w-6 h-6 text-primary" />}
-                            />
+            {/* CATEGORIES GRID */}
+            <section className="py-24 bg-background relative z-10 border-b border-border">
+                <div className="container mx-auto px-4">
+                    <div className="text-center max-w-4xl mx-auto mb-16">
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">Discover, Connect & Collaborate</h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                        {[
+                            { title: 'Business Offerings', icon: Building2, link: '/marketplace/business' },
+                            { title: 'Consulting Services', icon: Users, link: '/marketplace/consulting' },
+                            { title: 'Events/Conferences', icon: Calendar, link: '/marketplace/events' },
+                            { title: 'Global Health Authority Sites', icon: ShieldCheck, link: '/marketplace/compliance' },
+                            { title: 'Jobs', icon: Briefcase, link: '/marketplace/jobs' },
+                            { title: 'Community', icon: MessageSquare, link: '/community' },
+                        ].map((cat, i) => (
+                            <Link to={cat.link} key={i} className="h-full">
+                                <Card className="group hover:border-primary/50 border-foreground/10 transition-all cursor-pointer hover:shadow-md bg-background overflow-hidden h-full">
+                                    <CardContent className="p-6 flex items-center justify-between gap-4 h-full">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 bg-primary/10 rounded-xl group-hover:bg-primary/20 transition-colors shrink-0">
+                                                <cat.icon className="w-6 h-6 text-primary" />
+                                            </div>
+                                            <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">{cat.title}</h3>
+                                        </div>
+                                        <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0" />
+                                    </CardContent>
+                                </Card>
+                            </Link>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* BUSINESS OFFERINGS CAROUSEL */}
+            <section className="py-24 bg-background relative z-10 overflow-hidden">
+                <div className="container mx-auto px-4 mb-12">
+                    <div className="text-center max-w-4xl mx-auto">
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Business Offerings</h2>
+                        <p className="text-xl md:text-2xl text-primary font-medium mb-4">Find the right industry partners for your next stage of growth.</p>
+                        <p className="text-muted-foreground text-lg">Explore curated life sciences providers, businesses, and expertise across specialized categories.</p>
+                    </div>
+                </div>
+
+                <div className="relative flex w-full">
+                    {/* Gradient masks for infinite scroll effect */}
+                    <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
+                    <div className="flex w-fit animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
+                        {featuredBusinesses.length > 0 ? Array(16).fill(featuredBusinesses).flat().map((b, i) => (
+                            <Link to={`/marketplace/business/${b.id}`} key={`offering-${i}`} className="flex flex-col min-w-[320px] max-w-[320px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
+                                <div className="text-xs font-bold text-primary uppercase tracking-wider mb-4 border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
+                                    {b.selectedGroup?.replace(/_/g, ' ') || "Partner"}
+                                </div>
+                                <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 mb-4 leading-tight">{b.businessName}</h3>
+                                <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
+                                    <span>View Partner Profile</span>
+                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                            </Link>
+                        )) : (
+                            <div className="w-full flex min-w-[50vw] justify-center text-muted-foreground py-12">No featured businesses available.</div>
+                        )}
+                    </div>
+                </div>
+
+                {/* FEATURED CONSULTING CAROUSEL */}
+                <div className="container mx-auto px-4 mt-32 mb-12">
+                    <div className="text-center max-w-4xl mx-auto">
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Featured Consulting Services</h2>
+                        <p className="text-xl md:text-2xl text-primary font-medium mb-4">Access a broad network of experts with deep knowledge of regional and global landscapes.</p>
+                        <p className="text-muted-foreground text-lg">From established consulting firms to independent specialists, find the right partner to advance your project.</p>
+                    </div>
+                </div>
+
+                <div className="relative flex w-full mb-12">
+                    {/* Gradient masks for infinite scroll effect */}
+                    <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
+                    <div className="flex w-fit animate-[marquee_50s_linear_infinite_reverse] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
+                        {featuredConsulting.length > 0 ? Array(16).fill(featuredConsulting).flat().map((c, i) => (
+                            <Link to={`/marketplace/consulting/${c.id}`} key={`consulting-${i}`} className="flex flex-col min-w-[360px] max-w-[360px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
+                                <div className="text-xs font-bold text-primary uppercase tracking-wider mb-4 border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
+                                    Consulting Service
+                                </div>
+                                <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{c.businessName}</h3>
+                                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5 truncate mb-4">
+                                    <MapPin className="w-4 h-4 shrink-0 text-primary/70" /> {c.businessAddress || 'Global'}
+                                </p>
+                                <p className="text-sm text-muted-foreground line-clamp-3 mb-6 flex-1">
+                                    {c.companyProfileText}
+                                </p>
+                                <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
+                                    <span>View Service</span>
+                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                            </Link>
+                        )) : (
+                            <div className="w-full flex min-w-[50vw] justify-center text-muted-foreground py-12">No featured consulting services available.</div>
+                        )}
+                    </div>
+                </div>
+                <div className="container mx-auto px-4 mt-24">
+                    <div className="bg-primary/5 border border-primary/20 rounded-3xl p-10 md:p-16 text-center max-w-5xl mx-auto flex flex-col items-center">
+                        <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
+                            <ShieldCheck className="w-8 h-8 text-primary" />
+                        </div>
+                        <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 text-foreground">Global Health Authority Sites</h2>
+                        <p className="text-lg text-muted-foreground mb-8 max-w-3xl leading-relaxed">
+                            Navigate directly to the appropriate health authority sites across global markets. Our curated directory helps life sciences professionals reach official regulatory sources faster and more reliably.
+                        </p>
+                        <Button size="lg" className="h-14 px-8 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/50 transition-all rounded-full" asChild>
+                            <Link to="/marketplace/compliance">
+                                Access Directory <ArrowRight className="ml-2 w-5 h-5" />
+                            </Link>
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="container mx-auto px-6 md:px-12 max-w-7xl mt-32">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-32">
+                        <div className="flex flex-col">
+                            <div className="mb-8">
+                                <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-6">Featured Jobs</h2>
+                                <p className="text-lg text-primary font-medium mb-3">
+                                    Whether you're an experienced researcher, industry leader, or recent graduate, your next career move starts here.
+                                </p>
+                                <p className="text-muted-foreground text-lg">
+                                    Explore opportunities aligned with your goals and take the next step in your life sciences journey.
+                                </p>
+                            </div>
                             <div className="space-y-4 mt-8">
                                 {featuredJobs.length > 0 ? featuredJobs.map((job) => (
-                                    <Card key={job.id} className="group overflow-hidden border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer">
-                                        <CardContent className="p-6 flex items-center justify-between">
-                                            <div>
-                                                <h4 className="text-xl font-bold group-hover:text-primary transition-colors">{job.jobTitle}</h4>
-                                                <p className="text-sm text-muted-foreground mt-1">{job.businessName} &bull; {job.city || job.workModel}</p>
+                                    <Link to={`/marketplace/jobs/${job.id}`} key={job.id} className="flex flex-col p-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="text-xs font-bold text-primary uppercase tracking-wider border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
+                                                {job.workModel || "Job Opening"}
                                             </div>
-                                            <Button size="icon" variant="ghost" className="rounded-full bg-foreground/5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <ArrowRight className="w-4 h-4 text-primary" />
-                                            </Button>
-                                        </CardContent>
-                                    </Card>
+                                            <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
+                                                <MapPin className="w-3.5 h-3.5" /> {job.city || "Remote"}
+                                            </div>
+                                        </div>
+                                        <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle}</h3>
+                                        <div className="text-sm text-muted-foreground mb-4 font-medium">{job.businessName}</div>
+                                        <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
+                                            <span>View Job Posting</span>
+                                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                        </div>
+                                    </Link>
                                 )) : (
                                     <div className="h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured jobs available.</div>
                                 )}
                             </div>
                         </div>
 
-                        <div>
-                            <SectionHeader
-                                title="Featured Events"
-                                subtitle="Gatherings, symposiums, and networking."
-                                icon={<Calendar className="w-6 h-6 text-secondary" />}
-                            />
+                        <div className="flex flex-col">
+                            <div className="mb-8">
+                                <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-6">Featured Events</h2>
+                                <p className="text-lg text-primary font-medium mb-3">
+                                    Discover conferences and events shaping the biotech, pharmaceutical, and medical device sectors.
+                                </p>
+                                <p className="text-muted-foreground text-lg">
+                                    Whether you're an industry leader, emerging entrepreneur, or passionate researcher, stay connected to the conversations and ideas moving life sciences forward.
+                                </p>
+                            </div>
                             <div className="space-y-4 mt-8">
                                 {featuredEvents.length > 0 ? featuredEvents.map((evt) => {
                                     const dateObj = new Date(evt.startDate);
                                     const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
                                     const day = dateObj.getUTCDate();
                                     return (
-                                        <Card key={evt.id} className="group overflow-hidden border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer">
-                                            <CardContent className="p-0 flex items-stretch h-24">
-                                                <div className="w-24 bg-primary/20 flex flex-col items-center justify-center p-4 border-r border-foreground/10">
-                                                    <span className="text-sm font-semibold text-primary">{month}</span>
-                                                    <span className="text-2xl font-bold">{day}</span>
-                                                </div>
-                                                <div className="p-4 flex-1 flex items-center justify-between">
-                                                    <div>
-                                                        <h4 className="font-bold text-lg group-hover:text-primary transition-colors truncate max-w-xs">{evt.eventName}</h4>
-                                                        <p className="text-sm text-muted-foreground">{evt.city || evt.location}</p>
+                                        <Link to={`/marketplace/events/${evt.id}`} key={evt.id} className="flex flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+                                            <div className="w-24 shrink-0 bg-primary/5 group-hover:bg-primary/10 flex flex-col items-center justify-center p-4 border-r border-foreground/10 transition-colors">
+                                                <span className="text-sm font-bold text-primary tracking-widest">{month}</span>
+                                                <span className="text-3xl font-extrabold text-foreground">{day}</span>
+                                            </div>
+                                            <div className="flex flex-col p-6 w-full">
+                                                <div className="flex items-center justify-between mb-2">
+                                                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
+                                                        <MapPin className="w-3.5 h-3.5" /> {evt.city || evt.location || "Online"}
                                                     </div>
                                                 </div>
-                                            </CardContent>
-                                        </Card>
+                                                <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-4 leading-tight">{evt.eventName}</h3>
+                                                <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
+                                                    <span>View Event Details</span>
+                                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                </div>
+                                            </div>
+                                        </Link>
                                     );
                                 }) : (
                                     <div className="h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured events available.</div>
@@ -219,12 +322,11 @@ export default function Home() {
 
             {/* COMMUNITY HIGHLIGHTS */}
             <section className="py-24 bg-muted/40 border-y border-foreground/10 relative">
-                <div className="container mx-auto px-4">
+                <div className="container mx-auto px-6 md:px-12 max-w-7xl">
                     <SectionHeader
                         title="Community Highlights"
                         subtitle="Trending discussions directly from the network."
-                        icon={<MessageSquare className="w-6 h-6 text-primary" />}
-                        action={<Button variant="outline" className="border-foreground/20 bg-foreground/5">View Community <ArrowRight className="ml-2 w-4 h-4" /></Button>}
+                        action={<Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md font-semibold px-8 h-12 rounded-full border-none">Become a member <ArrowRight className="ml-2 w-4 h-4" /></Button>}
                     />
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
@@ -253,14 +355,14 @@ export default function Home() {
                         ))}
                     </div>
                 </div>
-            </section>
+            </section >
 
             {/* FAQ */}
-            <section className="py-32 bg-background">
+            < section className="py-32 bg-background" >
                 <div className="container mx-auto px-4 max-w-4xl">
                     <div className="text-center mb-16">
                         <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">Frequently Asked Questions</h2>
-                        <p className="text-muted-foreground">How the marketplace works.</p>
+                        <p className="text-muted-foreground">How PharmaSocii works.</p>
                     </div>
 
                     <Accordion type="single" collapsible className="w-full">
@@ -312,22 +414,4 @@ function SectionHeader({ title, subtitle, icon, action }: { title: string, subti
     )
 }
 
-function TileCard({ title, subtitle, img }: { title: string, subtitle: string, img: string }) {
-    return (
-        <div className="group relative h-[400px] rounded-2xl overflow-hidden cursor-pointer border border-foreground/10">
-            <div className="absolute inset-0 bg-muted/40 z-10 transition-opacity duration-500 group-hover:bg-black/20" />
-            <div className="absolute inset-0 bg-muted/50 z-10" />
-            <img src={img} alt={title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
 
-            <div className="absolute bottom-0 left-0 right-0 p-8 z-20 translate-y-4 group-hover:translate-y-0 transition-transform duration-500">
-                <h3 className="text-2xl font-bold text-foreground mb-2">{title}</h3>
-                <p className="text-foreground/80 font-medium mb-6 opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-100">{subtitle}</p>
-
-                <div className="flex items-center gap-2 text-primary font-semibold opacity-0 group-hover:opacity-100 transition-opacity duration-500 delay-200">
-                    <span>View Profile</span>
-                    <ArrowRight className="w-4 h-4" />
-                </div>
-            </div>
-        </div>
-    )
-}

@@ -85,6 +85,10 @@ module.exports = {
 				'wave': {
 					'0%': { transform: 'translateX(0)' },
 					'100%': { transform: 'translateX(-50%)' },
+				},
+				'marquee': {
+					'0%': { transform: 'translateX(0)' },
+					'100%': { transform: 'translateX(-50%)' },
 				}
 			},
 			animation: {
@@ -92,6 +96,7 @@ module.exports = {
 				'accordion-up': 'accordion-up 0.2s ease-out',
 				'blob': 'blob 10s infinite alternate',
 				'wave': 'wave 15s linear infinite',
+				'marquee': 'marquee 30s linear infinite',
 			}
 		}
 	},

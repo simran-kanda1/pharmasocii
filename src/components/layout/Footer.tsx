@@ -14,7 +14,7 @@ export function Footer() {
                             <span className="font-bold text-lg tracking-tight">Pharmasocii</span>
                         </Link>
                         <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
-                            Empowering the biotech ecosystem. Connecting businesses, experts, and talent across the globe in a dedicated marketplace and community.
+                            Discover, Connect & Collaborate Building connections across the life sciences ecosystem.
                         </p>
                         <div className="flex gap-4 mt-6">
                             <a href="#" className="h-8 w-8 rounded-full bg-foreground/5 flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-foreground transition-all">
@@ -33,7 +33,7 @@ export function Footer() {
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm uppercase tracking-wider">Marketplace</h4>
+                        <h4 className="font-semibold text-sm uppercase tracking-wider">All Categories</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
                             <li><Link to="/marketplace/business" className="hover:text-primary transition-colors">Businesses</Link></li>
                             <li><Link to="/marketplace/experts" className="hover:text-primary transition-colors">Experts</Link></li>
@@ -67,7 +67,7 @@ export function Footer() {
                         &copy; {new Date().getFullYear()} Pharmasocii. All rights reserved.
                     </p>
                     <div className="flex items-center gap-6 text-xs text-muted-foreground">
-                        <span>Built for the Biotech Industry</span>
+                        <span>Discover, Connect & Collaborate</span>
                     </div>
                 </div>
             </div>
