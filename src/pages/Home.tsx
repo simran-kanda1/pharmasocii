@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { ArrowRight, PlayCircle, ShieldCheck, Building2, Users, Calendar, Briefcase, MessageSquare, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { db } from "@/firebase";
 import { collection, query, where, limit, getDocs } from "firebase/firestore";
@@ -357,42 +357,6 @@ export default function Home() {
                 </div>
             </section >
 
-            {/* FAQ */}
-            < section className="py-32 bg-background" >
-                <div className="container mx-auto px-4 max-w-4xl">
-                    <div className="text-center mb-16">
-                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-4">Frequently Asked Questions</h2>
-                        <p className="text-muted-foreground">How PharmaSocii works.</p>
-                    </div>
-
-                    <Accordion type="single" collapsible className="w-full">
-                        <AccordionItem value="item-1" className="border-foreground/10">
-                            <AccordionTrigger className="text-left text-lg hover:text-primary py-6">How do I list my business?</AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-6">
-                                Listing your business is straightforward. Simply create an account, navigate to the Partner Dashboard, and fill out your organization's details including services, biosafety levels, and certifications. Once approved by our team, your business will instantly appear in the marketplace.
-                            </AccordionContent>
-                        </AccordionItem>
-                        <AccordionItem value="item-2" className="border-foreground/10">
-                            <AccordionTrigger className="text-left text-lg hover:text-primary py-6">How do I post a job?</AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-6">
-                                Active partners can post jobs directly from their dashboard. Jobs will be featured in the marketplace and recommended to relevant talent in our community network based on tags and industry matching.
-                            </AccordionContent>
-                        </AccordionItem>
-                        <AccordionItem value="item-3" className="border-foreground/10">
-                            <AccordionTrigger className="text-left text-lg hover:text-primary py-6">How do I become a partner?</AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-6">
-                                Partnership is open to verified biotech entities and consultants. Visit our Partner page, select a subscription plan, and verify your credentials. Partners receive enhanced visibility, job posting capabilities, and analytics.
-                            </AccordionContent>
-                        </AccordionItem>
-                        <AccordionItem value="item-4" className="border-foreground/10">
-                            <AccordionTrigger className="text-left text-lg hover:text-primary py-6">What industries are supported?</AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base leading-relaxed pb-6">
-                                We support a wide range of life sciences sectors including Pharmaceuticals, Genomics, Medical Devices, Agricultural Biotech, Bioinformatics, and Clinical Research among others.
-                            </AccordionContent>
-                        </AccordionItem>
-                    </Accordion>
-                </div>
-            </section>
         </div>
     );
 }

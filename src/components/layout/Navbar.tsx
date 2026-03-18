@@ -87,6 +87,9 @@ export default function Navbar() {
                         <Link to="/community" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
                             Community
                         </Link>
+                        <Link to="/faq" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
+                            FAQ
+                        </Link>
                     </div>
                 </div>
 

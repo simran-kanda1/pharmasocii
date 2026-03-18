@@ -14,6 +14,7 @@ import CreateJob from "./pages/partner/CreateJob";
 import CreateEvent from "./pages/partner/CreateEvent";
 import CreateConsulting from "./pages/partner/CreateConsulting";
 import AboutUs from "./pages/AboutUs";
+import FAQ from "./pages/FAQ";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -33,6 +34,7 @@ function App() {
       {/* Pages With Layout */}
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/about-us" element={<AppLayout><AboutUs /></AppLayout>} />
+      <Route path="/faq" element={<AppLayout><FAQ /></AppLayout>} />
       <Route path="/marketplace/:category?" element={<AppLayout><Marketplace /></AppLayout>} />
 
       {/* Auth flows */}
