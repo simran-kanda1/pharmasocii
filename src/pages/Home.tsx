@@ -8,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { db } from "@/firebase";
 import { collection, query, where, limit, getDocs } from "firebase/firestore";
 
-const HERO_IMG = "https://images.unsplash.com/photo-1576086213369-97a306d36557?auto=format&fit=crop&q=80";
+
 
 export default function Home() {
     const [featuredBusinesses, setFeaturedBusinesses] = useState<any[]>([]);
@@ -49,19 +49,36 @@ export default function Home() {
             {/* HERO SECTION */}
             <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
                 {/* Background Image & Overlay */}
-                <div className="absolute inset-0 z-0">
-                    <img src={HERO_IMG} alt="Biotech Lab" className="w-full h-full object-cover object-center opacity-40 mix-blend-overlay" />
-                    <div className="absolute inset-0 bg-background/80" />
-                    <div className="absolute inset-0 bg-primary/10 mix-blend-multiply" />
+                <div className="absolute inset-x-0 bottom-0 z-0 h-[80%] overflow-hidden pointer-events-none">
+                    {/* Layer 1 - Light and tallest */}
+                    <svg className="absolute bottom-0 w-[200vw] h-[100%] animate-[wave_30s_linear_infinite]" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                        <path d="M0,60 C300,120 300,0 600,60 C900,120 900,0 1200,60 L1200,120 L0,120 Z" className="fill-sky-100/40" />
+                    </svg>
+                    {/* Layer 2 - High and reversed */}
+                    <svg className="absolute bottom-0 w-[200vw] h-[85%] animate-[wave_25s_linear_infinite_reverse]" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                        <path d="M0,60 C200,120 400,0 600,60 C800,120 1000,0 1200,60 L1200,120 L0,120 Z" className="fill-blue-200/40" />
+                    </svg>
+                    {/* Layer 3 - Medium */}
+                    <svg className="absolute bottom-0 w-[200vw] h-[70%] animate-[wave_20s_linear_infinite]" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                        <path d="M0,60 C400,120 200,0 600,60 C1000,120 800,0 1200,60 L1200,120 L0,120 Z" className="fill-sky-300/30" />
+                    </svg>
+                    {/* Layer 4 - Mid-short and reversed */}
+                    <svg className="absolute bottom-0 w-[200vw] h-[55%] animate-[wave_15s_linear_infinite_reverse]" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                        <path d="M0,40 C300,100 300,0 600,40 C900,100 900,0 1200,40 L1200,120 L0,120 Z" className="fill-blue-400/20" />
+                    </svg>
+                    {/* Layer 5 - Shortest and deepest */}
+                    <svg className="absolute bottom-0 w-[200vw] h-[40%] animate-[wave_12s_linear_infinite]" viewBox="0 0 1200 120" preserveAspectRatio="none">
+                        <path d="M0,80 C300,140 300,20 600,80 C900,140 900,20 1200,80 L1200,120 L0,120 Z" className="fill-primary/20" />
+                    </svg>
                 </div>
 
                 <div className="container relative z-10 px-4 py-32 mx-auto flex flex-col items-center text-center">
                     <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-foreground/5 border border-foreground/10 backdrop-blur-md mb-8">
-                        <ShieldCheck className="w-4 h-4 text-secondary" />
+                        <ShieldCheck className="w-4 h-4 text-primary" />
                         <span className="text-sm font-medium tracking-wide">The Premier Network for Biotech</span>
                     </div>
 
-                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-8 max-w-5xl leading-tight">
+                    <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-8 max-w-5xl leading-tight text-foreground drop-shadow-sm">
                         Innovate Faster with <br />
                         <span className="text-primary">Pharmasocii</span>
                     </h1>
@@ -78,7 +95,7 @@ export default function Home() {
                         </Button>
                         <Button size="lg" variant="outline" className="h-14 px-8 text-base font-semibold border-foreground/20 bg-foreground/5 hover:bg-foreground/10 backdrop-blur-md rounded-full" asChild>
                             <Link to="/community">
-                                <PlayCircle className="mr-2 w-5 h-5 text-secondary" /> Explore Community
+                                <PlayCircle className="mr-2 w-5 h-5 text-primary" /> Explore Community
                             </Link>
                         </Button>
                     </div>
