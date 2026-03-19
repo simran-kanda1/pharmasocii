@@ -17,13 +17,13 @@ export default function FAQ() {
                         <AccordionItem value="item-1" className="border-foreground/10">
                             <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">How do I list my business?</AccordionTrigger>
                             <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8">
-                                Listing your business is straightforward. Simply create an account, navigate to the Partner Dashboard, and fill out your organization's details including services, biosafety levels, and certifications. Once approved by our team, your business will instantly appear in the marketplace.
+                                Listing your business is straightforward. Simply create an account, navigate to the Partner Dashboard, and fill out your organization's details including services, biosafety levels, and certifications. Once approved by our team, your business will instantly appear in All Categories.
                             </AccordionContent>
                         </AccordionItem>
                         <AccordionItem value="item-2" className="border-foreground/10">
                             <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">How do I post a job?</AccordionTrigger>
                             <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8">
-                                Active partners can post jobs directly from their dashboard. Jobs will be featured in the marketplace and recommended to relevant talent in our community network based on tags and industry matching.
+                                Active partners can post jobs directly from their dashboard. Jobs will be featured in All Categories and recommended to relevant talent in our community network based on tags and industry matching.
                             </AccordionContent>
                         </AccordionItem>
                         <AccordionItem value="item-3" className="border-foreground/10">

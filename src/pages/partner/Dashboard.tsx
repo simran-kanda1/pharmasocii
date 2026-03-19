@@ -45,7 +45,7 @@ export default function Dashboard() {
                     }
                 } else {
                     // Not a partner, maybe regular user
-                    navigate("/marketplace");
+                    navigate("/all-categories");
                 }
                 setLoading(false);
             } else {
@@ -131,7 +131,7 @@ export default function Dashboard() {
                         <div className="relative z-10">
                             <h3 className="text-xl font-bold text-yellow-500">Profile Pending Review</h3>
                             <p className="text-foreground/80 mt-2 leading-relaxed max-w-2xl">
-                                Your profile is currently pending review for verification. Once our team approves your submission, your listings will go live on the marketplace. You can still review your getting started information below.
+                                Your profile is currently pending review for verification. Once our team approves your submission, your listings will go live in All Categories. You can still review your getting started information below.
                             </p>
                         </div>
                     </div>
@@ -144,7 +144,7 @@ export default function Dashboard() {
                         <div className="relative z-10">
                             <h3 className="text-xl font-bold text-primary">Profile Verified & Active</h3>
                             <p className="text-foreground/80 mt-2 leading-relaxed max-w-2xl">
-                                Your company profile is fully approved and live on the marketplace.
+                                Your company profile is fully approved and live in All Categories.
                             </p>
                         </div>
                     </div>

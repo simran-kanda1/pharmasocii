@@ -62,7 +62,7 @@ export default function Login() {
                         The platform for <span className="text-primary">pioneers.</span>
                     </h2>
                     <p className="text-lg text-muted-foreground">
-                        Sign in to access the marketplace, connect with experts, and engage with the global biotech community.
+                        Sign in to access All Categories, connect with experts, and engage with the global biotech community.
                     </p>
                 </div>
             </div>

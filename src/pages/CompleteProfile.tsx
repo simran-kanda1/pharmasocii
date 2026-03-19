@@ -180,7 +180,7 @@ export default function CompleteProfile() {
             setSuccess("Profile information successfully updated!");
             setTimeout(() => {
                 // Mock navigate to strike payment link or success page
-                navigate("/marketplace");
+                navigate("/all-categories");
             }, 2000);
 
         } catch (err: any) {

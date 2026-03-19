@@ -128,11 +128,11 @@ export default function Home() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                         {[
-                            { title: 'Business Offerings', icon: Building2, link: '/marketplace/business' },
-                            { title: 'Consulting Services', icon: Users, link: '/marketplace/consulting' },
-                            { title: 'Events/Conferences', icon: Calendar, link: '/marketplace/events' },
-                            { title: 'Global Health Authority Sites', icon: ShieldCheck, link: '/marketplace/compliance' },
-                            { title: 'Jobs', icon: Briefcase, link: '/marketplace/jobs' },
+                            { title: 'Business Offerings', icon: Building2, link: '/all-categories/business' },
+                            { title: 'Consulting Services', icon: Users, link: '/all-categories/consulting' },
+                            { title: 'Events/Conferences', icon: Calendar, link: '/all-categories/events' },
+                            { title: 'Global Health Authority Sites', icon: ShieldCheck, link: '/all-categories/compliance' },
+                            { title: 'Jobs', icon: Briefcase, link: '/all-categories/jobs' },
                             { title: 'Community', icon: MessageSquare, link: '/community' },
                         ].map((cat, i) => (
                             <Link to={cat.link} key={i} className="h-full">
@@ -170,7 +170,7 @@ export default function Home() {
 
                     <div className="flex w-fit animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
                         {featuredBusinesses.length > 0 ? Array(16).fill(featuredBusinesses).flat().map((b, i) => (
-                            <Link to={`/marketplace/business/${b.id}`} key={`offering-${i}`} className="flex flex-col min-w-[320px] max-w-[320px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
+                            <Link to={`/all-categories/business/${b.id}`} key={`offering-${i}`} className="flex flex-col min-w-[320px] max-w-[320px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
                                 <div className="text-xs font-bold text-primary uppercase tracking-wider mb-4 border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
                                     {b.selectedGroup?.replace(/_/g, ' ') || "Partner"}
                                 </div>
@@ -202,7 +202,7 @@ export default function Home() {
 
                     <div className="flex w-fit animate-[marquee_50s_linear_infinite_reverse] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
                         {featuredConsulting.length > 0 ? Array(16).fill(featuredConsulting).flat().map((c, i) => (
-                            <Link to={`/marketplace/consulting/${c.id}`} key={`consulting-${i}`} className="flex flex-col min-w-[360px] max-w-[360px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
+                            <Link to={`/all-categories/consulting/${c.id}`} key={`consulting-${i}`} className="flex flex-col min-w-[360px] max-w-[360px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
                                 <div className="text-xs font-bold text-primary uppercase tracking-wider mb-4 border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
                                     Consulting Service
                                 </div>
@@ -233,7 +233,7 @@ export default function Home() {
                             Navigate directly to the appropriate health authority sites across global markets. Our curated directory helps life sciences professionals reach official regulatory sources faster and more reliably.
                         </p>
                         <Button size="lg" className="h-14 px-8 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/50 transition-all rounded-full" asChild>
-                            <Link to="/marketplace/compliance">
+                            <Link to="/all-categories/compliance">
                                 Access Directory <ArrowRight className="ml-2 w-5 h-5" />
                             </Link>
                         </Button>
@@ -254,7 +254,7 @@ export default function Home() {
                             </div>
                             <div className="space-y-4 mt-8">
                                 {featuredJobs.length > 0 ? featuredJobs.map((job) => (
-                                    <Link to={`/marketplace/jobs/${job.id}`} key={job.id} className="flex flex-col p-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+                                    <Link to={`/all-categories/jobs/${job.id}`} key={job.id} className="flex flex-col p-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
                                         <div className="flex items-center justify-between mb-4">
                                             <div className="text-xs font-bold text-primary uppercase tracking-wider border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
                                                 {job.workModel || "Job Opening"}
@@ -292,7 +292,7 @@ export default function Home() {
                                     const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
                                     const day = dateObj.getUTCDate();
                                     return (
-                                        <Link to={`/marketplace/events/${evt.id}`} key={evt.id} className="flex flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+                                        <Link to={`/all-categories/events/${evt.id}`} key={evt.id} className="flex flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
                                             <div className="w-24 shrink-0 bg-primary/5 group-hover:bg-primary/10 flex flex-col items-center justify-center p-4 border-r border-foreground/10 transition-colors">
                                                 <span className="text-sm font-bold text-primary tracking-widest">{month}</span>
                                                 <span className="text-3xl font-extrabold text-foreground">{day}</span>

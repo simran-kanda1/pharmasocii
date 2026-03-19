@@ -2,7 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import Navbar from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
 import Home from "./pages/Home";
-import Marketplace from "./pages/Marketplace";
+import AllCategories from "./pages/AllCategories";
 import Login from "./pages/Login";
 import PartnerRegister from "./pages/PartnerRegister";
 import CompleteProfile from "./pages/CompleteProfile";
@@ -35,7 +35,7 @@ function App() {
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/about-us" element={<AppLayout><AboutUs /></AppLayout>} />
       <Route path="/faq" element={<AppLayout><FAQ /></AppLayout>} />
-      <Route path="/marketplace/:category?" element={<AppLayout><Marketplace /></AppLayout>} />
+      <Route path="/all-categories/:category?" element={<AppLayout><AllCategories /></AppLayout>} />
 
       {/* Auth flows */}
       <Route path="/login" element={<AppLayout><Login /></AppLayout>} />

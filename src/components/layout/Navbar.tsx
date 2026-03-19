@@ -71,16 +71,19 @@ export default function Navbar() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="w-48 bg-background border-foreground/10 shadow-2xl">
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/marketplace/business">Business</Link>
+                                    <Link to="/all-categories/business">Business Offerings</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/marketplace/consulting">Consulting Services</Link>
+                                    <Link to="/all-categories/consulting">Consulting Services</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/marketplace/events">Events</Link>
+                                    <Link to="/all-categories/events">Events</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/marketplace/jobs">Jobs</Link>
+                                    <Link to="/all-categories/jobs">Jobs</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild className="cursor-pointer">
+                                    <Link to="/all-categories/compliance">Global Health Authority Sites</Link>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>

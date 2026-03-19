@@ -86,7 +86,7 @@ export default function CreateConsulting() {
                             <CardTitle className="text-3xl text-foreground">Create Consulting Service</CardTitle>
                         </div>
                         <CardDescription className="text-base text-muted-foreground ml-1">
-                            Payment verified cleanly. Please construct your consulting profile below. This will appear under Consulting Services in the marketplace.
+                            Payment verified cleanly. Please construct your consulting profile below. This will appear under Consulting Services in All Categories.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="pt-8">
