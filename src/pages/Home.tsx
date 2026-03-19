@@ -223,22 +223,6 @@ export default function Home() {
                         )}
                     </div>
                 </div>
-                <div className="container mx-auto px-4 mt-24">
-                    <div className="bg-primary/5 border border-primary/20 rounded-3xl p-10 md:p-16 text-center max-w-5xl mx-auto flex flex-col items-center">
-                        <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6">
-                            <ShieldCheck className="w-8 h-8 text-primary" />
-                        </div>
-                        <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-4 text-foreground">Global Health Authority Sites</h2>
-                        <p className="text-lg text-muted-foreground mb-8 max-w-3xl leading-relaxed">
-                            Navigate directly to the appropriate health authority sites across global markets. Our curated directory helps life sciences professionals reach official regulatory sources faster and more reliably.
-                        </p>
-                        <Button size="lg" className="h-14 px-8 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/50 transition-all rounded-full" asChild>
-                            <Link to="/all-categories/compliance">
-                                Access Directory <ArrowRight className="ml-2 w-5 h-5" />
-                            </Link>
-                        </Button>
-                    </div>
-                </div>
 
                 <div className="container mx-auto px-6 md:px-12 max-w-7xl mt-32">
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-32">
