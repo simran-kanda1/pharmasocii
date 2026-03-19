@@ -8,7 +8,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { db } from "@/firebase";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
-const BUSINESS_CATEGORIES: Record<string, string[]> = {
+//Types 
+type SubcategoryEntry = string | { label: string; subSubcategories: string[] };
+type CategoriesDict = Record<string, SubcategoryEntry[]>;
+
+//extract the display label from a SubcategoryEntry
+const getSubLabel = (entry: SubcategoryEntry): string =>
+    typeof entry === "string" ? entry : entry.label;
+
+//check if an entry has sub-subcategories
+const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcategories: string[] } =>
+    typeof entry !== "string";
+
+const BUSINESS_CATEGORIES: CategoriesDict = {
     "Artificial Intelligence & Bioinformatics": [],
     "Automation": [
         "Equipment", "Facility", "Laboratory Systems", "Manufacturing", "Other",
@@ -53,13 +65,117 @@ const BUSINESS_CATEGORIES: Record<string, string[]> = {
     "Insilico Assessments": [],
     "Intellectual Property Services": [],
     "Labeling Design & Printing": [],
-    "Laboratory & Related Services": [],
-    "Manufacturers": [],
+    "Laboratory & Related Services": [
+        "Analytical Assay Development",
+        "Apheresis and Cell Therapy Collections",
+        "Biobanking & Storage",
+        "Cell line Qualification & Characterization",
+        "Central Lab Services",
+        "Chemicals, Reagents & Materials",
+        "Cleaning Method Development",
+        "Clinical & Dianostics",
+        "Comparability Study Design & Testing",
+        "Custom Assay Development",
+        "Custom Hybridoma & Antibody Generation",
+        "Equipment Maintenance & Calibration",
+        "Extractable and Leachable Studies",
+        "Filter Compatibility Studies",
+        "Gases",
+        "Genomics for Infectious Diseases",
+        "Global Sample Logistics",
+        "HCP Assay Development",
+        "Immune Repertoire Sequencing",
+        "Immunogen & Antigen Generation",
+        "Immunogenecity Testing",
+        "In-Use/Compatibility Studies",
+        "Insilico Studies",
+        "Instruments",
+        "Lab Supplies & Consumables",
+        "Laboratory Informatics",
+        "Laboratory Network",
+        {
+            label: "Material Qualification",
+            subSubcategories: [
+                "Cell & Virus Banks",
+                "GMP Materials",
+                "Lipids",
+                "Non-GMP",
+                "Novel Excipients",
+                "Polymers",
+                "Raw Materials",
+                "Solvents",
+                "Specialty Materials",
+            ],
+        },
+        "Media Fill Studies",
+        "Medical Device Testing",
+        "Method Qualification & Validation",
+        "Method Transfer",
+        "Off Target Analysis",
+        "Pathology & Tissue Analysis",
+        "Pre-Analytical & PBMC",
+        "Processing",
+        "Raiolabeled Materials",
+        "Reference Standard Establishment & Qualification",
+        "Reference Standard Qualification",
+        "RNA & DNA Extraction",
+        "Software & Digital Solutions",
+        "Stability",
+        "Stability Storage & Testing",
+        "Sterile Filter Validation Studies",
+        {
+            label: "Testing",
+            subSubcategories: [
+                "Adventitious Agents", "Bioassays , Cell Based & Potency Assays", "Biologics", "Biosafety", "Cell Banks", "Cell Therapies", "Characterization Assays", "Chemical & Physical", "Cleaning Samples", "Compendial Testing", "Container Closures & Components", "Container Closure Integrity", "Creams and Ointments", "Diagnostics", "Dispersion", "Enzymatic Assays", "Excipients", "Flow Cytometry", "Gases", "Genetic Stability", "Genotyping & Phenotyping", "Immunoassays", "Inhalation products", "Liquids", "Microbiology & Sterility", "Microorganism Identification", "Mycoplasma Testing", "NGS", "Non-Solid Sterile Products", "Ophthalmic Products", "Plasmid", "Potent & Toxic Materials", "QC Testing", "Raw Materials", "RNA Based Therapies", "Small Molecules", "Solid Dosages", "Solvents", "Specialty Services", "Sterile Products", "Toxicology", "Trace Metals", "Traditional Vaccines Testing", "Unprocessed Bulk", "Viral Safety", "Viral Vector Based Products", "Water",
+            ],
+        },
+        "Water Purification"
+    ],
+    "Manufacturers": [
+        {
+            label: "Drug Product",
+            subSubcategories: [
+                "Capsules", "Combination Products", "Controlled Release", "Emulsions", "Inhalation Products", "Inhalers", "Injectables", "Liquids", "Lyophilized", "Nano Technology", "Nasal Products", "Novel Modalities", "Nucleic acid", "Ophthalmic Products", "Other", "Patient Specific", "Personalized Medicines", "Powders", "Radiopharmaceuticals", "RNA", "Solid Dispersions", "Solid Oral Dosage", "Specialty Services", "Sprays", "Sterile Products", "Suppositories", "Topicals", "Viruses", "Visual Inspection",
+            ],
+        },
+        {
+            label: "Drug Substance",
+            subSubcategories: [
+                "iPSC-based therapies", "Advanced Therapies", "Antibody Conjugates", "Biologics & Large Molecules", "Biosimilars", "Bispecifics", "Cell & Gene Therapies", "Chemical Entities & Active Pharmaceutical Ingredients", "Gene Editing Based Therapies", "Novel Modalities", "Nucleic Acid Based Therapies", "Oncolytic Virus Based Therapies", "Other", "Patient Specific", "Personalized Medicines", "Plasmid DNA", "Radiopharmaceuticals", "RNA Based Therapies", "Vaccines", "Viral Vector Therapies",
+            ],
+        },
+        {
+            label: "Packaging",
+            subSubcategories: [
+                "Blister Packaging", "Customized Services", "Medical Device Packaging", "Primary Packaging & Labeling", "Repackaging & Labeling", "Secondary Packaging & Labeling", "Serialization", "Sleeve Packaging", "Track & Trace Services", "Visual Inspection",
+            ],
+        },
+        {
+            label: "Vaccine Manufacturing",
+            subSubcategories: [
+                "Anti Sera", "Combination", "Conjugate", "Inactivated", "Live-Attenuated", "Non-Replicating Viral Vector", "Nucleic Acid Vaccines", "Recombinant", "Replicating Viral Vector", "Subunit Vaccines", "Toxoid", "Whole Pathogen",
+            ],
+        },
+    ],
     "Material Sciences": [],
     "Materials/ Excipients / Cells": [
         "B Cells", "Biomedical Materials", "Buffers", "Cell Strains", "Chemicals", "Compendial Excipients", "Consumables", "Custom GMP Excipients", "Custom Media", "DC Cells", "Enzymes", "Expression Systems", "Gases", "Genes", "Hematopoietic Stem Cells", "Insect Cell Lines", "Lipids", "Mammalian Cells", "Media", "Microbial Cells", "MSC Cells", "NK Cells", "Non-Compendial Excipients", "Non-GMP Excipients", "Novel Excipients", "Nucleic Acids", "Oligos", "Other Materials", "Polymers", "Primary Human Cells", "Primers & Probes", "Process Reagents", "Proteins", "Raw Materials", "Solutions", "Solvents", "Specialty Materials", "Stem Cell Derived Lines", "Sterile Filters", "T cells (aβ, γδ, Treg)", "TIL Cells", "Tissue Cultures", "Yeast Cell Lines"
     ],
-    "Medical Devices & Delivery Systems": [],
+    "Medical Devices & Delivery Systems": [
+        "Ablation Therapy",
+        "Cardiology",
+        "Cardiovascular",
+        "CE Marking Certification",
+        "CE Marking Testing Services",
+        "Central Nervous System",
+        {
+            label: "Clinical Research",
+            subSubcategories: [
+                "Adverse Event Management", "Audits", "Biostats", "Contract Support", "Data Management", "Lab & Analytical Services", "Model Selection", "Patient Recruitment & Support", "Patient Support", "Pharmacovigilance", "Post Marketing Surveillance", "Product Complaints Management", "Project Management", "Protocol Writing", "Research Platforms", "Site Management", "Site Selection & Qualification", "Specialty Testing", "Study Design", "Target & Lead Optimization", "Trial Planning & Management", "Vendor Management",
+            ],
+        },
+        "Companion Diagnostics", "Consumer Health", "Critical Care", "Dermatology", "Design & Development", "Diagnostics", "Distribution", "Electrosurgical Tools", "Engineering", "Imaging", "Implantable", "In Vitro Diagnostics", "Infectious Diseases", "ISO Certifications", "Laboratory Instruments", "Manufacturers", "Medical Equipment", "Men’s Health", "Metabolic & Endocrine", "Nephrology", "Neurological Disorders", "Oncology", "Ophthalmology", "Other", "Packaging", "Packaging & Assembly", "Pediatrics", "Performance Evaluation", "Protective Equipment", "Respiratory", "Rheumatology", "Single Use", "Software for Devices", "Surgical Devices", "Testing", "Urology", "Validation Or Qualification", "Women’s Health"
+    ],
     "Medical Writing": [],
     "Non-Clinical Research/Related Activities": [],
     "Other": [],
@@ -89,11 +205,28 @@ const BUSINESS_CATEGORIES: Record<string, string[]> = {
     "Technical CMC Writing": [],
     "Technology Transfer": [],
     "Therapeutic Areas": [
-        "Cardiology", "Dermatology", "Endocrinology", "Epidemiology", "Gastroenterology", "Hematology", "Hepatology", "Immuno-Oncology", "Men’s Health", "Metabolic & Endocrine", "Nephrology", "Neurology & Psychiatry", "Oncology", "Ophthalmology", "Pediatrics", "Respiratory", "Rheumatology", "Urology", "Women’s Health"
+        "Cardiology", "Dermatology", "Endocrinology", "Epidemiology", "Gastroenterology", "Hematology", "Hepatology", "Immuno-Oncology", "Men's Health", "Metabolic & Endocrine", "Nephrology", "Neurology & Psychiatry", "Oncology", "Ophthalmology", "Pediatrics", "Respiratory", "Rheumatology", "Urology", "Women's Health"
     ],
     "Translational Sciences/Pre-Clinical Work": [],
     "Translations": [],
-    "Validation & Qualification": [],
+    "Validation & Qualification": [
+        "Cleaning",
+        "Computer Systems",
+        "Environmental Control Systems",
+        {
+            label: "Equipment",
+            subSubcategories: [
+                "Manufacturing", "Packaging"
+            ],
+        },
+        "Facility",
+        "Manufacturing Process",
+        "Master Plans",
+        "Other",
+        "Protocol and Report Writing",
+        "Shipping",
+        "Water Systems"
+    ],
     "Virus Clearance Studies": [],
     "Water": [
         "Bacteriostatic", "Distilled", "GMP Manufacturing", "Medical Device Manufacturing", "Parenteral Formulation", "Purified", "Saline Solutions", "Sterile Water for Inhalation", "Sterile Water for Injection", "Sterile Water for Irrigation", "Sterile water for Ophthalmic Solutions/Use"
@@ -101,28 +234,177 @@ const BUSINESS_CATEGORIES: Record<string, string[]> = {
 };
 
 const CONSULTING_CATEGORIES: Record<string, string[]> = {
-    "Advisory Board": [], "Analytical Comparability": [], "Analytical Methods": [], "Artificial Intelligence": [],
-    "Asset Evaluation": [], "Auditing": [], "Automation": [], "Bioinformatics": [], "Biostatistics & Data Science": [],
-    "Clinical Trials & Research": [], "Cold Chain Solutions": [], "Commercialization": [], "Compatibility (In-Use) Studies": [],
+    "Advisory Board": [
+        "Clinical",
+        "CMC",
+        "Labeling",
+        "Regulatory",
+        "Target Selection"
+    ], "Analytical Comparability": [], "Analytical Methods": [
+        "Advanced Therapies",
+        "Artificial Intellidence",
+        "Bioinformatics",
+        "Cell Banks",
+        "Cell Lines",
+        "Cell Therapies",
+        "Exipients",
+        "Genetic Stability",
+        "Immunoassays",
+        "Laboratory systems & design",
+        "Non-Sterile Products",
+        "Novel Therapies",
+        "Others",
+        "Potency & Bioassays",
+        "Raw Materials",
+        "RNA Therapies",
+        "Small Molecules",
+        "Sterile Products",
+        "Virus Based Therapies"
+    ], "Artificial Intelligence": [],
+    "Asset Evaluation": [], "Auditing": [
+        "Clinical Sites",
+        "GLP",
+        "GMP",
+        "ISO Certification",
+        "Remediation"
+    ], "Automation": [
+        "Equipment",
+        "Facility",
+        "Laboratory",
+        "Manufacturing",
+        "Utilities",
+        "Warehouse"
+    ], "Bioinformatics": [], "Biostatistics & Data Science": [],
+    "Clinical Trials & Research": [], "Cold Chain Solutions": [], "Commercialization": [
+        "Commercial Strategy",
+        "Competitive Intelligence",
+        "Market Access & Health Technology",
+        "Market Research",
+        "Pricing",
+        "Sales & Marketing"
+    ], "Compatibility (In-Use) Studies": [],
     "Consent Decree & Warning Letters": [], "Contract Manufacturing Site Management": [], "Contract Research Site Management": [],
-    "Due Diligence": [], "Engineering": [], "Environmental Impact Assessments": [], "Environmental Monitoring & Testing": [],
-    "Extractable & Leachable Studies": [], "Facility Design & Qualifications": [], "Facility Maintenance & Support": [],
+    "Due Diligence": [], "Engineering": [
+        "Computer Systems",
+        "Equipment",
+        "Facility",
+        "Laboratory Systems & Design",
+        "Process",
+        "Warehouse"
+    ], "Environmental Impact Assessments": [], "Environmental Monitoring & Testing": [],
+    "Extractable & Leachable Studies": [], "Facility Design & Qualifications": [
+        "Drug Product Manufacturing",
+        "Drug Substance Manufacturing",
+        "Filling",
+        "Laboratory",
+        "Other",
+        "Packaging",
+        "Storage",
+        "Utilities",
+        "Warehouse",
+        "Water Purification"
+    ], "Facility Maintenance & Support": [],
     "Formulation Development": [], "Gene Editing Based Therapies": [], "Genomics": [], "Genomics & Related Services": [],
     "Global Sample Logistics": [], "GMO Applications": [], "GMP/GXP Training": [], "Import & Export Services": [],
     "In Country Representative": [], "In Country Testing": [], "Insilico Assessments": [], "Integrated Control Strategy": [],
-    "Interim Functional Leadership": [], "Key Opinion Leaders": [], "Labeling & Translation": [], "Labeling Requirements & Design": [],
-    "Legal/IP Services": [], "Lot Release Program": [], "Manufacturing Capacity Planning": [], "Material Qualification": [],
-    "Material Sciences": [], "Medical Affairs": [], "Medical Devices": [], "Medical Devices In Vitro Diagnostics": [],
+    "Interim Functional Leadership": [], "Key Opinion Leaders": [
+        "Cardiology",
+        "Dermatology",
+        "Endocrinology",
+        "Epidemiology",
+        "Gastroenterology",
+        "Hematology",
+        "Hepatology",
+        "Men's Health",
+        "Metabolic & Endocrine",
+        "Nephrology",
+        "Neurology & Psychiatry",
+        "Oncology",
+        "Ophthamalmology",
+        "Pediatrics",
+        "Respiratory",
+        "Rheumatology",
+        "Urology",
+        "Women's Health"
+    ], "Labeling & Translation": [], "Labeling Requirements & Design": [],
+    "Legal/IP Services": [
+        "Africa",
+        "Asia",
+        "Australia",
+        "Europe",
+        "Middle East",
+        "New Zealand",
+        "North America",
+        "South America",
+        "Switzerland",
+        "UK"
+    ], "Lot Release Program": [], "Manufacturing Capacity Planning": [], "Material Qualification": [
+        "Cell & Virus Banks",
+        "Lipids",
+        "Non-GMP",
+        "Novel Exipients",
+        "Polymers",
+        "Raw Materials",
+        "Solvents",
+        "Speciality Materials"
+    ],
+    "Material Sciences": [], "Medical Affairs": [], "Medical Devices": [
+        "Ablation Therapy",
+        "Audits",
+        "Cardiovasular", "CE Mark", "Central Nervous System", "Clinical Trials", "Companion Diagnostics",
+        "Consumer Health", "Critical Care", "Data Management", "Dermatology", "Design", "Development",
+        "Diagnostics", "Imaging", "Implantable", "In vitro Diagnostics", "Infectious Diseases", "ISO Certifications",
+        "Medical Equipment", "Men's Health", "Metabolic & Endocrine", "Model Selection", "Ophthalmology", "Pharmacovigilance",
+        "Post Market Surveillance", "Project Management", "Protocol Writing", "Quality Systems", "Respiratory", "Single Use",
+        "Software for Devices", "SOPs Draftin g& Review", "Surgical Devices", "Trial Planning & Management", "Validation", "Vendor Management",
+        "Women's Health"
+    ], "Medical Devices In Vitro Diagnostics": [],
     "Medical Writing": [], "Microbial Control Strategy": [], "Other": [], "Personalized Medicines": [], "Pharmacology & Toxicology": [],
     "Pharmacovigilance": [], "Post Market Surveillance": [], "Process Characterization Studies": [], "Process Development": [],
-    "Project & Program Management": [], "Quality & Compliance": [], "Quality Control": [], "Radiolabeled Materials": [],
-    "Radiopharmaceuticals": [], "Reference Standards": [], "Regulatory Sciences": [], "Research & Development": [],
-    "Risk Assessments": [], "Scientific Advisory": [], "Specialty Services": [], "Specification Assessment": [],
-    "Stability Strategy": [], "Stability Studies": [], "Statistical Analysis": [], "Statistical Analysis CMC": [],
-    "Sterile Filter Validation Or Qualification": [], "Supply Chain Solutions": [], "Target Selection": [],
-    "Technical Writing": [], "Technology & Software": [], "Technology Transfer & Process Development": [],
-    "Therapeutic Areas": [], "Translations": [], "Translators": [], "Validation": [], "Viral Safety & Clearance Studies": [],
-    "Warehouse Controls": [], "Water Purification Systems": []
+    "Project & Program Management": [
+        "Automation", "Clinical", "CMC", "Equipment", "Facility", "Non-Clinical", "Portfolio Assessment & Prioritization", " Timeline Development & Analysis"
+    ], "Quality & Compliance": [
+        "In Country Representative", "QMS Design & Review", "QP Support", "Quality Assurance", "SOP Review & Writing", "Supplier Oversight", "supplier Qualification"
+    ], "Quality Control": [
+        "Other", "QC Lab Oversight", "QC Strategy"
+    ], "Radiolabeled Materials": [],
+    "Radiopharmaceuticals": [
+        "Analytical", "Clinical Research", "Development", "Manufacturing", "Pre-Clinical Research"
+    ], "Reference Standards": [], "Regulatory Sciences": [
+        "Advanced Therapies", "Africa", "Asia", "Australia", "Biosimilars", "Cell & Gene Therapies", "Clinical Holds", "Clinical Strategy", "CMC Strategy", "Combination Products",
+        "Complete Response", "CTD Sections Authoring & Review (Clinical)", "CTD Sections Authoring & Review (Non- Clinical)", "CTD Sections Authoring & Review (CMC)", "Due Diligence",
+        "Europe", "FDA Advisory Committee", "Gene Editing Based Therapies", "Health Authority Meetings", "Human Cell Based Therapies", "In Country Agent & Representative", "Medical Devices",
+        "Middle East", "New Zealand", "North America", "Novel Therapies", "Oncolytic Virus Based Therapies", "Other", "Personalized Medicines", "Preclinical & Nonclinical Stratgy",
+        "Protocol Review & Writing", "Radiopharmaceuticals", "RNA Based Therapies", "Small Molecules", "South America", "Sterile Products", "Study & Protocol Design", "Switzerland", "Traditional Vaccines",
+        "UK", "Vaccines (Newer Technologies)", "Viral Vector Based Therapies"
+    ], "Research & Development": [
+        "Audits", "Biostats", "Clinical Development", "Contract Support", "Data Management", "EU QPPV", "Lead Optimization", "Literature Screening", "Local Contact", "Non-Clinical Development",
+        "Patient Support", "Pharmacovigilance", "Post Marketing Surveillance", "Pre-Clinical Research", "Project Management", "Protocol Writing", "Real World Evidence", "Site Qualification & Management",
+        "Study Design", "Target & Lead Optimization", "Translational Sciences", "Trial Planning & Management", "Vendor Management", "Vendor Selection"
+    ],
+    "Risk Assessments": [
+        "Environmental Controls", "Exipients", "Facility", "Formulation", "Impurity", "Material", "Microbial Controls", "Process"
+    ], "Scientific Advisory": [], "Specialty Services": [], "Specification Assessment": [],
+    "Stability Strategy": [
+        "-20C", "-60C", "2-8C", "Ambient Conditions", "Ambient Conditions/High RH", "Ultra Cold"
+    ], "Stability Studies": [
+        "Accelerated", "Advanced Therapies", "Biologics", "Comparability", "Forced Degradation", "Novel Therapies", "Photostability", "Rare Diseases", "RNA Based Products", "Small Molecules", "Virus Based Products"
+    ], "Statistical Analysis": [], "Statistical Analysis CMC": [],
+    "Sterile Filter Validation Or Qualification": [], "Supply Chain Solutions": [
+        "Cold Chain Solutions", "Speciality Services"
+    ], "Target Selection": [],
+    "Technical Writing": [
+        "Clinical", "CMC", "Medical Writing", "Non-Clinical"
+    ], "Technology & Software": [], "Technology Transfer & Process Development": [],
+    "Therapeutic Areas": [
+        "Cardiology", "Dermatology", "Endocrinology", "Epidemiology", "Gastroenterology", "Hematology", "Hepatology", "Infectious Diseases", "Men's Health", "Metabolic & Endocrine", "Nephrology", "Neurology & Psychiatry",
+        "Oncology", "Ophthalmology", "Other", "Pediatrics", "Respiratory", "Rheumatology", "Urology", "Women's Health"
+    ], "Translations": [], "Translators": [], "Validation": [
+        "Automation", "Cleaning", "Computer Systems", "Environmental Controls", "Equipment", "Facility", "Laboratory Systems", "Master Plans", "Method", "Other", "Process", "Protocol & Report Writing", "Shipping"
+    ], "Viral Safety & Clearance Studies": [],
+    "Warehouse Controls": [
+        "Temperature Mapping Studies"
+    ], "Water Purification Systems": []
 };
 
 const EVENTS_CATEGORIES: Record<string, string[]> = {
@@ -137,7 +419,11 @@ const EVENTS_CATEGORIES: Record<string, string[]> = {
     "Health Policy": [], "Health Technology Assessment": [], "Hematology": [], "Hepatology": [], "Higher Order Structure": [],
     "ICH Conferences": [], "Infectious Diseases": [], "Intellectual Property": [], "ISPE (International Society For Pharmaceutical Engineering)": [],
     "Labelling": [], "Laboratory Equipment": [], "Manufacturing & Technical Operations": [], "Manufacturing Equipment": [], "Market Access": [],
-    "Marketing & Sales": [], "Mass Spectrometry": [], "Materials, Reagents & Excipients": [], "Medical Affairs": [], "Medical Devices": [],
+    "Marketing & Sales": [], "Mass Spectrometry": [], "Materials, Reagents & Excipients": [], "Medical Affairs": [], "Medical Devices": [
+        "Abilation Therapy", "Bispecifics", "Cardiovascular", "Central Nervous System", "Companion Diagnostics", "Consumer Health", "Critical Care", "Dermatology", "Diagnostics",
+        "Gene Editing", "Imaging", "Implanatable", "In Vitro Diagnostics", "Infectious Diseases", "Medical Equipment", "Men's Health", "Metabolic & Endocrine",
+        "Nucleic Acid Based Therapies", "Ophthalmology", "Respiratory", "RNA Based Therapies", "Single Use", "Software for Devices", "Surgical Devices", "Women's Health"
+    ],
     "Medical Equipment": [], "Medicinal & Pharmaceutical Chemistry": [], "Men's Health": [], "Metabolic & Endocrine": [],
     "Microbiology, Virology, Immunology & Infectious Diseases": [], "Molecular & Precision Medicine": [], "Nephrology": [],
     "Neurology & Psychiatry": [], "Nucleic Acid Based Therapies": [], "Oncology": [], "Other": [], "Patient Recruitment & Engagement": [],
@@ -146,7 +432,9 @@ const EVENTS_CATEGORIES: Record<string, string[]> = {
     "Radiopharmaceuticals": [], "Rare Disease & Orphan Drug Products": [], "Regulations & Guidances": [], "Regulatory Affairs": [],
     "Research & Innovation": [], "Respiratory": [], "Rheumatology": [], "Risk Management & Pharmacovigilance": [], "RNA Based Therapies": [],
     "Stability": [], "Stem Cell & Regenerative Medicine": [], "Sterile Drug Products": [], "Supply Chain & Logistics": [],
-    "Tools And Technology": [], "Translational Sciences": [], "Urology": [], "Vaccines, Immunology & Antibiotics": [], "Validation": [],
+    "Tools And Technology": [], "Translational Sciences": [], "Urology": [
+        "<= -60C"
+    ], "Vaccines, Immunology & Antibiotics": [], "Validation": [],
     "Viral Vectors": [], "Well Characterized Biologics (WCBP)": [], "Women's Health": []
 };
 
@@ -238,7 +526,9 @@ export default function AllCategories() {
     // Categories UI State
     const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
     const [selectedSubcategories, setSelectedSubcategories] = useState<string[]>([]);
+    const [selectedSubSubcategories, setSelectedSubSubcategories] = useState<string[]>([]);
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
+    const [expandedSubcategories, setExpandedSubcategories] = useState<string[]>([]);
     const [searchCountry, setSearchCountry] = useState("");
     const [healthAuthSearch, setHealthAuthSearch] = useState("");
     const [showAllCategories, setShowAllCategories] = useState(false);
@@ -282,15 +572,29 @@ export default function AllCategories() {
         );
     };
 
+    const toggleSubSubcategory = (subSub: string) => {
+        setSelectedSubSubcategories(prev =>
+            prev.includes(subSub) ? prev.filter(s => s !== subSub) : [...prev, subSub]
+        );
+    };
+
     const toggleExpandCategory = (cat: string) => {
         setExpandedCategories(prev =>
             prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
         );
     };
 
+    // Toggle expand/collapse for a subcategory that has sub-subcategories
+    const toggleExpandSubcategory = (subLabel: string) => {
+        setExpandedSubcategories(prev =>
+            prev.includes(subLabel) ? prev.filter(s => s !== subLabel) : [...prev, subLabel]
+        );
+    };
+
     const resetCategorySelection = () => {
         setSelectedCategory(null);
         setSelectedSubcategories([]);
+        setSelectedSubSubcategories([]);
         setSearchCountry("");
     };
 
@@ -306,16 +610,155 @@ export default function AllCategories() {
 
     const filteredBusinesses = data.filter((item) => {
         if (!isMainCategoryTab) return true;
-        // We assume businesses will eventually have `category` and `subcategory` fields.
-        // For now this is a mock filter. In reality, it would check the item's properties.
         const matchCategory = !selectedCategory || item.category === selectedCategory || item.selectedGroup?.replace(/_/g, " ") === selectedCategory || item.consultingCategory === selectedCategory || item.eventCategory === selectedCategory || item.jobCategory === selectedCategory;
-        const matchSubcategories = selectedSubcategories.length === 0 /* || selectedSubcategories.includes(item.subcategory) */;
+        const matchSubcategories = selectedSubcategories.length === 0;
         const matchCountry = !searchCountry || (item.businessAddress && item.businessAddress.toLowerCase().includes(searchCountry.toLowerCase()));
 
         return matchCategory && matchSubcategories && matchCountry;
     });
 
     const featuredBusinesses = data.filter(item => item.isFeatured === true);
+
+    // ─── Sidebar renderer (handles 3 levels for business tab) ─────────────────
+    const renderSidebarCategories = () => {
+        // For non-business tabs, subcategories are always plain string[],
+        // so we keep the original simple render.
+        if (currentTab !== "business") {
+            return Object.entries(currentCategoriesDict as Record<string, string[]>).map(([cat, subs]) => {
+                const isExpanded = expandedCategories.includes(cat);
+                const isSelectedCategory = cat === selectedCategory;
+                return (
+                    <div key={cat} className="flex flex-col gap-2">
+                        <div className="flex items-start gap-2">
+                            {subs.length > 0 ? (
+                                <button onClick={() => toggleExpandCategory(cat)} className="mt-1 flex-shrink-0">
+                                    {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                                </button>
+                            ) : (
+                                <span className="w-4 h-4 flex-shrink-0" />
+                            )}
+                            <div className="flex items-center gap-2">
+                                <Checkbox
+                                    id={cat}
+                                    checked={isSelectedCategory}
+                                    onCheckedChange={() => setSelectedCategory(isSelectedCategory ? null : cat)}
+                                />
+                                <label htmlFor={cat} className="text-sm font-medium leading-none cursor-pointer">{cat}</label>
+                            </div>
+                        </div>
+                        {isExpanded && subs.length > 0 && (
+                            <div className="pl-10 space-y-2 mb-2">
+                                {subs.map(sub => (
+                                    <div key={sub} className="flex items-center space-x-2">
+                                        <Checkbox
+                                            id={`${cat}-${sub}`}
+                                            checked={selectedSubcategories.includes(sub)}
+                                            onCheckedChange={() => toggleSubcategory(sub)}
+                                        />
+                                        <label htmlFor={`${cat}-${sub}`} className="text-sm font-light leading-none cursor-pointer text-muted-foreground">{sub}</label>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                );
+            });
+        }
+
+        // Business tab — supports SubcategoryEntry (string | nested object)
+        return Object.entries(currentCategoriesDict as CategoriesDict).map(([cat, subs]) => {
+            const isExpanded = expandedCategories.includes(cat);
+            const isSelectedCategory = cat === selectedCategory;
+            return (
+                <div key={cat} className="flex flex-col gap-2">
+                    {/* ── Level 1: Category ── */}
+                    <div className="flex items-start gap-2">
+                        {subs.length > 0 ? (
+                            <button onClick={() => toggleExpandCategory(cat)} className="mt-1 flex-shrink-0">
+                                {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                            </button>
+                        ) : (
+                            <span className="w-4 h-4 flex-shrink-0" />
+                        )}
+                        <div className="flex items-center gap-2">
+                            <Checkbox
+                                id={cat}
+                                checked={isSelectedCategory}
+                                onCheckedChange={() => setSelectedCategory(isSelectedCategory ? null : cat)}
+                            />
+                            <label htmlFor={cat} className="text-sm font-medium leading-none cursor-pointer">{cat}</label>
+                        </div>
+                    </div>
+
+                    {/* ── Level 2: Subcategories ── */}
+                    {isExpanded && subs.length > 0 && (
+                        <div className="pl-10 space-y-2 mb-2">
+                            {subs.map((entry) => {
+                                const subLabel = getSubLabel(entry);
+                                const isNested = hasSubSub(entry);
+                                const isSubExpanded = expandedSubcategories.includes(subLabel);
+                                const isSubChecked = selectedSubcategories.includes(subLabel);
+
+                                return (
+                                    <div key={subLabel} className="flex flex-col gap-1">
+                                        <div className="flex items-center gap-1">
+                                            {/* Expand toggle only if this subcategory has sub-subcategories */}
+                                            {isNested ? (
+                                                <button
+                                                    onClick={() => toggleExpandSubcategory(subLabel)}
+                                                    className="flex-shrink-0"
+                                                >
+                                                    {isSubExpanded
+                                                        ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                                                        : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
+                                                </button>
+                                            ) : (
+                                                <span className="w-3.5 h-3.5 flex-shrink-0" />
+                                            )}
+                                            <div className="flex items-center space-x-2">
+                                                <Checkbox
+                                                    id={`${cat}-${subLabel}`}
+                                                    checked={isSubChecked}
+                                                    onCheckedChange={() => toggleSubcategory(subLabel)}
+                                                />
+                                                <label
+                                                    htmlFor={`${cat}-${subLabel}`}
+                                                    className="text-sm font-light leading-none cursor-pointer text-muted-foreground"
+                                                >
+                                                    {subLabel}
+                                                </label>
+                                            </div>
+                                        </div>
+
+                                        {/* ── Level 3: Sub-subcategories ── */}
+                                        {isNested && isSubExpanded && (
+                                            <div className="pl-6 space-y-1.5 mt-1">
+                                                {entry.subSubcategories.map((subSub) => (
+                                                    <div key={subSub} className="flex items-center space-x-2">
+                                                        <Checkbox
+                                                            id={`${cat}-${subLabel}-${subSub}`}
+                                                            checked={selectedSubSubcategories.includes(subSub)}
+                                                            onCheckedChange={() => toggleSubSubcategory(subSub)}
+                                                        />
+                                                        <label
+                                                            htmlFor={`${cat}-${subLabel}-${subSub}`}
+                                                            className="text-xs font-light leading-none cursor-pointer text-muted-foreground/80"
+                                                        >
+                                                            {subSub}
+                                                        </label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            );
+        });
+    };
 
     return (
         <div className="min-h-screen bg-background flex flex-col">
@@ -326,8 +769,6 @@ export default function AllCategories() {
                     <p className="text-muted-foreground text-lg max-w-2xl">
                         Explore, connect, and collaborate with leading businesses, experts, and talent across the global biotech ecosystem.
                     </p>
-
-
                 </div>
             </div>
 
@@ -358,7 +799,7 @@ export default function AllCategories() {
                     <div className="flex-1 flex items-center justify-center p-24 text-muted-foreground">Loading {currentTab}...</div>
                 ) : isMainCategoryTab && !selectedCategory ? (
                     // GRID OF ALL CATEGORIES
-                    <div className="flex flex-col gap-16 pb-24 w-full w-full max-w-7xl mx-auto">
+                    <div className="flex flex-col gap-16 pb-24 w-full max-w-7xl mx-auto">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {(showAllCategories ? Object.keys(currentCategoriesDict) : Object.keys(currentCategoriesDict).slice(0, 11)).map((catName) => (
                                 <div
@@ -415,46 +856,7 @@ export default function AllCategories() {
                                 </div>
 
                                 <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
-                                    {Object.entries(currentCategoriesDict).map(([cat, subs]) => {
-                                        const isExpanded = expandedCategories.includes(cat);
-                                        const isSelectedCategory = cat === selectedCategory;
-                                        return (
-                                            <div key={cat} className="flex flex-col gap-2">
-                                                <div className="flex items-start gap-2">
-                                                    {subs.length > 0 ? (
-                                                        <button onClick={() => toggleExpandCategory(cat)} className="mt-1 flex-shrink-0">
-                                                            {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                                                        </button>
-                                                    ) : (
-                                                        <span className="w-4 h-4 flex-shrink-0" /> // spacer
-                                                    )}
-                                                    <div className="flex items-center gap-2">
-                                                        <Checkbox
-                                                            id={cat}
-                                                            checked={isSelectedCategory}
-                                                            onCheckedChange={() => setSelectedCategory(isSelectedCategory ? null : cat)}
-                                                        />
-                                                        <label htmlFor={cat} className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer">{cat}</label>
-                                                    </div>
-                                                </div>
-
-                                                {isExpanded && subs.length > 0 && (
-                                                    <div className="pl-10 space-y-2 mb-2">
-                                                        {subs.map(sub => (
-                                                            <div key={sub} className="flex items-center space-x-2">
-                                                                <Checkbox
-                                                                    id={`${cat}-${sub}`}
-                                                                    checked={selectedSubcategories.includes(sub)}
-                                                                    onCheckedChange={() => toggleSubcategory(sub)}
-                                                                />
-                                                                <label htmlFor={`${cat}-${sub}`} className="text-sm font-light leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer text-muted-foreground">{sub}</label>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                                    {renderSidebarCategories()}
                                 </div>
                             </div>
                         </div>
@@ -575,8 +977,6 @@ export default function AllCategories() {
                                     )}
                                 </>
                             )}
-
-                            {/* Removed inline consulting detail block so it uses the business one if needed */}
 
                             {currentTab === 'jobs' && (
                                 <>
