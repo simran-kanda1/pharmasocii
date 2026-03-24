@@ -89,7 +89,7 @@ export default function AboutUs() {
                         <h2 className="text-4xl md:text-5xl font-bold tracking-tight text-foreground">Our Mission & Vision</h2>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8 lg:gap-12">
-                        <Card className="bg-background border-foreground/10 p-10 md:p-12 shadow-lg hover:-translate-y-2 hover:shadow-[0_0_50px_-12px_rgba(6,182,212,0.4)] transition-all duration-[400ms] rounded-[2rem]">
+                        <Card className="bg-background border-foreground/10 p-10 md:p-12 shadow-lg hover:-translate-y-2 hover:shadow-[0_0_50px_-12px_rgba(37,99,235,0.5)] transition-all duration-[400ms] rounded-[2rem]">
                             <div className="bg-primary/10 w-16 h-16 flex items-center justify-center rounded-2xl mb-8">
                                 <Target className="text-primary w-8 h-8" />
                             </div>
@@ -99,7 +99,7 @@ export default function AboutUs() {
                             </p>
                         </Card>
 
-                        <Card className="bg-background border-foreground/10 p-10 md:p-12 shadow-lg hover:-translate-y-2 hover:shadow-[0_0_50px_-12px_rgba(6,182,212,0.4)] transition-all duration-[400ms] rounded-[2rem]">
+                        <Card className="bg-background border-foreground/10 p-10 md:p-12 shadow-lg hover:-translate-y-2 hover:shadow-[0_0_50px_-12px_rgba(37,99,235,0.5)] transition-all duration-[400ms] rounded-[2rem]">
                             <div className="bg-blue-600/10 w-16 h-16 flex items-center justify-center rounded-2xl mb-8">
                                 <Eye className="text-blue-600 w-8 h-8" />
                             </div>
@@ -137,7 +137,7 @@ export default function AboutUs() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-8">
                         {/* Value 1 */}
-                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-cyan-500/30 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col lg:col-span-2">
+                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-blue-600/40 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col lg:col-span-2">
                             <Shield className="w-10 h-10 text-primary mb-6" />
                             <h3 className="text-xl font-bold text-foreground mb-3">Integrity</h3>
                             <p className="text-muted-foreground leading-relaxed flex-1">
@@ -145,7 +145,7 @@ export default function AboutUs() {
                             </p>
                         </Card>
                         {/* Value 2 */}
-                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-cyan-500/30 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col lg:col-span-2">
+                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-blue-600/40 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col lg:col-span-2">
                             <Users className="w-10 h-10 text-primary mb-6" />
                             <h3 className="text-xl font-bold text-foreground mb-3">Our Community</h3>
                             <p className="text-muted-foreground leading-relaxed flex-1">
@@ -153,7 +153,7 @@ export default function AboutUs() {
                             </p>
                         </Card>
                         {/* Value 3 */}
-                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-cyan-500/30 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col lg:col-span-2">
+                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-blue-600/40 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col lg:col-span-2">
                             <ArrowUpCircle className="w-10 h-10 text-primary mb-6" />
                             <h3 className="text-xl font-bold text-foreground mb-3">Continuous Improvement</h3>
                             <p className="text-muted-foreground leading-relaxed flex-1">
@@ -161,7 +161,7 @@ export default function AboutUs() {
                             </p>
                         </Card>
                         {/* Value 4 */}
-                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-cyan-500/30 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col md:col-span-1 lg:col-span-2 lg:col-start-2">
+                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-blue-600/40 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col md:col-span-1 lg:col-span-2 lg:col-start-2">
                             <HeartHandshake className="w-10 h-10 text-primary mb-6" />
                             <h3 className="text-xl font-bold text-foreground mb-3">Stronger Together</h3>
                             <p className="text-muted-foreground leading-relaxed flex-1">
@@ -169,7 +169,7 @@ export default function AboutUs() {
                             </p>
                         </Card>
                         {/* Value 5 */}
-                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-cyan-500/30 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col md:col-span-1 lg:col-span-2 lg:col-start-4">
+                        <Card className="border-foreground/10 p-8 shadow-sm hover:-translate-y-2 hover:shadow-2xl hover:shadow-blue-600/40 transition-all duration-[400ms] rounded-[1.5rem] bg-background h-full flex flex-col md:col-span-1 lg:col-span-2 lg:col-start-4">
                             <Leaf className="w-10 h-10 text-primary mb-6" />
                             <h3 className="text-xl font-bold text-foreground mb-3">Sustainability</h3>
                             <p className="text-muted-foreground leading-relaxed flex-1">

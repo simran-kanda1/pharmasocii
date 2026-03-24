@@ -72,7 +72,7 @@ export default function Home() {
                     </svg>
                 </div>
 
-                <div className="container relative z-10 px-4 py-32 mx-auto flex flex-col items-center text-center">
+                <div className="container relative z-10 px-4 py-32 mx-auto flex flex-col items-start text-left mt-8 md:mt-16">
 
                     <h1 className="text-5xl md:text-7xl lg:text-8xl font-extrabold tracking-tighter mb-8 max-w-5xl leading-tight text-foreground drop-shadow-sm">
                         Building a Connected Ecosystem for<br />
@@ -282,10 +282,15 @@ export default function Home() {
                                                 <span className="text-3xl font-extrabold text-foreground">{day}</span>
                                             </div>
                                             <div className="flex flex-col p-6 w-full">
-                                                <div className="flex items-center justify-between mb-2">
-                                                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
-                                                        <MapPin className="w-3.5 h-3.5" /> {evt.city || evt.location || "Online"}
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2 sm:gap-4">
+                                                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 truncate">
+                                                        <MapPin className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{evt.city || evt.location || "Online"}</span>
                                                     </div>
+                                                    {evt.businessName && (
+                                                        <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 truncate sm:justify-end">
+                                                            <Building2 className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{evt.businessName}</span>
+                                                        </div>
+                                                    )}
                                                 </div>
                                                 <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-4 leading-tight">{evt.eventName}</h3>
                                                 <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">

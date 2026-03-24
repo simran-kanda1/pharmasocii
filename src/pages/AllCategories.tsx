@@ -150,9 +150,60 @@ const HEALTH_AUTHORITIES = [
     { country: "Afghanistan", url: "https://www.afda.gov.af/en/guidelines" }, { country: "Africa", url: "https://amrh.nepad.org/amrh-countries" }, { country: "Albania", url: "https://shendetesia.gov.al/" },
     { country: "Algeria", url: "https://ghdx.healthdata.org/organizations/ministry-health-population-and-hospital-reform-algeria" }, { country: "Andorra", url: "https://ghdx.healthdata.org/organizations/ministry-health-and-welfare-andorra" }, { country: "Angola", url: "https://www.trade.gov/country-commercial-guides/angola-healthcare#:~:text=ARMED's%20main%20objectives%20are%20to,WHO%20norms%20and%20Angolan%20regulations." },
     { country: "Antigua and Barbuda", url: "https://health.gov.ag/" }, { country: "Argentina", url: "https://www.argentina.gob.ar/anmat/anmat-en/what-anmat" }, { country: "Armenia", url: "http://www.pharm.am/index.php/en/" },
-    { country: "Australia", url: "#" }, { country: "Austria", url: "#" }, { country: "Azerbaijan", url: "#" }, { country: "Bahrain", url: "#" }, { country: "Bangladesh", url: "#" }, { country: "Barbados", url: "#" }, { country: "Belarus", url: "#" }, { country: "Belgium", url: "#" }, { country: "Belize", url: "#" }, { country: "Benin", url: "#" }, { country: "Bhutan", url: "#" }, { country: "Bolivia", url: "#" }, { country: "Bosnia", url: "#" }, { country: "Botswana", url: "#" }, { country: "Brazil", url: "#" }, { country: "Brunei", url: "#" }, { country: "Bulgaria", url: "#" }, { country: "Burkina Faso", url: "#" }, { country: "Burundi", url: "#" }, { country: "Cabo Verde", url: "#" }, { country: "Cambodia", url: "#" }, { country: "Cameroon", url: "#" }, { country: "Canada", url: "https://www.canada.ca/en/health-canada/corporate/about-health-canada/branches-agencies/health-products-food-branch.html" }, { country: "Central African Republic", url: "#" }, { country: "Chad", url: "#" }, { country: "Chile", url: "#" }, { country: "China", url: "#" }, { country: "Colombia", url: "#" }, { country: "Comoros", url: "#" }, { country: "Congo", url: "#" }, { country: "Costa Rica", url: "#" }, { country: "Côte d'Ivoire", url: "#" }, { country: "Croatia", url: "#" }, { country: "Cuba", url: "#" }, { country: "Cyprus", url: "#" }, { country: "Czech Republic", url: "#" }, { country: "Denmark", url: "#" }, { country: "Djibouti", url: "#" }, { country: "Dominica", url: "#" }, { country: "Dominican Republic", url: "#" }, { country: "Dubai", url: "#" }, { country: "East Timor", url: "#" }, { country: "Ecuador", url: "#" }, { country: "Egypt", url: "#" }, { country: "El Salvador", url: "#" }, { country: "Eritrea", url: "#" }, { country: "Estonia", url: "#" }, { country: "Eswatini", url: "#" }, { country: "Ethiopia", url: "#" }, { country: "Europe (European Commission)", url: "#" }, { country: "Europe (European Medicines Agency)", url: "#" }, { country: "Fiji", url: "#" }, { country: "Finland", url: "#" }, { country: "France", url: "#" }, { country: "Gabon", url: "#" }, { country: "Gambia", url: "#" }, { country: "Georgia", url: "#" }, { country: "Germany (Drugs & Medical Devices)", url: "#" }, { country: "Germany (Vaccines & Biomedicines)", url: "#" }, { country: "Ghana", url: "#" }, { country: "Greece", url: "#" }, { country: "Grenada", url: "#" }, { country: "Guatemala", url: "#" }, { country: "Guyana", url: "#" }, { country: "Haiti", url: "#" }, { country: "Honduras", url: "#" }, { country: "Hong Kong", url: "#" }, { country: "Hungary", url: "#" }, { country: "Iceland", url: "#" }, { country: "India", url: "#" }, { country: "Indonesia", url: "#" }, { country: "Iran", url: "#" }, { country: "Iraq", url: "#" }, { country: "Ireland", url: "#" }, { country: "Israel", url: "#" }, { country: "Italy", url: "#" }, { country: "Jamaica", url: "#" }, { country: "Japan", url: "#" }, { country: "Jordon", url: "#" }, { country: "Kazakhstan", url: "#" }, { country: "Kenya", url: "#" }, { country: "Kiribati", url: "#" }, { country: "Korea", url: "#" }, { country: "Kosovo", url: "#" }, { country: "Kuwait", url: "#" }, { country: "Kyrgyzstan", url: "#" }, { country: "Laos", url: "#" }, { country: "Latvia", url: "#" }, { country: "Lebanon", url: "#" }, { country: "Liberia", url: "#" }, { country: "Libya", url: "#" }, { country: "Liechtenstein", url: "#" }, { country: "Lithuania", url: "#" }, { country: "Luxembourg", url: "#" }, { country: "Madagascar", url: "#" }, { country: "Malawi", url: "#" }, { country: "Malaysia", url: "#" }, { country: "Maldives", url: "#" }, { country: "Mali", url: "#" }, { country: "Malta", url: "#" }, { country: "Marshall Islands", url: "#" }, { country: "Mauritius", url: "#" }, { country: "Mexico", url: "#" }, { country: "Micronesia", url: "#" }, { country: "Moldova", url: "#" }, { country: "Monaco", url: "#" }, { country: "Mongolia", url: "#" }, { country: "Montenegro", url: "#" }, { country: "Morocco", url: "#" }, { country: "Mozambique", url: "#" }, { country: "Myanmar (Burma)", url: "#" }, { country: "Namibia", url: "#" }, { country: "Nauru", url: "#" }, { country: "Nepal", url: "#" }, { country: "Netherlands", url: "#" }, { country: "New Zealand", url: "#" }, { country: "Nicaragua", url: "#" }, { country: "Niger", url: "#" }, { country: "Nigeria", url: "#" }, { country: "North Macedonia", url: "#" }, { country: "Norway", url: "#" }, { country: "Oman", url: "#" }, { country: "Pakistan", url: "#" }, { country: "Palau", url: "#" }, { country: "Palestine", url: "#" }, { country: "Panama", url: "#" }, { country: "Papua New Guinea", url: "#" }, { country: "Paraguay", url: "#" }, { country: "Peru", url: "#" }, { country: "Philippines", url: "#" }, { country: "Poland", url: "#" }, { country: "Portugal", url: "#" }, { country: "Qatar", url: "#" }, { country: "Rawanda", url: "#" }, { country: "Romania", url: "#" }, { country: "Russia", url: "#" }, { country: "Saint Kitts and Nevis", url: "#" }, { country: "Saint Vincent and Grenadines", url: "#" }, { country: "Samoa", url: "#" }, { country: "San Marino, Ministry of Health", url: "#" }, { country: "Sao Tome and Principe", url: "#" }, { country: "Saudi Arabia", url: "#" }, { country: "Senegal", url: "#" }, { country: "Serbia", url: "#" }, { country: "Sierra Leone", url: "#" }, { country: "Singapore", url: "#" }, { country: "Slovak Republic", url: "#" }, { country: "Slovenia", url: "#" }, { country: "Solomon Islands", url: "#" }, { country: "Somalia", url: "#" }, { country: "South Africa", url: "#" }, { country: "Spain", url: "#" }, { country: "Spanish", url: "#" }, { country: "Sri Lanka", url: "#" }, { country: "St. Lucia", url: "#" }, { country: "Sudan", url: "#" }, { country: "Suriname", url: "#" }, { country: "Swaziland", url: "#" }, { country: "Sweden", url: "#" }, { country: "Switzerland", url: "#" }, { country: "Syria", url: "#" }, { country: "Taiwan", url: "#" }, { country: "Tanzania", url: "#" }, { country: "Thailand", url: "#" }, { country: "Therapeutic", url: "#" }, { country: "Togo", url: "#" }, { country: "Tonga", url: "#" }, { country: "Trinidad and Tobago", url: "#" }, { country: "Tunisia", url: "#" }, { country: "Turkey", url: "#" }, { country: "Turkmenistan", url: "#" }, { country: "Tuvalu", url: "#" }, { country: "UAE", url: "#" }, { country: "Uganda", url: "#" }, { country: "UK", url: "#" }, { country: "Ukraine", url: "#" }, { country: "Uruguay", url: "#" }, { country: "Uzbekistan", url: "#" }, { country: "Vanuatu", url: "#" }, { country: "Venezuela", url: "#" }, { country: "Yemen", url: "#" }, { country: "Zambia", url: "#" }, { country: "Zimbabwe", url: "#" }
+    { country: "Australia", url: "https://www.tga.gov.au/" }, { country: "Austria", url: "https://www.basg.gv.at/en/" }, { country: "Azerbaijan", url: "https://www.unodc.org/cld/uploads/res/document/aze/2006/law_of_the_republic_of_azerbaijan_on_medicinal_products_html/Law_on_Medicines.pdf" },
+    { country: "Bahrain", url: "https://www.moh.gov.bh/?lang=en" }, { country: "Bangladesh", url: "https://www.dgdagov.info/" }, { country: "Barbados", url: "https://www.health.gov.bb/" }, { country: "Belarus", url: "https://minzdrav.gov.by/en/" },
+    { country: "Belgium", url: "https://www.famhp.be/en" }, { country: "Belize", url: "https://www.health.gov.bz/" }, { country: "Benin", url: "https://sante.gouv.bj/" }, { country: "Bhutan", url: "https://moh.gov.bt/" }, { country: "Bolivia", url: "https://www.minsalud.gob.bo/" }, { country: "Bosnia", url: "http://80.65.161.138/english/ministarstva/zdravstvo.php" },
+    { country: "Botswana", url: "https://www.moh.gov.bw/regulatory.html" }, { country: "Brazil", url: "https://www.gov.br/anvisa/acl_users/credentials_cookie_auth/require_login?came_from=https%3A//www.gov.br/anvisa/pt-br/english" }, { country: "Brunei", url: "https://moh.gov.bn/" }, { country: "Bulgaria", url: "https://www.bda.bg/bg/%D0%B7%D0%B0-%D0%B8%D0%B0%D0%BB" },
+    { country: "Burkina Faso", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "Burundi", url: "https://weadapt.org/organisation/moh-burundi/" }, { country: "Cabo Verde", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "Cambodia", url: "https://moh.gov.kh/kh/home" }, { country: "Cameroon", url: "https://www.minsante.cm/site/?q=en" },
+    { country: "Canada", url: "https://www.canada.ca/en/health-canada/corporate/about-health-canada/branches-agencies/health-products-food-branch.html" }, { country: "Central African Republic", url: "https://africacdc.org/people/pierre-somse/" }, { country: "Chad", url: "https://www.nepad.org/countries/comoros" }, { country: "Chile", url: "http://www.ispch.cl/" }, { country: "China", url: "https://subsites.chinadaily.com.cn/nmpa/NMPA.html" },
+    { country: "Colombia", url: "https://www.invima.gov.co/" }, { country: "Comoros", url: "https://www.nepad.org/countries/comoros" }, { country: "Congo", url: "https://www.nepad.org/countries/comoros" }, { country: "Costa Rica", url: "https://www.ministeriodesalud.go.cr/index.php" }, { country: "Côte d'Ivoire", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "Croatia", url: "https://www.eunethta.eu/miz/" },
+    { country: "Cuba", url: "https://ghdx.healthdata.org/organizations/ministry-public-health-cuba" }, { country: "Cyprus", url: "https://www.gov.cy/moh/" }, { country: "Czech Republic", url: "https://www.sukl.gov.czindex.php/?lang=2" }, { country: "Denmark", url: "https://laegemiddelstyrelsen.dk/en" }, { country: "Djibouti", url: "https://ghdx.healthdata.org/organizations/ministry-health-djibouti" },
+    { country: "Dominica", url: "https://health.gov.dm/" }, { country: "Dominican Republic", url: "https://msp.gob.do/quienes-somos/" }, { country: "Dubai", url: "https://dha.gov.ae/en/AboutUs" }, { country: "East Timor", url: "https://customs.gov.tl/other-gov-agencies/ministry-of-health/" }, { country: "Ecuador", url: "https://www.salud.gob.ec/" }, { country: "Egypt", url: "https://amrh.nepad.org/amrh-countries/egypt" },
+    { country: "El Salvador", url: "https://www.salud.gob.sv/" }, { country: "Eritrea", url: "https://healthresearchwebafrica.org.za/en/eritrea/institution_61" }, { country: "Estonia", url: "https://ravimiamet.ee/en" }, { country: "Eswatini", url: "https://www.gov.sz/index.php/ministries-departments/ministry-of-health" }, { country: "Ethiopia", url: "https://www.efda.gov.et/" }, { country: "Europe (European Commission)", url: "https://health.ec.europa.eu/medicinal-products/eudralex_en" },
+    { country: "Europe (European Medicines Agency)", url: "https://www.ema.europa.eu/en/homepage" }, { country: "Fiji", url: "https://www.health.gov.fj/" }, { country: "Finland", url: "https://fimea.fi/en/frontpage" }, { country: "France", url: "https://gnius.esante.gouv.fr/en/players/player-profiles/french-national-agency-safety-medicines-and-health-products-ansm" }, { country: "Gabon", url: "https://amrh.nepad.org/amrh-countries/gabon" },
+    { country: "Gambia", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "Georgia", url: "https://cratia.com/en/countries/gruziya/registracziya-lekarstvennyh-sredstv/" }, { country: "Germany (Drugs & Medical Devices)", url: "https://www.bfarm.de/EN/Home/_node.html" }, { country: "Germany (Vaccines & Biomedicines)", url: "https://www.pei.de/EN/service/service-node.html" }, { country: "Ghana", url: "https://www.moh.gov.gh/" },
+    { country: "Greece", url: "https://www.eof.gr/en/" }, { country: "Grenada", url: "https://www.gov.gd/index.php/health" }, { country: "Guatemala", url: "https://mspas.gob.gt/" }, { country: "Guyana", url: "https://health.gov.gy/" }, { country: "Haiti", url: "https://www.fondation-merieux.org/en/news/the-haiti-ministry-of-public-health-and-population-of-haiti-launches-its-first-national-health-research-policy/" }, { country: "Honduras", url: "https://ghdx.healthdata.org/organizations/ministry-health-honduras" },
+    { country: "Hong Kong", url: "https://www.dh.gov.hk/english/index.html" }, { country: "Hungary", url: "http://www.ogyi.hu/" }, { country: "Iceland", url: "https://www.lyfjastofnun.is/" }, { country: "India", url: "https://cdsco.gov.in/opencms/opencms/en/Home/" }, { country: "Indonesia", url: "https://www.kemkes.go.id/id/home" }, { country: "Iran", url: "https://irangov.ir/ministry-of-health-and-medical-education" }, { country: "Iraq", url: "https://gov.krd/moh-en/" },
+    { country: "Ireland", url: "https://www.hpra.ie/" }, { country: "Israel", url: "https://www.gov.il/en/departments/ministry_of_health/govil-landing-page" }, { country: "Italy", url: "https://www.iss.it/" }, { country: "Jamaica", url: "https://www.moh.gov.jm/" }, { country: "Japan", url: "https://www.pmda.go.jp/english/index.html" }, { country: "Jordon", url: "https://www.moh.gov.jo/Default/En" }, { country: "Kazakhstan", url: "https://www.gov.kz/memleket/entities/dsm?lang=en" },
+    { country: "Kenya", url: "https://www.health.go.ke/" }, { country: "Kiribati", url: "https://mhms.gov.ki/" }, { country: "Korea", url: "http://www.mfds.go.kr/eng/index.do" }, { country: "Kosovo", url: "https://msh.rks-gov.net/" }, { country: "Kuwait", url: "https://staging74791946.pharmasocio.com/category-details/Ministry%20of%20Health" }, { country: "Kyrgyzstan", url: "https://med.kg/?locale=en" }, { country: "Laos", url: "https://ghdx.healthdata.org/organizations/ministry-health-laos" },
+    { country: "Latvia", url: "https://www.zva.gov.lv/en" }, { country: "Lebanon", url: "https://www.moph.gov.lb/en/Pages/9/1024/the-ministry" }, { country: "Liberia", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "Libya", url: "https://amrh.nepad.org/" }, { country: "Liechtenstein", url: "https://www.llv.li/de/landesverwaltung/amt-fuer-gesundheit" }, { country: "Lithuania", url: "https://vvkt.lrv.lt/lt/" }, { country: "Luxembourg", url: "https://m3s.gouvernement.lu/en.html" },
+    { country: "Madagascar", url: "http://www.sante.gov.mg/ministere-sante-publique/" }, { country: "Malawi", url: "https://www.health.gov.mw/" }, { country: "Malaysia", url: "https://www.npra.gov.my/index.php/en/" }, { country: "Maldives", url: "https://health.gov.mv/en" }, { country: "Mali", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "Malta", url: "https://medicinesauthority.gov.mt/" }, { country: "Marshall Islands", url: "https://rmihealth.org/" },
+    { country: "Mauritius", url: "https://health.govmu.org/health/" }, { country: "Mexico", url: "https://www.gob.mx/cofepris" }, { country: "Micronesia", url: "https://hsa.gov.fm/health-human-affairs/" }, { country: "Moldova", url: "https://www.ms.gov.md/en/" }, { country: "Monaco", url: "https://en.gouv.mc/Government-Institutions/The-Government/Ministry-of-Health-and-Social-Affairs" }, { country: "Mongolia", url: "https://www.moh.gov.mn/" },
+    { country: "Montenegro", url: "https://www.gov.me/en/mzd" }, { country: "Morocco", url: "http://www.sante.gov.ma/" }, { country: "Mozambique", url: "https://www.mtapsprogram.org/where-we-work/mozambique/" }, { country: "Myanmar (Burma)", url: "https://www.fda.gov.mm/?page_id=13" }, { country: "Namibia", url: "https://mhss.gov.na/" }, { country: "Nauru", url: "http://naurugov.nr/government/departments/department-of-health-and-medicinal-service.aspx" },
+    { country: "Nepal", url: "https://dda.gov.np/" }, { country: "Netherlands", url: "https://english.cbg-meb.nl/" }, { country: "New Zealand", url: "https://www.medsafe.govt.nz/" }, { country: "Nicaragua", url: "https://www.minsa.gob.ni/" }, { country: "Niger", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "Nigeria", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "North Macedonia", url: "https://is.gov.mk/en/inspection_services/%D0%B0%D0%B3%D0%B5%D0%BD%D1%86%D0%B8%D1%98%D0%B0-%D0%B7%D0%B0-%D0%BB%D0%B5%D0%BA%D0%BE%D0%B2%D0%B8/" },
+    { country: "Norway", url: "https://www.dmp.no/en" }, { country: "Oman", url: "https://www.moh.gov.om/en/web/dgpadc/introduction" }, { country: "Pakistan", url: "https://www.dra.gov.pk/therapeutic-goods/drugs/application-processes/" }, { country: "Palau", url: "https://www.palaugov.pw/executive-branch/ministries/health/" }, { country: "Palestine", url: "http://mhpss.ps/en/organization/state-of-palestine-ministry-of-health/rDVOwnP4SK8=" }, { country: "Panama", url: "https://www.minsa.gob.pa/informacion-salud/regulacion-de-investigacion-para-la-salud" },
+    { country: "Papua New Guinea", url: "https://www.health.gov.pg/" }, { country: "Paraguay", url: "https://www.mspbs.gov.py/index.php" }, { country: "Peru", url: "https://www.digemid.minsa.gob.pe/webDigemid/" }, { country: "Philippines", url: "https://ncroffice.doh.gov.ph/" }, { country: "Poland", url: "https://www.nil.gov.pl/en/about-us/" }, { country: "Portugal", url: "https://www.infarmed.pt/" }, { country: "Qatar", url: "https://www.moph.gov.qa/english/Pages/Error.aspx?requestUrl=https://www.moph.gov.qa/english/derpartments/policyaffairs/pdc/Pages/default.aspx" },
+    { country: "Rawanda", url: "https://www.moh.gov.rw/" }, { country: "Romania", url: "https://www.ms.ro/en/" }, { country: "Russia", url: "https://www.regmed.ru/en/about/centre/#:~:text=The%20FSBI%20'SCEEMP'%20employs%20highly,Rules%20of%20Marketing%20Authorisation%20and" }, { country: "Saint Kitts and Nevis", url: "https://www.gov.kn/prime-ministers-office-ministry-of-finance-national-security-citizenship-and-immigration-health-and-social-security/" },
+    { country: "Saint Vincent and Grenadines", url: "https://www.gov.vc/index.php/media-center/846-ministry-of-health-wellness-and-the-environment-receives-donation-of-medical-supplies-and-equipment" }, { country: "Samoa", url: "https://www.health.gov.ws/" }, { country: "San Marino, Ministry of Health", url: "https://eurohealthobservatory.who.int/countries/san-marino" }, { country: "Sao Tome and Principe", url: "https://ghdx.healthdata.org/organizations/ministry-health-sao-tome-and-principe" },
+    { country: "Saudi Arabia", url: "https://www.sfda.gov.sa/en" }, { country: "Senegal", url: "https://www.sante.gouv.sn/" }, { country: "Serbia", url: "https://www.zdravlje.gov.rs/" }, { country: "Sierra Leone", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "Singapore", url: "https://www.hsa.gov.sg/" }, { country: "Slovak Republic", url: "https://www.sukl.sk/hlavna-stranka-1/english-version/about-sidc?page_id=259" },
+    { country: "Slovenia", url: "https://www.jazmp.si/en/" }, { country: "Solomon Islands", url: "https://solomons.gov.sb/ministry-of-health-medical-services/" }, { country: "Somalia", url: "https://moh.gov.so/en/" }, { country: "South Africa", url: "https://www.health.gov.za/" }, { country: "Spain", url: "https://www.aemps.gob.es/" }, { country: "Spanish", url: "https://www.aemps.gob.es/s" }, { country: "Sri Lanka", url: "https://www.nmra.gov.lk/?ui=desktop" }, { country: "St. Lucia", url: "https://www.govt.lc/news/guidelines-on-medicines-and-prescriptions" },
+    { country: "Sudan", url: "https://amrh.nepad.org/amrh-countries/sudan" }, { country: "Suriname", url: "https://www.preventionweb.net/organization/ministry-health-republic-suriname" }, { country: "Swaziland", url: "https://staging74791946.pharmasocio.com/" }, { country: "Sweden", url: "https://www.lakemedelsverket.se/english" }, { country: "Switzerland", url: "https://www.swissmedic.ch/swissmedic/en/home.html" }, { country: "Syria", url: "https://egov.sy/cat/en/88/0/Health.html" }, { country: "Taiwan", url: "https://www.fda.gov.tw/eng/" },
+    { country: "Tanzania", url: "https://www.moh.go.tz/" }, { country: "Thailand", url: "https://en.fda.moph.go.th/" }, { country: "Tonga", url: "https://ago.gov.to/cms/images/LEGISLATION/PRINCIPAL/2001/2001-0003/TherapeuticGoodsAct_3.pdf?zoom_highlight=therapeutic+goods+act" }, { country: "Togo", url: "https://www.wahooas.org/web-ooas/en/pays-membres/cabo-verde" }, { country: "Trinidad and Tobago", url: "https://health.gov.tt/" }, { country: "Tunisia", url: "http://www.dpm.tn/" }, { country: "Turkey", url: "https://www.saglik.gov.tr/" },
+    { country: "Turkmenistan", url: "https://www.saglykhm.gov.tm/en" }, { country: "Tuvalu", url: "https://faolex.fao.org/docs/pdf/tuv176137.pdf" }, { country: "UAE", url: "https://mohap.gov.ae/en/services" }, { country: "Uganda", url: "https://www.health.go.ug/programs/ministry-departments/departments-and-divisions/" }, { country: "UK", url: "https://www.gov.uk/government/organisations/medicines-and-healthcare-products-regulatory-agency" }, { country: "Ukraine", url: "https://cratia.ua/en/service/registration-of-medicines-pharmacovigilance-and-gmp/" },
+    { country: "Uruguay", url: "https://www.gub.uy/ministerio-salud-publica/" }, { country: "Uzbekistan", url: "https://m.en.regmed.uz/" }, { country: "Vanuatu", url: "https://moh.gov.vu/index.php/docspp/principal-pharmacist" }, { country: "Venezuela", url: "https://ghdx.healthdata.org/organizations/ministry-health-and-social-development-venezuela" }, { country: "Yemen", url: "https://yementradeportal.com/en/yemen-supreme-board-of-drugs-sbd-2/" }, { country: "Zambia", url: "https://www.zamra.co.zm/" }, { country: "Zimbabwe", url: "https://www.mohcc.gov.zw/" }
 ];
-
+const CATEGORY_CONFIG = {
+    business: {
+        title: "Business Offerings",
+        description: "Explore curated life sciences providers, businesses, and expertise across specialized categories."
+    },
+    consulting: {
+        title: "Consulting Services",
+        description: "From established consulting firms to independent specialists, find the right partner to advance your project."
+    },
+    events: {
+        title: "Events",
+        description: "Whether you're an industry leader, emerging entrepreneur, or passionate researcher, stay connected to the conversations and ideas moving life sciences forward."
+    },
+    jobs: {
+        title: "Jobs",
+        description: "Explore opportunities aligned with your goals and take the next step in your life sciences journey."
+    },
+    compliance: {
+        title: "Global Health Authority Sites",
+        description: "Bid farewell to endless searches and fragmented information. Our platform serves as your compass, making navigation of health authority sites effortless and efficient."
+    }
+};
 export default function AllCategories() {
     const { category } = useParams<{ category: string }>();
     const currentTab = category || "business";
@@ -160,6 +211,7 @@ export default function AllCategories() {
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedProfile, setSelectedProfile] = useState<any>(null);
+    const [searchQuery, setSearchQuery] = useState("");
 
     // ── All three levels are now arrays (multi-select) ──
     const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
@@ -254,6 +306,27 @@ export default function AllCategories() {
 
     // ── Filter logic: all three levels use array state ──
     const filteredBusinesses = data.filter((item) => {
+        if (searchQuery.trim()) {
+            const q = searchQuery.toLowerCase();
+
+            const matches =
+                item.businessName?.toLowerCase().includes(q) ||
+                item.primaryName?.toLowerCase().includes(q) ||
+                item.eventName?.toLowerCase().includes(q) ||
+                item.jobTitle?.toLowerCase().includes(q) ||
+                item.category?.toLowerCase().includes(q) ||
+                item.selectedGroup?.toLowerCase().includes(q) ||
+                (Array.isArray(item.selectedSubcategories) &&
+                    item.selectedSubcategories.some((s: string) =>
+                        s.toLowerCase().includes(q)
+                    )) ||
+                (Array.isArray(item.selectedSubSubcategories) &&
+                    item.selectedSubSubcategories.some((s: string) =>
+                        s.toLowerCase().includes(q)
+                    ));
+
+            if (!matches) return false;
+        }
         if (!isMainCategoryTab) return true;
 
         // Resolve which category field this item uses
@@ -294,8 +367,20 @@ export default function AllCategories() {
         return true;
     });
 
-    const featuredBusinesses = data.filter(item => item.isFeatured === true);
+    const featuredBusinesses = data.filter(item => {
+        if (!item.isFeatured) return false;
 
+        if (!searchQuery) return true;
+
+        const q = searchQuery.toLowerCase();
+
+        return (
+            item.businessName?.toLowerCase().includes(q) ||
+            item.primaryName?.toLowerCase().includes(q) ||
+            item.eventName?.toLowerCase().includes(q) ||
+            item.jobTitle?.toLowerCase().includes(q)
+        );
+    });
     // ── Sidebar: uses selectedCategories array everywhere ──
     const renderSidebarCategories = () => {
         if (currentTab !== "business") {
@@ -430,9 +515,12 @@ export default function AllCategories() {
         <div className="min-h-screen bg-background flex flex-col">
             <div className="bg-muted/40 border-b border-foreground/10 py-12">
                 <div className="container mx-auto px-4">
-                    <h1 className="text-4xl font-bold tracking-tight mb-4">All Categories</h1>
+                    <h1 className="text-4xl font-bold tracking-tight mb-4">
+                        {CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Categories"}
+                    </h1>
+
                     <p className="text-muted-foreground text-lg max-w-2xl">
-                        Explore, connect, and collaborate with leading businesses, experts, and talent across the global biotech ecosystem.
+                        {CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.description}
                     </p>
                 </div>
             </div>
@@ -457,7 +545,14 @@ export default function AllCategories() {
                         </TabsTrigger>
                     </TabsList>
                 </Tabs>
-
+                <div className="w-full max-w-xl mx-auto mb-8 relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />  <Input
+                        placeholder={`Search ${CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title.toLowerCase()}...`}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
+                    />
+                </div>
                 {/* Active filter chips */}
                 {isMainCategoryTab && (selectedCategories.length > 0 || selectedSubcategories.length > 0 || selectedSubSubcategories.length > 0) && (
                     <div className="flex flex-wrap gap-2 mb-4 max-w-7xl mx-auto">
@@ -487,15 +582,21 @@ export default function AllCategories() {
                 ) : isMainCategoryTab && selectedCategories.length === 0 ? (
                     <div className="flex flex-col gap-16 pb-24 w-full max-w-7xl mx-auto">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                            {(showAllCategories ? Object.keys(currentCategoriesDict) : Object.keys(currentCategoriesDict).slice(0, 11)).map((catName) => (
-                                <div
+                            {(showAllCategories
+                                ? Object.keys(currentCategoriesDict)
+                                : Object.keys(currentCategoriesDict).slice(0, 11)
+                            )
+                                .filter(cat =>
+                                    cat.toLowerCase().includes(searchQuery.toLowerCase())
+                                )
+                                .map((catName) => (<div
                                     key={catName}
                                     onClick={() => toggleCategory(catName)}
                                     className="p-6 border border-foreground/10 hover:border-primary/50 transition-all rounded-xl shadow-sm hover:shadow-md bg-background cursor-pointer flex flex-col justify-center items-center text-center min-h-[120px] group"
                                 >
                                     <span className="font-medium text-sm md:text-base group-hover:text-primary transition-colors">{catName}</span>
                                 </div>
-                            ))}
+                                ))}
                             {!showAllCategories && Object.keys(currentCategoriesDict).length > 11 && (
                                 <div onClick={() => setShowAllCategories(true)} className="p-6 border-2 border-dashed border-primary/30 hover:border-primary/60 text-primary hover:bg-primary/5 transition-all rounded-xl shadow-sm cursor-pointer flex flex-col justify-center items-center text-center min-h-[120px]">
                                     <span className="font-bold text-sm md:text-base inline-flex items-center gap-2">View All {Object.keys(currentCategoriesDict).length} Categories <ChevronDown className="w-4 h-4" /></span>
