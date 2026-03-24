@@ -109,12 +109,11 @@ export default function Home() {
                         <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                         <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-                        <div className="flex w-fit animate-marquee hover:[animation-play-state:paused] gap-6 px-3">
-                            {Array(20).fill(featuredBusinesses).flat().map((p, i) => (
-                                <div key={`carousel-${i}`} className="flex items-center justify-center min-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
-                                    <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{p.businessName}</span>
-                                </div>
-                            ))}
+                        <div className="flex w-fit animate-[marquee_160s_linear_infinite] hover:[animation-play-state:paused] gap-6 px-3">                            {Array(20).fill(featuredBusinesses).flat().map((p, i) => (
+                            <div key={`carousel-${i}`} className="flex items-center justify-center min-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
+                                <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{p.businessName}</span>
+                            </div>
+                        ))}
                         </div>
                     </div>
                 </section>
@@ -168,7 +167,7 @@ export default function Home() {
                     <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                     <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-                    <div className="flex w-fit animate-[marquee_40s_linear_infinite] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
+                    <div className="flex w-fit animate-[marquee_160s_linear_infinite] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
                         {featuredBusinesses.length > 0 ? Array(16).fill(featuredBusinesses).flat().map((b, i) => (
                             <Link to={`/all-categories/business/${b.id}`} key={`offering-${i}`} className="flex flex-col min-w-[320px] max-w-[320px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
                                 <div className="text-xs font-bold text-primary uppercase tracking-wider mb-4 border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
@@ -200,7 +199,7 @@ export default function Home() {
                     <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                     <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-                    <div className="flex w-fit animate-[marquee_50s_linear_infinite_reverse] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
+                    <div className="flex w-fit animate-[marquee_240s_linear_infinite_reverse] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
                         {featuredConsulting.length > 0 ? Array(16).fill(featuredConsulting).flat().map((c, i) => (
                             <Link to={`/all-categories/consulting/${c.id}`} key={`consulting-${i}`} className="flex flex-col min-w-[360px] max-w-[360px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
                                 <div className="text-xs font-bold text-primary uppercase tracking-wider mb-4 border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
