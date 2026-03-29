@@ -10,10 +10,7 @@ import CompleteProfile from "./pages/CompleteProfile";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import PartnerDashboard from "./pages/partner/Dashboard";
-import CreateBusinessOffering from "./pages/partner/CreateBusinessOffering";
-import CreateJob from "./pages/partner/CreateJob";
-import CreateEvent from "./pages/partner/CreateEvent";
-import CreateConsulting from "./pages/partner/CreateConsulting";
+import AddListing from "./pages/partner/AddListing";
 import AboutUs from "./pages/AboutUs";
 import FAQ from "./pages/FAQ";
 
@@ -54,11 +51,13 @@ function App() {
         To be implemented:
         <Route path="/community" element={<AppLayout><Community /></AppLayout>} />
       */}
-      <Route path="/partner/dashboard" element={<AppLayout><PartnerDashboard /></AppLayout>} />
-      <Route path="/partner/offerings/new" element={<AppLayout><CreateBusinessOffering /></AppLayout>} />
-      <Route path="/partner/jobs/new" element={<AppLayout><CreateJob /></AppLayout>} />
-      <Route path="/partner/events/new" element={<AppLayout><CreateEvent /></AppLayout>} />
-      <Route path="/partner/consulting/new" element={<AppLayout><CreateConsulting /></AppLayout>} />
+      <Route path="/partner/dashboard" element={<PartnerDashboard />} />
+      <Route path="/partner/add-listing/:type" element={<AppLayout><AddListing /></AppLayout>} />
+      {/* Legacy routes redirect to new unified page */}
+      <Route path="/partner/offerings/new" element={<AppLayout><AddListing /></AppLayout>} />
+      <Route path="/partner/jobs/new" element={<AppLayout><AddListing /></AppLayout>} />
+      <Route path="/partner/events/new" element={<AppLayout><AddListing /></AppLayout>} />
+      <Route path="/partner/consulting/new" element={<AppLayout><AddListing /></AppLayout>} />
       <Route path="*" element={<AppLayout><div className="flex-1 flex items-center justify-center text-4xl font-bold p-24">Coming Soon.</div></AppLayout>} />
     </Routes>
   );

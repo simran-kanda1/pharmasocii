@@ -15,8 +15,8 @@ import { collection, collectionGroup, query, where, getDocs } from "firebase/fir
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 
 //Types 
-type SubcategoryEntry = string | { label: string; subSubcategories: string[] };
-type CategoriesDict = Record<string, SubcategoryEntry[]>;
+export type SubcategoryEntry = string | { label: string; subSubcategories: string[] };
+export type CategoriesDict = Record<string, SubcategoryEntry[]>;
 
 const getSubLabel = (entry: SubcategoryEntry): string =>
     typeof entry === "string" ? entry : entry.label;
@@ -24,7 +24,7 @@ const getSubLabel = (entry: SubcategoryEntry): string =>
 const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcategories: string[] } =>
     typeof entry !== "string";
 
-const BUSINESS_CATEGORIES: CategoriesDict = {
+export const BUSINESS_CATEGORIES: CategoriesDict = {
     "Artificial Intelligence & Bioinformatics": [],
     "Automation": ["Equipment", "Facility", "Laboratory Systems", "Manufacturing", "Other", "Packaging", "Process Analytical Technologies", "Warehouse"],
     "Building Systems & Controls": [],
@@ -100,7 +100,7 @@ const BUSINESS_CATEGORIES: CategoriesDict = {
     "Water": ["Bacteriostatic", "Distilled", "GMP Manufacturing", "Medical Device Manufacturing", "Parenteral Formulation", "Purified", "Saline Solutions", "Sterile Water for Inhalation", "Sterile Water for Injection", "Sterile Water for Irrigation", "Sterile water for Ophthalmic Solutions/Use"]
 };
 
-const CONSULTING_CATEGORIES: Record<string, string[]> = {
+export const CONSULTING_CATEGORIES: Record<string, string[]> = {
     "Advisory Board": ["Clinical", "CMC", "Labeling", "Regulatory", "Target Selection"],
     "Analytical Comparability": [], "Analytical Methods": ["Advanced Therapies", "Artificial Intellidence", "Bioinformatics", "Cell Banks", "Cell Lines", "Cell Therapies", "Exipients", "Genetic Stability", "Immunoassays", "Laboratory systems & design", "Non-Sterile Products", "Novel Therapies", "Others", "Potency & Bioassays", "Raw Materials", "RNA Therapies", "Small Molecules", "Sterile Products", "Virus Based Therapies"],
     "Artificial Intelligence": [], "Asset Evaluation": [],
@@ -142,13 +142,13 @@ const CONSULTING_CATEGORIES: Record<string, string[]> = {
     "Viral Safety & Clearance Studies": [], "Warehouse Controls": ["Temperature Mapping Studies"], "Water Purification Systems": []
 };
 
-const EVENTS_CATEGORIES: Record<string, string[]> = {
+export const EVENTS_CATEGORIES: Record<string, string[]> = {
     "AAPS (American Association Of Pharmaceutical Scientists)": [], "Advanced & Next Generation Therapies": [], "Analytical Development & Testing": [], "Analytical Methods": [], "Antibodies & Antibody Conjugates": [], "Artificial Intelligence, Bioinformatics & Technology": [], "Aseptic Technologies": [], "Bioassays": [], "Biomarkers & Diagnostics": [], "Biomaterials & Biodevices": [], "Biosimilars": [], "Biotechnology": [], "Bispecifics": [], "Building Systems & Controls": [], "CASSS": [], "Cell & Gene Therapy": [], "Chemistry Manufacturing & Controls (CMC)": [], "Clinical Research & Development": [], "Clinical Trials & Research": [], "Comparability": [], "Continuous Manufacturing/PAT/Real Time Quality": [], "Dermatology": [], "DIA (Drug Information Association)": [], "Diabetes & Cardiovascular Diseases": [], "Digital Innovation In Health Care": [], "Drug Discovery & Development": [], "Drug Safety": [], "Epidemiology": [], "Formulation & Drug Delivery": [], "Gastroenterology": [], "Gene Editing": [], "Genomics": [], "GMP Facilities": [], "Good Manufacturing Practices (GMPs)": [], "Health Care Conference": [], "Health Policy": [], "Health Technology Assessment": [], "Hematology": [], "Hepatology": [], "Higher Order Structure": [], "ICH Conferences": [], "Infectious Diseases": [], "Intellectual Property": [], "ISPE (International Society For Pharmaceutical Engineering)": [], "Labelling": [], "Laboratory Equipment": [], "Manufacturing & Technical Operations": [], "Manufacturing Equipment": [], "Market Access": [], "Marketing & Sales": [], "Mass Spectrometry": [], "Materials, Reagents & Excipients": [], "Medical Affairs": [],
     "Medical Devices": ["Abilation Therapy", "Bispecifics", "Cardiovascular", "Central Nervous System", "Companion Diagnostics", "Consumer Health", "Critical Care", "Dermatology", "Diagnostics", "Gene Editing", "Imaging", "Implanatable", "In Vitro Diagnostics", "Infectious Diseases", "Medical Equipment", "Men's Health", "Metabolic & Endocrine", "Nucleic Acid Based Therapies", "Ophthalmology", "Respiratory", "RNA Based Therapies", "Single Use", "Software for Devices", "Surgical Devices", "Women's Health"],
     "Medical Equipment": [], "Medicinal & Pharmaceutical Chemistry": [], "Men's Health": [], "Metabolic & Endocrine": [], "Microbiology, Virology, Immunology & Infectious Diseases": [], "Molecular & Precision Medicine": [], "Nephrology": [], "Neurology & Psychiatry": [], "Nucleic Acid Based Therapies": [], "Oncology": [], "Other": [], "Patient Recruitment & Engagement": [], "Pediatrics": [], "Pharmaceutical Law": [], "Pharmaceutical Science": [], "Pharmaceuticals": [], "Pharmacology & Toxicology": [], "Potency Assays": [], "Pre-Clinical Research & Development": [], "Pricing & Health Technology": [], "Quality & Compliance": [], "Radiopharmaceuticals": [], "Rare Disease & Orphan Drug Products": [], "Regulations & Guidances": [], "Regulatory Affairs": [], "Research & Innovation": [], "Respiratory": [], "Rheumatology": [], "Risk Management & Pharmacovigilance": [], "RNA Based Therapies": [], "Stability": [], "Stem Cell & Regenerative Medicine": [], "Sterile Drug Products": [], "Supply Chain & Logistics": [], "Tools And Technology": [], "Translational Sciences": [], "Urology": ["<= -60C"], "Vaccines, Immunology & Antibiotics": [], "Validation": [], "Viral Vectors": [], "Well Characterized Biologics (WCBP)": [], "Women's Health": []
 };
 
-const JOBS_CATEGORIES: Record<string, string[]> = {
+export const JOBS_CATEGORIES: Record<string, string[]> = {
     "Administration": [], "Analytical Sciences": [], "Artificial Intelligence & Bioinformatics": [], "Business Development": [], "Clinical Operations": [], "Clinical Research & Development": [], "Drug Discovery": [], "Engineering": [], "Facilities & Building Systems": [], "Finance": [], "Formulation & Development": [], "Health Technology & Market Access": [], "Human Resources & People Management": [], "Information Technology": [], "Legal": [], "Manufacturing & Technical Operations": [], "Manufacturing Sciences & Technology": [], "Market Access": [], "Marketing": [], "Other": [], "Pharmacology": [], "Pre Clinical Research & Development": [], "Product Development": [], "Project Or Program Management": [], "Quality & Compliance": [], "Quality Control": [], "Regulatory": [], "Sales": [], "Toxicology": [], "Translational Sciences": [], "Validation": []
 };
 
