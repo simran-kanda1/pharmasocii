@@ -3,10 +3,16 @@ import { useParams, Link } from "react-router-dom";
 import { MapPin, Building2, Users, Search, ExternalLink, Calendar, Briefcase, X, ChevronRight, ChevronDown, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { db } from "@/firebase";
 import { collection, collectionGroup, query, where, getDocs } from "firebase/firestore";
+import { AutoCarousel } from "@/components/ui/auto-carousel";
 
 //Types 
 type SubcategoryEntry = string | { label: string; subSubcategories: string[] };
@@ -526,32 +532,64 @@ export default function AllCategories() {
             </div>
 
             <div className="container mx-auto px-4 mt-8 flex-1">
-                <Tabs value={currentTab} className="w-full flex flex-col items-center">
-                    <TabsList className="bg-foreground/5 border border-foreground/10 mb-8 p-1 rounded-full w-fit justify-center flex-wrap sm:flex-nowrap h-auto mx-auto shadow-sm">
-                        <TabsTrigger value="business" asChild className="rounded-full px-6 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                            <Link to="/all-categories/business" className="flex items-center gap-2" onClick={resetCategorySelection}><Building2 className="w-4 h-4" /> Business Offerings</Link>
-                        </TabsTrigger>
-                        <TabsTrigger value="consulting" asChild className="rounded-full px-6 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                            <Link to="/all-categories/consulting" className="flex items-center gap-2" onClick={resetCategorySelection}><Users className="w-4 h-4" /> Consulting Services</Link>
-                        </TabsTrigger>
-                        <TabsTrigger value="events" asChild className="rounded-full px-6 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                            <Link to="/all-categories/events" className="flex items-center gap-2" onClick={resetCategorySelection}><Calendar className="w-4 h-4" /> Events</Link>
-                        </TabsTrigger>
-                        <TabsTrigger value="jobs" asChild className="rounded-full px-6 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                            <Link to="/all-categories/jobs" className="flex items-center gap-2" onClick={resetCategorySelection}><Briefcase className="w-4 h-4" /> Jobs</Link>
-                        </TabsTrigger>
-                        <TabsTrigger value="compliance" asChild className="rounded-full px-6 py-2.5 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
-                            <Link to="/all-categories/compliance" className="flex items-center gap-2" onClick={resetCategorySelection}><ShieldCheck className="w-4 h-4" /> Global Health Authority Sites</Link>
-                        </TabsTrigger>
-                    </TabsList>
-                </Tabs>
-                <div className="w-full max-w-xl mx-auto mb-8 relative">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />  <Input
-                        placeholder={`Search ${CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title.toLowerCase()}...`}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
-                    />
+                <div className="w-full max-w-4xl mx-auto mb-10 flex flex-col md:flex-row items-center gap-4">
+                    <div className="relative flex-1 w-full">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
+                        <Input
+                            placeholder={`Search ${CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title.toLowerCase()}...`}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
+                        />
+                    </div>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" className="h-[52px] px-6 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm hover:bg-foreground/5 flex items-center gap-3 min-w-[280px] justify-between transition-colors">
+                                <div className="flex items-center gap-2">
+                                    {currentTab === "business" && <Building2 className="w-5 h-5 text-primary" />}
+                                    {currentTab === "consulting" && <Users className="w-5 h-5 text-primary" />}
+                                    {currentTab === "events" && <Calendar className="w-5 h-5 text-primary" />}
+                                    {currentTab === "jobs" && <Briefcase className="w-5 h-5 text-primary" />}
+                                    {currentTab === "compliance" && <ShieldCheck className="w-5 h-5 text-primary" />}
+                                    <span>{CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Categories"}</span>
+                                </div>
+                                <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-[280px] rounded-xl p-2 bg-background border-foreground/10 shadow-xl">
+                            <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg mb-1 focus:bg-primary/10">
+                                <Link to="/all-categories/business" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
+                                    <Building2 className="w-5 h-5 text-muted-foreground" />
+                                    <span className="font-medium text-base">Business Offerings</span>
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg mb-1 focus:bg-primary/10">
+                                <Link to="/all-categories/consulting" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
+                                    <Users className="w-5 h-5 text-muted-foreground" />
+                                    <span className="font-medium text-base">Consulting Services</span>
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg mb-1 focus:bg-primary/10">
+                                <Link to="/all-categories/events" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
+                                    <Calendar className="w-5 h-5 text-muted-foreground" />
+                                    <span className="font-medium text-base">Events</span>
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg mb-1 focus:bg-primary/10">
+                                <Link to="/all-categories/jobs" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
+                                    <Briefcase className="w-5 h-5 text-muted-foreground" />
+                                    <span className="font-medium text-base">Jobs</span>
+                                </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg focus:bg-primary/10">
+                                <Link to="/all-categories/compliance" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
+                                    <ShieldCheck className="w-5 h-5 text-muted-foreground" />
+                                    <span className="font-medium text-base">Global Health Authority Sites</span>
+                                </Link>
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
                 {/* Active filter chips */}
                 {isMainCategoryTab && (selectedCategories.length > 0 || selectedSubcategories.length > 0 || selectedSubSubcategories.length > 0) && (
@@ -604,15 +642,20 @@ export default function AllCategories() {
                             )}
                         </div>
 
-                        <div className="flex flex-col items-center mt-8">
+                        <div className="flex flex-col items-center mt-8 overflow-hidden w-full">
                             <h3 className="text-2xl font-bold tracking-widest uppercase mb-12">{featuredHeading}</h3>
                             {featuredBusinesses.length > 0 ? (
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 w-full">
-                                    {featuredBusinesses.map(fb => (
-                                        <div key={fb.id} onClick={() => setSelectedProfile(fb)} className="p-6 border border-foreground/10 hover:border-primary/50 transition-colors rounded-xl shadow-sm hover:shadow-md bg-background cursor-pointer flex flex-col justify-center items-center text-center min-h-[120px]">
-                                            <span className="font-medium text-lg">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
-                                        </div>
-                                    ))}
+                                <div className="relative flex w-full">
+                                    <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
+                                    <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
+                                        {featuredBusinesses.map((fb, i) => (
+                                            <div key={`${fb.id}-${i}`} onClick={() => setSelectedProfile(fb)} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                                <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
+                                            </div>
+                                        ))}
+                                    </AutoCarousel>
                                 </div>
                             ) : (
                                 <div className="text-muted-foreground">{noFeaturedText}</div>
@@ -676,20 +719,22 @@ export default function AllCategories() {
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                             <Input placeholder="Search for a country..." value={healthAuthSearch} onChange={(e) => setHealthAuthSearch(e.target.value)} className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full" />
                         </div>
-                        <div className="w-full columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6">
-                            {filteredHealthAuths.length > 0 ? (
-                                filteredHealthAuths.map((auth, index) => (
+                        {filteredHealthAuths.length > 0 ? (
+                            <div className="w-full columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6">
+                                {filteredHealthAuths.map((auth, index) => (
                                     <a key={index} href={auth.url} target="_blank" rel="noopener noreferrer" className="break-inside-avoid shadow-sm hover:shadow-md border border-foreground/10 hover:border-primary/50 bg-background p-4 rounded-xl flex items-center justify-between group transition-all">
                                         <span className="font-medium text-foreground group-hover:text-primary transition-colors truncate pr-4">{auth.country}</span>
                                         <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0 transition-colors" />
                                     </a>
-                                ))
-                            ) : (
-                                <div className="col-span-1 sm:col-span-2 md:col-span-3 lg:col-span-4 text-center p-12 text-muted-foreground">
-                                    No countries found matching "{healthAuthSearch}"
-                                </div>
-                            )}
-                        </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="w-full flex-1 flex flex-col items-center justify-center p-12 text-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-2xl min-h-[200px]">
+                                <Search className="w-8 h-8 mb-4 text-muted-foreground/50" />
+                                <p className="text-lg font-medium text-foreground mb-1">No countries found</p>
+                                <p>We couldn't find any health authorities matching "{healthAuthSearch}"</p>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <div className="flex-1 flex items-center justify-center p-24 text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">

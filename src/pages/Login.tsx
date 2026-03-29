@@ -56,13 +56,13 @@ export default function Login() {
                 </div>
                 <div className="relative z-20 max-w-lg text-left">
                     <div className="inline-flex py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 backdrop-blur-sm text-sm font-medium">
-                        <Activity className="w-4 h-4 mr-2 text-secondary" /> Empowering the Biotech World
+                        <Activity className="w-4 h-4 mr-2 text-secondary" /> Partner login
                     </div>
                     <h2 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
-                        The platform for <span className="text-primary">pioneers.</span>
+                        Discover. Connect. <span className="text-primary">Contribute.</span>
                     </h2>
                     <p className="text-lg text-muted-foreground">
-                        Sign in to access All Categories, connect with experts, and engage with the global biotech community.
+                        One community - A world of expertise.
                     </p>
                 </div>
             </div>

@@ -17,23 +17,37 @@ import {
 export default function Navbar() {
     const navigate = useNavigate();
     const [user, setUser] = useState<any>(null);
-    const [businessName, setBusinessName] = useState("");
+    const [userName, setUserName] = useState("");
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
             setUser(currentUser);
             if (currentUser) {
-                // Try grabbing partner logic
-                const docRef = doc(db, "partnersCollection", currentUser.uid);
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists() && docSnap.data().businessName) {
-                    setBusinessName(docSnap.data().businessName);
-                } else {
-                    // Fallback to member email if not fully fleshed out
-                    setBusinessName(currentUser.email?.split('@')[0] || "User");
+                let nameToSet = "";
+                try {
+                    // Check membersCollection first
+                    const memberSnap = await getDoc(doc(db, "membersCollection", currentUser.uid));
+                    if (memberSnap.exists() && memberSnap.data().name) {
+                        nameToSet = memberSnap.data().name.split(" ")[0];
+                    } else {
+                        // Check partnersCollection
+                        const partnerSnap = await getDoc(doc(db, "partnersCollection", currentUser.uid));
+                        if (partnerSnap.exists() && partnerSnap.data().primaryName) {
+                            nameToSet = partnerSnap.data().primaryName.split(" ")[0];
+                        }
+                    }
+                } catch (error) {
+                    console.error("Error fetching user data", error);
                 }
+                
+                // Fallback to email prefix or "User"
+                if (!nameToSet) {
+                    nameToSet = currentUser.displayName?.split(" ")[0] || currentUser.email?.split("@")[0] || "User";
+                }
+                
+                setUserName(nameToSet);
             } else {
-                setBusinessName("");
+                setUserName("");
             }
         });
 
@@ -87,12 +101,6 @@ export default function Navbar() {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <Link to="/community" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
-                            Community
-                        </Link>
-                        <Link to="/faq" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
-                            FAQ
-                        </Link>
                     </div>
                 </div>
 
@@ -104,7 +112,7 @@ export default function Navbar() {
                                 <DropdownMenuTrigger asChild>
                                     <Button variant="outline" className="border-foreground/10 bg-foreground/5 hover:bg-foreground/10 hover:text-foreground transition-all flex items-center gap-2">
                                         <User className="w-4 h-4 text-primary" />
-                                        <span className="font-medium text-sm max-w-[120px] truncate">{businessName}</span>
+                                        <span className="font-medium text-sm max-w-[120px] truncate">{userName}</span>
                                         <ChevronDown className="w-3 h-3 text-muted-foreground ml-1" />
                                     </Button>
                                 </DropdownMenuTrigger>
@@ -122,9 +130,21 @@ export default function Navbar() {
                             </DropdownMenu>
                         ) : (
                             <>
-                                <Button variant="ghost" asChild className="hover:bg-primary/20 hover:text-primary">
-                                    <Link to="/login">Login</Link>
-                                </Button>
+                                <div className="relative group">
+                                    <Button variant="ghost" className="hover:bg-primary/20 hover:text-primary flex items-center gap-1">
+                                        Login <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
+                                    </Button>
+                                    <div className="absolute top-[100%] right-0 pt-2 w-32 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                                        <div className="bg-background border border-foreground/10 shadow-2xl rounded-md flex flex-col p-1">
+                                            <Link to="/login?type=partner" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
+                                                Partner
+                                            </Link>
+                                            <Link to="/member/login" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
+                                                Member
+                                            </Link>
+                                        </div>
+                                    </div>
+                                </div>
                                 <Button asChild className="shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow">
                                     <Link to="/signup">Get Started</Link>
                                 </Button>

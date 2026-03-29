@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { AutoCarousel } from "@/components/ui/auto-carousel";
 import { db } from "@/firebase";
 import { collection, query, where, limit, getDocs } from "firebase/firestore";
 
@@ -109,12 +110,13 @@ export default function Home() {
                         <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                         <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-                        <div className="flex w-fit animate-[marquee_300s_linear_infinite] hover:[animation-play-state:paused] gap-6 px-3">                            {Array(20).fill(featuredBusinesses).flat().map((p, i) => (
-                            <div key={`carousel-${i}`} className="flex items-center justify-center min-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
-                                <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{p.businessName}</span>
-                            </div>
-                        ))}
-                        </div>
+                        <AutoCarousel speed={40} direction="left" innerClassName="gap-6 px-3">
+                            {featuredBusinesses.map((p, i) => (
+                                <div key={`carousel-${p.id}-${i}`} className="flex items-center justify-center min-w-[220px] max-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0">
+                                    <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{p.businessName}</span>
+                                </div>
+                            ))}
+                        </AutoCarousel>
                     </div>
                 </section>
             )}
@@ -167,22 +169,17 @@ export default function Home() {
                     <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                     <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-                    <div className="flex w-fit animate-[marquee_300s_linear_infinite] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
-                        {featuredBusinesses.length > 0 ? Array(16).fill(featuredBusinesses).flat().map((b, i) => (
-                            <Link to={`/all-categories/business/${b.id}`} key={`offering-${i}`} className="flex flex-col min-w-[320px] max-w-[320px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
-                                <div className="text-xs font-bold text-primary uppercase tracking-wider mb-4 border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
-                                    {b.selectedGroup?.replace(/_/g, ' ') || "Partner"}
-                                </div>
-                                <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 mb-4 leading-tight">{b.businessName}</h3>
-                                <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
-                                    <span>View Partner Profile</span>
-                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                </div>
-                            </Link>
-                        )) : (
-                            <div className="w-full flex min-w-[50vw] justify-center text-muted-foreground py-12">No featured businesses available.</div>
-                        )}
-                    </div>
+                    {featuredBusinesses.length > 0 ? (
+                        <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 pb-8">
+                            {featuredBusinesses.map((b, i) => (
+                                <Link to={`/all-categories/business/${b.id}`} key={`offering-${b.id}-${i}`} className="flex items-center justify-center text-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                    <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{b.businessName}</h3>
+                                </Link>
+                            ))}
+                        </AutoCarousel>
+                    ) : (
+                        <div className="w-full flex justify-center text-muted-foreground py-12">No featured businesses available.</div>
+                    )}
                 </div>
 
                 {/* FEATURED CONSULTING CAROUSEL */}
@@ -199,110 +196,107 @@ export default function Home() {
                     <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                     <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-                    <div className="flex w-fit animate-[marquee_300s_linear_infinite_reverse] hover:[animation-play-state:paused] gap-6 px-3 pb-8">
-                        {featuredConsulting.length > 0 ? Array(16).fill(featuredConsulting).flat().map((c, i) => (
-                            <Link to={`/all-categories/consulting/${c.id}`} key={`consulting-${i}`} className="flex flex-col min-w-[360px] max-w-[360px] p-8 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group">
-                                <div className="text-xs font-bold text-primary uppercase tracking-wider mb-4 border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
-                                    Consulting Service
-                                </div>
-                                <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{c.businessName}</h3>
-                                <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5 truncate mb-4">
-                                    <MapPin className="w-4 h-4 shrink-0 text-primary/70" /> {c.businessAddress || 'Global'}
-                                </p>
-                                <p className="text-sm text-muted-foreground line-clamp-3 mb-6 flex-1">
-                                    {c.companyProfileText}
-                                </p>
-                                <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
-                                    <span>View Service</span>
-                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                </div>
-                            </Link>
-                        )) : (
-                            <div className="w-full flex min-w-[50vw] justify-center text-muted-foreground py-12">No featured consulting services available.</div>
-                        )}
-                    </div>
+                    {featuredConsulting.length > 0 ? (
+                        <AutoCarousel speed={50} direction="right" innerClassName="gap-6 px-3 pb-8">
+                            {featuredConsulting.map((c, i) => (
+                                <Link to={`/all-categories/consulting/${c.id}`} key={`consulting-${c.id}-${i}`} className="flex items-center justify-center text-center min-w-[360px] max-w-[360px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{c.businessName}</h3>
+                                </Link>
+                            ))}
+                        </AutoCarousel>
+                    ) : (
+                        <div className="w-full flex justify-center text-muted-foreground py-12">No featured consulting services available.</div>
+                    )}
                 </div>
 
-                <div className="container mx-auto px-6 md:px-12 max-w-7xl mt-32">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-32">
-                        <div className="flex flex-col">
-                            <div className="mb-8">
-                                <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-6">Featured Jobs</h2>
-                                <p className="text-lg text-primary font-medium mb-3">
-                                    Whether you're an experienced researcher, industry leader, or recent graduate, your next career move starts here.
-                                </p>
-                                <p className="text-muted-foreground text-lg">
-                                    Explore opportunities aligned with your goals and take the next step in your life sciences journey.
-                                </p>
-                            </div>
-                            <div className="space-y-4 mt-8">
-                                {featuredJobs.length > 0 ? featuredJobs.map((job) => (
-                                    <Link to={`/all-categories/jobs/${job.id}`} key={job.id} className="flex flex-col p-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
-                                        <div className="flex items-center justify-between mb-4">
-                                            <div className="text-xs font-bold text-primary uppercase tracking-wider border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
-                                                {job.workModel || "Job Opening"}
-                                            </div>
-                                            <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
-                                                <MapPin className="w-3.5 h-3.5" /> {job.city || "Remote"}
-                                            </div>
-                                        </div>
-                                        <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle}</h3>
-                                        <div className="text-sm text-muted-foreground mb-4 font-medium">{job.businessName}</div>
-                                        <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
-                                            <span>View Job Posting</span>
-                                            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
-                                        </div>
-                                    </Link>
-                                )) : (
-                                    <div className="h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured jobs available.</div>
-                                )}
-                            </div>
+                <div className="flex flex-col gap-24 mt-32 w-full overflow-hidden">
+                    {/* Featured Events Carousel */}
+                    <div className="flex flex-col items-center">
+                        <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-12">
+                            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-6">Featured Events</h2>
+                            <p className="text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
+                                Discover conferences and events shaping the biotech, pharmaceutical, and medical device sectors.
+                            </p>
+                            <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
+                                Whether you're an industry leader, emerging entrepreneur, or passionate researcher, stay connected to the conversations and ideas moving life sciences forward.
+                            </p>
                         </div>
+                        <div className="relative flex w-full">
+                            <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                            <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-                        <div className="flex flex-col">
-                            <div className="mb-8">
-                                <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-6">Featured Events</h2>
-                                <p className="text-lg text-primary font-medium mb-3">
-                                    Discover conferences and events shaping the biotech, pharmaceutical, and medical device sectors.
-                                </p>
-                                <p className="text-muted-foreground text-lg">
-                                    Whether you're an industry leader, emerging entrepreneur, or passionate researcher, stay connected to the conversations and ideas moving life sciences forward.
-                                </p>
-                            </div>
-                            <div className="space-y-4 mt-8">
-                                {featuredEvents.length > 0 ? featuredEvents.map((evt) => {
-                                    const dateObj = new Date(evt.startDate);
-                                    const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
-                                    const day = dateObj.getUTCDate();
-                                    return (
-                                        <Link to={`/all-categories/events/${evt.id}`} key={evt.id} className="flex flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group">
-                                            <div className="w-24 shrink-0 bg-primary/5 group-hover:bg-primary/10 flex flex-col items-center justify-center p-4 border-r border-foreground/10 transition-colors">
-                                                <span className="text-sm font-bold text-primary tracking-widest">{month}</span>
-                                                <span className="text-3xl font-extrabold text-foreground">{day}</span>
-                                            </div>
-                                            <div className="flex flex-col p-6 w-full">
-                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2 sm:gap-4">
-                                                    <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 truncate">
-                                                        <MapPin className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{evt.city || evt.location || "Online"}</span>
-                                                    </div>
-                                                    {evt.businessName && (
-                                                        <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 truncate sm:justify-end">
-                                                            <Building2 className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{evt.businessName}</span>
+                            {featuredEvents.length > 0 ? (
+                                <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-4">
+                                    {featuredEvents.map((evt, i) => {
+                                        const dateObj = new Date(evt.startDate);
+                                        const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+                                        const day = dateObj.getUTCDate();
+                                        return (
+                                            <Link to={`/all-categories/events/${evt.id}`} key={`evt-${evt.id}-${i}`} className="flex flex-col sm:flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[400px] max-w-[400px] h-[160px] shrink-0">
+                                                <div className="w-24 shrink-0 bg-primary/5 group-hover:bg-primary/10 flex flex-col items-center justify-center p-4 border-r border-foreground/10 transition-colors">
+                                                    <span className="text-sm font-bold text-primary tracking-widest">{month}</span>
+                                                    <span className="text-3xl font-extrabold text-foreground">{day}</span>
+                                                </div>
+                                                <div className="flex flex-col p-5 w-full">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2 sm:gap-4">
+                                                        <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 truncate">
+                                                            <MapPin className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{evt.city || evt.location || "Online"}</span>
                                                         </div>
-                                                    )}
+                                                    </div>
+                                                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-4 leading-tight">{evt.eventName}</h3>
+                                                    <div className="mt-auto pt-3 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
+                                                        <span>View Event</span>
+                                                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                    </div>
                                                 </div>
-                                                <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-4 leading-tight">{evt.eventName}</h3>
-                                                <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
-                                                    <span>View Event Details</span>
-                                                    <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                            </Link>
+                                        );
+                                    })}
+                                </AutoCarousel>
+                            ) : (
+                                <div className="w-full flex justify-center text-muted-foreground py-12">No featured events available.</div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Featured Jobs Carousel */}
+                    <div className="flex flex-col items-center pb-24">
+                        <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-12">
+                            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-6">Featured Jobs</h2>
+                            <p className="text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
+                                Whether you're an experienced researcher, industry leader, or recent graduate, your next career move starts here.
+                            </p>
+                            <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
+                                Explore opportunities aligned with your goals and take the next step in your life sciences journey.
+                            </p>
+                        </div>
+                        <div className="relative flex w-full">
+                            <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                            <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
+                            {featuredJobs.length > 0 ? (
+                                <AutoCarousel speed={50} direction="right" innerClassName="gap-6 px-3 py-4">
+                                    {featuredJobs.map((job, i) => (
+                                        <Link to={`/all-categories/jobs/${job.id}`} key={`job-${job.id}-${i}`} className="flex flex-col p-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[360px] max-w-[360px] h-[160px] shrink-0">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <div className="text-xs font-bold text-primary uppercase tracking-wider border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
+                                                    {job.workModel || "Job Opening"}
                                                 </div>
+                                                <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
+                                                    <MapPin className="w-3.5 h-3.5" /> {job.city || "Remote"}
+                                                </div>
+                                            </div>
+                                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle}</h3>
+                                            <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
+                                                <span>View Job</span>
+                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                             </div>
                                         </Link>
-                                    );
-                                }) : (
-                                    <div className="h-40 flex items-center justify-center text-muted-foreground bg-foreground/5 border border-foreground/10 rounded-xl">No featured events available.</div>
-                                )}
-                            </div>
+                                    ))}
+                                </AutoCarousel>
+                            ) : (
+                                <div className="w-full flex justify-center text-muted-foreground py-12">No featured jobs available.</div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -314,7 +308,7 @@ export default function Home() {
                     <SectionHeader
                         title="Community Highlights"
                         subtitle="Trending discussions directly from the network."
-                        action={<Button size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md font-semibold px-8 h-12 rounded-full border-none">Become a member <ArrowRight className="ml-2 w-4 h-4" /></Button>}
+                        action={<Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md font-semibold px-8 h-12 rounded-full border-none"><Link to="/member/login">Become a member <ArrowRight className="ml-2 w-4 h-4" /></Link></Button>}
                     />
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">

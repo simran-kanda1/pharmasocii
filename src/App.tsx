@@ -4,6 +4,7 @@ import { Footer } from "./components/layout/Footer";
 import Home from "./pages/Home";
 import AllCategories from "./pages/AllCategories";
 import Login from "./pages/Login";
+import MemberLogin from "./pages/MemberLogin";
 import PartnerRegister from "./pages/PartnerRegister";
 import CompleteProfile from "./pages/CompleteProfile";
 import AdminLogin from "./pages/admin/AdminLogin";
@@ -39,6 +40,7 @@ function App() {
 
       {/* Auth flows */}
       <Route path="/login" element={<AppLayout><Login /></AppLayout>} />
+      <Route path="/member/login" element={<AppLayout><MemberLogin /></AppLayout>} />
       <Route path="/signup" element={<AppLayout><PartnerRegister /></AppLayout>} />
       <Route path="/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
       <Route path="/partner/register" element={<AppLayout><PartnerRegister /></AppLayout>} />

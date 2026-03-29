@@ -49,6 +49,7 @@ export function Footer() {
                             <li><Link to="/community" className="hover:text-primary transition-colors">Community</Link></li>
                             <li><Link to="/partner" className="hover:text-primary transition-colors">Become a Partner</Link></li>
                             <li><Link to="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
+                            <li><Link to="/faq" className="hover:text-primary transition-colors">FAQ</Link></li>
                         </ul>
                     </div>
 
