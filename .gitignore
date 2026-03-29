@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.env
+.env.local
+.env.*.local
+server/.env
+server/pharmasocii-admin.json
+pharmasocii-admin.json
