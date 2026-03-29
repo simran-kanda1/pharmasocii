@@ -70,6 +70,7 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabType>("dashboard");
     const [transactions, setTransactions] = useState<any[]>([]);
+    const [activePlans, setActivePlans] = useState<any[]>([]);
 
 
     // Feature plan modal
@@ -135,6 +136,12 @@ export default function Dashboard() {
                     const transQ = query(collection(db, "transactionsCollection"), where("partnerId", "==", user.uid));
                     onSnapshot(transQ, (snap) => {
                         setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+                    });
+
+                    // Fetch active plans from planCollection
+                    const plansQ = query(collection(docRef, "planCollection"));
+                    onSnapshot(plansQ, (snap) => {
+                        setActivePlans(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.startDate?.seconds || 0) - (a.startDate?.seconds || 0)));
                     });
                 } else {
                     navigate("/all-categories");
@@ -278,10 +285,17 @@ export default function Dashboard() {
     const formattedTransactions = transactions.map(t => ({
         id: t.id,
         date: t.createdAt ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "N/A",
-        description: t.type === "feature" ? `Feature: ${t.featureId}` : `Listing: ${t.planId}`,
+        description: t.type === "feature" ? `Feature: ${t.featureId?.replace(/_/g, ' ')}` : `Plan: ${t.planId?.replace(/_/g, ' ').toUpperCase() || 'N/A'}`,
         amount: `$${t.amount?.toFixed(2) || "0.00"}`,
         status: t.status === "succeeded" ? "Completed" : t.status,
         method: "Stripe Checkout",
+        group: t.group?.replace(/_/g, ' ') || null,
+        businessName: t.businessName || null,
+        selectedCategories: t.selectedCategories || [],
+        serviceCountries: t.serviceCountries || [],
+        serviceRegions: t.serviceRegions || [],
+        planId: t.planId,
+        currency: t.currency?.toUpperCase() || "USD",
     }));
 
     return (
@@ -559,6 +573,62 @@ export default function Dashboard() {
                     </Card>
                 )}
 
+                {/* Active Subscriptions Section */}
+                {activePlans.length > 0 && (
+                    <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
+                        <CardHeader className="pb-4 border-b border-foreground/10">
+                            <CardTitle className="text-xl flex items-center gap-2"><CreditCard className="w-5 h-5 text-primary" /> Active Subscriptions</CardTitle>
+                        </CardHeader>
+                        <CardContent className="pt-6">
+                            <div className="space-y-4">
+                                {activePlans.filter(p => p.active).map(plan => {
+                                    const planConfig = PLAN_CONFIGS[plan.planId];
+                                    const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : (plan.startDate ? new Date(plan.startDate) : null);
+                                    const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : (plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null);
+                                    const isYearly = plan.billingInterval === "year" || plan.planId?.includes('_yr');
+                                    
+                                    return (
+                                        <div key={plan.id} className="bg-muted/40 border border-foreground/10 rounded-xl p-5">
+                                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-3 mb-2">
+                                                        <h4 className="text-lg font-bold text-foreground">{planConfig?.label || plan.planName || plan.planId?.replace(/_/g, ' ').toUpperCase()}</h4>
+                                                        <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>
+                                                        <Badge variant="outline" className="border-foreground/20">{isYearly ? "Annual" : "Monthly"}</Badge>
+                                                    </div>
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                                                        <div>
+                                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Start Date</p>
+                                                            <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Renewal Date</p>
+                                                            <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Billing Cycle</p>
+                                                            <p className="text-sm text-foreground font-medium capitalize">{isYearly ? "Yearly" : "Monthly"}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Price</p>
+                                                            <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-2 shrink-0">
+                                                    <Button variant="outline" size="sm" className="border-foreground/20 text-foreground/80 hover:bg-foreground/5">
+                                                        Upgrade Plan
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+
                 {/* Offerings Section */}
                 {isApproved && (
                     <div className="mt-8 space-y-6">
@@ -584,36 +654,91 @@ export default function Dashboard() {
                             </div>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {offerings.map(offering => (
+                                {offerings.map(offering => {
+                                    const statusColor = offering.status === "Approved" || offering.active 
+                                        ? "bg-green-500/20 text-green-400 border-green-500/50" 
+                                        : offering.status === "pending_payment" 
+                                        ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/50"
+                                        : "bg-primary/20 text-primary border-primary/50";
+                                    const statusLabel = offering.status === "pending_payment" ? "Pending Payment" : offering.status || (offering.active ? "Active" : "Pending");
+                                    
+                                    return (
                                     <Card key={offering.id} className="bg-muted/40 border-foreground/10">
                                         <CardHeader className="pb-3 border-b border-foreground/10 bg-foreground/5">
                                             <div className="flex justify-between items-start">
-                                                <CardTitle className="text-lg text-primary">{offering.planId?.split('_').join(' ').toUpperCase() || offering.eventName || offering.jobTitle || 'Listing'}</CardTitle>
-                                                <Badge className="bg-primary/20 text-primary border-primary/50">Active</Badge>
+                                                <div>
+                                                    <CardTitle className="text-lg text-primary">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || offering.planId?.split('_').join(' ').toUpperCase() || offering.eventName || offering.jobTitle || 'Listing'}</CardTitle>
+                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{offering.selectedGroup?.replace(/_/g, ' ') || offering.__col?.replace('Collection', '').replace(/([A-Z])/g, ' $1').trim()}</p>
+                                                </div>
+                                                <Badge className={statusColor}>{statusLabel}</Badge>
                                             </div>
                                         </CardHeader>
                                         <CardContent className="pt-4 space-y-3 text-sm">
-                                            {offering.bioSafetyLevel && (
-                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Bio Safety Levels</span>
-                                                    <div className="flex flex-wrap gap-2">{offering.bioSafetyLevel?.map((b: string, i: number) => <Badge variant="secondary" key={i} className="bg-foreground/10">{b}</Badge>) || "N/A"}</div>
-                                                </div>
-                                            )}
-                                            {offering.certifications && (
-                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Certifications</span>
-                                                    <div className="flex flex-wrap gap-2">{offering.certifications?.map((c: string, i: number) => <Badge variant="outline" key={i} className="border-foreground/20">{c}</Badge>) || "N/A"}</div>
-                                                </div>
-                                            )}
-                                            {offering.categories && (
+                                            {/* Categories */}
+                                            {(offering.selectedCategories?.length > 0 || offering.categories?.length > 0) && (
                                                 <div className="flex flex-col gap-1 text-foreground/80">
                                                     <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Categories</span>
-                                                    <p className="font-medium text-foreground">{offering.categories?.join(', ') || "N/A"}</p>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {(offering.selectedCategories || offering.categories || []).map((cat: string, i: number) => (
+                                                            <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">{cat}</Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/* Subcategories */}
+                                            {offering.selectedSubcategories?.length > 0 && (
+                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Subcategories</span>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {offering.selectedSubcategories.map((sub: string, i: number) => (
+                                                            <Badge key={i} variant="outline" className="border-foreground/20 text-xs">{sub}</Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/* Countries */}
+                                            {offering.serviceCountries?.length > 0 && (
+                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Service Countries</span>
+                                                    <div className="flex flex-wrap gap-1.5">
+                                                        {offering.serviceCountries.map((country: string, i: number) => (
+                                                            <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">{country}</Badge>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                            {/* Regions */}
+                                            {offering.serviceRegions?.length > 0 && (
+                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Service Regions</span>
+                                                    <p className="font-medium text-foreground text-xs">{offering.serviceRegions.join(', ')}</p>
+                                                </div>
+                                            )}
+                                            {/* Bio Safety Levels */}
+                                            {offering.bioSafetyLevel?.length > 0 && (
+                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Bio Safety Levels</span>
+                                                    <div className="flex flex-wrap gap-2">{offering.bioSafetyLevel.map((b: string, i: number) => <Badge variant="secondary" key={i} className="bg-foreground/10">{b}</Badge>)}</div>
+                                                </div>
+                                            )}
+                                            {/* Certifications */}
+                                            {offering.certifications?.length > 0 && (
+                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Certifications</span>
+                                                    <div className="flex flex-wrap gap-2">{offering.certifications.map((c: string, i: number) => <Badge variant="outline" key={i} className="border-foreground/20">{c}</Badge>)}</div>
+                                                </div>
+                                            )}
+                                            {/* Created date */}
+                                            {offering.createdAt && (
+                                                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-foreground/10">
+                                                    <Calendar className="w-3 h-3" />
+                                                    <span>Created: {new Date(offering.createdAt.seconds * 1000).toLocaleDateString()}</span>
                                                 </div>
                                             )}
                                         </CardContent>
                                     </Card>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -760,20 +885,64 @@ export default function Dashboard() {
                 ) : (
                     <div className="space-y-4">
                         {txns.map(txn => (
-                            <div key={txn.id} className="bg-foreground/5 border border-foreground/10 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4 hover:border-foreground/20 transition-colors">
-                                <div className="w-11 h-11 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
-                                    <CreditCard className="w-5 h-5 text-primary" />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-foreground font-semibold truncate">{txn.description}</p>
-                                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
-                                        <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {txn.date}</span>
-                                        <span>{txn.method}</span>
+                            <div key={txn.id} className="bg-foreground/5 border border-foreground/10 rounded-xl p-5 hover:border-foreground/20 transition-colors">
+                                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+                                    <div className="w-11 h-11 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
+                                        <CreditCard className="w-5 h-5 text-primary" />
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <span className="text-lg font-bold text-foreground">{txn.amount}</span>
-                                    <Badge className="bg-green-500/10 text-green-400 border-green-500/30">{txn.status}</Badge>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div>
+                                                <p className="text-foreground font-semibold">{txn.description}</p>
+                                                {txn.group && (
+                                                    <p className="text-xs text-muted-foreground capitalize mt-0.5">{txn.group}</p>
+                                                )}
+                                            </div>
+                                            <div className="flex items-center gap-3 shrink-0">
+                                                <span className="text-lg font-bold text-foreground">{txn.amount}</span>
+                                                <Badge className="bg-green-500/10 text-green-400 border-green-500/30">{txn.status}</Badge>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+                                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {txn.date}</span>
+                                            <span>{txn.method}</span>
+                                            <span className="text-foreground/50">{txn.currency}</span>
+                                        </div>
+                                        
+                                        {/* Categories */}
+                                        {txn.selectedCategories?.length > 0 && (
+                                            <div className="mt-3 pt-3 border-t border-foreground/10">
+                                                <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Categories</span>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {txn.selectedCategories.map((cat: string, i: number) => (
+                                                        <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">{cat}</Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        
+                                        {/* Countries & Regions */}
+                                        {(txn.serviceCountries?.length > 0 || txn.serviceRegions?.length > 0) && (
+                                            <div className="mt-3 pt-3 border-t border-foreground/10 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {txn.serviceCountries?.length > 0 && (
+                                                    <div>
+                                                        <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Countries</span>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {txn.serviceCountries.map((country: string, i: number) => (
+                                                                <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">{country}</Badge>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {txn.serviceRegions?.length > 0 && (
+                                                    <div>
+                                                        <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Regions</span>
+                                                        <p className="text-xs text-foreground/80">{txn.serviceRegions.join(', ')}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         ))}
