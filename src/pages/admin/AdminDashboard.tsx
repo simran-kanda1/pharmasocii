@@ -1,743 +1,972 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-    LayoutDashboard, Users, Receipt, ShieldCheck,
-    Search, Filter, ExternalLink, CheckCircle2,
-    User, BadgeCheck, FileText,
-    ChevronRight, MoreVertical, Globe, Tag,
-    SearchX, AlertCircle, Ban, Eye, Clock, MapPin
+  AlertCircle,
+  BadgeCheck,
+  Ban,
+  CheckCircle2,
+  ChevronRight,
+  Clock,
+  ExternalLink,
+  Eye,
+  FileText,
+  LayoutDashboard,
+  Loader2,
+  LogOut,
+  MoreVertical,
+  Receipt,
+  Search,
+  SearchX,
+  ShieldCheck,
+  User,
+  Users,
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { db, auth } from "@/firebase";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+import {
+  collection,
+  collectionGroup,
+  doc,
+  getDoc,
+  getDocs,
+  limit,
+  onSnapshot,
+  orderBy,
+  query,
+  updateDoc,
+} from "firebase/firestore";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-    DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
-    DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import {
-    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { db } from "@/firebase";
-import { collection, query, onSnapshot, doc, updateDoc, orderBy, limit, collectionGroup, getDocs } from "firebase/firestore";
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 
 type AdminTab = "overview" | "partners" | "listings" | "transactions";
+type ListingFilter = "all" | "pending" | "approved" | "disabled";
+
+type PartnerRecord = {
+  id: string;
+  businessName?: string;
+  primaryName?: string;
+  primaryEmail?: string;
+  companyWebsite?: string;
+  phoneNumber?: string;
+  businessAddress?: string;
+  partnerStatus?: string;
+  [key: string]: any;
+};
+
+type ListingRecord = {
+  id: string;
+  businessName?: string;
+  companyWebsite?: string;
+  selectedPlan?: string;
+  status?: string;
+  active?: boolean;
+  selectedCategories?: string[];
+  serviceCountries?: string[];
+  serviceRegions?: string[];
+  companyProfileText?: string;
+  businessAddress?: string;
+  createdAt?: { seconds?: number };
+  __col: string;
+  __path: string;
+  [key: string]: any;
+};
+
+const splitCsv = (value: string) =>
+  value
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+
+const getCollectionLabel = (collectionName: string) => {
+  switch (collectionName) {
+    case "businessOfferingsCollection":
+      return "Business Offering";
+    case "consultingServicesCollection":
+      return "Consulting Service";
+    case "eventsCollection":
+      return "Event";
+    case "jobsCollection":
+      return "Job";
+    default:
+      return collectionName;
+  }
+};
+
+const getStatusBadge = (status?: string) => {
+  switch (status) {
+    case "Approved":
+      return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Approved</Badge>;
+    case "Pending Review":
+      return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Pending Review</Badge>;
+    case "Disabled":
+      return <Badge className="bg-slate-200 text-slate-700 border-slate-300">Disabled</Badge>;
+    case "Rejected":
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Rejected</Badge>;
+    default:
+      return <Badge variant="outline">{status || "Unknown"}</Badge>;
+  }
+};
 
 export default function AdminDashboard() {
-    const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState<AdminTab>("overview");
-    const [partners, setPartners] = useState<any[]>([]);
-    const [transactions, setTransactions] = useState<any[]>([]);
-    const [listings, setListings] = useState<any[]>([]);
-    const [searchTerm, setSearchTerm] = useState("");
-    const [listingSearchTerm, setListingSearchTerm] = useState("");
-    const [listingFilter, setListingFilter] = useState<"all" | "pending" | "approved">("all");
+  const navigate = useNavigate();
 
-    useEffect(() => {
-        // Restricted to admins - In a real app, you'd check a custom claim or roles doc
-        // For now, we assume anyone who gets here is authorized (protected by App.tsx)
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const [partners, setPartners] = useState<PartnerRecord[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [listings, setListings] = useState<ListingRecord[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [listingSearchTerm, setListingSearchTerm] = useState("");
+  const [listingFilter, setListingFilter] = useState<ListingFilter>("all");
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminName, setAdminName] = useState("");
+  const [saveNotice, setSaveNotice] = useState("");
 
-        const qPartners = query(collection(db, "partnersCollection"), orderBy("createdAt", "desc"));
-        const unsubPartners = onSnapshot(qPartners, (snap) => {
-            setPartners(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
+  const [selectedPartner, setSelectedPartner] = useState<PartnerRecord | null>(null);
+  const [partnerEditor, setPartnerEditor] = useState<Record<string, string>>({});
+  const [partnerEditorOpen, setPartnerEditorOpen] = useState(false);
 
-        const qTrans = query(collection(db, "transactionsCollection"), orderBy("createdAt", "desc"), limit(50));
-        const unsubTrans = onSnapshot(qTrans, (snap) => {
-            setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-        });
+  const [selectedListing, setSelectedListing] = useState<ListingRecord | null>(null);
+  const [listingEditor, setListingEditor] = useState<Record<string, string>>({});
+  const [listingEditorOpen, setListingEditorOpen] = useState(false);
 
-        // Fetch all listings from all sub-collections
-        const fetchListings = async () => {
-            const collectionNames = ["businessOfferingsCollection", "consultingServicesCollection", "eventsCollection", "jobsCollection"];
-            const allListings: any[] = [];
-            
-            for (const colName of collectionNames) {
-                try {
-                    const snap = await getDocs(collectionGroup(db, colName));
-                    snap.docs.forEach(d => {
-                        const data = d.data();
-                        // Only include listings that have been paid for (not pending_payment)
-                        if (data.status !== "pending_payment") {
-                            allListings.push({
-                                id: d.id,
-                                ...data,
-                                __col: colName,
-                                __path: d.ref.path, // Store full path for updates
-                            });
-                        }
-                    });
-                } catch (err) {
-                    console.error(`Error fetching ${colName}:`, err);
-                }
-            }
-            
-            // Sort by createdAt descending
-            allListings.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-            setListings(allListings);
-        };
-        
-        fetchListings();
-        // Refresh listings every 30 seconds
-        const listingsInterval = setInterval(fetchListings, 30000);
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (!user) {
+        navigate("/admin");
+        return;
+      }
 
-        return () => { 
-            unsubPartners(); 
-            unsubTrans(); 
-            clearInterval(listingsInterval);
-        };
-    }, []);
+      const adminDoc = await getDoc(doc(db, "adminCollection", user.uid));
+      if (!adminDoc.exists()) {
+        navigate("/admin");
+        return;
+      }
 
-    const handleApprove = async (partnerId: string) => {
-        try {
-            await updateDoc(doc(db, "partnersCollection", partnerId), {
-                partnerStatus: "Approved"
-            });
-        } catch (err) { console.error(err); }
-    };
-
-    const handleCancel = async (partnerId: string) => {
-        try {
-            await updateDoc(doc(db, "partnersCollection", partnerId), {
-                partnerStatus: "Cancelled"
-            });
-        } catch (err) { console.error(err); }
-    };
-
-    const handleApproveListing = async (listing: any) => {
-        try {
-            // Parse the path to get partnerId and collection
-            const pathParts = listing.__path.split('/');
-            const partnerId = pathParts[1];
-            const colName = pathParts[2];
-            const listingId = pathParts[3];
-            
-            await updateDoc(doc(db, "partnersCollection", partnerId, colName, listingId), {
-                status: "Approved"
-            });
-            
-            // Update local state
-            setListings(prev => prev.map(l => 
-                l.id === listing.id ? { ...l, status: "Approved" } : l
-            ));
-        } catch (err) { 
-            console.error("Error approving listing:", err); 
-        }
-    };
-
-    const handleRejectListing = async (listing: any) => {
-        try {
-            const pathParts = listing.__path.split('/');
-            const partnerId = pathParts[1];
-            const colName = pathParts[2];
-            const listingId = pathParts[3];
-            
-            await updateDoc(doc(db, "partnersCollection", partnerId, colName, listingId), {
-                status: "Rejected",
-                active: false
-            });
-            
-            setListings(prev => prev.map(l => 
-                l.id === listing.id ? { ...l, status: "Rejected", active: false } : l
-            ));
-        } catch (err) { 
-            console.error("Error rejecting listing:", err); 
-        }
-    };
-
-    const filteredPartners = partners.filter(p =>
-        p.businessName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        p.primaryEmail?.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const pendingListings = listings.filter(l => l.status === "Pending Review");
-    const approvedListings = listings.filter(l => l.status === "Approved");
-    
-    const filteredListings = listings.filter(l => {
-        // Filter by status
-        if (listingFilter === "pending" && l.status !== "Pending Review") return false;
-        if (listingFilter === "approved" && l.status !== "Approved") return false;
-        
-        // Filter by search
-        if (listingSearchTerm) {
-            const q = listingSearchTerm.toLowerCase();
-            return (
-                l.businessName?.toLowerCase().includes(q) ||
-                l.selectedCategories?.some((c: string) => c.toLowerCase().includes(q)) ||
-                l.selectedPlan?.toLowerCase().includes(q)
-            );
-        }
-        return true;
+      const adminData = adminDoc.data();
+      setIsAuthorized(true);
+      setAdminEmail(user.email || "");
+      setAdminName(adminData?.name || "Administrator");
     });
 
-    const stats = {
-        totalPartners: partners.length,
-        pendingApprovals: partners.filter(p => p.partnerStatus === "Pending").length,
-        pendingListings: pendingListings.length,
-        totalRevenue: transactions.reduce((acc, t) => acc + (t.amount || 0), 0),
-        activeListings: approvedListings.length,
+    return () => unsubscribe();
+  }, [navigate]);
+
+  useEffect(() => {
+    if (!isAuthorized) return;
+
+    const qPartners = query(collection(db, "partnersCollection"), orderBy("createdAt", "desc"));
+    const unsubPartners = onSnapshot(qPartners, (snap) => {
+      setPartners(snap.docs.map((d) => ({ id: d.id, ...d.data() } as PartnerRecord)));
+    });
+
+    const qTransactions = query(collection(db, "transactionsCollection"), orderBy("createdAt", "desc"), limit(50));
+    const unsubTransactions = onSnapshot(qTransactions, (snap) => {
+      setTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+
+    const fetchListings = async () => {
+      const collectionNames = [
+        "businessOfferingsCollection",
+        "consultingServicesCollection",
+        "eventsCollection",
+        "jobsCollection",
+      ];
+      const allListings: ListingRecord[] = [];
+
+      for (const colName of collectionNames) {
+        try {
+          const snap = await getDocs(collectionGroup(db, colName));
+          snap.docs.forEach((d) => {
+            const data = d.data();
+            if (data.status !== "pending_payment") {
+              allListings.push({
+                id: d.id,
+                ...data,
+                __col: colName,
+                __path: d.ref.path,
+              } as ListingRecord);
+            }
+          });
+        } catch (error) {
+          console.error(`Failed to fetch ${colName}`, error);
+        }
+      }
+
+      allListings.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+      setListings(allListings);
     };
 
-    return (
-        <div className="min-h-screen bg-[#050505] text-white flex">
-            {/* Sidebar */}
-            <aside className="w-64 border-r border-white/5 bg-black/40 backdrop-blur-xl flex flex-col shrink-0">
-                <div className="p-8">
-                    <div className="flex items-center gap-3 mb-10">
-                        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-                            <ShieldCheck className="text-white w-6 h-6" />
-                        </div>
-                        <h1 className="font-bold text-xl tracking-tight">Admin<span className="text-primary italic">.PS</span></h1>
-                    </div>
+    fetchListings();
+    const listingsInterval = setInterval(fetchListings, 30000);
 
-                    <nav className="space-y-1.5">
-                        <SidebarItem id="overview" label="Overview" icon={LayoutDashboard} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
-                        <SidebarItem id="partners" label="Partners" icon={Users} active={activeTab === "partners"} onClick={() => setActiveTab("partners")} badge={stats.pendingApprovals > 0 ? stats.pendingApprovals : undefined} />
-                        <SidebarItem id="listings" label="Listings" icon={FileText} active={activeTab === "listings"} onClick={() => setActiveTab("listings")} badge={stats.pendingListings > 0 ? stats.pendingListings : undefined} />
-                        <SidebarItem id="transactions" label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
-                    </nav>
+    return () => {
+      unsubPartners();
+      unsubTransactions();
+      clearInterval(listingsInterval);
+    };
+  }, [isAuthorized]);
+
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate("/admin");
+  };
+
+  const openPartnerEditor = (partner: PartnerRecord) => {
+    setSelectedPartner(partner);
+    setPartnerEditor({
+      businessName: partner.businessName || "",
+      primaryName: partner.primaryName || "",
+      primaryEmail: partner.primaryEmail || "",
+      companyWebsite: partner.companyWebsite || "",
+      phoneNumber: partner.phoneNumber || "",
+      businessAddress: partner.businessAddress || "",
+      partnerStatus: partner.partnerStatus || "Pending",
+    });
+    setPartnerEditorOpen(true);
+  };
+
+  const savePartnerEdits = async () => {
+    if (!selectedPartner) return;
+    try {
+      await updateDoc(doc(db, "partnersCollection", selectedPartner.id), {
+        businessName: partnerEditor.businessName || "",
+        primaryName: partnerEditor.primaryName || "",
+        primaryEmail: partnerEditor.primaryEmail || "",
+        companyWebsite: partnerEditor.companyWebsite || "",
+        phoneNumber: partnerEditor.phoneNumber || "",
+        businessAddress: partnerEditor.businessAddress || "",
+        partnerStatus: partnerEditor.partnerStatus || "Pending",
+      });
+      setPartners((prev) =>
+        prev.map((p) => (p.id === selectedPartner.id ? { ...p, ...partnerEditor } : p)),
+      );
+      setSaveNotice("Partner profile updated.");
+    } catch (error) {
+      console.error(error);
+      setSaveNotice("Could not update partner profile.");
+    }
+  };
+
+  const setPartnerStatus = async (partner: PartnerRecord, status: string) => {
+    try {
+      await updateDoc(doc(db, "partnersCollection", partner.id), { partnerStatus: status });
+      setPartners((prev) => prev.map((p) => (p.id === partner.id ? { ...p, partnerStatus: status } : p)));
+      if (selectedPartner?.id === partner.id) {
+        setPartnerEditor((prev) => ({ ...prev, partnerStatus: status }));
+      }
+      setSaveNotice(`Partner status set to ${status}.`);
+    } catch (error) {
+      console.error(error);
+      setSaveNotice("Could not update partner status.");
+    }
+  };
+
+  const openListingEditor = (listing: ListingRecord) => {
+    setSelectedListing(listing);
+    setListingEditor({
+      businessName: listing.businessName || "",
+      companyWebsite: listing.companyWebsite || "",
+      selectedPlan: listing.selectedPlan || "",
+      status: listing.status || "Pending Review",
+      active: `${listing.active ?? true}`,
+      selectedCategoriesCsv: (listing.selectedCategories || []).join(", "),
+      serviceCountriesCsv: (listing.serviceCountries || []).join(", "),
+      serviceRegionsCsv: (listing.serviceRegions || []).join(", "),
+      companyProfileText: listing.companyProfileText || "",
+      businessAddress: listing.businessAddress || "",
+    });
+    setListingEditorOpen(true);
+  };
+
+  const setListingStatus = async (listing: ListingRecord, status: string, active: boolean) => {
+    try {
+      await updateDoc(doc(db, listing.__path), { status, active });
+      setListings((prev) =>
+        prev.map((l) => (l.__path === listing.__path ? { ...l, status, active } : l)),
+      );
+      if (selectedListing?.__path === listing.__path) {
+        setListingEditor((prev) => ({ ...prev, status, active: `${active}` }));
+      }
+      setSaveNotice(`Listing updated: ${status}.`);
+    } catch (error) {
+      console.error(error);
+      setSaveNotice("Could not update listing status.");
+    }
+  };
+
+  const saveListingEdits = async () => {
+    if (!selectedListing) return;
+    try {
+      const payload = {
+        businessName: listingEditor.businessName || "",
+        companyWebsite: listingEditor.companyWebsite || "",
+        selectedPlan: listingEditor.selectedPlan || "",
+        status: listingEditor.status || "Pending Review",
+        active: listingEditor.active === "true",
+        selectedCategories: splitCsv(listingEditor.selectedCategoriesCsv || ""),
+        serviceCountries: splitCsv(listingEditor.serviceCountriesCsv || ""),
+        serviceRegions: splitCsv(listingEditor.serviceRegionsCsv || ""),
+        companyProfileText: listingEditor.companyProfileText || "",
+        businessAddress: listingEditor.businessAddress || "",
+      };
+
+      await updateDoc(doc(db, selectedListing.__path), payload);
+
+      setListings((prev) =>
+        prev.map((l) => (l.__path === selectedListing.__path ? { ...l, ...payload } : l)),
+      );
+      setSaveNotice("Listing updated.");
+    } catch (error) {
+      console.error(error);
+      setSaveNotice("Could not save listing changes.");
+    }
+  };
+
+  const filteredPartners = useMemo(
+    () =>
+      partners.filter(
+        (p) =>
+          p.businessName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          p.primaryEmail?.toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
+    [partners, searchTerm],
+  );
+
+  const pendingListings = listings.filter((l) => l.status === "Pending Review");
+  const approvedListings = listings.filter((l) => l.status === "Approved");
+  const disabledListings = listings.filter((l) => l.status === "Disabled");
+
+  const filteredListings = useMemo(() => {
+    return listings.filter((l) => {
+      if (listingFilter === "pending" && l.status !== "Pending Review") return false;
+      if (listingFilter === "approved" && l.status !== "Approved") return false;
+      if (listingFilter === "disabled" && l.status !== "Disabled") return false;
+
+      if (!listingSearchTerm) return true;
+
+      const q = listingSearchTerm.toLowerCase();
+      return (
+        l.businessName?.toLowerCase().includes(q) ||
+        l.selectedCategories?.some((c) => c.toLowerCase().includes(q)) ||
+        l.selectedPlan?.toLowerCase().includes(q)
+      );
+    });
+  }, [listingFilter, listingSearchTerm, listings]);
+
+  const stats = {
+    totalRevenue: transactions.reduce((acc, t) => acc + (t.amount || 0), 0),
+    totalPartners: partners.length,
+    pendingApprovals: partners.filter((p) => p.partnerStatus === "Pending").length,
+    pendingListings: pendingListings.length,
+    activeListings: approvedListings.length,
+  };
+
+  if (isAuthorized === null) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-primary mx-auto mb-3" />
+          <p className="text-slate-500">Verifying admin access...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex">
+      <aside className="w-64 border-r border-slate-200 bg-white flex flex-col shrink-0">
+        <div className="p-7">
+          <div className="flex items-center gap-3 mb-8">
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <ShieldCheck className="text-white w-5 h-5" />
+            </div>
+            <h1 className="font-semibold text-lg">Admin Console</h1>
+          </div>
+
+          <nav className="space-y-1.5">
+            <SidebarItem label="Overview" icon={LayoutDashboard} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
+            <SidebarItem label="Partners" icon={Users} active={activeTab === "partners"} onClick={() => setActiveTab("partners")} badge={stats.pendingApprovals > 0 ? stats.pendingApprovals : undefined} />
+            <SidebarItem label="Listings" icon={FileText} active={activeTab === "listings"} onClick={() => setActiveTab("listings")} badge={stats.pendingListings > 0 ? stats.pendingListings : undefined} />
+            <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
+          </nav>
+        </div>
+
+        <div className="mt-auto p-5 border-t border-slate-200 space-y-2">
+          <Button variant="ghost" onClick={() => navigate("/")} className="w-full justify-start text-slate-600">
+            <ExternalLink className="w-4 h-4 mr-2" /> Back to site
+          </Button>
+          <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-rose-600 hover:text-rose-700 hover:bg-rose-50">
+            <LogOut className="w-4 h-4 mr-2" /> Logout
+          </Button>
+        </div>
+      </aside>
+
+      <main className="flex-1 overflow-y-auto custom-scrollbar">
+        <header className="h-20 border-b border-slate-200 bg-white flex items-center justify-between px-10 sticky top-0 z-40">
+          <h2 className="text-xl font-semibold capitalize">{activeTab}</h2>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <p className="text-sm font-medium">{adminName}</p>
+              <p className="text-xs text-slate-500">{adminEmail}</p>
+            </div>
+            <div className="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center">
+              <User className="w-4 h-4 text-slate-600" />
+            </div>
+          </div>
+        </header>
+
+        <div className="p-8 max-w-7xl mx-auto space-y-6">
+          {saveNotice && (
+            <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-800">
+              {saveNotice}
+            </div>
+          )}
+
+          {activeTab === "overview" && (
+            <OverviewTab
+              stats={stats}
+              transactions={transactions}
+              pendingListings={pendingListings}
+              onApproveListing={(listing: ListingRecord) => setListingStatus(listing, "Approved", true)}
+              onViewListing={openListingEditor}
+            />
+          )}
+
+          {activeTab === "partners" && (
+            <div className="space-y-4">
+              <div className="relative w-full md:w-96">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Search partners by business or email..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-11 bg-white border-slate-200"
+                />
+              </div>
+              <PartnerList
+                partners={filteredPartners}
+                onView={openPartnerEditor}
+                onSetStatus={setPartnerStatus}
+              />
+            </div>
+          )}
+
+          {activeTab === "listings" && (
+            <div className="space-y-4">
+              <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    placeholder="Search listings by business, category, or plan..."
+                    value={listingSearchTerm}
+                    onChange={(e) => setListingSearchTerm(e.target.value)}
+                    className="pl-10 h-11 bg-white border-slate-200"
+                  />
                 </div>
 
-                <div className="mt-auto p-6 border-t border-white/5">
-                    <Button variant="ghost" onClick={() => navigate("/")} className="w-full justify-start text-white/60 hover:text-white hover:bg-white/5">
-                        <ExternalLink className="w-4 h-4 mr-3" /> Back to site
+                <div className="flex items-center gap-2">
+                  <Button variant={listingFilter === "all" ? "default" : "outline"} onClick={() => setListingFilter("all")}>
+                    All ({listings.length})
+                  </Button>
+                  <Button variant={listingFilter === "pending" ? "default" : "outline"} onClick={() => setListingFilter("pending")}>
+                    <Clock className="w-4 h-4 mr-2" /> Pending ({pendingListings.length})
+                  </Button>
+                  <Button variant={listingFilter === "approved" ? "default" : "outline"} onClick={() => setListingFilter("approved")}>
+                    <CheckCircle2 className="w-4 h-4 mr-2" /> Approved ({approvedListings.length})
+                  </Button>
+                  <Button variant={listingFilter === "disabled" ? "default" : "outline"} onClick={() => setListingFilter("disabled")}>
+                    <Ban className="w-4 h-4 mr-2" /> Disabled ({disabledListings.length})
+                  </Button>
+                </div>
+              </div>
+
+              <ListingsList
+                listings={filteredListings}
+                onView={openListingEditor}
+                onSetStatus={setListingStatus}
+              />
+            </div>
+          )}
+
+          {activeTab === "transactions" && <TransactionList transactions={transactions} />}
+        </div>
+      </main>
+
+      <Sheet open={partnerEditorOpen} onOpenChange={setPartnerEditorOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Partner Profile</SheetTitle>
+            <SheetDescription>View and manually edit account information.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <Field label="Business Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} />
+            <Field label="Primary Contact Name" value={partnerEditor.primaryName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryName: v }))} />
+            <Field label="Primary Email" value={partnerEditor.primaryEmail || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryEmail: v }))} />
+            <Field label="Company Website" value={partnerEditor.companyWebsite || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, companyWebsite: v }))} />
+            <Field label="Phone Number" value={partnerEditor.phoneNumber || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, phoneNumber: v }))} />
+            <Field label="Account Status (Approved, Pending, Disabled)" value={partnerEditor.partnerStatus || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, partnerStatus: v }))} />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Business Address</p>
+              <Textarea
+                value={partnerEditor.businessAddress || ""}
+                onChange={(e) => setPartnerEditor((prev) => ({ ...prev, businessAddress: e.target.value }))}
+                className="min-h-24"
+              />
+            </div>
+            <Button onClick={savePartnerEdits} className="w-full">Save Partner Changes</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Sheet open={listingEditorOpen} onOpenChange={setListingEditorOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>Listing Details</SheetTitle>
+            <SheetDescription>Inspect and manually edit listing information.</SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <Field label="Business Name" value={listingEditor.businessName || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, businessName: v }))} />
+            <Field label="Company Website" value={listingEditor.companyWebsite || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, companyWebsite: v }))} />
+            <Field label="Plan" value={listingEditor.selectedPlan || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedPlan: v }))} />
+            <Field label="Status (Approved, Pending Review, Disabled)" value={listingEditor.status || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, status: v }))} />
+            <Field label="Active (true or false)" value={listingEditor.active || "true"} onChange={(v) => setListingEditor((prev) => ({ ...prev, active: v }))} />
+            <Field label="Categories (comma separated)" value={listingEditor.selectedCategoriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedCategoriesCsv: v }))} />
+            <Field label="Service Countries (comma separated)" value={listingEditor.serviceCountriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, serviceCountriesCsv: v }))} />
+            <Field label="Service Regions (comma separated)" value={listingEditor.serviceRegionsCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, serviceRegionsCsv: v }))} />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Company Profile</p>
+              <Textarea
+                value={listingEditor.companyProfileText || ""}
+                onChange={(e) => setListingEditor((prev) => ({ ...prev, companyProfileText: e.target.value }))}
+                className="min-h-24"
+              />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Business Address</p>
+              <Textarea
+                value={listingEditor.businessAddress || ""}
+                onChange={(e) => setListingEditor((prev) => ({ ...prev, businessAddress: e.target.value }))}
+                className="min-h-24"
+              />
+            </div>
+            <Button onClick={saveListingEdits} className="w-full">Save Listing Changes</Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+    </div>
+  );
+}
+
+function SidebarItem({
+  label,
+  icon: Icon,
+  active,
+  onClick,
+  badge,
+}: {
+  label: string;
+  icon: any;
+  active: boolean;
+  onClick: () => void;
+  badge?: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
+        active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+      <span className="font-medium">{label}</span>
+      {badge ? (
+        <span className="ml-auto px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
+          {badge}
+        </span>
+      ) : (
+        active && <ChevronRight className="ml-auto w-4 h-4 text-white/80" />
+      )}
+    </button>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  iconClass,
+}: {
+  label: string;
+  value: string | number;
+  icon: any;
+  iconClass: string;
+}) {
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+            <p className="text-2xl font-semibold mt-1">{value}</p>
+          </div>
+          <div className={`p-2 rounded-md ${iconClass}`}>
+            <Icon className="w-4 h-4" />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OverviewTab({
+  stats,
+  transactions,
+  pendingListings,
+  onApproveListing,
+  onViewListing,
+}: {
+  stats: any;
+  transactions: any[];
+  pendingListings: ListingRecord[];
+  onApproveListing: (listing: ListingRecord) => void;
+  onViewListing: (listing: ListingRecord) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <StatCard label="Revenue" value={`$${stats.totalRevenue.toLocaleString()}`} icon={Receipt} iconClass="bg-emerald-100 text-emerald-700" />
+        <StatCard label="Partners" value={stats.totalPartners} icon={Users} iconClass="bg-sky-100 text-sky-700" />
+        <StatCard label="Pending Partners" value={stats.pendingApprovals} icon={AlertCircle} iconClass="bg-amber-100 text-amber-700" />
+        <StatCard label="Pending Listings" value={stats.pendingListings} icon={Clock} iconClass="bg-amber-100 text-amber-700" />
+        <StatCard label="Live Listings" value={stats.activeListings} icon={BadgeCheck} iconClass="bg-indigo-100 text-indigo-700" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="lg:col-span-2 bg-white border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Recent Transactions</CardTitle>
+            <CardDescription>Latest 7 successful platform payments.</CardDescription>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Partner</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead className="text-right pr-6">Date</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {transactions.slice(0, 7).map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell className="pl-6">{t.customerEmail || "-"}</TableCell>
+                    <TableCell className="font-semibold text-emerald-700">${t.amount?.toFixed(2) || "0.00"}</TableCell>
+                    <TableCell className="text-right pr-6 text-slate-500">
+                      {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "-"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white border-slate-200 shadow-sm">
+          <CardHeader>
+            <CardTitle>Listings Pending Review</CardTitle>
+            <CardDescription>Approve or inspect before publishing.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingListings.length === 0 ? (
+              <p className="text-sm text-slate-500">No pending listings right now.</p>
+            ) : (
+              pendingListings.slice(0, 5).map((listing) => (
+                <div key={listing.id} className="rounded-lg border border-slate-200 p-3">
+                  <p className="font-medium">{listing.businessName || "Unnamed"}</p>
+                  <p className="text-xs text-slate-500 mb-3">{listing.selectedPlan?.replace(/_/g, " ") || "-"}</p>
+                  <div className="flex items-center gap-2">
+                    <Button size="sm" onClick={() => onApproveListing(listing)}>
+                      <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
                     </Button>
+                    <Button size="sm" variant="outline" onClick={() => onViewListing(listing)}>
+                      <Eye className="w-4 h-4 mr-1" /> Review
+                    </Button>
+                  </div>
                 </div>
-            </aside>
-
-            {/* Main Content */}
-            <main className="flex-1 overflow-y-auto custom-scrollbar">
-                <header className="h-20 border-b border-white/5 bg-black/20 backdrop-blur-md flex items-center justify-between px-10 sticky top-0 z-40">
-                    <h2 className="text-xl font-semibold capitalize">{activeTab}</h2>
-                    <div className="flex items-center gap-4">
-                        <div className="text-right">
-                            <p className="text-sm font-medium">Administrator</p>
-                            <p className="text-xs text-white/40">Super User</p>
-                        </div>
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center border border-white/10 shadow-lg">
-                            <User className="w-5 h-5" />
-                        </div>
-                    </div>
-                </header>
-
-                <div className="p-10 max-w-7xl mx-auto space-y-10">
-                    {activeTab === "overview" && <OverviewTab stats={stats} transactions={transactions} pendingListings={pendingListings} onApproveListing={handleApproveListing} />}
-                    {activeTab === "partners" && (
-                        <div className="space-y-6">
-                            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                                <div className="relative w-full md:w-96">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                                    <Input placeholder="Search partners by name or email..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-10 h-11 bg-white/5 border-white/10 focus:border-primary/50 transition-all rounded-xl" />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Button variant="outline" className="border-white/10 bg-white/5 h-11 px-5 rounded-xl"><Filter className="w-4 h-4 mr-2" /> Filter</Button>
-                                </div>
-                            </div>
-                            <PartnerList partners={filteredPartners} onApprove={handleApprove} onCancel={handleCancel} />
-                        </div>
-                    )}
-                    {activeTab === "listings" && (
-                        <div className="space-y-6">
-                            <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                                <div className="relative w-full md:w-96">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-white/30" />
-                                    <Input placeholder="Search listings by business name or category..." value={listingSearchTerm} onChange={e => setListingSearchTerm(e.target.value)} className="pl-10 h-11 bg-white/5 border-white/10 focus:border-primary/50 transition-all rounded-xl" />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <Button 
-                                        variant={listingFilter === "all" ? "default" : "outline"} 
-                                        onClick={() => setListingFilter("all")}
-                                        className={listingFilter === "all" ? "" : "border-white/10 bg-white/5"}
-                                    >
-                                        All ({listings.length})
-                                    </Button>
-                                    <Button 
-                                        variant={listingFilter === "pending" ? "default" : "outline"} 
-                                        onClick={() => setListingFilter("pending")}
-                                        className={listingFilter === "pending" ? "bg-orange-500 hover:bg-orange-600" : "border-white/10 bg-white/5"}
-                                    >
-                                        <Clock className="w-4 h-4 mr-2" /> Pending ({pendingListings.length})
-                                    </Button>
-                                    <Button 
-                                        variant={listingFilter === "approved" ? "default" : "outline"} 
-                                        onClick={() => setListingFilter("approved")}
-                                        className={listingFilter === "approved" ? "bg-green-500 hover:bg-green-600" : "border-white/10 bg-white/5"}
-                                    >
-                                        <CheckCircle2 className="w-4 h-4 mr-2" /> Approved ({approvedListings.length})
-                                    </Button>
-                                </div>
-                            </div>
-                            <ListingsList listings={filteredListings} onApprove={handleApproveListing} onReject={handleRejectListing} />
-                        </div>
-                    )}
-                    {activeTab === "transactions" && <TransactionList transactions={transactions} />}
-                </div>
-            </main>
-        </div>
-    );
-}
-
-function SidebarItem({ label, icon: Icon, active, onClick, badge }: any) {
-    return (
-        <button onClick={onClick} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${active ? "bg-primary text-white shadow-lg shadow-primary/20" : "text-white/50 hover:text-white hover:bg-white/5"}`}>
-            <Icon className="w-5 h-5" />
-            <span className="font-medium">{label}</span>
-            {badge && (
-                <span className="ml-auto px-2 py-0.5 text-xs font-bold rounded-full bg-orange-500 text-white">{badge}</span>
+              ))
             )}
-            {active && !badge && <ChevronRight className="ml-auto w-4 h-4 text-white/50" />}
-        </button>
-    );
-}
-
-function OverviewTab({ stats, transactions, pendingListings, onApproveListing }: any) {
-    return (
-        <div className="space-y-10">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-                <StatCard label="Total Revenue" value={`$${stats.totalRevenue.toLocaleString()}`} icon={Receipt} color="text-green-500" bg="bg-green-500/10" trend="+12.5%" />
-                <StatCard label="Total Partners" value={stats.totalPartners} icon={Users} color="text-blue-500" bg="bg-blue-500/10" />
-                <StatCard label="Partner Approvals" value={stats.pendingApprovals} icon={AlertCircle} color="text-orange-500" bg="bg-orange-500/10" />
-                <StatCard label="Listing Reviews" value={stats.pendingListings} icon={Clock} color="text-yellow-500" bg="bg-yellow-500/10" />
-                <StatCard label="Live Listings" value={stats.activeListings} icon={BadgeCheck} color="text-primary" bg="bg-primary/10" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                <Card className="lg:col-span-2 bg-black/40 border-white/10 shadow-2xl rounded-3xl overflow-hidden backdrop-blur-xl">
-                    <CardHeader className="p-8 border-b border-white/5 flex flex-row items-center justify-between">
-                        <div>
-                            <CardTitle className="text-xl font-bold">Recent Transactions</CardTitle>
-                            <CardDescription className="text-white/40">Latest payments from across the platform</CardDescription>
-                        </div>
-                        <Button variant="ghost" size="sm" className="text-primary hover:text-primary/80">View all</Button>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <Table>
-                            <TableHeader>
-                                <TableRow className="border-white/5 hover:bg-transparent">
-                                    <TableHead className="text-white/40 pl-8">Partner</TableHead>
-                                    <TableHead className="text-white/40">Amount</TableHead>
-                                    <TableHead className="text-white/40 text-right pr-8">Date</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {transactions.slice(0, 7).map((t: any) => (
-                                    <TableRow key={t.id} className="border-white/5 hover:bg-white/[0.02] transition-colors group">
-                                        <TableCell className="pl-8 py-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center font-bold text-xs text-white/50">{t.customerEmail?.[0].toUpperCase()}</div>
-                                                <span className="font-medium group-hover:text-primary transition-colors">{t.customerEmail}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell><span className="font-bold text-green-500">${t.amount?.toFixed(2)}</span></TableCell>
-                                        <TableCell className="text-right pr-8 text-white/40 text-xs">
-                                            {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "Pending"}
-                                        </TableCell>
-                                    </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-
-                <Card className="bg-black/40 border-white/10 shadow-2xl rounded-3xl overflow-hidden backdrop-blur-xl">
-                    <CardHeader className="p-8 border-b border-white/5">
-                        <CardTitle className="text-xl font-bold flex items-center gap-2">
-                            <Clock className="w-5 h-5 text-yellow-500" />
-                            Listings Pending Review
-                        </CardTitle>
-                        <CardDescription className="text-white/40">Approve to make live on site</CardDescription>
-                    </CardHeader>
-                    <CardContent className="p-6 space-y-4">
-                        {pendingListings.length === 0 ? (
-                            <p className="text-white/40 text-center py-4">No listings pending review</p>
-                        ) : (
-                            pendingListings.slice(0, 5).map((listing: any) => (
-                                <div key={listing.id} className="flex items-center justify-between p-3 rounded-xl bg-white/5 hover:bg-white/10 transition-colors">
-                                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div className="w-10 h-10 rounded-xl bg-yellow-500/10 flex items-center justify-center text-yellow-500 shrink-0">
-                                            <FileText className="w-5 h-5" />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <p className="font-medium text-sm leading-none truncate">{listing.businessName || "Unnamed"}</p>
-                                            <p className="text-xs text-white/40 mt-1">{listing.selectedPlan?.replace(/_/g, ' ').toUpperCase()}</p>
-                                        </div>
-                                    </div>
-                                    <Button 
-                                        size="sm" 
-                                        onClick={() => onApproveListing(listing)}
-                                        className="bg-green-500 hover:bg-green-600 text-white shrink-0"
-                                    >
-                                        <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
-                                    </Button>
-                                </div>
-                            ))
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
-        </div>
-    );
-}
-
-function StatCard({ label, value, icon: Icon, color, bg, trend }: any) {
-    return (
-        <Card className="bg-black/40 border-white/10 shadow-xl rounded-3xl backdrop-blur-xl group hover:border-white/20 transition-all duration-300">
-            <CardContent className="p-7">
-                <div className="flex items-center justify-between mb-4">
-                    <div className={`p-3 rounded-2xl ${bg} ${color} group-hover:scale-110 transition-transform`}>
-                        <Icon className="w-6 h-6" />
-                    </div>
-                    {trend && (
-                        <span className={`text-xs font-bold px-2 py-1 rounded-full ${trend.startsWith('+') ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'}`}>{trend}</span>
-                    )}
-                </div>
-                <div className="space-y-1">
-                    <p className="text-white/40 text-sm font-medium">{label}</p>
-                    <p className="text-3xl font-black tracking-tight">{value}</p>
-                </div>
-            </CardContent>
+          </CardContent>
         </Card>
-    );
+      </div>
+    </div>
+  );
 }
 
-function PartnerList({ partners, onApprove, onCancel }: any) {
-    if (partners.length === 0) return (
-        <div className="bg-black/40 border border-white/10 rounded-3xl p-20 text-center flex flex-col items-center justify-center animate-in fade-in zoom-in duration-500">
-            <SearchX className="w-16 h-16 text-white/10 mb-6" />
-            <h3 className="text-xl font-bold mb-2">No partners found</h3>
-            <p className="text-white/40">Try adjusting your search or filters.</p>
-        </div>
-    );
-
+function PartnerList({
+  partners,
+  onView,
+  onSetStatus,
+}: {
+  partners: PartnerRecord[];
+  onView: (partner: PartnerRecord) => void;
+  onSetStatus: (partner: PartnerRecord, status: string) => void;
+}) {
+  if (partners.length === 0) {
     return (
-        <Card className="bg-black/40 border-white/10 shadow-2xl rounded-3xl overflow-hidden backdrop-blur-xl">
-            <CardContent className="p-0">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="border-white/5 hover:bg-transparent">
-                            <TableHead className="text-white/40 pl-8 h-14">Business Name</TableHead>
-                            <TableHead className="text-white/40">Status</TableHead>
-                            <TableHead className="text-white/40">Contact Person</TableHead>
-                            <TableHead className="text-white/40 text-right pr-8">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {partners.map((p: any) => (
-                            <TableRow key={p.id} className="border-white/5 hover:bg-white/[0.02] transition-colors h-20 group">
-                                <TableCell className="pl-8">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/5 flex items-center justify-center font-bold text-white/30">{p.businessName?.[0] || '?'}</div>
-                                        <div>
-                                            <p className="font-bold text-white group-hover:text-primary transition-colors">{p.businessName || "Unnamed Business"}</p>
-                                            {p.companyWebsite && <p className="text-xs text-white/30 truncate max-w-[200px] mt-0.5">{p.companyWebsite}</p>}
-                                        </div>
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge className={
-                                        p.partnerStatus === "Approved" ? "bg-green-500/10 text-green-400 border-green-500/30" :
-                                            p.partnerStatus === "Pending" ? "bg-orange-500/10 text-orange-400 border-orange-500/30" :
-                                                "bg-red-500/10 text-red-500 border-red-500/30"
-                                    }>
-                                        {p.partnerStatus || "Unknown"}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex flex-col">
-                                        <p className="text-sm font-medium">{p.primaryName}</p>
-                                        <p className="text-xs text-white/40">{p.primaryEmail}</p>
-                                    </div>
-                                </TableCell>
-                                <TableCell className="text-right pr-8">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="hover:bg-white/10 rounded-full"><MoreVertical className="w-4 h-4" /></Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="bg-[#0A0A0A] border-white/10 text-white min-w-[160px] p-2 rounded-xl shadow-2xl">
-                                            <DropdownMenuLabel className="text-white/40 text-[10px] uppercase font-bold tracking-widest px-3 py-2">Management</DropdownMenuLabel>
-                                            <DropdownMenuItem className="cursor-pointer gap-2 focus:bg-primary/20 rounded-lg h-10" onClick={() => onApprove(p.id)}><CheckCircle2 className="w-4 h-4 text-green-500" /> Approve</DropdownMenuItem>
-                                            <DropdownMenuItem className="cursor-pointer gap-2 focus:bg-red-500/20 text-red-400 rounded-lg h-10" onClick={() => onCancel(p.id)}><Ban className="w-4 h-4" /> Cancel Status</DropdownMenuItem>
-                                            <DropdownMenuSeparator className="bg-white/5 my-1" />
-                                            <DropdownMenuItem className="cursor-pointer gap-2 focus:bg-white/10 rounded-lg h-10"><Eye className="w-4 h-4" /> View Details</DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+      <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
+        <SearchX className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+        <h3 className="font-semibold">No partners found</h3>
+        <p className="text-sm text-slate-500">Try a different business name or email.</p>
+      </div>
     );
+  }
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">Business</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Contact</TableHead>
+              <TableHead className="text-right pr-6">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {partners.map((partner) => (
+              <TableRow key={partner.id}>
+                <TableCell className="pl-6">
+                  <p className="font-medium">{partner.businessName || "Unnamed Business"}</p>
+                  <p className="text-xs text-slate-500">{partner.companyWebsite || "-"}</p>
+                </TableCell>
+                <TableCell>{getStatusBadge(partner.partnerStatus)}</TableCell>
+                <TableCell>
+                  <p className="text-sm">{partner.primaryName || "-"}</p>
+                  <p className="text-xs text-slate-500">{partner.primaryEmail || "-"}</p>
+                </TableCell>
+                <TableCell className="text-right pr-6">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[190px]">
+                      <DropdownMenuLabel>Partner Actions</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => onView(partner)}>
+                        <Eye className="w-4 h-4 mr-2" /> View / Edit profile
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onSetStatus(partner, "Approved")}>
+                        <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Approve
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onSetStatus(partner, "Pending")}>
+                        <Clock className="w-4 h-4 mr-2 text-amber-600" /> Unapprove (set pending)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onSetStatus(partner, "Disabled")}>
+                        <Ban className="w-4 h-4 mr-2 text-rose-600" /> Disable account
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 }
 
-function TransactionList({ transactions }: any) {
-    if (transactions.length === 0) return (
-        <div className="bg-black/40 border border-white/10 rounded-3xl p-20 text-center flex flex-col items-center justify-center">
-            <Receipt className="w-16 h-16 text-white/10 mb-6" />
-            <h3 className="text-xl font-bold mb-2">No transactions recorded</h3>
-            <p className="text-white/40">Transactions appear here once partners complete checkout.</p>
-        </div>
-    );
-
+function ListingsList({
+  listings,
+  onView,
+  onSetStatus,
+}: {
+  listings: ListingRecord[];
+  onView: (listing: ListingRecord) => void;
+  onSetStatus: (listing: ListingRecord, status: string, active: boolean) => void;
+}) {
+  if (listings.length === 0) {
     return (
-        <Card className="bg-black/40 border-white/10 shadow-2xl rounded-3xl overflow-hidden backdrop-blur-xl">
-            <CardContent className="p-0">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="border-white/5 hover:bg-transparent h-14">
-                            <TableHead className="text-white/40 pl-8">Partner</TableHead>
-                            <TableHead className="text-white/40">Business</TableHead>
-                            <TableHead className="text-white/40">Plan</TableHead>
-                            <TableHead className="text-white/40">Categories</TableHead>
-                            <TableHead className="text-white/40">Countries</TableHead>
-                            <TableHead className="text-white/40">Amount</TableHead>
-                            <TableHead className="text-white/40 text-right pr-8">Date</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {transactions.map((t: any) => (
-                            <TableRow key={t.id} className="border-white/5 hover:bg-white/[0.02] transition-colors h-20 group">
-                                <TableCell className="pl-8">
-                                    <div className="flex items-center gap-2">
-                                        <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center font-bold text-xs text-white/50">
-                                            {t.customerEmail?.[0]?.toUpperCase() || '?'}
-                                        </div>
-                                        <span className="text-sm truncate max-w-[150px]">{t.customerEmail}</span>
-                                    </div>
-                                </TableCell>
-                                <TableCell className="font-medium text-sm">{t.businessName || '-'}</TableCell>
-                                <TableCell>
-                                    <Badge variant="outline" className="capitalize border-white/10 text-white/60">
-                                        {t.planName?.replace(/_/g, ' ') || t.type || '-'}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex flex-wrap gap-1 max-w-[150px]">
-                                        {t.selectedCategories?.slice(0, 2).map((cat: string, i: number) => (
-                                            <Badge key={i} className="bg-primary/10 text-primary border-primary/20 text-[10px]">
-                                                {cat}
-                                            </Badge>
-                                        ))}
-                                        {(t.selectedCategories?.length || 0) > 2 && (
-                                            <Badge className="bg-white/5 text-white/40 border-white/10 text-[10px]">
-                                                +{t.selectedCategories.length - 2}
-                                            </Badge>
-                                        )}
-                                        {!t.selectedCategories?.length && <span className="text-white/30">-</span>}
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex flex-wrap gap-1 max-w-[120px]">
-                                        {t.serviceCountries?.slice(0, 2).map((country: string, i: number) => (
-                                            <Badge key={i} className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px]">
-                                                {country}
-                                            </Badge>
-                                        ))}
-                                        {(t.serviceCountries?.length || 0) > 2 && (
-                                            <Badge className="bg-white/5 text-white/40 border-white/10 text-[10px]">
-                                                +{t.serviceCountries.length - 2}
-                                            </Badge>
-                                        )}
-                                        {!t.serviceCountries?.length && <span className="text-white/30">-</span>}
-                                    </div>
-                                </TableCell>
-                                <TableCell className="font-bold text-green-500 text-lg">
-                                    {t.currency === 'gbp' ? '£' : '$'}{t.amount?.toFixed(2)}
-                                </TableCell>
-                                <TableCell className="text-right pr-8 text-white/40 font-medium">
-                                    {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "Processing"}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+      <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
+        <FileText className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+        <h3 className="font-semibold">No listings found</h3>
+        <p className="text-sm text-slate-500">Listings will appear here once created.</p>
+      </div>
     );
+  }
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">Business</TableHead>
+              <TableHead>Type</TableHead>
+              <TableHead>Plan</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead className="text-right pr-6">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {listings.map((listing) => (
+              <TableRow key={listing.__path}>
+                <TableCell className="pl-6">
+                  <p className="font-medium">{listing.businessName || "Unnamed"}</p>
+                  <p className="text-xs text-slate-500">{listing.companyWebsite || "-"}</p>
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline">{getCollectionLabel(listing.__col)}</Badge>
+                </TableCell>
+                <TableCell>{listing.selectedPlan?.replace(/_/g, " ") || "-"}</TableCell>
+                <TableCell>{getStatusBadge(listing.status)}</TableCell>
+                <TableCell className="text-slate-500 text-sm">
+                  {listing.createdAt?.seconds
+                    ? new Date(listing.createdAt.seconds * 1000).toLocaleDateString()
+                    : "-"}
+                </TableCell>
+                <TableCell className="text-right pr-6">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="min-w-[210px]">
+                      <DropdownMenuLabel>Listing Actions</DropdownMenuLabel>
+                      <DropdownMenuItem onClick={() => onView(listing)}>
+                        <Eye className="w-4 h-4 mr-2" /> View / Edit listing
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => onSetStatus(listing, "Approved", true)}>
+                        <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Approve listing
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onSetStatus(listing, "Pending Review", false)}>
+                        <Clock className="w-4 h-4 mr-2 text-amber-600" /> Unapprove (pending review)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => onSetStatus(listing, "Disabled", false)}>
+                        <Ban className="w-4 h-4 mr-2 text-rose-600" /> Disable listing
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
 }
 
-function ListingsList({ listings, onApprove, onReject }: any) {
-    const getCollectionLabel = (col: string) => {
-        switch (col) {
-            case "businessOfferingsCollection": return "Business Offering";
-            case "consultingServicesCollection": return "Consulting Service";
-            case "eventsCollection": return "Event";
-            case "jobsCollection": return "Job";
-            default: return col;
-        }
-    };
-
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case "Approved":
-                return <Badge className="bg-green-500/10 text-green-400 border-green-500/30">Approved</Badge>;
-            case "Pending Review":
-                return <Badge className="bg-yellow-500/10 text-yellow-400 border-yellow-500/30">Pending Review</Badge>;
-            case "Rejected":
-                return <Badge className="bg-red-500/10 text-red-400 border-red-500/30">Rejected</Badge>;
-            default:
-                return <Badge className="bg-white/10 text-white/60 border-white/20">{status || "Unknown"}</Badge>;
-        }
-    };
-
-    if (listings.length === 0) return (
-        <div className="bg-black/40 border border-white/10 rounded-3xl p-20 text-center flex flex-col items-center justify-center animate-in fade-in zoom-in duration-500">
-            <FileText className="w-16 h-16 text-white/10 mb-6" />
-            <h3 className="text-xl font-bold mb-2">No listings found</h3>
-            <p className="text-white/40">Listings will appear here once partners create them.</p>
-        </div>
-    );
-
+function TransactionList({ transactions }: { transactions: any[] }) {
+  if (transactions.length === 0) {
     return (
-        <Card className="bg-black/40 border-white/10 shadow-2xl rounded-3xl overflow-hidden backdrop-blur-xl">
-            <CardContent className="p-0">
-                <Table>
-                    <TableHeader>
-                        <TableRow className="border-white/5 hover:bg-transparent h-14">
-                            <TableHead className="text-white/40 pl-8">Business</TableHead>
-                            <TableHead className="text-white/40">Type</TableHead>
-                            <TableHead className="text-white/40">Plan</TableHead>
-                            <TableHead className="text-white/40">Categories</TableHead>
-                            <TableHead className="text-white/40">Countries</TableHead>
-                            <TableHead className="text-white/40">Status</TableHead>
-                            <TableHead className="text-white/40">Created</TableHead>
-                            <TableHead className="text-white/40 text-right pr-8">Actions</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        {listings.map((listing: any) => (
-                            <TableRow key={listing.id} className="border-white/5 hover:bg-white/[0.02] transition-colors h-24 group">
-                                <TableCell className="pl-8">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-white/10 to-white/5 border border-white/5 flex items-center justify-center font-bold text-white/30">
-                                            {listing.businessName?.[0] || '?'}
-                                        </div>
-                                        <div>
-                                            <p className="font-bold text-white group-hover:text-primary transition-colors">
-                                                {listing.businessName || "Unnamed"}
-                                            </p>
-                                            {listing.companyWebsite && (
-                                                <p className="text-xs text-white/30 truncate max-w-[180px]">{listing.companyWebsite}</p>
-                                            )}
-                                        </div>
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <Badge variant="outline" className="border-white/10 text-white/60">
-                                        {getCollectionLabel(listing.__col)}
-                                    </Badge>
-                                </TableCell>
-                                <TableCell>
-                                    <span className="text-sm font-medium capitalize">
-                                        {listing.selectedPlan?.replace(/_/g, ' ') || '-'}
-                                    </span>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex flex-wrap gap-1 max-w-[180px]">
-                                        {listing.selectedCategories?.slice(0, 2).map((cat: string, i: number) => (
-                                            <Badge key={i} className="bg-primary/10 text-primary border-primary/20 text-[10px]">
-                                                <Tag className="w-3 h-3 mr-1" />{cat}
-                                            </Badge>
-                                        ))}
-                                        {(listing.selectedCategories?.length || 0) > 2 && (
-                                            <Badge className="bg-white/5 text-white/40 border-white/10 text-[10px]">
-                                                +{listing.selectedCategories.length - 2} more
-                                            </Badge>
-                                        )}
-                                        {!listing.selectedCategories?.length && <span className="text-white/30">-</span>}
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    <div className="flex flex-wrap gap-1 max-w-[150px]">
-                                        {listing.serviceCountries?.slice(0, 2).map((country: string, i: number) => (
-                                            <Badge key={i} className="bg-blue-500/10 text-blue-400 border-blue-500/20 text-[10px]">
-                                                <Globe className="w-3 h-3 mr-1" />{country}
-                                            </Badge>
-                                        ))}
-                                        {(listing.serviceCountries?.length || 0) > 2 && (
-                                            <Badge className="bg-white/5 text-white/40 border-white/10 text-[10px]">
-                                                +{listing.serviceCountries.length - 2}
-                                            </Badge>
-                                        )}
-                                        {listing.serviceRegions?.length > 0 && !listing.serviceCountries?.length && (
-                                            listing.serviceRegions.slice(0, 2).map((region: string, i: number) => (
-                                                <Badge key={i} className="bg-purple-500/10 text-purple-400 border-purple-500/20 text-[10px]">
-                                                    <MapPin className="w-3 h-3 mr-1" />{region}
-                                                </Badge>
-                                            ))
-                                        )}
-                                        {!listing.serviceCountries?.length && !listing.serviceRegions?.length && (
-                                            <span className="text-white/30">-</span>
-                                        )}
-                                    </div>
-                                </TableCell>
-                                <TableCell>
-                                    {getStatusBadge(listing.status)}
-                                </TableCell>
-                                <TableCell className="text-white/40 text-sm">
-                                    {listing.createdAt?.seconds 
-                                        ? new Date(listing.createdAt.seconds * 1000).toLocaleDateString() 
-                                        : '-'}
-                                </TableCell>
-                                <TableCell className="text-right pr-8">
-                                    {listing.status === "Pending Review" ? (
-                                        <div className="flex items-center justify-end gap-2">
-                                            <Button 
-                                                size="sm" 
-                                                onClick={() => onApprove(listing)}
-                                                className="bg-green-500 hover:bg-green-600 text-white"
-                                            >
-                                                <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
-                                            </Button>
-                                            <Button 
-                                                size="sm" 
-                                                variant="outline"
-                                                onClick={() => onReject(listing)}
-                                                className="border-red-500/30 text-red-400 hover:bg-red-500/10"
-                                            >
-                                                <Ban className="w-4 h-4 mr-1" /> Reject
-                                            </Button>
-                                        </div>
-                                    ) : (
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button variant="ghost" size="icon" className="hover:bg-white/10 rounded-full">
-                                                    <MoreVertical className="w-4 h-4" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" className="bg-[#0A0A0A] border-white/10 text-white min-w-[160px] p-2 rounded-xl shadow-2xl">
-                                                <DropdownMenuLabel className="text-white/40 text-[10px] uppercase font-bold tracking-widest px-3 py-2">
-                                                    Actions
-                                                </DropdownMenuLabel>
-                                                <DropdownMenuItem className="cursor-pointer gap-2 focus:bg-white/10 rounded-lg h-10">
-                                                    <Eye className="w-4 h-4" /> View Details
-                                                </DropdownMenuItem>
-                                                {listing.status === "Approved" && (
-                                                    <DropdownMenuItem 
-                                                        className="cursor-pointer gap-2 focus:bg-red-500/20 text-red-400 rounded-lg h-10"
-                                                        onClick={() => onReject(listing)}
-                                                    >
-                                                        <Ban className="w-4 h-4" /> Revoke Approval
-                                                    </DropdownMenuItem>
-                                                )}
-                                                {listing.status === "Rejected" && (
-                                                    <DropdownMenuItem 
-                                                        className="cursor-pointer gap-2 focus:bg-green-500/20 text-green-400 rounded-lg h-10"
-                                                        onClick={() => onApprove(listing)}
-                                                    >
-                                                        <CheckCircle2 className="w-4 h-4" /> Approve
-                                                    </DropdownMenuItem>
-                                                )}
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    )}
-                                </TableCell>
-                            </TableRow>
-                        ))}
-                    </TableBody>
-                </Table>
-            </CardContent>
-        </Card>
+      <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
+        <Receipt className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+        <h3 className="font-semibold">No transactions recorded</h3>
+        <p className="text-sm text-slate-500">Transactions appear here after checkout.</p>
+      </div>
     );
+  }
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">Partner</TableHead>
+              <TableHead>Business</TableHead>
+              <TableHead>Group</TableHead>
+              <TableHead>Plan ID</TableHead>
+              <TableHead>Listing ID</TableHead>
+              <TableHead>Partner ID</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Amount</TableHead>
+              <TableHead className="text-right pr-6">Date</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {transactions.map((t) => (
+              <TableRow key={t.id}>
+                <TableCell className="pl-6">
+                  <div className="space-y-0.5">
+                    <p>{t.customerEmail || "-"}</p>
+                    <p className="text-xs text-slate-500">{t.collectionName || "-"}</p>
+                  </div>
+                </TableCell>
+                <TableCell>{t.businessName || "-"}</TableCell>
+                <TableCell>{t.group?.replace(/_/g, " ") || "-"}</TableCell>
+                <TableCell className="font-mono text-xs">{t.planId || t.planName || "-"}</TableCell>
+                <TableCell className="font-mono text-xs">{t.listingId || "-"}</TableCell>
+                <TableCell className="font-mono text-xs max-w-[220px] truncate">{t.partnerId || "-"}</TableCell>
+                <TableCell>
+                  <Badge
+                    className={
+                      t.status === "succeeded"
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : t.status === "pending"
+                          ? "bg-amber-50 text-amber-700 border-amber-200"
+                          : "bg-rose-50 text-rose-700 border-rose-200"
+                    }
+                  >
+                    {t.status || "-"}
+                  </Badge>
+                </TableCell>
+                <TableCell className="font-semibold text-emerald-700">
+                  {t.currency === "gbp" ? "£" : "$"}
+                  {typeof t.amount === "number" ? t.amount.toFixed(2) : "0.00"}
+                </TableCell>
+                <TableCell className="text-right pr-6 text-slate-500">
+                  {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "-"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div className="space-y-1">
+      <p className="text-sm font-medium">{label}</p>
+      <Input value={value} onChange={(e) => onChange(e.target.value)} />
+    </div>
+  );
 }

@@ -30,6 +30,14 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <Routes>
+      {/* Admin specific flows - NO layout, standalone pages */}
+      <Route path="/admin" element={<AdminLogin />} />
+      <Route path="/admin/" element={<AdminLogin />} />
+      <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+      {/* Partner dashboard - NO layout */}
+      <Route path="/partner/dashboard" element={<PartnerDashboard />} />
+
       {/* Pages With Layout */}
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
       <Route path="/listing/:type/:id" element={<AppLayout><ListingDetail /></AppLayout>} />
@@ -45,21 +53,14 @@ function App() {
       <Route path="/partner/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
       <Route path="/partner/complete-profile" element={<AppLayout><CompleteProfile /></AppLayout>} />
 
-      {/* Admin specific flows */}
-      <Route path="/admin" element={<AdminLogin />} />
-      <Route path="/admin/dashboard" element={<AdminDashboard />} />
-
-      {/*
-        To be implemented:
-        <Route path="/community" element={<AppLayout><Community /></AppLayout>} />
-      */}
-      <Route path="/partner/dashboard" element={<PartnerDashboard />} />
+      {/* Partner listing pages */}
       <Route path="/partner/add-listing/:type" element={<AppLayout><AddListing /></AppLayout>} />
-      {/* Legacy routes redirect to new unified page */}
       <Route path="/partner/offerings/new" element={<AppLayout><AddListing /></AppLayout>} />
       <Route path="/partner/jobs/new" element={<AppLayout><AddListing /></AppLayout>} />
       <Route path="/partner/events/new" element={<AppLayout><AddListing /></AppLayout>} />
       <Route path="/partner/consulting/new" element={<AppLayout><AddListing /></AppLayout>} />
+
+      {/* Catch-all */}
       <Route path="*" element={<AppLayout><div className="flex-1 flex items-center justify-center text-4xl font-bold p-24">Coming Soon.</div></AppLayout>} />
     </Routes>
   );

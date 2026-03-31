@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShieldAlert, ArrowRight } from "lucide-react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "@/firebase";
+import { ShieldAlert, ArrowRight, Loader2 } from "lucide-react";
+import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,7 +14,24 @@ export default function AdminLogin() {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [isLoading, setIsLoading] = useState(false);
+    const [checkingAuth, setCheckingAuth] = useState(true);
     const [error, setError] = useState("");
+
+    // Check if already logged in as admin
+    useEffect(() => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                // Check if user is in adminCollection
+                const adminDoc = await getDoc(doc(db, "adminCollection", user.uid));
+                if (adminDoc.exists()) {
+                    navigate("/admin/dashboard");
+                    return;
+                }
+            }
+            setCheckingAuth(false);
+        });
+        return () => unsubscribe();
+    }, [navigate]);
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -21,27 +39,50 @@ export default function AdminLogin() {
         setError("");
 
         try {
-            // Admin accounts strictly use standard firebase auth to login, we route based on the successful login
-            await signInWithEmailAndPassword(auth, email, password);
+            // Sign in with Firebase Auth
+            const userCredential = await signInWithEmailAndPassword(auth, email, password);
+            
+            // Check if user is in adminCollection
+            const adminDoc = await getDoc(doc(db, "adminCollection", userCredential.user.uid));
+            
+            if (!adminDoc.exists()) {
+                setError("This account is not authorized for admin access.");
+                setIsLoading(false);
+                return;
+            }
+            
             navigate("/admin/dashboard");
         } catch (err: any) {
             console.error("Admin Login Error:", err);
-            setError("Invalid credentials or unauthorized access.");
+            if (err.code === "auth/user-not-found") {
+                setError("Account not found.");
+            } else if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
+                setError("Invalid email or password.");
+            } else {
+                setError("Login failed. Please try again.");
+            }
         } finally {
             setIsLoading(false);
         }
     };
 
+    if (checkingAuth) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            </div>
+        );
+    }
+
     return (
-        <div className="flex-1 flex items-center justify-center p-8 bg-background relative overflow-hidden">
-            <div className="absolute inset-0 bg-primary/5 mix-blend-overlay z-0 pointer-events-none" />
-            <Card className="w-full max-w-md bg-foreground/5 border-primary/20 backdrop-blur-xl relative z-10 shadow-2xl">
+        <div className="min-h-screen flex items-center justify-center p-8 bg-slate-50">
+            <Card className="w-full max-w-md bg-white border-slate-200 relative z-10 shadow-lg">
                 <CardHeader className="space-y-3 pb-8 text-center">
-                    <div className="mx-auto bg-primary/20 w-16 h-16 rounded-full flex items-center justify-center mb-2 shadow-lg shadow-primary/20 border border-primary/30">
+                    <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-2 border border-primary/20">
                         <ShieldAlert className="w-8 h-8 text-primary" />
                     </div>
-                    <CardTitle className="text-3xl font-bold tracking-tight text-foreground">Pharmasocii Root</CardTitle>
-                    <CardDescription className="text-base text-primary/70">Admin System Access Gateway</CardDescription>
+                    <CardTitle className="text-3xl font-bold tracking-tight text-slate-900">Pharmasocii Admin</CardTitle>
+                    <CardDescription className="text-base text-slate-500">Secure administrative portal access</CardDescription>
                 </CardHeader>
                 <CardContent>
                     <form onSubmit={handleLogin} className="space-y-6">
@@ -51,33 +92,33 @@ export default function AdminLogin() {
                             </div>
                         )}
                         <div className="space-y-2">
-                            <Label htmlFor="email" className="text-foreground/80">Admin Identifer</Label>
+                            <Label htmlFor="email" className="text-slate-700">Admin Identifier</Label>
                             <Input
                                 id="email"
                                 type="email"
                                 required
-                                className="h-12 border-foreground/10 bg-black/60 focus:bg-foreground/5 transition-colors text-foreground focus-visible:ring-primary/50"
+                                className="h-12 border-slate-200 bg-white transition-colors text-slate-900 focus-visible:ring-primary/50"
                                 placeholder="root@pharmasocii.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="password" className="text-foreground/80">Access Key</Label>
+                            <Label htmlFor="password" className="text-slate-700">Password</Label>
                             <Input
                                 id="password"
                                 type="password"
                                 required
-                                className="h-12 border-foreground/10 bg-black/60 focus:bg-foreground/5 transition-colors text-foreground focus-visible:ring-primary/50"
+                                className="h-12 border-slate-200 bg-white transition-colors text-slate-900 focus-visible:ring-primary/50"
                                 placeholder="••••••••••••"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                             />
                         </div>
 
-                        <Button type="submit" className="w-full h-12 text-base font-semibold shadow-xl shadow-primary/20 hover:shadow-primary/40 bg-primary text-black hover:bg-white transition-all mt-4" disabled={isLoading}>
+                        <Button type="submit" className="w-full h-12 text-base font-semibold mt-4" disabled={isLoading}>
                             {isLoading ? "Authenticating..." : (
-                                <>Initialize Session <ArrowRight className="ml-2 h-5 w-5" /></>
+                                <>Sign in <ArrowRight className="ml-2 h-5 w-5" /></>
                             )}
                         </Button>
                     </form>
