@@ -9,7 +9,8 @@ import {
     Building, Mail, Phone, MapPin,
     PlusCircle, LayoutList, Save, CheckCircle2,
     Clock, ChevronDown, Maximize2, UploadCloud, Eye, EyeOff,
-    CreditCard, Calendar, Star, Sparkles, Crown, Check, X
+    CreditCard, Calendar, Star, Sparkles, Crown, Check, X,
+    Edit3, ArrowUpCircle, XCircle, AlertTriangle, Globe, Tag
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -94,6 +95,56 @@ export default function Dashboard() {
     const [showNewPw, setShowNewPw] = useState(false);
     const [passwordSaving, setPasswordSaving] = useState(false);
     const [passwordMsg, setPasswordMsg] = useState({ type: "", text: "" });
+
+    // Subscription management modals
+    const [showEditListingModal, setShowEditListingModal] = useState(false);
+    const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
+    const [selectedPlanForAction, setSelectedPlanForAction] = useState<any>(null);
+    const [selectedListingForEdit, setSelectedListingForEdit] = useState<any>(null);
+    const [actionProcessing, setActionProcessing] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
+
+    // Verify payment on return from Stripe checkout
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const sessionId = params.get("session_id");
+        const paymentStatus = params.get("payment");
+        
+        // Prevent duplicate calls by checking if we've already processed this session
+        const processedKey = `payment_verified_${sessionId}`;
+        
+        if (sessionId && paymentStatus === "success" && !sessionStorage.getItem(processedKey)) {
+            // Mark as processing immediately to prevent duplicates
+            sessionStorage.setItem(processedKey, "true");
+            
+            console.log("Verifying payment for session:", sessionId);
+            fetch("/api/verify-payment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId })
+            })
+            .then(res => res.json())
+            .then(data => {
+                console.log("Payment verification result:", data);
+                if (data.success && data.updated) {
+                    console.log("Payment verified and listing updated!");
+                }
+                // Clean up URL
+                window.history.replaceState({}, document.title, "/partner/dashboard");
+            })
+            .catch(err => {
+                console.error("Payment verification failed:", err);
+                // Remove the flag so user can retry
+                sessionStorage.removeItem(processedKey);
+            });
+        } else if (paymentStatus === "success") {
+            // Clean up URL even without session_id or if already processed
+            window.history.replaceState({}, document.title, "/partner/dashboard");
+        }
+    }, []);
 
     useEffect(() => {
         let unsubOff: any = null;
@@ -254,6 +305,173 @@ export default function Dashboard() {
         navigate("/login");
     };
 
+    // Handle saving listing edits (all editable fields)
+    const handleSaveListingEdit = async (updatedData: any) => {
+        setActionProcessing(true);
+        try {
+            if (auth.currentUser && selectedListingForEdit) {
+                const listingRef = doc(
+                    db, 
+                    "partnersCollection", 
+                    auth.currentUser.uid, 
+                    selectedListingForEdit.__col, 
+                    selectedListingForEdit.id
+                );
+                
+                // Build update object with only changed/provided fields
+                const updateObj: Record<string, any> = {
+                    serviceCountries: updatedData.serviceCountries,
+                    serviceRegions: updatedData.serviceRegions,
+                    updatedAt: new Date(),
+                };
+                
+                // Add business offering specific fields if present
+                if (updatedData.bioSafetyLevel !== undefined) {
+                    updateObj.bioSafetyLevel = updatedData.bioSafetyLevel;
+                }
+                if (updatedData.certifications !== undefined) {
+                    updateObj.certifications = updatedData.certifications;
+                }
+                if (updatedData.companyProfileText !== undefined) {
+                    updateObj.companyProfileText = updatedData.companyProfileText;
+                }
+                if (updatedData.businessAddress !== undefined) {
+                    updateObj.businessAddress = updatedData.businessAddress;
+                }
+                
+                await updateDoc(listingRef, updateObj);
+                setActionMessage({ type: "success", text: "Listing updated successfully!" });
+                setTimeout(() => {
+                    setShowEditListingModal(false);
+                    setSelectedListingForEdit(null);
+                    setActionMessage({ type: "", text: "" });
+                }, 1500);
+            }
+        } catch (err) {
+            console.error("Failed to update listing:", err);
+            setActionMessage({ type: "error", text: "Failed to update listing. Please try again." });
+        } finally {
+            setActionProcessing(false);
+        }
+    };
+
+    // Handle plan upgrade - uses Stripe subscription update or creates new checkout
+    const handleUpgradePlan = async (newPlanId: string) => {
+        setActionProcessing(true);
+        try {
+            if (auth.currentUser && selectedPlanForAction) {
+                const origin = window.location.origin;
+                const resp = await fetch("/api/upgrade-subscription", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        subscriptionId: selectedPlanForAction.stripeSubscriptionId || null,
+                        newPlanId,
+                        partnerId: auth.currentUser.uid,
+                        partnerEmail: auth.currentUser.email,
+                        listingId: selectedPlanForAction.listingId,
+                        collectionName: selectedPlanForAction.collectionName,
+                        successUrl: `${origin}/partner/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}&upgrade=true`,
+                        cancelUrl: `${origin}/partner/dashboard?upgrade=cancelled`,
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || "Failed to upgrade plan");
+                
+                if (data.url) {
+                    // Redirect to Stripe checkout for new subscription
+                    window.location.href = data.url;
+                } else if (data.success) {
+                    // Subscription was updated directly
+                    setActionMessage({ type: "success", text: "Plan upgraded successfully!" });
+                    setTimeout(() => {
+                        setShowUpgradeModal(false);
+                        setSelectedPlanForAction(null);
+                        setActionMessage({ type: "", text: "" });
+                    }, 1500);
+                    setActionProcessing(false);
+                }
+            }
+        } catch (err: any) {
+            console.error("Failed to upgrade plan:", err);
+            setActionMessage({ type: "error", text: err.message || "Failed to upgrade plan." });
+            setActionProcessing(false);
+        }
+    };
+
+    // Handle plan cancellation (cancel at period end)
+    const handleCancelPlan = async () => {
+        setActionProcessing(true);
+        try {
+            if (auth.currentUser && selectedPlanForAction) {
+                // Update the plan to cancel at period end
+                const planRef = doc(
+                    db,
+                    "partnersCollection",
+                    auth.currentUser.uid,
+                    "planCollection",
+                    selectedPlanForAction.id
+                );
+                await updateDoc(planRef, {
+                    cancelAtPeriodEnd: true,
+                    cancelledAt: new Date(),
+                });
+                
+                // If there's a Stripe subscription, cancel it at period end
+                if (selectedPlanForAction.stripeSubscriptionId) {
+                    await fetch("/api/cancel-subscription", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            subscriptionId: selectedPlanForAction.stripeSubscriptionId,
+                        }),
+                    });
+                }
+                
+                setActionMessage({ type: "success", text: "Subscription will be cancelled at the end of the billing period." });
+                setTimeout(() => {
+                    setShowCancelModal(false);
+                    setSelectedPlanForAction(null);
+                    setActionMessage({ type: "", text: "" });
+                }, 2000);
+            }
+        } catch (err) {
+            console.error("Failed to cancel plan:", err);
+            setActionMessage({ type: "error", text: "Failed to cancel subscription. Please try again." });
+        } finally {
+            setActionProcessing(false);
+        }
+    };
+
+    // Handle feature plan purchase
+    const handlePurchaseFeaturePlan = async (featureId: string) => {
+        setActionProcessing(true);
+        try {
+            if (auth.currentUser && selectedPlanForAction) {
+                const origin = window.location.origin;
+                const resp = await fetch("/api/create-feature-checkout", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        featureId,
+                        partnerId: auth.currentUser.uid,
+                        partnerEmail: auth.currentUser.email,
+                        listingId: selectedPlanForAction.listingId,
+                        successUrl: `${origin}/partner/dashboard?feature=success&session_id={CHECKOUT_SESSION_ID}`,
+                        cancelUrl: `${origin}/partner/dashboard?feature=cancelled`,
+                    }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || "Failed to create checkout session");
+                window.location.href = data.url;
+            }
+        } catch (err: any) {
+            console.error("Failed to purchase feature:", err);
+            setActionMessage({ type: "error", text: err.message || "Failed to purchase feature plan." });
+            setActionProcessing(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="min-h-screen bg-background flex items-center justify-center">
@@ -406,6 +624,67 @@ export default function Dashboard() {
                             )}
                         </div>
                     </div>
+                )}
+
+                {/* Edit Listing Modal */}
+                {showEditListingModal && selectedListingForEdit && (
+                    <EditListingModal
+                        listing={selectedListingForEdit}
+                        plan={selectedPlanForAction}
+                        planConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
+                        onClose={() => {
+                            setShowEditListingModal(false);
+                            setSelectedListingForEdit(null);
+                            setSelectedPlanForAction(null);
+                        }}
+                        onSave={handleSaveListingEdit}
+                        processing={actionProcessing}
+                    />
+                )}
+
+                {/* Upgrade Plan Modal */}
+                {showUpgradeModal && selectedPlanForAction && (
+                    <UpgradePlanModal
+                        currentPlan={selectedPlanForAction}
+                        currentPlanConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
+                        allPlans={PLAN_CONFIGS}
+                        onClose={() => {
+                            setShowUpgradeModal(false);
+                            setSelectedPlanForAction(null);
+                        }}
+                        onUpgrade={handleUpgradePlan}
+                        processing={actionProcessing}
+                    />
+                )}
+
+                {/* Cancel Plan Modal */}
+                {showCancelModal && selectedPlanForAction && (
+                    <CancelPlanModal
+                        plan={selectedPlanForAction}
+                        planConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
+                        onClose={() => {
+                            setShowCancelModal(false);
+                            setSelectedPlanForAction(null);
+                        }}
+                        onCancel={handleCancelPlan}
+                        processing={actionProcessing}
+                    />
+                )}
+
+                {/* Add Feature Plan Modal */}
+                {showAddFeatureModal && selectedPlanForAction && (
+                    <AddFeaturePlanModal
+                        plan={selectedPlanForAction}
+                        listing={selectedListingForEdit}
+                        featurePlans={FEATURE_PLANS}
+                        onClose={() => {
+                            setShowAddFeatureModal(false);
+                            setSelectedPlanForAction(null);
+                            setSelectedListingForEdit(null);
+                        }}
+                        onPurchase={handlePurchaseFeaturePlan}
+                        processing={actionProcessing}
+                    />
                 )}
 
                 {/* Content Area */}
@@ -586,40 +865,109 @@ export default function Dashboard() {
                                     const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : (plan.startDate ? new Date(plan.startDate) : null);
                                     const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : (plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null);
                                     const isYearly = plan.billingInterval === "year" || plan.planId?.includes('_yr');
+                                    const linkedListing = offerings.find(o => o.id === plan.listingId);
+                                    const hasFeature = linkedListing?.selectedAddon && linkedListing.selectedAddon !== "" && linkedListing.selectedAddon !== "none";
+                                    const includedFeature = planConfig?.featurePlan;
                                     
                                     return (
                                         <div key={plan.id} className="bg-muted/40 border border-foreground/10 rounded-xl p-5">
-                                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-3 mb-2">
-                                                        <h4 className="text-lg font-bold text-foreground">{planConfig?.label || plan.planName || plan.planId?.replace(/_/g, ' ').toUpperCase()}</h4>
-                                                        <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>
-                                                        <Badge variant="outline" className="border-foreground/20">{isYearly ? "Annual" : "Monthly"}</Badge>
+                                            <div className="flex flex-col gap-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                                            <h4 className="text-lg font-bold text-foreground">{planConfig?.label || plan.planName || plan.planId?.replace(/_/g, ' ').toUpperCase()}</h4>
+                                                            <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>
+                                                            <Badge variant="outline" className="border-foreground/20">{isYearly ? "Annual" : "Monthly"}</Badge>
+                                                            {plan.cancelAtPeriodEnd && (
+                                                                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">Cancels {billingEnd?.toLocaleDateString()}</Badge>
+                                                            )}
+                                                        </div>
+                                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
+                                                            <div>
+                                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Start Date</p>
+                                                                <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Renewal Date</p>
+                                                                <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Billing Cycle</p>
+                                                                <p className="text-sm text-foreground font-medium capitalize">{isYearly ? "Yearly" : "Monthly"}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Price</p>
+                                                                <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-                                                        <div>
-                                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Start Date</p>
-                                                            <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Renewal Date</p>
-                                                            <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Billing Cycle</p>
-                                                            <p className="text-sm text-foreground font-medium capitalize">{isYearly ? "Yearly" : "Monthly"}</p>
-                                                        </div>
-                                                        <div>
-                                                            <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Price</p>
-                                                            <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
-                                                        </div>
+                                                    <div className="flex flex-wrap gap-2 shrink-0">
+                                                        {linkedListing && (
+                                                            <Button 
+                                                                variant="outline" 
+                                                                size="sm" 
+                                                                className="border-foreground/20 text-foreground/80 hover:bg-foreground/5"
+                                                                onClick={() => {
+                                                                    setSelectedListingForEdit(linkedListing);
+                                                                    setSelectedPlanForAction(plan);
+                                                                    setShowEditListingModal(true);
+                                                                }}
+                                                            >
+                                                                <Edit3 className="w-3.5 h-3.5 mr-1.5" /> Edit Listing
+                                                            </Button>
+                                                        )}
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="border-primary/50 text-primary hover:bg-primary/10"
+                                                            onClick={() => {
+                                                                setSelectedPlanForAction(plan);
+                                                                setShowUpgradeModal(true);
+                                                            }}
+                                                        >
+                                                            <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade
+                                                        </Button>
+                                                        {!includedFeature && !hasFeature && (
+                                                            <Button 
+                                                                variant="outline" 
+                                                                size="sm" 
+                                                                className="border-secondary/50 text-secondary hover:bg-secondary/10"
+                                                                onClick={() => {
+                                                                    setSelectedPlanForAction(plan);
+                                                                    setSelectedListingForEdit(linkedListing);
+                                                                    setShowAddFeatureModal(true);
+                                                                }}
+                                                            >
+                                                                <Star className="w-3.5 h-3.5 mr-1.5" /> Add Feature
+                                                            </Button>
+                                                        )}
+                                                        {!plan.cancelAtPeriodEnd && (
+                                                            <Button 
+                                                                variant="outline" 
+                                                                size="sm" 
+                                                                className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                                                                onClick={() => {
+                                                                    setSelectedPlanForAction(plan);
+                                                                    setShowCancelModal(true);
+                                                                }}
+                                                            >
+                                                                <XCircle className="w-3.5 h-3.5 mr-1.5" /> Cancel
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </div>
-                                                <div className="flex gap-2 shrink-0">
-                                                    <Button variant="outline" size="sm" className="border-foreground/20 text-foreground/80 hover:bg-foreground/5">
-                                                        Upgrade Plan
-                                                    </Button>
-                                                </div>
+                                                {/* Feature status */}
+                                                {(includedFeature || hasFeature) && (
+                                                    <div className="pt-3 border-t border-foreground/10">
+                                                        <p className="text-sm text-foreground flex items-center gap-2">
+                                                            <Sparkles className="w-4 h-4 text-primary" />
+                                                            {includedFeature 
+                                                                ? `Included: ${includedFeature === "home_page" ? "Home Page" : "Landing Page"} Spotlight`
+                                                                : `Active Feature: ${FEATURE_PLANS.find(f => f.id === linkedListing?.selectedAddon)?.label}`
+                                                            }
+                                                        </p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     );
@@ -633,7 +981,7 @@ export default function Dashboard() {
                 {isApproved && (
                     <div className="mt-8 space-y-6">
                         <div className="flex justify-between items-center border-b border-foreground/10 pb-4">
-                            <h2 className="text-2xl font-bold text-foreground flex items-center gap-2"><LayoutList className="w-6 h-6 text-primary" /> Active Offerings & Plans</h2>
+                            <h2 className="text-2xl font-bold text-foreground flex items-center gap-2"><LayoutList className="w-6 h-6 text-primary" /> Your Listings</h2>
                             <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                     <Button className="bg-white text-black hover:bg-white/90"><PlusCircle className="w-4 h-4 mr-2" /> Add Listing</Button>
@@ -647,22 +995,36 @@ export default function Dashboard() {
                             </DropdownMenu>
                         </div>
 
-                        {offerings.length === 0 ? (
-                            <div className="bg-foreground/5 border border-foreground/10 p-12 rounded-xl text-center">
-                                <p className="text-muted-foreground mb-4">You have not configured any specific listings yet.</p>
-                                <Button onClick={() => handleAddPlan("offerings")} variant="outline" className="border-primary/50 text-primary">Set up your first listing</Button>
-                            </div>
-                        ) : (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {offerings.map(offering => {
-                                    const statusColor = offering.status === "Approved" || offering.active 
-                                        ? "bg-green-500/20 text-green-400 border-green-500/50" 
-                                        : offering.status === "pending_payment" 
-                                        ? "bg-yellow-500/20 text-yellow-400 border-yellow-500/50"
-                                        : "bg-primary/20 text-primary border-primary/50";
-                                    const statusLabel = offering.status === "pending_payment" ? "Pending Payment" : offering.status || (offering.active ? "Active" : "Pending");
-                                    
-                                    return (
+                        {(() => {
+                            // Separate paid listings from pending payment
+                            const paidListings = offerings.filter(o => o.status !== "pending_payment");
+                            const pendingPaymentListings = offerings.filter(o => o.status === "pending_payment");
+                            
+                            if (offerings.length === 0) {
+                                return (
+                                    <div className="bg-foreground/5 border border-foreground/10 p-12 rounded-xl text-center">
+                                        <p className="text-muted-foreground mb-4">You have not configured any specific listings yet.</p>
+                                        <Button onClick={() => handleAddPlan("offerings")} variant="outline" className="border-primary/50 text-primary">Set up your first listing</Button>
+                                    </div>
+                                );
+                            }
+                            
+                            return (
+                                <>
+                                    {/* Paid/Active Listings */}
+                                    {paidListings.length > 0 && (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {paidListings.map(offering => {
+                                                const statusColor = offering.status === "Approved" 
+                                                    ? "bg-green-500/20 text-green-400 border-green-500/50" 
+                                                    : offering.status === "Pending Review"
+                                                    ? "bg-blue-500/20 text-blue-400 border-blue-500/50"
+                                                    : offering.status === "Cancelled"
+                                                    ? "bg-red-500/20 text-red-400 border-red-500/50"
+                                                    : "bg-primary/20 text-primary border-primary/50";
+                                                const statusLabel = offering.status || "Active";
+                                                
+                                                return (
                                     <Card key={offering.id} className="bg-muted/40 border-foreground/10">
                                         <CardHeader className="pb-3 border-b border-foreground/10 bg-foreground/5">
                                             <div className="flex justify-between items-start">
@@ -737,10 +1099,51 @@ export default function Dashboard() {
                                             )}
                                         </CardContent>
                                     </Card>
-                                    );
-                                })}
-                            </div>
-                        )}
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    
+                                    {/* Pending Payment Listings */}
+                                    {pendingPaymentListings.length > 0 && (
+                                        <div className="mt-6">
+                                            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                                                <Clock className="w-5 h-5 text-yellow-500" />
+                                                Pending Payment ({pendingPaymentListings.length})
+                                            </h3>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                                {pendingPaymentListings.map(offering => (
+                                                    <Card key={offering.id} className="bg-yellow-500/5 border-yellow-500/20">
+                                                        <CardHeader className="pb-3 border-b border-yellow-500/10 bg-yellow-500/5">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <CardTitle className="text-base text-foreground">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || 'Listing'}</CardTitle>
+                                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{offering.selectedGroup?.replace(/_/g, ' ')}</p>
+                                                                </div>
+                                                                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">Pending Payment</Badge>
+                                                            </div>
+                                                        </CardHeader>
+                                                        <CardContent className="pt-4">
+                                                            <p className="text-sm text-muted-foreground mb-3">Complete payment to activate this listing.</p>
+                                                            <Button 
+                                                                size="sm" 
+                                                                className="w-full"
+                                                                onClick={() => {
+                                                                    // Re-initiate checkout for this listing
+                                                                    navigate(`/partner/add-listing/${offering.selectedGroup === "business_offerings" ? "offerings" : offering.selectedGroup}`);
+                                                                }}
+                                                            >
+                                                                <CreditCard className="w-4 h-4 mr-2" /> Complete Payment
+                                                            </Button>
+                                                        </CardContent>
+                                                    </Card>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </>
+                            );
+                        })()}
                     </div>
                 )}
             </div>
@@ -951,4 +1354,612 @@ export default function Dashboard() {
             </div>
         );
     }
+}
+
+// ─── CONSTANTS FOR EDIT MODAL ───
+const SERVICE_REGIONS = [
+    "North America", "South America", "Europe", "Asia Pacific",
+    "Middle East", "Africa", "Australia & Oceania",
+];
+
+const SERVICE_COUNTRIES = [
+    "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
+    "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia",
+    "Bosnia", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
+    "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia",
+    "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
+    "Denmark", "Djibouti", "Dominican Republic",
+    "Ecuador", "Egypt", "El Salvador", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
+    "Fiji", "Finland", "France",
+    "Gabon", "Georgia", "Germany", "Ghana", "Greece", "Guatemala", "Guyana",
+    "Haiti", "Honduras", "Hong Kong", "Hungary",
+    "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
+    "Jamaica", "Japan", "Jordan",
+    "Kazakhstan", "Kenya", "Korea", "Kosovo", "Kuwait", "Kyrgyzstan",
+    "Laos", "Latvia", "Lebanon", "Liberia", "Libya", "Lithuania", "Luxembourg",
+    "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Mauritius",
+    "Mexico", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+    "Namibia", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "Norway",
+    "Oman",
+    "Pakistan", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
+    "Qatar",
+    "Romania", "Russia", "Rwanda",
+    "Saudi Arabia", "Senegal", "Serbia", "Sierra Leone", "Singapore", "Slovak Republic", "Slovenia",
+    "Somalia", "South Africa", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
+    "Taiwan", "Tanzania", "Thailand", "Togo", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan",
+    "UAE", "Uganda", "UK", "Ukraine", "United States", "Uruguay", "Uzbekistan",
+    "Venezuela", "Vietnam",
+    "Yemen",
+    "Zambia", "Zimbabwe",
+];
+
+const BSL_LEVELS = ["1", "2", "3", "4"];
+const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+
+// ─── MODAL COMPONENTS ───
+
+interface EditListingModalProps {
+    listing: any;
+    plan: any;
+    planConfig: any;
+    onClose: () => void;
+    onSave: (data: any) => void;
+    processing: boolean;
+}
+
+function EditListingModal({ listing, planConfig, onClose, onSave, processing }: EditListingModalProps) {
+    // Form state - categories are read-only after creation
+    const categories = listing.selectedCategories || [];
+    const subcategories = listing.selectedSubcategories || [];
+    const [countries, setCountries] = useState<string[]>(listing.serviceCountries || []);
+    const [regions, setRegions] = useState<string[]>(listing.serviceRegions || []);
+    const [bslLevels, setBslLevels] = useState<string[]>(listing.bioSafetyLevel || []);
+    const [certifications, setCertifications] = useState<string[]>(listing.certifications || []);
+    const [companyProfile, setCompanyProfile] = useState(listing.companyProfileText || "");
+    const [businessAddress, setBusinessAddress] = useState(listing.businessAddress || "");
+
+    // Dropdown open states
+    const [countriesOpen, setCountriesOpen] = useState(false);
+    const [countrySearch, setCountrySearch] = useState("");
+
+    const maxCategories = planConfig?.maxCategories || -1;
+    const maxCountries = planConfig?.maxCountries || -1;
+
+    // Filter countries based on search
+    const filteredCountries = SERVICE_COUNTRIES.filter(c => 
+        c.toLowerCase().includes(countrySearch.toLowerCase())
+    );
+
+    const toggleCountry = (country: string) => {
+        if (countries.includes(country)) {
+            setCountries(countries.filter(c => c !== country));
+        } else if (maxCountries === -1 || countries.length < maxCountries) {
+            setCountries([...countries, country]);
+        }
+    };
+
+    const toggleRegion = (region: string) => {
+        if (regions.includes(region)) {
+            setRegions(regions.filter(r => r !== region));
+        } else {
+            setRegions([...regions, region]);
+        }
+    };
+
+    const toggleBSL = (level: string) => {
+        if (bslLevels.includes(level)) {
+            setBslLevels(bslLevels.filter(l => l !== level));
+        } else {
+            setBslLevels([...bslLevels, level]);
+        }
+    };
+
+    const toggleCert = (cert: string) => {
+        if (certifications.includes(cert)) {
+            setCertifications(certifications.filter(c => c !== cert));
+        } else {
+            setCertifications([...certifications, cert]);
+        }
+    };
+
+    const isBusinessOffering = listing.__col === "businessOfferingsCollection" || listing.selectedGroup === "business_offerings";
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between shrink-0">
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <Edit3 className="w-5 h-5 text-primary" /> Edit Listing
+                    </h2>
+                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                    {/* Categories - Display only (from original selection) */}
+                    {categories.length > 0 && (
+                        <div>
+                            <Label className="text-foreground/80 flex items-center gap-2 mb-2">
+                                <Tag className="w-4 h-4" /> Selected Categories
+                                {maxCategories !== -1 && <span className="text-xs text-muted-foreground">({categories.length}/{maxCategories} max)</span>}
+                            </Label>
+                            <div className="flex flex-wrap gap-2">
+                                {categories.map((cat: string, i: number) => (
+                                    <Badge key={i} className="bg-primary/10 text-primary border-primary/30">{cat}</Badge>
+                                ))}
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-2">Categories are set during listing creation. To change categories, please contact support.</p>
+                        </div>
+                    )}
+
+                    {/* Subcategories - Display only */}
+                    {subcategories.length > 0 && (
+                        <div>
+                            <Label className="text-foreground/80 flex items-center gap-2 mb-2">
+                                <Tag className="w-4 h-4" /> Selected Subcategories
+                            </Label>
+                            <div className="flex flex-wrap gap-2">
+                                {subcategories.map((sub: string, i: number) => (
+                                    <Badge key={i} variant="outline" className="border-foreground/20">{sub}</Badge>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Service Regions - Multi-select buttons */}
+                    <div>
+                        <Label className="text-foreground/80 flex items-center gap-2 mb-3">
+                            <Globe className="w-4 h-4" /> Service Regions
+                        </Label>
+                        <div className="flex flex-wrap gap-2">
+                            {SERVICE_REGIONS.map(region => (
+                                <button
+                                    key={region}
+                                    type="button"
+                                    onClick={() => toggleRegion(region)}
+                                    className={`px-3 py-2 rounded-lg text-sm border transition-all ${
+                                        regions.includes(region)
+                                            ? "bg-primary/20 border-primary/50 text-primary font-medium"
+                                            : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30 hover:bg-foreground/10"
+                                    }`}
+                                >
+                                    {regions.includes(region) && <Check className="w-3 h-3 inline mr-1.5" />}
+                                    {region}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Service Countries - Multi-select dropdown with search */}
+                    <div>
+                        <Label className="text-foreground/80 flex items-center gap-2 mb-3">
+                            <MapPin className="w-4 h-4" /> Service Countries
+                            {maxCountries !== -1 && <span className="text-xs text-muted-foreground">({countries.length}/{maxCountries} max)</span>}
+                        </Label>
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setCountriesOpen(!countriesOpen)}
+                                className="w-full h-11 px-3 text-left text-sm bg-foreground/5 border border-foreground/10 rounded-lg flex items-center justify-between hover:border-primary/50 transition-colors"
+                            >
+                                <span className="text-muted-foreground">
+                                    {countries.length > 0 ? `${countries.length} countries selected` : "Select countries (multi-select enabled)"}
+                                </span>
+                                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${countriesOpen ? "rotate-180" : ""}`} />
+                            </button>
+                            {countriesOpen && (
+                                <div className="absolute z-50 w-full mt-1 bg-background border border-foreground/10 rounded-lg shadow-xl max-h-64 overflow-hidden">
+                                    <div className="p-2 border-b border-foreground/10 sticky top-0 bg-background">
+                                        <Input
+                                            placeholder="Search countries..."
+                                            value={countrySearch}
+                                            onChange={e => setCountrySearch(e.target.value)}
+                                            className="h-9 text-sm bg-foreground/5 border-foreground/10"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="max-h-48 overflow-y-auto">
+                                        {filteredCountries.map(country => {
+                                            const isSelected = countries.includes(country);
+                                            const isDisabled = !isSelected && maxCountries !== -1 && countries.length >= maxCountries;
+                                            return (
+                                                <button
+                                                    key={country}
+                                                    type="button"
+                                                    onClick={() => !isDisabled && toggleCountry(country)}
+                                                    disabled={isDisabled}
+                                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
+                                                        isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-primary/10 cursor-pointer"
+                                                    }`}
+                                                >
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center text-xs transition-colors ${
+                                                        isSelected ? "bg-primary border-primary text-primary-foreground" : "border-foreground/20"
+                                                    }`}>
+                                                        {isSelected && <Check className="w-3 h-3" />}
+                                                    </div>
+                                                    {country}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        {countries.length > 0 && (
+                            <div className="flex flex-wrap gap-1.5 mt-2">
+                                {countries.map(country => (
+                                    <span
+                                        key={country}
+                                        onClick={() => toggleCountry(country)}
+                                        className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded-full cursor-pointer hover:bg-primary/20 transition-colors"
+                                    >
+                                        {country} <X className="w-3 h-3" />
+                                    </span>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Bio Safety Levels - Only for business offerings */}
+                    {isBusinessOffering && (
+                        <div>
+                            <Label className="text-foreground/80 flex items-center gap-2 mb-3">
+                                Bio Safety Levels <span className="text-xs text-muted-foreground">(optional)</span>
+                            </Label>
+                            <div className="flex flex-wrap gap-2">
+                                {BSL_LEVELS.map(level => (
+                                    <button
+                                        key={level}
+                                        type="button"
+                                        onClick={() => toggleBSL(level)}
+                                        className={`px-4 py-2 rounded-lg text-sm border transition-all ${
+                                            bslLevels.includes(level)
+                                                ? "bg-primary/20 border-primary/50 text-primary font-medium"
+                                                : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30"
+                                        }`}
+                                    >
+                                        {bslLevels.includes(level) && <Check className="w-3 h-3 inline mr-1.5" />}
+                                        BSL-{level}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Certifications - Only for business offerings */}
+                    {isBusinessOffering && (
+                        <div>
+                            <Label className="text-foreground/80 flex items-center gap-2 mb-3">
+                                Certifications <span className="text-xs text-muted-foreground">(optional)</span>
+                            </Label>
+                            <div className="flex flex-wrap gap-2">
+                                {CERTIFICATIONS.map(cert => (
+                                    <button
+                                        key={cert}
+                                        type="button"
+                                        onClick={() => toggleCert(cert)}
+                                        className={`px-3 py-2 rounded-lg text-sm border transition-all ${
+                                            certifications.includes(cert)
+                                                ? "bg-primary/20 border-primary/50 text-primary font-medium"
+                                                : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30"
+                                        }`}
+                                    >
+                                        {certifications.includes(cert) && <Check className="w-3 h-3 inline mr-1.5" />}
+                                        {cert}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Company Profile */}
+                    {isBusinessOffering && (
+                        <div>
+                            <Label className="text-foreground/80 mb-2 block">Company Profile</Label>
+                            <Textarea
+                                value={companyProfile}
+                                onChange={e => setCompanyProfile(e.target.value)}
+                                placeholder="Describe your company's services and capabilities..."
+                                className="h-32 bg-foreground/5 border-foreground/10 resize-none"
+                            />
+                        </div>
+                    )}
+
+                    {/* Business Address */}
+                    {isBusinessOffering && (
+                        <div>
+                            <Label className="text-foreground/80 mb-2 block">Business Address</Label>
+                            <Textarea
+                                value={businessAddress}
+                                onChange={e => setBusinessAddress(e.target.value)}
+                                placeholder="Enter your business address..."
+                                className="h-20 bg-foreground/5 border-foreground/10 resize-none"
+                            />
+                        </div>
+                    )}
+                </div>
+                <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3 shrink-0">
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button
+                        onClick={() => onSave({
+                            selectedCategories: categories,
+                            selectedSubcategories: subcategories,
+                            serviceCountries: countries,
+                            serviceRegions: regions,
+                            bioSafetyLevel: bslLevels,
+                            certifications: certifications,
+                            companyProfileText: companyProfile,
+                            businessAddress: businessAddress,
+                        })}
+                        disabled={processing}
+                    >
+                        {processing ? "Saving..." : "Save Changes"}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface UpgradePlanModalProps {
+    currentPlan: any;
+    currentPlanConfig: any;
+    allPlans: Record<string, any>;
+    onClose: () => void;
+    onUpgrade: (planId: string) => void;
+    processing: boolean;
+}
+
+function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, onUpgrade, processing }: UpgradePlanModalProps) {
+    const [selectedPlan, setSelectedPlan] = useState<string>("");
+    
+    // Plan tier order for comparison (higher index = higher tier)
+    const planTierOrder: Record<string, number> = {
+        // Monthly business/consulting
+        basic_mo: 1, standard_mo: 2, premium_mo: 3, premium_plus_mo: 4,
+        // Yearly business/consulting
+        basic_yr: 1, standard_yr: 2, premium_yr: 3, premium_plus_yr: 4,
+        // Events
+        basic_event: 1, standard_event: 2, premium_event: 3, premium_plus_event: 4,
+        // Jobs
+        standard_job: 1, premium_job: 2, premium_plus_job: 3,
+    };
+
+    const currentTier = planTierOrder[currentPlan.planId] || 0;
+    
+    // Determine plan type and billing cycle
+    const isMonthly = currentPlan.planId?.includes('_mo') || currentPlan.planId?.includes('_event');
+    const isEvent = currentPlan.planId?.includes('event');
+    const isJob = currentPlan.planId?.includes('job');
+    
+    // Parse price from string like "$100.00" to number
+    const parsePrice = (priceStr: string) => {
+        return parseFloat(priceStr.replace(/[$,]/g, '')) || 0;
+    };
+    
+    const currentPrice = parsePrice(currentPlanConfig?.price || "0");
+    
+    // Filter to show only UPGRADE options (higher tier, same billing cycle)
+    const upgradePlans = Object.entries(allPlans).filter(([id]) => {
+        const targetTier = planTierOrder[id] || 0;
+        
+        // Must be higher tier
+        if (targetTier <= currentTier) return false;
+        
+        // Must match plan type
+        if (isEvent) return id.includes('event');
+        if (isJob) return id.includes('job');
+        
+        // For business/consulting, match monthly/yearly
+        if (isMonthly) return id.includes('_mo') && !id.includes('event') && !id.includes('job');
+        return id.includes('_yr') && !id.includes('event') && !id.includes('job');
+    }).sort((a, b) => (planTierOrder[a[0]] || 0) - (planTierOrder[b[0]] || 0));
+
+    // Calculate price difference for selected plan
+    const selectedPlanConfig = selectedPlan ? allPlans[selectedPlan] : null;
+    const selectedPrice = selectedPlanConfig ? parsePrice(selectedPlanConfig.price) : 0;
+    const priceDifference = selectedPrice - currentPrice;
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
+                <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between shrink-0">
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <ArrowUpCircle className="w-5 h-5 text-primary" /> Upgrade Plan
+                    </h2>
+                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4 overflow-y-auto flex-1">
+                    <div className="bg-foreground/5 border border-foreground/10 rounded-lg p-4">
+                        <p className="text-sm text-muted-foreground">Current plan</p>
+                        <p className="text-lg font-bold text-foreground">{currentPlanConfig?.label}</p>
+                        <p className="text-sm text-foreground/80">{currentPlanConfig?.price}{currentPlanConfig?.period}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                            {currentPlanConfig?.maxCategories === -1 ? "Unlimited" : currentPlanConfig?.maxCategories} categories, {currentPlanConfig?.maxCountries === -1 ? "Unlimited" : currentPlanConfig?.maxCountries} countries
+                        </p>
+                    </div>
+                    
+                    {upgradePlans.length === 0 ? (
+                        <div className="text-center py-8">
+                            <Crown className="w-12 h-12 text-primary mx-auto mb-3" />
+                            <p className="text-foreground font-medium">You're on the highest tier!</p>
+                            <p className="text-sm text-muted-foreground mt-1">There are no higher plans available for upgrade.</p>
+                        </div>
+                    ) : (
+                        <>
+                            <p className="text-sm font-medium text-foreground">Select a plan to upgrade to:</p>
+                            <div className="space-y-3">
+                                {upgradePlans.map(([id, config]) => {
+                                    const upgradeDiff = parsePrice(config.price) - currentPrice;
+                                    return (
+                                        <button
+                                            key={id}
+                                            onClick={() => setSelectedPlan(id)}
+                                            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                                                selectedPlan === id 
+                                                    ? "border-primary bg-primary/5" 
+                                                    : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-semibold text-foreground flex items-center gap-2">
+                                                        {config.label}
+                                                        {config.featurePlan && (
+                                                            <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px]">
+                                                                Includes {config.featurePlan === "home_page" ? "Home Page" : "Landing Page"} Spotlight
+                                                            </Badge>
+                                                        )}
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">{config.subtitle}</p>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        {config.maxCategories === -1 ? "Unlimited" : config.maxCategories} categories, {config.maxCountries === -1 ? "Unlimited" : config.maxCountries} countries
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-lg font-bold text-foreground">{config.price}<span className="text-sm font-normal text-muted-foreground">{config.period}</span></p>
+                                                    <p className="text-xs text-green-400 mt-1">+${upgradeDiff.toFixed(2)} difference</p>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </>
+                    )}
+                </div>
+                {selectedPlan && (
+                    <div className="px-6 py-3 bg-primary/5 border-t border-primary/20">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-sm text-muted-foreground">Upgrade cost (prorated)</p>
+                                <p className="text-xs text-muted-foreground">You'll be charged the difference for the remaining billing period</p>
+                            </div>
+                            <p className="text-xl font-bold text-primary">+${priceDifference.toFixed(2)}</p>
+                        </div>
+                    </div>
+                )}
+                <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3 shrink-0">
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button onClick={() => onUpgrade(selectedPlan)} disabled={!selectedPlan || processing || upgradePlans.length === 0}>
+                        {processing ? "Processing..." : selectedPlan ? `Upgrade to ${allPlans[selectedPlan]?.label}` : "Select a Plan"}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface CancelPlanModalProps {
+    plan: any;
+    planConfig: any;
+    onClose: () => void;
+    onCancel: () => void;
+    processing: boolean;
+}
+
+function CancelPlanModal({ plan, planConfig, onClose, onCancel, processing }: CancelPlanModalProps) {
+    const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : null;
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-md shadow-2xl overflow-hidden">
+                <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <AlertTriangle className="w-5 h-5 text-yellow-500" /> Cancel Subscription
+                    </h2>
+                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <p className="text-foreground">
+                        Are you sure you want to cancel your <span className="font-semibold">{planConfig?.label}</span> subscription?
+                    </p>
+                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                        <p className="text-sm text-yellow-400">
+                            Your subscription will remain active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>. 
+                            After that, your listing will be deactivated and removed from public view.
+                        </p>
+                    </div>
+                </div>
+                <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
+                    <Button variant="ghost" onClick={onClose}>Keep Subscription</Button>
+                    <Button variant="destructive" onClick={onCancel} disabled={processing}>
+                        {processing ? "Cancelling..." : "Cancel Subscription"}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface AddFeaturePlanModalProps {
+    plan: any;
+    listing: any;
+    featurePlans: any[];
+    onClose: () => void;
+    onPurchase: (featureId: string) => void;
+    processing: boolean;
+}
+
+function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: AddFeaturePlanModalProps) {
+    const [selectedFeature, setSelectedFeature] = useState<string>("");
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
+                <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-primary" /> Add Feature Plan
+                    </h2>
+                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <p className="text-muted-foreground text-sm">
+                        Boost your visibility by featuring your listing on the landing page or home page.
+                    </p>
+                    <div className="space-y-3">
+                        {featurePlans.map(fp => {
+                            const Icon = fp.icon;
+                            const isSelected = selectedFeature === fp.id;
+                            return (
+                                <button
+                                    key={fp.id}
+                                    onClick={() => setSelectedFeature(fp.id)}
+                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                                        isSelected 
+                                            ? "border-primary bg-primary/5" 
+                                            : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
+                                    }`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
+                                            <Icon className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-foreground">{fp.label}</p>
+                                            <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                        </div>
+                                        <p className="text-lg font-bold text-foreground">{fp.price}</p>
+                                    </div>
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+                <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button onClick={() => onPurchase(selectedFeature)} disabled={!selectedFeature || processing}>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        {processing ? "Processing..." : "Purchase Feature"}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
 }

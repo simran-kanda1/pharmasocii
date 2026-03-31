@@ -6,7 +6,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
 
-// ─── Load .env if present ───
+//Load .env if present
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
     const envPath = resolve(__dirname, ".env");
@@ -20,7 +20,7 @@ try {
     }
 } catch { /* no .env file, use defaults */ }
 
-// ─── Stripe Test Keys ───
+//stripe Test Keys
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 
 const stripe = new Stripe(STRIPE_SECRET_KEY);
@@ -35,9 +35,9 @@ try {
         projectId: "pharmasocii"
     });
 } catch (err) {
-    console.warn("Firebase Admin fallback: applicationDefault failed, trying manual init if pharmasocii-admin.json exists...");
+    console.warn("Firebase Admin fallback: applicationDefault failed, trying manual init...");
     try {
-        const serviceAccount = JSON.parse(readFileSync(resolve(__dirname, "pharmasocii-admin.json"), "utf8"));
+        const serviceAccount = JSON.parse(readFileSync(resolve(__dirname, "pharmasocii_admin.json"), "utf8"));
         admin.initializeApp({
             credential: admin.credential.cert(serviceAccount)
         });
@@ -52,11 +52,15 @@ app.use(cors({ origin: true }));
 
 // Stripe webhook requires raw body
 app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, res) => {
+    console.log("🔔 Webhook endpoint hit!");
+    console.log("   Headers:", JSON.stringify(req.headers["stripe-signature"]?.substring(0, 50) + "..."));
+    
     const sig = req.headers["stripe-signature"];
     let event;
 
     try {
         event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+        console.log("✓ Webhook signature verified, event type:", event.type);
     } catch (err) {
         console.error(`❌ Webhook Error: ${err.message}`);
         return res.status(400).send(`Webhook Error: ${err.message}`);
@@ -351,6 +355,335 @@ app.post("/api/create-feature-checkout", async (req, res) => {
 // Health check
 app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", stripe: "connected" });
+});
+
+/**
+ * POST /api/upgrade-subscription
+ * Upgrade a subscription to a higher tier plan
+ * Body: { subscriptionId, newPlanId, partnerId, listingId, collectionName }
+ */
+app.post("/api/upgrade-subscription", async (req, res) => {
+    try {
+        const { subscriptionId, newPlanId, partnerId, listingId, collectionName, partnerEmail, successUrl, cancelUrl } = req.body;
+        
+        console.log(`⬆️ Upgrading subscription: ${subscriptionId} to ${newPlanId}`);
+
+        const newPlan = PLAN_PRICES[newPlanId];
+        if (!newPlan) {
+            return res.status(400).json({ error: `Unknown plan: ${newPlanId}` });
+        }
+
+        if (subscriptionId) {
+            // If there's an existing Stripe subscription, update it
+            try {
+                const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+                
+                // Create a new price for the upgraded plan
+                const newPrice = await stripe.prices.create({
+                    currency: "usd",
+                    unit_amount: newPlan.amount,
+                    recurring: newPlan.interval ? { interval: newPlan.interval } : undefined,
+                    product_data: {
+                        name: `Pharma Socii — ${newPlan.name}`,
+                    },
+                });
+
+                // Update the subscription with the new price (Stripe handles proration automatically)
+                const updatedSubscription = await stripe.subscriptions.update(subscriptionId, {
+                    items: [{
+                        id: subscription.items.data[0].id,
+                        price: newPrice.id,
+                    }],
+                    proration_behavior: 'create_prorations', // Charge the difference
+                    metadata: {
+                        partnerId,
+                        planId: newPlanId,
+                        listingId,
+                        collectionName,
+                    }
+                });
+
+                // Update the listing and plan in Firestore
+                if (listingId && collectionName) {
+                    await db.collection("partnersCollection").doc(partnerId).collection(collectionName).doc(listingId).update({
+                        selectedPlan: newPlanId,
+                    });
+                    
+                    // Update the plan record
+                    const planSnap = await db.collection("partnersCollection").doc(partnerId).collection("planCollection")
+                        .where("listingId", "==", listingId).get();
+                    
+                    if (!planSnap.empty) {
+                        await planSnap.docs[0].ref.update({
+                            planId: newPlanId,
+                            planName: newPlanId.replace(/_/g, " "),
+                            upgradedAt: new Date(),
+                        });
+                    }
+                }
+
+                console.log(`   ✓ Subscription upgraded to ${newPlanId}`);
+                res.json({ 
+                    success: true, 
+                    subscriptionId: updatedSubscription.id,
+                    message: "Subscription upgraded successfully"
+                });
+                return;
+            } catch (stripeErr) {
+                console.log(`   ⚠ Stripe subscription update failed, creating new checkout: ${stripeErr.message}`);
+            }
+        }
+
+        // If no subscription or update failed, create a new checkout session for the upgrade
+        const lineItems = [];
+        if (newPlan.interval) {
+            lineItems.push({
+                price_data: {
+                    currency: "usd",
+                    product_data: {
+                        name: `Pharma Socii — ${newPlan.name} (Upgrade)`,
+                        description: "Plan upgrade",
+                    },
+                    unit_amount: newPlan.amount,
+                    recurring: { interval: newPlan.interval },
+                },
+                quantity: 1,
+            });
+        } else {
+            lineItems.push({
+                price_data: {
+                    currency: "usd",
+                    product_data: {
+                        name: `Pharma Socii — ${newPlan.name} (Upgrade)`,
+                    },
+                    unit_amount: newPlan.amount,
+                },
+                quantity: 1,
+            });
+        }
+
+        const session = await stripe.checkout.sessions.create({
+            mode: newPlan.interval ? "subscription" : "payment",
+            line_items: lineItems,
+            success_url: successUrl || "http://localhost:5173/partner/dashboard?upgrade=success&session_id={CHECKOUT_SESSION_ID}",
+            cancel_url: cancelUrl || "http://localhost:5173/partner/dashboard?upgrade=cancelled",
+            customer_email: partnerEmail || undefined,
+            client_reference_id: partnerId,
+            metadata: {
+                partnerId,
+                planId: newPlanId,
+                listingId: listingId || "",
+                collectionName: collectionName || "",
+                isUpgrade: "true",
+            },
+        });
+
+        console.log(`   ✓ Upgrade checkout session created: ${session.id}`);
+        res.json({ url: session.url, sessionId: session.id });
+
+    } catch (err) {
+        console.error("❌ Upgrade subscription error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * POST /api/cancel-subscription
+ * Cancel a Stripe subscription at period end
+ * Body: { subscriptionId }
+ */
+app.post("/api/cancel-subscription", async (req, res) => {
+    try {
+        const { subscriptionId } = req.body;
+        
+        if (!subscriptionId) {
+            return res.status(400).json({ error: "subscriptionId is required" });
+        }
+
+        console.log(`🚫 Cancelling subscription: ${subscriptionId}`);
+
+        // Cancel at period end (not immediately)
+        const subscription = await stripe.subscriptions.update(subscriptionId, {
+            cancel_at_period_end: true
+        });
+
+        console.log(`   ✓ Subscription will cancel at: ${new Date(subscription.current_period_end * 1000).toISOString()}`);
+
+        res.json({ 
+            success: true, 
+            cancelAt: subscription.current_period_end,
+            status: subscription.status
+        });
+
+    } catch (err) {
+        console.error("❌ Cancel subscription error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * POST /api/verify-payment
+ * Fallback endpoint to verify payment status and update listing if webhook failed
+ * Body: { sessionId }
+ */
+app.post("/api/verify-payment", async (req, res) => {
+    try {
+        const { sessionId } = req.body;
+        
+        if (!sessionId) {
+            return res.status(400).json({ error: "sessionId is required" });
+        }
+
+        console.log(`🔍 Verifying payment for session: ${sessionId}`);
+
+        // Retrieve the checkout session from Stripe
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        
+        if (!session) {
+            return res.status(404).json({ error: "Session not found" });
+        }
+
+        console.log(`   Session status: ${session.status}, payment_status: ${session.payment_status}`);
+
+        // Check if payment was successful
+        if (session.status !== "complete" || session.payment_status !== "paid") {
+            return res.json({ 
+                success: false, 
+                message: "Payment not completed",
+                status: session.status,
+                paymentStatus: session.payment_status
+            });
+        }
+
+        const { partnerId, planId, group, listingId, collectionName, featureId } = session.metadata;
+
+        // Determine the correct collection name
+        const resolvedCollectionName = collectionName || 
+            (group === "business_offerings" ? "businessOfferingsCollection" : 
+             group === "consulting" ? "consultingServicesCollection" : 
+             group === "events" ? "eventsCollection" : 
+             group === "jobs" ? "jobsCollection" : null);
+
+        console.log(`   Metadata: partnerId=${partnerId}, listingId=${listingId}, collection=${resolvedCollectionName}`);
+
+        let updated = false;
+        let listingData = null;
+
+        if (featureId) {
+            // Check if feature already exists
+            const existingFeature = await db.collection("partnersCollection").doc(partnerId)
+                .collection("featuresCollection").where("sessionId", "==", session.id).get();
+            
+            if (existingFeature.empty) {
+                await db.collection("partnersCollection").doc(partnerId).collection("featuresCollection").add({
+                    featureId,
+                    featureName: featureId.replace(/_/g, " "),
+                    lastPaymentReceived: new Date(),
+                    active: true,
+                    sessionId: session.id
+                });
+                updated = true;
+                console.log(`   ✓ Feature plan added: ${featureId}`);
+            } else {
+                console.log(`   ℹ Feature already exists for this session`);
+            }
+        } else if (listingId && resolvedCollectionName) {
+            // Check current listing status
+            const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
+            const listingSnap = await listingRef.get();
+            
+            if (listingSnap.exists) {
+                listingData = listingSnap.data();
+                
+                if (listingData.status === "pending_payment") {
+                    const isAutoApproved = group === "events" || group === "jobs";
+                    
+                    await listingRef.update({
+                        status: isAutoApproved ? "Approved" : "Pending Review",
+                        active: true,
+                        lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        stripeSubscriptionId: session.subscription || null,
+                        stripeCustomerId: session.customer || null
+                    });
+                    updated = true;
+                    console.log(`   ✓ Listing ${listingId} updated to status: ${isAutoApproved ? "Approved" : "Pending Review"}`);
+
+                    // Calculate billing period
+                    const startDate = new Date();
+                    const isYearly = planId?.includes('_yr');
+                    const billingPeriodEnd = new Date(startDate);
+                    if (isYearly) {
+                        billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                    } else {
+                        billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                    }
+
+                    // Check if plan record already exists
+                    const existingPlan = await db.collection("partnersCollection").doc(partnerId)
+                        .collection("planCollection").where("listingId", "==", listingId).get();
+                    
+                    if (existingPlan.empty) {
+                        await db.collection("partnersCollection").doc(partnerId).collection("planCollection").add({
+                            planId,
+                            planName: planId.replace(/_/g, " "),
+                            startDate: startDate,
+                            billingPeriodEnd: billingPeriodEnd,
+                            billingInterval: isYearly ? "year" : "month",
+                            active: true,
+                            lastPaymentReceivedAt: startDate,
+                            listingId,
+                            collectionName: resolvedCollectionName,
+                            stripeSubscriptionId: session.subscription || null,
+                            stripeCustomerId: session.customer || null
+                        });
+                        console.log(`   ✓ Plan record created`);
+                    }
+
+                    // Check if transaction already exists
+                    const existingTxn = await db.collection("transactionsCollection")
+                        .where("sessionId", "==", session.id).get();
+                    
+                    if (existingTxn.empty) {
+                        await db.collection("transactionsCollection").add({
+                            partnerId,
+                            amount: session.amount_total / 100,
+                            currency: session.currency,
+                            status: "succeeded",
+                            type: "listing",
+                            planId: planId || null,
+                            group: group || null,
+                            listingId: listingId || null,
+                            collectionName: resolvedCollectionName || null,
+                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                            sessionId: session.id,
+                            customerEmail: session.customer_details?.email || "",
+                            selectedCategories: listingData?.selectedCategories || [],
+                            selectedSubcategories: listingData?.selectedSubcategories || [],
+                            serviceCountries: listingData?.serviceCountries || [],
+                            serviceRegions: listingData?.serviceRegions || [],
+                            businessName: listingData?.businessName || ""
+                        });
+                        console.log(`   ✓ Transaction record created`);
+                    }
+                } else {
+                    console.log(`   ℹ Listing already updated (status: ${listingData.status})`);
+                }
+            } else {
+                console.log(`   ⚠ Listing not found: ${listingId}`);
+            }
+        }
+
+        res.json({ 
+            success: true, 
+            updated,
+            status: session.status,
+            paymentStatus: session.payment_status
+        });
+
+    } catch (err) {
+        console.error("❌ Verify payment error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
 });
 
 const PORT = 3001;

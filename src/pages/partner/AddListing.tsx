@@ -394,7 +394,8 @@ export default function AddListing() {
                     partnerId: auth.currentUser.uid,
                     partnerEmail: auth.currentUser.email,
                     listingId: listingDoc.id,
-                    successUrl: `${origin}/partner/dashboard?payment=success`,
+                    collectionName: config.collectionName,
+                    successUrl: `${origin}/partner/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
                     cancelUrl: `${origin}/partner/add-listing/${groupKey}?payment=cancelled`,
                 }),
             });
