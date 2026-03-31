@@ -112,9 +112,9 @@ export default function Home() {
 
                         <AutoCarousel speed={40} direction="left" innerClassName="gap-6 px-3">
                             {featuredBusinesses.map((p, i) => (
-                                <div key={`carousel-${p.id}-${i}`} className="flex items-center justify-center min-w-[220px] max-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0">
+                                <Link to={`/listing/business/${p.id}`} target="_blank" rel="noopener noreferrer" key={`carousel-${p.id}-${i}`} className="flex items-center justify-center min-w-[220px] max-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0">
                                     <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{p.businessName}</span>
-                                </div>
+                                </Link>
                             ))}
                         </AutoCarousel>
                     </div>
@@ -172,7 +172,7 @@ export default function Home() {
                     {featuredBusinesses.length > 0 ? (
                         <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 pb-8">
                             {featuredBusinesses.map((b, i) => (
-                                <Link to={`/all-categories/business/${b.id}`} key={`offering-${b.id}-${i}`} className="flex items-center justify-center text-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                <Link to={`/listing/business/${b.id}`} target="_blank" rel="noopener noreferrer" key={`offering-${b.id}-${i}`} className="flex items-center justify-center text-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
                                     <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{b.businessName}</h3>
                                 </Link>
                             ))}
@@ -199,7 +199,7 @@ export default function Home() {
                     {featuredConsulting.length > 0 ? (
                         <AutoCarousel speed={50} direction="right" innerClassName="gap-6 px-3 pb-8">
                             {featuredConsulting.map((c, i) => (
-                                <Link to={`/all-categories/consulting/${c.id}`} key={`consulting-${c.id}-${i}`} className="flex items-center justify-center text-center min-w-[360px] max-w-[360px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                <Link to={`/listing/consulting/${c.id}`} target="_blank" rel="noopener noreferrer" key={`consulting-${c.id}-${i}`} className="flex items-center justify-center text-center min-w-[360px] max-w-[360px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
                                     <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{c.businessName}</h3>
                                 </Link>
                             ))}
@@ -232,7 +232,7 @@ export default function Home() {
                                         const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
                                         const day = dateObj.getUTCDate();
                                         return (
-                                            <Link to={`/all-categories/events/${evt.id}`} key={`evt-${evt.id}-${i}`} className="flex flex-col sm:flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[400px] max-w-[400px] h-[160px] shrink-0">
+                                            <Link to={`/listing/events/${evt.id}`} target="_blank" rel="noopener noreferrer" key={`evt-${evt.id}-${i}`} className="flex flex-col sm:flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[400px] max-w-[400px] h-[160px] shrink-0">
                                                 <div className="w-24 shrink-0 bg-primary/5 group-hover:bg-primary/10 flex flex-col items-center justify-center p-4 border-r border-foreground/10 transition-colors">
                                                     <span className="text-sm font-bold text-primary tracking-widest">{month}</span>
                                                     <span className="text-3xl font-extrabold text-foreground">{day}</span>
@@ -277,7 +277,7 @@ export default function Home() {
                             {featuredJobs.length > 0 ? (
                                 <AutoCarousel speed={50} direction="right" innerClassName="gap-6 px-3 py-4">
                                     {featuredJobs.map((job, i) => (
-                                        <Link to={`/all-categories/jobs/${job.id}`} key={`job-${job.id}-${i}`} className="flex flex-col p-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[360px] max-w-[360px] h-[160px] shrink-0">
+                                        <Link to={`/listing/jobs/${job.id}`} target="_blank" rel="noopener noreferrer" key={`job-${job.id}-${i}`} className="flex flex-col p-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[360px] max-w-[360px] h-[160px] shrink-0">
                                             <div className="flex items-center justify-between mb-4">
                                                 <div className="text-xs font-bold text-primary uppercase tracking-wider border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
                                                     {job.workModel || "Job Opening"}

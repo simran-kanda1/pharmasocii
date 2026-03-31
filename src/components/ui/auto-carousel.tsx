@@ -10,6 +10,7 @@ interface AutoCarouselProps extends React.HTMLAttributes<HTMLDivElement> {
 
 export function AutoCarousel({ speed = 50, direction = "left", innerClassName, children, className, ...props }: AutoCarouselProps) {
     const scrollRef = useRef<HTMLDivElement>(null);
+    const scrollPosRef = useRef(0);
     const [isHovered, setIsHovered] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
     const [startX, setStartX] = useState(0);
@@ -17,8 +18,10 @@ export function AutoCarousel({ speed = 50, direction = "left", innerClassName, c
 
     // Initial position fix for right direction
     useEffect(() => {
-        if (scrollRef.current && direction === "right" && scrollRef.current.scrollLeft === 0) {
-           scrollRef.current.scrollLeft = scrollRef.current.scrollWidth / 4;
+        if (scrollRef.current) {
+            const initialPos = direction === "right" ? scrollRef.current.scrollWidth / 4 : 0;
+            scrollRef.current.scrollLeft = initialPos;
+            scrollPosRef.current = initialPos;
         }
     }, [direction, children]);
 
@@ -34,11 +37,12 @@ export function AutoCarousel({ speed = 50, direction = "left", innerClassName, c
                 const scrollAmount = (speed * safeDelta) / 1000;
                 
                 if (direction === "left") {
-                    scrollRef.current.scrollLeft += scrollAmount;
+                    scrollPosRef.current += scrollAmount;
                 } else {
-                    scrollRef.current.scrollLeft -= scrollAmount;
+                    scrollPosRef.current -= scrollAmount;
                 }
                 
+                scrollRef.current.scrollLeft = scrollPosRef.current;
                 checkWrap(scrollRef.current);
             }
             lastTime = time;
@@ -55,14 +59,18 @@ export function AutoCarousel({ speed = 50, direction = "left", innerClassName, c
         const singleWidth = element.scrollWidth / 4;
         if (element.scrollLeft >= singleWidth * 2) {
             element.scrollLeft -= singleWidth;
+            scrollPosRef.current = element.scrollLeft;
         } 
         else if (element.scrollLeft <= 0) {
             element.scrollLeft += singleWidth;
+            scrollPosRef.current = element.scrollLeft;
         }
     };
 
     const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        // Sync our internal position whenever the user scrolls via other means
         if (isHovered || isDragging) {
+            scrollPosRef.current = e.currentTarget.scrollLeft;
             checkWrap(e.currentTarget);
         }
     };
@@ -80,6 +88,10 @@ export function AutoCarousel({ speed = 50, direction = "left", innerClassName, c
 
     const handleMouseUp = () => {
         setIsDragging(false);
+        // Sync one last time on release
+        if (scrollRef.current) {
+            scrollPosRef.current = scrollRef.current.scrollLeft;
+        }
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
@@ -88,6 +100,7 @@ export function AutoCarousel({ speed = 50, direction = "left", innerClassName, c
         const x = e.pageX - scrollRef.current.offsetLeft;
         const walk = (x - startX) * 2; 
         scrollRef.current.scrollLeft = scrollLeftPos - walk;
+        scrollPosRef.current = scrollRef.current.scrollLeft;
     };
 
     return (

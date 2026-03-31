@@ -692,7 +692,13 @@ export default function AllCategories() {
                                                 : currentTab === "events" ? `${item.city || "Venue"}, ${item.location || ""}`
                                                     : `${item.businessName || "Company"} • ${item.jobtype || "Role"}`;
                                         return (
-                                            <div key={item.id} onClick={() => setSelectedProfile(item)} className="group rounded-xl border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer overflow-hidden flex flex-col h-[320px]">
+                                            <Link 
+                                                key={item.id} 
+                                                to={`/listing/${currentTab}/${item.id}`} 
+                                                target="_blank" 
+                                                rel="noopener noreferrer"
+                                                className="group rounded-xl border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer overflow-hidden flex flex-col h-[320px]"
+                                            >
                                                 <div className="p-8 flex-1 flex items-center justify-center bg-background border-b border-foreground/10 text-center relative overflow-hidden">
                                                     <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
                                                 </div>
@@ -700,7 +706,7 @@ export default function AllCategories() {
                                                     <div className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1">{topLabel}</div>
                                                     <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>
                                                 </div>
-                                            </div>
+                                            </Link>
                                         );
                                     })}
                                 </div>
@@ -769,7 +775,7 @@ export default function AllCategories() {
                                     </div>
                                     {Array.isArray(selectedProfile.selectedSubcategories) && selectedProfile.selectedSubcategories.length > 0 && (
                                         <div>
-                                            <p className="font-bold mb-2 text-sm uppercase text-muted-foreground tracking-wider">Specialisations</p>
+                                            <p className="font-bold mb-2 text-sm uppercase text-muted-foreground tracking-wider">Specializations</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {selectedProfile.selectedSubcategories.map((s: string, i: number) => (
                                                     <span key={i} className="bg-foreground/10 px-3 py-1 rounded-full text-xs">{s}</span>

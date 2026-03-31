@@ -10,6 +10,7 @@ import CompleteProfile from "./pages/CompleteProfile";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import PartnerDashboard from "./pages/partner/Dashboard";
+import ListingDetail from "./pages/ListingDetail";
 import AddListing from "./pages/partner/AddListing";
 import AboutUs from "./pages/AboutUs";
 import FAQ from "./pages/FAQ";
@@ -31,6 +32,7 @@ function App() {
     <Routes>
       {/* Pages With Layout */}
       <Route path="/" element={<AppLayout><Home /></AppLayout>} />
+      <Route path="/listing/:type/:id" element={<AppLayout><ListingDetail /></AppLayout>} />
       <Route path="/about-us" element={<AppLayout><AboutUs /></AppLayout>} />
       <Route path="/faq" element={<AppLayout><FAQ /></AppLayout>} />
       <Route path="/all-categories/:category?" element={<AppLayout><AllCategories /></AppLayout>} />
