@@ -248,7 +248,13 @@ export default function AllCategories() {
                     snap = await getDocs(q);
                 }
                 if (snap) {
-                    setData(snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as Record<string, any>) })));
+                    // Filter to only show approved listings (or legacy listings without status field)
+                    const allDocs = snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as Record<string, any>) }));
+                    const approvedDocs = allDocs.filter((doc: any) => {
+                        // Show if: no status field (legacy data) OR status is "Approved"
+                        return !doc.status || doc.status === "Approved";
+                    });
+                    setData(approvedDocs);
                 } else {
                     setData([]);
                 }
@@ -335,18 +341,26 @@ export default function AllCategories() {
         }
         if (!isMainCategoryTab) return true;
 
-        // Resolve which category field this item uses
-        const itemCategory: string =
-            item.category ||
-            item.selectedGroup?.replace(/_/g, " ") ||
-            item.consultingCategory ||
-            item.eventCategory ||
-            item.jobCategory ||
-            "";
+        // Get item's categories - support both old format (category: string) and new format (selectedCategories: array)
+        const itemCategories: string[] = Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
+            ? item.selectedCategories
+            : item.category 
+                ? [item.category]
+                : item.consultingCategory
+                    ? [item.consultingCategory]
+                    : item.eventCategory
+                        ? [item.eventCategory]
+                        : item.jobCategory
+                            ? [item.jobCategory]
+                            : [];
 
         // Category: item must match AT LEAST ONE selected category (OR logic across categories)
-        if (selectedCategories.length > 0 && !selectedCategories.includes(itemCategory)) {
-            return false;
+        // Check if any of the item's categories match any of the selected categories
+        if (selectedCategories.length > 0) {
+            const hasMatchingCategory = itemCategories.some(itemCat => selectedCategories.includes(itemCat));
+            if (!hasMatchingCategory) {
+                return false;
+            }
         }
 
         // Subcategory: item must contain ALL selected subs (AND logic)
