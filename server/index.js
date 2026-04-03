@@ -765,8 +765,25 @@ app.post("/api/verify-payment", async (req, res) => {
     }
 });
 
-const PORT = 3001;
+// ─── Serve Static Frontend (Production) ───
+const distPath = resolve(__dirname, "..", "dist");
+if (existsSync(distPath)) {
+    app.use(express.static(distPath));
+    // SPA Catch-all: Route everything else to index.html
+    app.get("*", (req, res) => {
+        if (!req.path.startsWith("/api/")) {
+            res.sendFile(resolve(distPath, "index.html"));
+        } else {
+            res.status(404).json({ error: "API endpoint not found" });
+        }
+    });
+    console.log("✓ Serving static files from /dist");
+} else {
+    console.log("⚠ /dist directory not found. Server running in API-only mode.");
+}
+
+const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
-    console.log(`\n🚀 Pharma Socii API server running at http://localhost:${PORT}`);
+    console.log(`\n🚀 Pharma Socii API server running at port ${PORT}`);
     console.log(`   Stripe test mode connected\n`);
 });
