@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { API_BASE_URL } from "@/apiConfig";
 import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, query, onSnapshot, where } from "firebase/firestore";
@@ -105,12 +104,7 @@ export default function Dashboard() {
     const [selectedPlanForAction, setSelectedPlanForAction] = useState<any>(null);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<any>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
-<<<<<<< HEAD
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
-=======
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [, setActionMessage] = useState({ type: "", text: "" });
->>>>>>> 0b6bd93 (my changes)
 
     // Verify payment on return from Stripe checkout
     useEffect(() => {
@@ -126,7 +120,7 @@ export default function Dashboard() {
             sessionStorage.setItem(processedKey, "true");
 
             console.log("Verifying payment for session:", sessionId);
-            fetch(`${API_BASE_URL}/api/verify-payment`, {
+            fetch("/api/verify-payment", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ sessionId })
@@ -416,7 +410,7 @@ export default function Dashboard() {
         try {
             if (auth.currentUser && selectedPlanForAction) {
                 const origin = window.location.origin;
-                const resp = await fetch(`${API_BASE_URL}/api/upgrade-subscription`, {
+                const resp = await fetch("/api/upgrade-subscription", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -483,7 +477,7 @@ export default function Dashboard() {
 
                 // If there's a Stripe subscription, cancel it at period end
                 if (selectedPlanForAction.stripeSubscriptionId) {
-                    await fetch(`${API_BASE_URL}/api/cancel-subscription`, {
+                    await fetch("/api/cancel-subscription", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -513,7 +507,7 @@ export default function Dashboard() {
         try {
             if (auth.currentUser && selectedPlanForAction) {
                 const origin = window.location.origin;
-                const resp = await fetch(`${API_BASE_URL}/api/create-feature-checkout`, {
+                const resp = await fetch("/api/create-feature-checkout", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

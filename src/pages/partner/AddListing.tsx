@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { API_BASE_URL } from "@/apiConfig";
 import { useNavigate, useParams } from "react-router-dom";
 import { Building2, ArrowLeft, ArrowRight, ChevronRight, ChevronDown, Check, X, Info, Calendar, Briefcase, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -401,7 +400,7 @@ export default function AddListing() {
 
             // Create Stripe Checkout Session
             const origin = window.location.origin;
-            const resp = await fetch(`${API_BASE_URL}/api/create-checkout-session`, {
+            const resp = await fetch("/api/create-checkout-session", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

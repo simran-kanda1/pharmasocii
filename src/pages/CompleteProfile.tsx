@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { API_BASE_URL } from "@/apiConfig";
 import { Building2, Globe, Building, Linkedin, Receipt, UploadCloud, ArrowRight, ChevronRight, ChevronDown, Check, X, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -440,7 +439,7 @@ export default function CompleteProfile() {
 
             // Call backend to create Stripe Checkout Session
             const origin = window.location.origin;
-            const resp = await fetch(`${API_BASE_URL}/api/create-checkout-session`, {
+            const resp = await fetch("/api/create-checkout-session", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
