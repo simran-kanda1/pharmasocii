@@ -104,7 +104,12 @@ export default function Dashboard() {
     const [selectedPlanForAction, setSelectedPlanForAction] = useState<any>(null);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<any>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
+<<<<<<< HEAD
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
+=======
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const [, setActionMessage] = useState({ type: "", text: "" });
+>>>>>>> 0b6bd93 (my changes)
 
     // Verify payment on return from Stripe checkout
     useEffect(() => {
