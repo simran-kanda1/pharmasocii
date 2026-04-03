@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { auth, db } from "@/firebase";
 import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { logActivity } from "@/lib/auditLogger";
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 
@@ -85,6 +86,19 @@ export default function PartnerRegister() {
             };
 
             await setDoc(doc(db, "membersCollection", user.uid), memberData);
+
+            // Log to Audit Trail
+            await logActivity({
+                partnerId: user.uid,
+                partnerName: formData.companyName,
+                action: "ACCOUNT_CREATED",
+                details: `Partner account created for ${formData.firstName} ${formData.lastName}.`,
+                category: "account",
+                metadata: {
+                    email: formData.email,
+                    phone: formData.phone
+                }
+            });
 
             setSuccess(true);
             setTimeout(() => {

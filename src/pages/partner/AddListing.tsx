@@ -12,6 +12,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { logActivity } from "@/lib/auditLogger";
 
 
 import {
@@ -383,6 +384,20 @@ export default function AddListing() {
             const listingsRef = collection(partnerRef, config.collectionName);
             const listingDoc = await addDoc(listingsRef, listingData);
 
+            // Log to Audit Trail
+            await logActivity({
+                partnerId: auth.currentUser.uid,
+                partnerName: companyName || "Unnamed Business",
+                action: "LISTING_CREATED",
+                details: `New ${config.label} listing created: "${eventData.eventName || jobData.jobTitle || dbGroup.replace(/_/g, ' ')}".`,
+                category: "listing",
+                metadata: {
+                    listingId: listingDoc.id,
+                    type: dbGroup,
+                    plan
+                }
+            });
+
             // Create Stripe Checkout Session
             const origin = window.location.origin;
             const resp = await fetch("/api/create-checkout-session", {
@@ -400,8 +415,19 @@ export default function AddListing() {
                 }),
             });
 
+            if (!resp.ok) {
+                let errMessage = "Failed to communicate with the payment server.";
+                try {
+                    const errData = await resp.json();
+                    errMessage = errData.error || errMessage;
+                } catch {
+                    // Could not parse JSON, likely a proxy error (backend down)
+                    errMessage = `Server error ${resp.status}: The backend API might be offline. Please ensure the server is running.`;
+                }
+                throw new Error(errMessage);
+            }
+
             const data = await resp.json();
-            if (!resp.ok) throw new Error(data.error || "Failed to create checkout session");
 
             // Redirect to Stripe Checkout
             window.location.href = data.url;

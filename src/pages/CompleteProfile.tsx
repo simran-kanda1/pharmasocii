@@ -15,6 +15,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { logActivity } from "@/lib/auditLogger";
 import PhoneInput from 'react-phone-number-input'
 import 'react-phone-number-input/style.css'
 
@@ -421,6 +422,20 @@ export default function CompleteProfile() {
             }
 
             await updateDoc(partnerRef, updateData);
+
+            // Log to Audit Trail
+            await logActivity({
+                partnerId: auth.currentUser.uid,
+                partnerName: formData.companyName,
+                action: "ACCOUNT_UPDATED",
+                details: `Partner profile completed/updated. Group: ${formData.group.replace(/_/g, " ")}, Plan: ${formData.plan.replace(/_/g, " ")}.`,
+                category: "account",
+                metadata: {
+                    group: formData.group,
+                    plan: formData.plan,
+                    categoriesCount: categoryCount
+                }
+            });
 
             // Call backend to create Stripe Checkout Session
             const origin = window.location.origin;

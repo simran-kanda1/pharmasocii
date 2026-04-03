@@ -1,7 +1,7 @@
 import express from "express";
 import cors from "cors";
 import Stripe from "stripe";
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
@@ -30,22 +30,53 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 // Recommended: export GOOGLE_APPLICATION_CREDENTIALS="path/to/serviceAccountKey.json"
 // Or place serviceAccountKey.json in server/ and we'll try to load it.
 try {
-    admin.initializeApp({
-        credential: admin.credential.applicationDefault(),
-        projectId: "pharmasocii"
-    });
-} catch (err) {
-    console.warn("Firebase Admin fallback: applicationDefault failed, trying manual init...");
-    try {
-        const serviceAccount = JSON.parse(readFileSync(resolve(__dirname, "pharmasocii_admin.json"), "utf8"));
+    const serviceAccountPath = resolve(__dirname, "pharmasocii_admin.json");
+    if (existsSync(serviceAccountPath)) {
+        const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, "utf8"));
         admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount)
+            credential: admin.credential.cert(serviceAccount),
+            projectId: "pharmasocii"
         });
-    } catch (e) {
-        console.error("❌ Firebase Admin failed to initialize. Webhooks will not work.", e.message);
+        console.log("Firebase Admin initialized with local service account key.");
+    } else {
+        admin.initializeApp({
+            credential: admin.credential.applicationDefault(),
+            projectId: "pharmasocii"
+        });
+        console.log("Firebase Admin initialized with applicationDefault.");
     }
+} catch (e) {
+    console.error("❌ Firebase Admin failed to initialize. Webhooks will not work.", e.message);
 }
 const db = admin.firestore();
+
+/**
+ * Log action to auditLogs collection
+ */
+async function logAudit({ partnerId, action, details, category, metadata = {} }) {
+    try {
+        let partnerName = "Unknown Partner";
+        if (partnerId) {
+            const partnerDoc = await db.collection("partnersCollection").doc(partnerId).get();
+            if (partnerDoc.exists) {
+                partnerName = partnerDoc.data().businessName || "Unnamed Business";
+            }
+        }
+
+        await db.collection("auditLogs").add({
+            partnerId,
+            partnerName,
+            action,
+            details,
+            category,
+            metadata,
+            timestamp: admin.firestore.FieldValue.serverTimestamp()
+        });
+        console.log(`[Audit] ${action} logged for ${partnerName}`);
+    } catch (err) {
+        console.error("Error logging audit:", err.message);
+    }
+}
 
 const app = express();
 app.use(cors({ origin: true }));
@@ -54,7 +85,7 @@ app.use(cors({ origin: true }));
 app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, res) => {
     console.log("🔔 Webhook endpoint hit!");
     console.log("   Headers:", JSON.stringify(req.headers["stripe-signature"]?.substring(0, 50) + "..."));
-    
+
     const sig = req.headers["stripe-signature"];
     let event;
 
@@ -96,6 +127,14 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     sessionId: session.id
                 });
                 console.log(`   ✓ Feature plan added: ${featureId}`);
+
+                await logAudit({
+                    partnerId,
+                    action: "FEATURE_ADDED",
+                    details: `New feature added: ${featureId.replace(/_/g, " ")}.`,
+                    category: "listing",
+                    metadata: { featureId }
+                });
             } else if (listingId && resolvedCollectionName) {
                 // Core listing payment - update the listing status
                 const isAutoApproved = group === "events" || group === "jobs";
@@ -172,6 +211,18 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
             await db.collection("transactionsCollection").add(transactionData);
             console.log(`   ✓ Transaction record created`);
 
+            await logAudit({
+                partnerId,
+                action: "PAYMENT_SUCCESS",
+                details: `Payment of ${transactionData.amount} ${transactionData.currency.toUpperCase()} successful for session: ${session.id}`,
+                category: "billing",
+                metadata: {
+                    sessionId: session.id,
+                    type: transactionData.type,
+                    planId: transactionData.planId
+                }
+            });
+
             break;
         }
 
@@ -192,6 +243,34 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 for (const pPlan of pSnap.docs) {
                     await pPlan.ref.update({ active: false });
                 }
+
+                await logAudit({
+                    partnerId: pDoc.id,
+                    action: "SUBSCRIPTION_CANCELLED",
+                    details: `Subscription ${subscription.id} cancelled.`,
+                    category: "billing",
+                    metadata: { subscriptionId: subscription.id }
+                });
+            }
+            break;
+        }
+
+        case "invoice.payment_failed": {
+            const invoice = event.data.object;
+            const customerId = invoice.customer;
+            console.log(`❌ Invoice payment failed for customer: ${customerId}`);
+
+            // Find partner by customer ID
+            const partnerSnap = await db.collection("partnersCollection").where("stripeCustomerId", "==", customerId).limit(1).get();
+            if (!partnerSnap.empty) {
+                const partnerDoc = partnerSnap.docs[0];
+                await logAudit({
+                    partnerId: partnerDoc.id,
+                    action: "PAYMENT_FAILED",
+                    details: `Invoice payment failed for $${invoice.amount_due / 100}.`,
+                    category: "billing",
+                    metadata: { invoiceId: invoice.id, amountDue: invoice.amount_due / 100 }
+                });
             }
             break;
         }
@@ -365,7 +444,7 @@ app.get("/api/health", (_req, res) => {
 app.post("/api/upgrade-subscription", async (req, res) => {
     try {
         const { subscriptionId, newPlanId, partnerId, listingId, collectionName, partnerEmail, successUrl, cancelUrl } = req.body;
-        
+
         console.log(`⬆️ Upgrading subscription: ${subscriptionId} to ${newPlanId}`);
 
         const newPlan = PLAN_PRICES[newPlanId];
@@ -377,7 +456,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             // If there's an existing Stripe subscription, update it
             try {
                 const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-                
+
                 // Create a new price for the upgraded plan
                 const newPrice = await stripe.prices.create({
                     currency: "usd",
@@ -408,11 +487,11 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     await db.collection("partnersCollection").doc(partnerId).collection(collectionName).doc(listingId).update({
                         selectedPlan: newPlanId,
                     });
-                    
+
                     // Update the plan record
                     const planSnap = await db.collection("partnersCollection").doc(partnerId).collection("planCollection")
                         .where("listingId", "==", listingId).get();
-                    
+
                     if (!planSnap.empty) {
                         await planSnap.docs[0].ref.update({
                             planId: newPlanId,
@@ -423,8 +502,8 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 }
 
                 console.log(`   ✓ Subscription upgraded to ${newPlanId}`);
-                res.json({ 
-                    success: true, 
+                res.json({
+                    success: true,
                     subscriptionId: updatedSubscription.id,
                     message: "Subscription upgraded successfully"
                 });
@@ -495,7 +574,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
 app.post("/api/cancel-subscription", async (req, res) => {
     try {
         const { subscriptionId } = req.body;
-        
+
         if (!subscriptionId) {
             return res.status(400).json({ error: "subscriptionId is required" });
         }
@@ -509,8 +588,8 @@ app.post("/api/cancel-subscription", async (req, res) => {
 
         console.log(`   ✓ Subscription will cancel at: ${new Date(subscription.current_period_end * 1000).toISOString()}`);
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             cancelAt: subscription.current_period_end,
             status: subscription.status
         });
@@ -529,7 +608,7 @@ app.post("/api/cancel-subscription", async (req, res) => {
 app.post("/api/verify-payment", async (req, res) => {
     try {
         const { sessionId } = req.body;
-        
+
         if (!sessionId) {
             return res.status(400).json({ error: "sessionId is required" });
         }
@@ -538,7 +617,7 @@ app.post("/api/verify-payment", async (req, res) => {
 
         // Retrieve the checkout session from Stripe
         const session = await stripe.checkout.sessions.retrieve(sessionId);
-        
+
         if (!session) {
             return res.status(404).json({ error: "Session not found" });
         }
@@ -547,8 +626,8 @@ app.post("/api/verify-payment", async (req, res) => {
 
         // Check if payment was successful
         if (session.status !== "complete" || session.payment_status !== "paid") {
-            return res.json({ 
-                success: false, 
+            return res.json({
+                success: false,
                 message: "Payment not completed",
                 status: session.status,
                 paymentStatus: session.payment_status
@@ -558,11 +637,11 @@ app.post("/api/verify-payment", async (req, res) => {
         const { partnerId, planId, group, listingId, collectionName, featureId } = session.metadata;
 
         // Determine the correct collection name
-        const resolvedCollectionName = collectionName || 
-            (group === "business_offerings" ? "businessOfferingsCollection" : 
-             group === "consulting" ? "consultingServicesCollection" : 
-             group === "events" ? "eventsCollection" : 
-             group === "jobs" ? "jobsCollection" : null);
+        const resolvedCollectionName = collectionName ||
+            (group === "business_offerings" ? "businessOfferingsCollection" :
+                group === "consulting" ? "consultingServicesCollection" :
+                    group === "events" ? "eventsCollection" :
+                        group === "jobs" ? "jobsCollection" : null);
 
         console.log(`   Metadata: partnerId=${partnerId}, listingId=${listingId}, collection=${resolvedCollectionName}`);
 
@@ -573,7 +652,7 @@ app.post("/api/verify-payment", async (req, res) => {
             // Check if feature already exists
             const existingFeature = await db.collection("partnersCollection").doc(partnerId)
                 .collection("featuresCollection").where("sessionId", "==", session.id).get();
-            
+
             if (existingFeature.empty) {
                 await db.collection("partnersCollection").doc(partnerId).collection("featuresCollection").add({
                     featureId,
@@ -591,13 +670,13 @@ app.post("/api/verify-payment", async (req, res) => {
             // Check current listing status
             const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
             const listingSnap = await listingRef.get();
-            
+
             if (listingSnap.exists) {
                 listingData = listingSnap.data();
-                
+
                 if (listingData.status === "pending_payment") {
                     const isAutoApproved = group === "events" || group === "jobs";
-                    
+
                     await listingRef.update({
                         status: isAutoApproved ? "Approved" : "Pending Review",
                         active: true,
@@ -621,7 +700,7 @@ app.post("/api/verify-payment", async (req, res) => {
                     // Check if plan record already exists
                     const existingPlan = await db.collection("partnersCollection").doc(partnerId)
                         .collection("planCollection").where("listingId", "==", listingId).get();
-                    
+
                     if (existingPlan.empty) {
                         await db.collection("partnersCollection").doc(partnerId).collection("planCollection").add({
                             planId,
@@ -642,7 +721,7 @@ app.post("/api/verify-payment", async (req, res) => {
                     // Check if transaction already exists
                     const existingTxn = await db.collection("transactionsCollection")
                         .where("sessionId", "==", session.id).get();
-                    
+
                     if (existingTxn.empty) {
                         await db.collection("transactionsCollection").add({
                             partnerId,
@@ -673,8 +752,8 @@ app.post("/api/verify-payment", async (req, res) => {
             }
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             updated,
             status: session.status,
             paymentStatus: session.payment_status

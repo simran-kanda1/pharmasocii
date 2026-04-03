@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  History,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -22,6 +23,7 @@ import {
   Users,
 } from "lucide-react";
 import { db, auth } from "@/firebase";
+import { logActivity } from "@/lib/auditLogger";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
   collection,
@@ -57,7 +59,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 
-type AdminTab = "overview" | "partners" | "listings" | "transactions";
+type AdminTab = "overview" | "partners" | "listings" | "transactions" | "audit";
 type ListingFilter = "all" | "pending" | "approved" | "disabled";
 
 type PartnerRecord = {
@@ -140,6 +142,8 @@ export default function AdminDashboard() {
   const [adminEmail, setAdminEmail] = useState("");
   const [adminName, setAdminName] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [auditSearchTerm, setAuditSearchTerm] = useState("");
 
   const [selectedPartner, setSelectedPartner] = useState<PartnerRecord | null>(null);
   const [partnerEditor, setPartnerEditor] = useState<Record<string, string>>({});
@@ -219,9 +223,15 @@ export default function AdminDashboard() {
     fetchListings();
     const listingsInterval = setInterval(fetchListings, 30000);
 
+    const qAudit = query(collection(db, "auditLogs"), orderBy("timestamp", "desc"), limit(100));
+    const unsubAudit = onSnapshot(qAudit, (snap) => {
+      setAuditLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    });
+
     return () => {
       unsubPartners();
       unsubTransactions();
+      unsubAudit();
       clearInterval(listingsInterval);
     };
   }, [isAuthorized]);
@@ -260,6 +270,17 @@ export default function AdminDashboard() {
       setPartners((prev) =>
         prev.map((p) => (p.id === selectedPartner.id ? { ...p, ...partnerEditor } : p)),
       );
+
+      // Log to Audit Trail
+      await logActivity({
+        partnerId: selectedPartner.id,
+        partnerName: partnerEditor.businessName || "Unnamed Business",
+        action: "ACCOUNT_UPDATED",
+        details: `Profile updated: ${partnerEditor.businessName} (Contact: ${partnerEditor.primaryName}). Updated by admin: ${adminEmail}`,
+        category: "admin",
+        metadata: { adminEmail, updatedFields: partnerEditor }
+      });
+
       setSaveNotice("Partner profile updated.");
     } catch (error) {
       console.error(error);
@@ -274,6 +295,17 @@ export default function AdminDashboard() {
       if (selectedPartner?.id === partner.id) {
         setPartnerEditor((prev) => ({ ...prev, partnerStatus: status }));
       }
+
+      // Log to Audit Trail
+      await logActivity({
+        partnerId: partner.id,
+        partnerName: partner.businessName || "Unnamed Business",
+        action: "ACCOUNT_UPDATED",
+        details: `Partner status changed to "${status}" (Business: ${partner.businessName}). Updated by admin: ${adminEmail}`,
+        category: "admin",
+        metadata: { adminEmail, newStatus: status }
+      });
+
       setSaveNotice(`Partner status set to ${status}.`);
     } catch (error) {
       console.error(error);
@@ -307,6 +339,20 @@ export default function AdminDashboard() {
       if (selectedListing?.__path === listing.__path) {
         setListingEditor((prev) => ({ ...prev, status, active: `${active}` }));
       }
+
+      // Log to Audit Trail
+      // Extract partnerId from path: partnersCollection/{partnerId}/{collectionName}/{listingId}
+      const partnerId = listing.__path.split('/')[1];
+
+      await logActivity({
+        partnerId,
+        partnerName: listing.businessName || "Unnamed Business",
+        action: "LISTING_UPDATED",
+        details: `Listing status for "${listing.businessName}" set to "${status}" (Active: ${active}). Updated by admin: ${adminEmail}`,
+        category: "admin",
+        metadata: { adminEmail, status, active, listingId: listing.id }
+      });
+
       setSaveNotice(`Listing updated: ${status}.`);
     } catch (error) {
       console.error(error);
@@ -335,6 +381,18 @@ export default function AdminDashboard() {
       setListings((prev) =>
         prev.map((l) => (l.__path === selectedListing.__path ? { ...l, ...payload } : l)),
       );
+
+      // Log to Audit Trail
+      const partnerId = selectedListing.__path.split('/')[1];
+      await logActivity({
+        partnerId,
+        partnerName: payload.businessName || "Unnamed Business",
+        action: "LISTING_UPDATED",
+        details: `Listing details for "${payload.businessName}" updated by admin (${adminEmail}).`,
+        category: "admin",
+        metadata: { adminEmail, listingId: selectedListing.id, updatedFields: payload }
+      });
+
       setSaveNotice("Listing updated.");
     } catch (error) {
       console.error(error);
@@ -408,6 +466,7 @@ export default function AdminDashboard() {
             <SidebarItem label="Partners" icon={Users} active={activeTab === "partners"} onClick={() => setActiveTab("partners")} badge={stats.pendingApprovals > 0 ? stats.pendingApprovals : undefined} />
             <SidebarItem label="Listings" icon={FileText} active={activeTab === "listings"} onClick={() => setActiveTab("listings")} badge={stats.pendingListings > 0 ? stats.pendingListings : undefined} />
             <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
+            <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
           </nav>
         </div>
 
@@ -509,14 +568,55 @@ export default function AdminDashboard() {
           )}
 
           {activeTab === "transactions" && <TransactionList transactions={transactions} />}
+
+          {activeTab === "audit" && (
+            <div className="space-y-4">
+              <div className="relative w-full md:w-96">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Search audit logs by company name..."
+                  value={auditSearchTerm}
+                  onChange={(e) => setAuditSearchTerm(e.target.value)}
+                  className="pl-10 h-11 bg-white border-slate-200"
+                />
+              </div>
+              <AuditLogList
+                logs={auditLogs.filter(log => {
+                  if (!auditSearchTerm) return true;
+                  const q = auditSearchTerm.toLowerCase();
+                  return (
+                    log.partnerName?.toLowerCase().includes(q) ||
+                    log.action?.toLowerCase().includes(q) ||
+                    log.details?.toLowerCase().includes(q) ||
+                    log.partnerId?.toLowerCase().includes(q)
+                  );
+                })}
+              />
+            </div>
+          )}
         </div>
       </main>
 
       <Sheet open={partnerEditorOpen} onOpenChange={setPartnerEditorOpen}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Partner Profile</SheetTitle>
-            <SheetDescription>View and manually edit account information.</SheetDescription>
+          <SheetHeader className="px-6 py-4 border-b border-slate-100 flex-row items-center justify-between space-y-0">
+            <div>
+              <SheetTitle>Edit Partner Profile</SheetTitle>
+              <SheetDescription>Update partner's information and account status</SheetDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+              onClick={() => {
+                setActiveTab("audit");
+                setAuditSearchTerm(selectedPartner?.id || "");
+                setPartnerEditorOpen(false);
+              }}
+            >
+              <History className="w-4 h-4" />
+              View History
+            </Button>
           </SheetHeader>
           <div className="mt-6 space-y-4">
             <Field label="Business Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} />
@@ -540,9 +640,27 @@ export default function AdminDashboard() {
 
       <Sheet open={listingEditorOpen} onOpenChange={setListingEditorOpen}>
         <SheetContent side="right" className="w-full sm:max-w-xl overflow-y-auto">
-          <SheetHeader>
-            <SheetTitle>Listing Details</SheetTitle>
-            <SheetDescription>Inspect and manually edit listing information.</SheetDescription>
+          <SheetHeader className="px-6 py-4 border-b border-slate-100 flex-row items-center justify-between space-y-0">
+            <div>
+              <SheetTitle>Listing Details</SheetTitle>
+              <SheetDescription>Inspect and manually edit listing information.</SheetDescription>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="flex items-center gap-2"
+              onClick={() => {
+                if (selectedListing) {
+                  const pId = selectedListing.__path.split('/')[1];
+                  setActiveTab("audit");
+                  setAuditSearchTerm(pId);
+                  setListingEditorOpen(false);
+                }
+              }}
+            >
+              <History className="w-4 h-4" />
+              View Profile History
+            </Button>
           </SheetHeader>
           <div className="mt-6 space-y-4">
             <Field label="Business Name" value={listingEditor.businessName || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, businessName: v }))} />
@@ -593,9 +711,8 @@ function SidebarItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${
-        active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-      }`}
+      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
+        }`}
     >
       <Icon className="w-4 h-4" />
       <span className="font-medium">{label}</span>
@@ -968,5 +1085,71 @@ function Field({
       <p className="text-sm font-medium">{label}</p>
       <Input value={value} onChange={(e) => onChange(e.target.value)} />
     </div>
+  );
+}
+
+function AuditLogList({ logs }: { logs: any[] }) {
+  if (logs.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
+        <History className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+        <h3 className="font-semibold">No audit logs found</h3>
+        <p className="text-sm text-slate-500">Activity will appear here as it happens.</p>
+      </div>
+    );
+  }
+
+  const getActionBadge = (action: string) => {
+    switch (action) {
+      case "ACCOUNT_CREATED":
+        return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Account Created</Badge>;
+      case "ACCOUNT_UPDATED":
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Account Updated</Badge>;
+      case "PAYMENT_SUCCESS":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Payment Success</Badge>;
+      case "PAYMENT_FAILED":
+        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Payment Failed</Badge>;
+      case "LISTING_UPDATED":
+        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Listing Updated</Badge>;
+      case "FEATURE_ADDED":
+        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Added</Badge>;
+      default:
+        return <Badge variant="outline">{action}</Badge>;
+    }
+  };
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">Timestamp</TableHead>
+              <TableHead>Company</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead>Details</TableHead>
+              <TableHead className="text-right pr-6">Partner ID</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {logs.map((log) => (
+              <TableRow key={log.id}>
+                <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
+                  {log.timestamp?.seconds
+                    ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+                    : "Recently"}
+                </TableCell>
+                <TableCell className="font-medium whitespace-nowrap">{log.partnerName || "Unknown"}</TableCell>
+                <TableCell>{getActionBadge(log.action)}</TableCell>
+                <TableCell className="text-sm text-slate-600 max-w-md">{log.details}</TableCell>
+                <TableCell className="text-right pr-6 font-mono text-[10px] text-slate-400">
+                  {log.partnerId || "-"}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }

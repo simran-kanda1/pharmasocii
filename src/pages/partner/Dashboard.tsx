@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, query, onSnapshot, where } from "firebase/firestore";
+import { logActivity } from "@/lib/auditLogger";
 import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -78,7 +79,6 @@ export default function Dashboard() {
     const [showFeatureModal, setShowFeatureModal] = useState(false);
     const [selectedFeaturePlan, setSelectedFeaturePlan] = useState<string>("");
     const [featureProcessing, setFeatureProcessing] = useState(false);
-    const [featureSuccess, setFeatureSuccess] = useState(false);
 
     // Profile form state
     const [profileForm, setProfileForm] = useState<any>({
@@ -104,7 +104,6 @@ export default function Dashboard() {
     const [selectedPlanForAction, setSelectedPlanForAction] = useState<any>(null);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<any>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
 
     // Verify payment on return from Stripe checkout
@@ -112,37 +111,51 @@ export default function Dashboard() {
         const params = new URLSearchParams(window.location.search);
         const sessionId = params.get("session_id");
         const paymentStatus = params.get("payment");
-        
+
         // Prevent duplicate calls by checking if we've already processed this session
         const processedKey = `payment_verified_${sessionId}`;
-        
+
         if (sessionId && paymentStatus === "success" && !sessionStorage.getItem(processedKey)) {
             // Mark as processing immediately to prevent duplicates
             sessionStorage.setItem(processedKey, "true");
-            
+
             console.log("Verifying payment for session:", sessionId);
             fetch("/api/verify-payment", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ sessionId })
             })
-            .then(res => res.json())
-            .then(data => {
-                console.log("Payment verification result:", data);
-                if (data.success && data.updated) {
-                    console.log("Payment verified and listing updated!");
-                }
-                // Clean up URL
-                window.history.replaceState({}, document.title, "/partner/dashboard");
-            })
-            .catch(err => {
-                console.error("Payment verification failed:", err);
-                // Remove the flag so user can retry
-                sessionStorage.removeItem(processedKey);
-            });
+                .then(res => res.json())
+                .then(data => {
+                    console.log("Payment verification result:", data);
+                    if (data.success && data.updated) {
+                        console.log("Payment verified and listing updated!");
+                    }
+                    // Clean up URL
+                    window.history.replaceState({}, document.title, "/partner/dashboard");
+                })
+                .catch(err => {
+                    console.error("Payment verification failed:", err);
+                    // Remove the flag so user can retry
+                    sessionStorage.removeItem(processedKey);
+                });
         } else if (paymentStatus === "success") {
             // Clean up URL even without session_id or if already processed
             window.history.replaceState({}, document.title, "/partner/dashboard");
+        }
+
+        const featureStatus = params.get("feature");
+        if (featureStatus === "success") {
+            setActionMessage({ type: "success", text: "Feature activated successfully!" });
+            window.history.replaceState({}, document.title, window.location.pathname);
+
+            // if we have session_id for feature we can verify it similarly
+            if (sessionId && !sessionStorage.getItem(processedKey)) {
+                sessionStorage.setItem(processedKey, "true");
+                fetch("/api/verify-payment", {
+                    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId })
+                }).catch(err => console.error("Feature verification failed:", err));
+            }
         }
     }, []);
 
@@ -237,6 +250,19 @@ export default function Dashboard() {
                         companyProfileText: profileForm.companyProfile, businessAddress: profileForm.businessAddress,
                     }
                 });
+
+                // Log to Audit Trail
+                await logActivity({
+                    partnerId: auth.currentUser.uid,
+                    partnerName: profileForm.companyName || partnerData.businessName || "Unnamed Business",
+                    action: "ACCOUNT_UPDATED",
+                    details: `Partner profile updated by partner.`,
+                    category: "account",
+                    metadata: {
+                        updatedFields: Object.keys(profileForm).filter(k => profileForm[k] !== partnerData[k])
+                    }
+                });
+
                 setProfileMsg("Profile updated successfully!");
                 setTimeout(() => setProfileMsg(""), 3000);
             }
@@ -263,6 +289,16 @@ export default function Dashboard() {
                 const credential = EmailAuthProvider.credential(user.email, passwordForm.currentPassword);
                 await reauthenticateWithCredential(user, credential);
                 await updatePassword(user, passwordForm.newPassword);
+
+                // Log to Audit Trail
+                await logActivity({
+                    partnerId: user.uid,
+                    partnerName: partnerData?.businessName || "Unnamed Business",
+                    action: "ACCOUNT_UPDATED",
+                    details: `Partner password changed.`,
+                    category: "account"
+                });
+
                 setPasswordMsg({ type: "success", text: "Password changed successfully!" });
                 setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
             }
@@ -279,25 +315,38 @@ export default function Dashboard() {
 
     const handlePurchaseFeature = async () => {
         setFeatureProcessing(true);
-        // Simulate Stripe payment
-        setTimeout(async () => {
-            try {
-                if (auth.currentUser) {
-                    const docRef = doc(db, "partnersCollection", auth.currentUser.uid);
-                    await updateDoc(docRef, { selectedAddon: selectedFeaturePlan });
-                    setPartnerData({ ...partnerData, selectedAddon: selectedFeaturePlan });
+        try {
+            if (auth.currentUser && selectedFeaturePlan) {
+                const origin = window.location.origin;
+                const resp = await fetch("/api/create-feature-checkout", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        featureId: selectedFeaturePlan,
+                        partnerId: auth.currentUser.uid,
+                        partnerEmail: auth.currentUser.email,
+                        successUrl: `${origin}/partner/dashboard?feature=success&session_id={CHECKOUT_SESSION_ID}`,
+                        cancelUrl: `${origin}/partner/dashboard?feature=cancelled`,
+                    }),
+                });
+                if (!resp.ok) {
+                    let errMessage = "Server error occurred.";
+                    try {
+                        const errData = await resp.json();
+                        errMessage = errData.error || errMessage;
+                    } catch {
+                        errMessage = `API offline: Please ensure backend server is running.`;
+                    }
+                    throw new Error(errMessage);
                 }
-            } catch (err) {
-                console.error("Failed to add feature plan", err);
+                const data = await resp.json();
+                window.location.href = data.url;
             }
+        } catch (err: any) {
+            console.error("Failed to add feature plan", err);
+            setActionMessage({ type: "error", text: err.message || "Failed to add feature plan." });
             setFeatureProcessing(false);
-            setFeatureSuccess(true);
-            setTimeout(() => {
-                setShowFeatureModal(false);
-                setFeatureSuccess(false);
-                setSelectedFeaturePlan("");
-            }, 2000);
-        }, 3000);
+        }
     };
 
     const handleSignOut = async () => {
@@ -311,20 +360,20 @@ export default function Dashboard() {
         try {
             if (auth.currentUser && selectedListingForEdit) {
                 const listingRef = doc(
-                    db, 
-                    "partnersCollection", 
-                    auth.currentUser.uid, 
-                    selectedListingForEdit.__col, 
+                    db,
+                    "partnersCollection",
+                    auth.currentUser.uid,
+                    selectedListingForEdit.__col,
                     selectedListingForEdit.id
                 );
-                
+
                 // Build update object with only changed/provided fields
                 const updateObj: Record<string, any> = {
                     serviceCountries: updatedData.serviceCountries,
                     serviceRegions: updatedData.serviceRegions,
                     updatedAt: new Date(),
                 };
-                
+
                 // Add business offering specific fields if present
                 if (updatedData.bioSafetyLevel !== undefined) {
                     updateObj.bioSafetyLevel = updatedData.bioSafetyLevel;
@@ -338,7 +387,7 @@ export default function Dashboard() {
                 if (updatedData.businessAddress !== undefined) {
                     updateObj.businessAddress = updatedData.businessAddress;
                 }
-                
+
                 await updateDoc(listingRef, updateObj);
                 setActionMessage({ type: "success", text: "Listing updated successfully!" });
                 setTimeout(() => {
@@ -375,9 +424,18 @@ export default function Dashboard() {
                         cancelUrl: `${origin}/partner/dashboard?upgrade=cancelled`,
                     }),
                 });
+                if (!resp.ok) {
+                    let errMessage = "Server error occurred.";
+                    try {
+                        const errData = await resp.json();
+                        errMessage = errData.error || errMessage;
+                    } catch {
+                        errMessage = `API offline: Please ensure backend server is running.`;
+                    }
+                    throw new Error(errMessage);
+                }
                 const data = await resp.json();
-                if (!resp.ok) throw new Error(data.error || "Failed to upgrade plan");
-                
+
                 if (data.url) {
                     // Redirect to Stripe checkout for new subscription
                     window.location.href = data.url;
@@ -416,7 +474,7 @@ export default function Dashboard() {
                     cancelAtPeriodEnd: true,
                     cancelledAt: new Date(),
                 });
-                
+
                 // If there's a Stripe subscription, cancel it at period end
                 if (selectedPlanForAction.stripeSubscriptionId) {
                     await fetch("/api/cancel-subscription", {
@@ -427,7 +485,7 @@ export default function Dashboard() {
                         }),
                     });
                 }
-                
+
                 setActionMessage({ type: "success", text: "Subscription will be cancelled at the end of the billing period." });
                 setTimeout(() => {
                     setShowCancelModal(false);
@@ -461,8 +519,17 @@ export default function Dashboard() {
                         cancelUrl: `${origin}/partner/dashboard?feature=cancelled`,
                     }),
                 });
+                if (!resp.ok) {
+                    let errMessage = "Server error occurred.";
+                    try {
+                        const errData = await resp.json();
+                        errMessage = errData.error || errMessage;
+                    } catch {
+                        errMessage = `API offline: Please ensure backend server is running.`;
+                    }
+                    throw new Error(errMessage);
+                }
                 const data = await resp.json();
-                if (!resp.ok) throw new Error(data.error || "Failed to create checkout session");
                 window.location.href = data.url;
             }
         } catch (err: any) {
@@ -568,15 +635,7 @@ export default function Dashboard() {
                 {showFeatureModal && (
                     <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
                         <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-                            {featureSuccess ? (
-                                <div className="p-12 flex flex-col items-center text-center">
-                                    <div className="w-20 h-20 bg-green-500/10 rounded-full flex items-center justify-center mb-6">
-                                        <CheckCircle2 className="w-10 h-10 text-green-500" />
-                                    </div>
-                                    <h2 className="text-2xl font-bold text-foreground mb-2">Feature Plan Activated!</h2>
-                                    <p className="text-muted-foreground">Your listing is now featured.</p>
-                                </div>
-                            ) : featureProcessing ? (
+                            {featureProcessing ? (
                                 <div className="p-12 flex flex-col items-center text-center">
                                     <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mb-6" />
                                     <h2 className="text-2xl font-bold text-foreground mb-2">Processing Payment...</h2>
@@ -595,7 +654,7 @@ export default function Dashboard() {
                                             const isSelected = selectedFeaturePlan === fp.id;
                                             const alreadyHas = partnerData.selectedAddon === fp.id || includedFeature === fp.id;
                                             return (
-                                                <button key={fp.id} disabled={alreadyHas} onClick={() => setSelectedFeaturePlan(fp.id)}
+                                                <button key={fp.id} disabled={alreadyHas || featureProcessing} onClick={() => setSelectedFeaturePlan(fp.id)}
                                                     className={`w-full text-left p-4 rounded-xl border-2 transition-all ${alreadyHas ? "border-green-500/30 bg-green-500/5 opacity-70 cursor-not-allowed" : isSelected ? "border-primary bg-primary/5" : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"}`}>
                                                     <div className="flex items-center gap-3">
                                                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
@@ -616,12 +675,28 @@ export default function Dashboard() {
                                     </div>
                                     <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
                                         <Button variant="ghost" onClick={() => { setShowFeatureModal(false); setSelectedFeaturePlan(""); }}>Cancel</Button>
-                                        <Button disabled={!selectedFeaturePlan} onClick={handlePurchaseFeature} className="px-8">
-                                            <CreditCard className="w-4 h-4 mr-2" /> Purchase Feature Plan
+                                        <Button disabled={!selectedFeaturePlan || featureProcessing} onClick={handlePurchaseFeature} className="px-8 flex items-center">
+                                            <CreditCard className="w-4 h-4 mr-2" />
+                                            {featureProcessing ? "Processing..." : "Purchase Feature Plan"}
                                         </Button>
                                     </div>
                                 </>
                             )}
+                        </div>
+                    </div>
+                )}
+
+                {/* Global Action Message */}
+                {actionMessage.text && (
+                    <div className="fixed top-20 right-8 z-50 animate-in slide-in-from-right-8 duration-300">
+                        <div className={`px-6 py-4 rounded-xl shadow-lg border ${actionMessage.type === "success" ? "bg-green-500/10 border-green-500/30 text-green-500" : "bg-red-500/10 border-red-500/30 text-red-500"}`}>
+                            <div className="flex items-center gap-3">
+                                {actionMessage.type === "success" ? <CheckCircle2 className="w-5 h-5" /> : <X className="w-5 h-5" />}
+                                <p className="font-medium">{actionMessage.text}</p>
+                                <button onClick={() => setActionMessage({ type: "", text: "" })} className="ml-4 opacity-70 hover:opacity-100">
+                                    <X className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -868,7 +943,7 @@ export default function Dashboard() {
                                     const linkedListing = offerings.find(o => o.id === plan.listingId);
                                     const hasFeature = linkedListing?.selectedAddon && linkedListing.selectedAddon !== "" && linkedListing.selectedAddon !== "none";
                                     const includedFeature = planConfig?.featurePlan;
-                                    
+
                                     return (
                                         <div key={plan.id} className="bg-muted/40 border border-foreground/10 rounded-xl p-5">
                                             <div className="flex flex-col gap-4">
@@ -903,9 +978,9 @@ export default function Dashboard() {
                                                     </div>
                                                     <div className="flex flex-wrap gap-2 shrink-0">
                                                         {linkedListing && (
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="sm" 
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
                                                                 className="border-foreground/20 text-foreground/80 hover:bg-foreground/5"
                                                                 onClick={() => {
                                                                     setSelectedListingForEdit(linkedListing);
@@ -916,9 +991,9 @@ export default function Dashboard() {
                                                                 <Edit3 className="w-3.5 h-3.5 mr-1.5" /> Edit Listing
                                                             </Button>
                                                         )}
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm" 
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
                                                             className="border-primary/50 text-primary hover:bg-primary/10"
                                                             onClick={() => {
                                                                 setSelectedPlanForAction(plan);
@@ -928,9 +1003,9 @@ export default function Dashboard() {
                                                             <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade
                                                         </Button>
                                                         {!includedFeature && !hasFeature && (
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="sm" 
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
                                                                 className="border-secondary/50 text-secondary hover:bg-secondary/10"
                                                                 onClick={() => {
                                                                     setSelectedPlanForAction(plan);
@@ -942,9 +1017,9 @@ export default function Dashboard() {
                                                             </Button>
                                                         )}
                                                         {!plan.cancelAtPeriodEnd && (
-                                                            <Button 
-                                                                variant="outline" 
-                                                                size="sm" 
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
                                                                 className="border-red-500/50 text-red-400 hover:bg-red-500/10"
                                                                 onClick={() => {
                                                                     setSelectedPlanForAction(plan);
@@ -961,7 +1036,7 @@ export default function Dashboard() {
                                                     <div className="pt-3 border-t border-foreground/10">
                                                         <p className="text-sm text-foreground flex items-center gap-2">
                                                             <Sparkles className="w-4 h-4 text-primary" />
-                                                            {includedFeature 
+                                                            {includedFeature
                                                                 ? `Included: ${includedFeature === "home_page" ? "Home Page" : "Landing Page"} Spotlight`
                                                                 : `Active Feature: ${FEATURE_PLANS.find(f => f.id === linkedListing?.selectedAddon)?.label}`
                                                             }
@@ -999,7 +1074,7 @@ export default function Dashboard() {
                             // Separate paid listings from pending payment
                             const paidListings = offerings.filter(o => o.status !== "pending_payment");
                             const pendingPaymentListings = offerings.filter(o => o.status === "pending_payment");
-                            
+
                             if (offerings.length === 0) {
                                 return (
                                     <div className="bg-foreground/5 border border-foreground/10 p-12 rounded-xl text-center">
@@ -1008,102 +1083,102 @@ export default function Dashboard() {
                                     </div>
                                 );
                             }
-                            
+
                             return (
                                 <>
                                     {/* Paid/Active Listings */}
                                     {paidListings.length > 0 && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             {paidListings.map(offering => {
-                                                const statusColor = offering.status === "Approved" 
-                                                    ? "bg-green-500/20 text-green-400 border-green-500/50" 
+                                                const statusColor = offering.status === "Approved"
+                                                    ? "bg-green-500/20 text-green-400 border-green-500/50"
                                                     : offering.status === "Pending Review"
-                                                    ? "bg-blue-500/20 text-blue-400 border-blue-500/50"
-                                                    : offering.status === "Cancelled"
-                                                    ? "bg-red-500/20 text-red-400 border-red-500/50"
-                                                    : "bg-primary/20 text-primary border-primary/50";
+                                                        ? "bg-blue-500/20 text-blue-400 border-blue-500/50"
+                                                        : offering.status === "Cancelled"
+                                                            ? "bg-red-500/20 text-red-400 border-red-500/50"
+                                                            : "bg-primary/20 text-primary border-primary/50";
                                                 const statusLabel = offering.status || "Active";
-                                                
+
                                                 return (
-                                    <Card key={offering.id} className="bg-muted/40 border-foreground/10">
-                                        <CardHeader className="pb-3 border-b border-foreground/10 bg-foreground/5">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <CardTitle className="text-lg text-primary">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || offering.planId?.split('_').join(' ').toUpperCase() || offering.eventName || offering.jobTitle || 'Listing'}</CardTitle>
-                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{offering.selectedGroup?.replace(/_/g, ' ') || offering.__col?.replace('Collection', '').replace(/([A-Z])/g, ' $1').trim()}</p>
-                                                </div>
-                                                <Badge className={statusColor}>{statusLabel}</Badge>
-                                            </div>
-                                        </CardHeader>
-                                        <CardContent className="pt-4 space-y-3 text-sm">
-                                            {/* Categories */}
-                                            {(offering.selectedCategories?.length > 0 || offering.categories?.length > 0) && (
-                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Categories</span>
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {(offering.selectedCategories || offering.categories || []).map((cat: string, i: number) => (
-                                                            <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">{cat}</Badge>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {/* Subcategories */}
-                                            {offering.selectedSubcategories?.length > 0 && (
-                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Subcategories</span>
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {offering.selectedSubcategories.map((sub: string, i: number) => (
-                                                            <Badge key={i} variant="outline" className="border-foreground/20 text-xs">{sub}</Badge>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {/* Countries */}
-                                            {offering.serviceCountries?.length > 0 && (
-                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Service Countries</span>
-                                                    <div className="flex flex-wrap gap-1.5">
-                                                        {offering.serviceCountries.map((country: string, i: number) => (
-                                                            <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">{country}</Badge>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            )}
-                                            {/* Regions */}
-                                            {offering.serviceRegions?.length > 0 && (
-                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Service Regions</span>
-                                                    <p className="font-medium text-foreground text-xs">{offering.serviceRegions.join(', ')}</p>
-                                                </div>
-                                            )}
-                                            {/* Bio Safety Levels */}
-                                            {offering.bioSafetyLevel?.length > 0 && (
-                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Bio Safety Levels</span>
-                                                    <div className="flex flex-wrap gap-2">{offering.bioSafetyLevel.map((b: string, i: number) => <Badge variant="secondary" key={i} className="bg-foreground/10">{b}</Badge>)}</div>
-                                                </div>
-                                            )}
-                                            {/* Certifications */}
-                                            {offering.certifications?.length > 0 && (
-                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Certifications</span>
-                                                    <div className="flex flex-wrap gap-2">{offering.certifications.map((c: string, i: number) => <Badge variant="outline" key={i} className="border-foreground/20">{c}</Badge>)}</div>
-                                                </div>
-                                            )}
-                                            {/* Created date */}
-                                            {offering.createdAt && (
-                                                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-foreground/10">
-                                                    <Calendar className="w-3 h-3" />
-                                                    <span>Created: {new Date(offering.createdAt.seconds * 1000).toLocaleDateString()}</span>
-                                                </div>
-                                            )}
-                                        </CardContent>
-                                    </Card>
+                                                    <Card key={offering.id} className="bg-muted/40 border-foreground/10">
+                                                        <CardHeader className="pb-3 border-b border-foreground/10 bg-foreground/5">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <CardTitle className="text-lg text-primary">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || offering.planId?.split('_').join(' ').toUpperCase() || offering.eventName || offering.jobTitle || 'Listing'}</CardTitle>
+                                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{offering.selectedGroup?.replace(/_/g, ' ') || offering.__col?.replace('Collection', '').replace(/([A-Z])/g, ' $1').trim()}</p>
+                                                                </div>
+                                                                <Badge className={statusColor}>{statusLabel}</Badge>
+                                                            </div>
+                                                        </CardHeader>
+                                                        <CardContent className="pt-4 space-y-3 text-sm">
+                                                            {/* Categories */}
+                                                            {(offering.selectedCategories?.length > 0 || offering.categories?.length > 0) && (
+                                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Categories</span>
+                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                        {(offering.selectedCategories || offering.categories || []).map((cat: string, i: number) => (
+                                                                            <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">{cat}</Badge>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {/* Subcategories */}
+                                                            {offering.selectedSubcategories?.length > 0 && (
+                                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Subcategories</span>
+                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                        {offering.selectedSubcategories.map((sub: string, i: number) => (
+                                                                            <Badge key={i} variant="outline" className="border-foreground/20 text-xs">{sub}</Badge>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {/* Countries */}
+                                                            {offering.serviceCountries?.length > 0 && (
+                                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Service Countries</span>
+                                                                    <div className="flex flex-wrap gap-1.5">
+                                                                        {offering.serviceCountries.map((country: string, i: number) => (
+                                                                            <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">{country}</Badge>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                            {/* Regions */}
+                                                            {offering.serviceRegions?.length > 0 && (
+                                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Service Regions</span>
+                                                                    <p className="font-medium text-foreground text-xs">{offering.serviceRegions.join(', ')}</p>
+                                                                </div>
+                                                            )}
+                                                            {/* Bio Safety Levels */}
+                                                            {offering.bioSafetyLevel?.length > 0 && (
+                                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Bio Safety Levels</span>
+                                                                    <div className="flex flex-wrap gap-2">{offering.bioSafetyLevel.map((b: string, i: number) => <Badge variant="secondary" key={i} className="bg-foreground/10">{b}</Badge>)}</div>
+                                                                </div>
+                                                            )}
+                                                            {/* Certifications */}
+                                                            {offering.certifications?.length > 0 && (
+                                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Certifications</span>
+                                                                    <div className="flex flex-wrap gap-2">{offering.certifications.map((c: string, i: number) => <Badge variant="outline" key={i} className="border-foreground/20">{c}</Badge>)}</div>
+                                                                </div>
+                                                            )}
+                                                            {/* Created date */}
+                                                            {offering.createdAt && (
+                                                                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-foreground/10">
+                                                                    <Calendar className="w-3 h-3" />
+                                                                    <span>Created: {new Date(offering.createdAt.seconds * 1000).toLocaleDateString()}</span>
+                                                                </div>
+                                                            )}
+                                                        </CardContent>
+                                                    </Card>
                                                 );
                                             })}
                                         </div>
                                     )}
-                                    
+
                                     {/* Pending Payment Listings */}
                                     {pendingPaymentListings.length > 0 && (
                                         <div className="mt-6">
@@ -1125,8 +1200,8 @@ export default function Dashboard() {
                                                         </CardHeader>
                                                         <CardContent className="pt-4">
                                                             <p className="text-sm text-muted-foreground mb-3">Complete payment to activate this listing.</p>
-                                                            <Button 
-                                                                size="sm" 
+                                                            <Button
+                                                                size="sm"
                                                                 className="w-full"
                                                                 onClick={() => {
                                                                     // Re-initiate checkout for this listing
@@ -1311,7 +1386,7 @@ export default function Dashboard() {
                                             <span>{txn.method}</span>
                                             <span className="text-foreground/50">{txn.currency}</span>
                                         </div>
-                                        
+
                                         {/* Categories */}
                                         {txn.selectedCategories?.length > 0 && (
                                             <div className="mt-3 pt-3 border-t border-foreground/10">
@@ -1323,7 +1398,7 @@ export default function Dashboard() {
                                                 </div>
                                             </div>
                                         )}
-                                        
+
                                         {/* Countries & Regions */}
                                         {(txn.serviceCountries?.length > 0 || txn.serviceRegions?.length > 0) && (
                                             <div className="mt-3 pt-3 border-t border-foreground/10 grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1426,7 +1501,7 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
     const maxCountries = planConfig?.maxCountries || -1;
 
     // Filter countries based on search
-    const filteredCountries = SERVICE_COUNTRIES.filter(c => 
+    const filteredCountries = SERVICE_COUNTRIES.filter(c =>
         c.toLowerCase().includes(countrySearch.toLowerCase())
     );
 
@@ -1517,11 +1592,10 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                                     key={region}
                                     type="button"
                                     onClick={() => toggleRegion(region)}
-                                    className={`px-3 py-2 rounded-lg text-sm border transition-all ${
-                                        regions.includes(region)
-                                            ? "bg-primary/20 border-primary/50 text-primary font-medium"
-                                            : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30 hover:bg-foreground/10"
-                                    }`}
+                                    className={`px-3 py-2 rounded-lg text-sm border transition-all ${regions.includes(region)
+                                        ? "bg-primary/20 border-primary/50 text-primary font-medium"
+                                        : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30 hover:bg-foreground/10"
+                                        }`}
                                 >
                                     {regions.includes(region) && <Check className="w-3 h-3 inline mr-1.5" />}
                                     {region}
@@ -1568,13 +1642,11 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                                                     type="button"
                                                     onClick={() => !isDisabled && toggleCountry(country)}
                                                     disabled={isDisabled}
-                                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${
-                                                        isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-primary/10 cursor-pointer"
-                                                    }`}
+                                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-primary/10 cursor-pointer"
+                                                        }`}
                                                 >
-                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center text-xs transition-colors ${
-                                                        isSelected ? "bg-primary border-primary text-primary-foreground" : "border-foreground/20"
-                                                    }`}>
+                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center text-xs transition-colors ${isSelected ? "bg-primary border-primary text-primary-foreground" : "border-foreground/20"
+                                                        }`}>
                                                         {isSelected && <Check className="w-3 h-3" />}
                                                     </div>
                                                     {country}
@@ -1612,11 +1684,10 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                                         key={level}
                                         type="button"
                                         onClick={() => toggleBSL(level)}
-                                        className={`px-4 py-2 rounded-lg text-sm border transition-all ${
-                                            bslLevels.includes(level)
-                                                ? "bg-primary/20 border-primary/50 text-primary font-medium"
-                                                : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30"
-                                        }`}
+                                        className={`px-4 py-2 rounded-lg text-sm border transition-all ${bslLevels.includes(level)
+                                            ? "bg-primary/20 border-primary/50 text-primary font-medium"
+                                            : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30"
+                                            }`}
                                     >
                                         {bslLevels.includes(level) && <Check className="w-3 h-3 inline mr-1.5" />}
                                         BSL-{level}
@@ -1638,11 +1709,10 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                                         key={cert}
                                         type="button"
                                         onClick={() => toggleCert(cert)}
-                                        className={`px-3 py-2 rounded-lg text-sm border transition-all ${
-                                            certifications.includes(cert)
-                                                ? "bg-primary/20 border-primary/50 text-primary font-medium"
-                                                : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30"
-                                        }`}
+                                        className={`px-3 py-2 rounded-lg text-sm border transition-all ${certifications.includes(cert)
+                                            ? "bg-primary/20 border-primary/50 text-primary font-medium"
+                                            : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30"
+                                            }`}
                                     >
                                         {certifications.includes(cert) && <Check className="w-3 h-3 inline mr-1.5" />}
                                         {cert}
@@ -1712,7 +1782,7 @@ interface UpgradePlanModalProps {
 
 function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, onUpgrade, processing }: UpgradePlanModalProps) {
     const [selectedPlan, setSelectedPlan] = useState<string>("");
-    
+
     // Plan tier order for comparison (higher index = higher tier)
     const planTierOrder: Record<string, number> = {
         // Monthly business/consulting
@@ -1726,30 +1796,30 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
     };
 
     const currentTier = planTierOrder[currentPlan.planId] || 0;
-    
+
     // Determine plan type and billing cycle
     const isMonthly = currentPlan.planId?.includes('_mo') || currentPlan.planId?.includes('_event');
     const isEvent = currentPlan.planId?.includes('event');
     const isJob = currentPlan.planId?.includes('job');
-    
+
     // Parse price from string like "$100.00" to number
     const parsePrice = (priceStr: string) => {
         return parseFloat(priceStr.replace(/[$,]/g, '')) || 0;
     };
-    
+
     const currentPrice = parsePrice(currentPlanConfig?.price || "0");
-    
+
     // Filter to show only UPGRADE options (higher tier, same billing cycle)
     const upgradePlans = Object.entries(allPlans).filter(([id]) => {
         const targetTier = planTierOrder[id] || 0;
-        
+
         // Must be higher tier
         if (targetTier <= currentTier) return false;
-        
+
         // Must match plan type
         if (isEvent) return id.includes('event');
         if (isJob) return id.includes('job');
-        
+
         // For business/consulting, match monthly/yearly
         if (isMonthly) return id.includes('_mo') && !id.includes('event') && !id.includes('job');
         return id.includes('_yr') && !id.includes('event') && !id.includes('job');
@@ -1780,7 +1850,7 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                             {currentPlanConfig?.maxCategories === -1 ? "Unlimited" : currentPlanConfig?.maxCategories} categories, {currentPlanConfig?.maxCountries === -1 ? "Unlimited" : currentPlanConfig?.maxCountries} countries
                         </p>
                     </div>
-                    
+
                     {upgradePlans.length === 0 ? (
                         <div className="text-center py-8">
                             <Crown className="w-12 h-12 text-primary mx-auto mb-3" />
@@ -1797,11 +1867,10 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                                         <button
                                             key={id}
                                             onClick={() => setSelectedPlan(id)}
-                                            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                                                selectedPlan === id 
-                                                    ? "border-primary bg-primary/5" 
-                                                    : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
-                                            }`}
+                                            className={`w-full text-left p-4 rounded-xl border-2 transition-all ${selectedPlan === id
+                                                ? "border-primary bg-primary/5"
+                                                : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
+                                                }`}
                                         >
                                             <div className="flex items-center justify-between">
                                                 <div>
@@ -1880,7 +1949,7 @@ function CancelPlanModal({ plan, planConfig, onClose, onCancel, processing }: Ca
                     </p>
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
                         <p className="text-sm text-yellow-400">
-                            Your subscription will remain active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>. 
+                            Your subscription will remain active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>.
                             After that, your listing will be deactivated and removed from public view.
                         </p>
                     </div>
@@ -1931,11 +2000,10 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
                                 <button
                                     key={fp.id}
                                     onClick={() => setSelectedFeature(fp.id)}
-                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
-                                        isSelected 
-                                            ? "border-primary bg-primary/5" 
-                                            : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
-                                    }`}
+                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${isSelected
+                                        ? "border-primary bg-primary/5"
+                                        : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
+                                        }`}
                                 >
                                     <div className="flex items-center gap-3">
                                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
