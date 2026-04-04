@@ -410,6 +410,9 @@ export default function Dashboard() {
                 if (updatedData.businessAddress !== undefined) {
                     updateObj.businessAddress = updatedData.businessAddress;
                 }
+                if (updatedData.companyRepresentatives !== undefined) {
+                    updateObj.companyRepresentatives = updatedData.companyRepresentatives;
+                }
 
                 await updateDoc(listingRef, updateObj);
                 setActionMessage({ type: "success", text: "Listing updated successfully!" });
@@ -965,6 +968,7 @@ export default function Dashboard() {
                                     const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : (plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null);
                                     const isYearly = plan.billingInterval === "year" || plan.planId?.includes('_yr');
                                     const linkedListing = offerings.find(o => o.id === plan.listingId);
+                                    const planRepresentatives = linkedListing?.companyRepresentatives || plan.companyRepresentatives || [];
                                     const hasFeature = linkedListing?.selectedAddon && linkedListing.selectedAddon !== "" && linkedListing.selectedAddon !== "none";
                                     const includedFeature = planConfig?.featurePlan;
 
@@ -1065,6 +1069,18 @@ export default function Dashboard() {
                                                                 : `Active Feature: ${FEATURE_PLANS.find(f => f.id === linkedListing?.selectedAddon)?.label}`
                                                             }
                                                         </p>
+                                                    </div>
+                                                )}
+                                                {planRepresentatives?.length > 0 && (
+                                                    <div className="pt-3 border-t border-foreground/10">
+                                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1.5">Company Representatives</p>
+                                                        <div className="space-y-1.5">
+                                                            {planRepresentatives.map((rep: any, i: number) => (
+                                                                <p key={i} className="text-sm text-foreground/90">
+                                                                    {rep.firstName} {rep.lastName} - {rep.email}
+                                                                </p>
+                                                            ))}
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -1187,6 +1203,18 @@ export default function Dashboard() {
                                                                 <div className="flex flex-col gap-1 text-foreground/80">
                                                                     <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Certifications</span>
                                                                     <div className="flex flex-wrap gap-2">{offering.certifications.map((c: string, i: number) => <Badge variant="outline" key={i} className="border-foreground/20">{c}</Badge>)}</div>
+                                                                </div>
+                                                            )}
+                                                            {offering.companyRepresentatives?.length > 0 && (
+                                                                <div className="flex flex-col gap-1 text-foreground/80">
+                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Company Representatives</span>
+                                                                    <div className="space-y-1">
+                                                                        {offering.companyRepresentatives.map((rep: any, i: number) => (
+                                                                            <p key={i} className="text-xs text-foreground">
+                                                                                {rep.firstName} {rep.lastName} - {rep.email}
+                                                                            </p>
+                                                                        ))}
+                                                                    </div>
                                                                 </div>
                                                             )}
                                                             {/* Created date */}
@@ -1445,6 +1473,18 @@ export default function Dashboard() {
                                                 )}
                                             </div>
                                         )}
+                                        {txn.companyRepresentatives?.length > 0 && (
+                                            <div className="mt-3 pt-3 border-t border-foreground/10">
+                                                <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Company Representatives</span>
+                                                <div className="space-y-1">
+                                                    {txn.companyRepresentatives.map((rep: any, i: number) => (
+                                                        <p key={i} className="text-xs text-foreground/80">
+                                                            {rep.firstName} {rep.lastName} - {rep.email}
+                                                        </p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -1535,6 +1575,15 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
     const [otherCertText, setOtherCertText] = useState(parsedOtherCert);
     const [companyProfile, setCompanyProfile] = useState(listing.companyProfileText || "");
     const [businessAddress, setBusinessAddress] = useState(listing.businessAddress || "");
+    const [representatives, setRepresentatives] = useState<Array<{ firstName: string; lastName: string; email: string }>>(
+        Array.isArray(listing.companyRepresentatives) && listing.companyRepresentatives.length > 0
+            ? listing.companyRepresentatives.map((rep: any) => ({
+                firstName: rep.firstName || "",
+                lastName: rep.lastName || "",
+                email: rep.email || "",
+            }))
+            : [{ firstName: "", lastName: "", email: "" }]
+    );
 
     // Dropdown open states
     const [countriesOpen, setCountriesOpen] = useState(false);
@@ -1585,6 +1634,18 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
         } else {
             setCertifications([...certifications, cert]);
         }
+    };
+    const addRepresentative = () => {
+        setRepresentatives(prev => [...prev, { firstName: "", lastName: "", email: "" }]);
+    };
+    const removeRepresentative = (index: number) => {
+        setRepresentatives(prev => {
+            if (prev.length === 1) return [{ firstName: "", lastName: "", email: "" }];
+            return prev.filter((_, i) => i !== index);
+        });
+    };
+    const updateRepresentative = (index: number, field: "firstName" | "lastName" | "email", value: string) => {
+        setRepresentatives(prev => prev.map((rep, i) => (i === index ? { ...rep, [field]: value } : rep)));
     };
 
     const isBusinessOffering = listing.__col === "businessOfferingsCollection" || listing.selectedGroup === "business_offerings";
@@ -1804,6 +1865,43 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                         </div>
                     )}
 
+                    <div>
+                        <div className="flex items-center justify-between mb-3">
+                            <Label className="text-foreground/80">Company representative(s)</Label>
+                            <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
+                        </div>
+                        <div className="space-y-2.5">
+                            {representatives.map((rep, index) => (
+                                <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                                    <Input
+                                        value={rep.firstName}
+                                        onChange={(e) => updateRepresentative(index, "firstName", e.target.value)}
+                                        placeholder="First name"
+                                        className="bg-foreground/5 border-foreground/10"
+                                    />
+                                    <Input
+                                        value={rep.lastName}
+                                        onChange={(e) => updateRepresentative(index, "lastName", e.target.value)}
+                                        placeholder="Last name"
+                                        className="bg-foreground/5 border-foreground/10"
+                                    />
+                                    <div className="flex gap-2">
+                                        <Input
+                                            type="email"
+                                            value={rep.email}
+                                            onChange={(e) => updateRepresentative(index, "email", e.target.value)}
+                                            placeholder="Email"
+                                            className="bg-foreground/5 border-foreground/10"
+                                        />
+                                        <Button type="button" variant="ghost" size="sm" onClick={() => removeRepresentative(index)} className="shrink-0">
+                                            <X className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* Business Address */}
                     {isBusinessOffering && (
                         <div>
@@ -1834,8 +1932,25 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                             ],
                             companyProfileText: (companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                             businessAddress: businessAddress,
+                            companyRepresentatives: representatives
+                                .map((rep) => ({
+                                    firstName: rep.firstName.trim(),
+                                    lastName: rep.lastName.trim(),
+                                    email: rep.email.trim(),
+                                }))
+                                .filter((rep) => rep.firstName || rep.lastName || rep.email),
                         })}
-                        disabled={processing || (certifications.includes(OTHER_CERT_OPTION) && !otherCertText.trim())}
+                        disabled={
+                            processing ||
+                            (certifications.includes(OTHER_CERT_OPTION) && !otherCertText.trim()) ||
+                            representatives
+                                .map((rep) => ({
+                                    firstName: rep.firstName.trim(),
+                                    lastName: rep.lastName.trim(),
+                                    email: rep.email.trim(),
+                                }))
+                                .some((rep) => (rep.firstName || rep.lastName || rep.email) && (!rep.firstName || !rep.lastName || !rep.email))
+                        }
                     >
                         {processing ? "Saving..." : "Save Changes"}
                     </Button>

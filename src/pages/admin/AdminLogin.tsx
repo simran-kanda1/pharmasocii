@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ShieldAlert, ArrowRight, Loader2 } from "lucide-react";
+import { ShieldAlert, ArrowRight, Loader2, Eye, EyeOff } from "lucide-react";
 import { signInWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
 import { auth, db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -13,6 +13,7 @@ export default function AdminLogin() {
     const navigate = useNavigate();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [checkingAuth, setCheckingAuth] = useState(true);
     const [error, setError] = useState("");
@@ -105,15 +106,25 @@ export default function AdminLogin() {
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="password" className="text-slate-700">Password</Label>
-                            <Input
-                                id="password"
-                                type="password"
-                                required
-                                className="h-12 border-slate-200 bg-white transition-colors text-slate-900 focus-visible:ring-primary/50"
-                                placeholder="••••••••••••"
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                            />
+                            <div className="relative">
+                                <Input
+                                    id="password"
+                                    type={showPassword ? "text" : "password"}
+                                    required
+                                    className="h-12 pr-10 border-slate-200 bg-white transition-colors text-slate-900 focus-visible:ring-primary/50"
+                                    placeholder="••••••••••••"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((prev) => !prev)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                                    aria-label={showPassword ? "Hide password" : "Show password"}
+                                >
+                                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                </button>
+                            </div>
                         </div>
 
                         <Button type="submit" className="w-full h-12 text-base font-semibold mt-4" disabled={isLoading}>

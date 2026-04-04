@@ -116,6 +116,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
             console.log(`   Resolved collection: ${resolvedCollectionName}`);
 
             let listingData = null;
+            let detailSource = null;
 
             if (featureId) {
                 // Feature plan payment
@@ -144,6 +145,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 const listingSnap = await listingRef.get();
                 if (listingSnap.exists) {
                     listingData = listingSnap.data();
+                    detailSource = listingData;
                     console.log(`   ✓ Found listing data: categories=${listingData.selectedCategories?.length || 0}, countries=${listingData.serviceCountries?.length || 0}`);
                 }
 
@@ -178,11 +180,47 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     listingId,
                     collectionName: resolvedCollectionName,
                     stripeSubscriptionId: session.subscription || null,
-                    stripeCustomerId: session.customer || null
+                    stripeCustomerId: session.customer || null,
+                    companyRepresentatives: listingData?.companyRepresentatives || []
                 });
                 console.log(`   ✓ Plan record created with billing period end: ${billingPeriodEnd.toISOString()}`);
             } else {
-                console.log(`   ⚠ No listingId (${listingId}) or collectionName (${resolvedCollectionName}) - skipping listing update`);
+                console.log(`   ℹ No listingId (${listingId}) or collectionName (${resolvedCollectionName}) - creating account-level plan record`);
+                if (partnerId && planId) {
+                    const partnerRef = db.collection("partnersCollection").doc(partnerId);
+                    const partnerSnap = await partnerRef.get();
+                    const partnerData = partnerSnap.exists ? partnerSnap.data() : {};
+                    detailSource = partnerData || null;
+
+                    const existingPlan = await partnerRef.collection("planCollection").where("sessionId", "==", session.id).get();
+                    if (existingPlan.empty) {
+                        const startDate = new Date();
+                        const isYearly = planId?.includes('_yr');
+                        const billingPeriodEnd = new Date(startDate);
+                        if (isYearly) {
+                            billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                        } else {
+                            billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                        }
+
+                        await partnerRef.collection("planCollection").add({
+                            planId,
+                            planName: planId.replace(/_/g, " "),
+                            startDate: startDate,
+                            billingPeriodEnd: billingPeriodEnd,
+                            billingInterval: isYearly ? "year" : "month",
+                            active: true,
+                            lastPaymentReceivedAt: startDate,
+                            listingId: null,
+                            collectionName: null,
+                            group: group || null,
+                            stripeSubscriptionId: session.subscription || null,
+                            stripeCustomerId: session.customer || null,
+                            sessionId: session.id,
+                            companyRepresentatives: partnerData?.companyRepresentatives || []
+                        });
+                    }
+                }
             }
 
             // Create global transaction record with listing details
@@ -201,11 +239,12 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 sessionId: session.id,
                 customerEmail: session.customer_details?.email || "",
                 // Include listing details for richer transaction display
-                selectedCategories: listingData?.selectedCategories || [],
-                selectedSubcategories: listingData?.selectedSubcategories || [],
-                serviceCountries: listingData?.serviceCountries || [],
-                serviceRegions: listingData?.serviceRegions || [],
-                businessName: listingData?.businessName || ""
+                selectedCategories: detailSource?.selectedCategories || [],
+                selectedSubcategories: detailSource?.selectedSubcategories || [],
+                serviceCountries: detailSource?.serviceCountries || [],
+                serviceRegions: detailSource?.serviceRegions || [],
+                businessName: detailSource?.businessName || "",
+                companyRepresentatives: detailSource?.companyRepresentatives || []
             };
 
             await db.collection("transactionsCollection").add(transactionData);
@@ -647,6 +686,7 @@ app.post("/api/verify-payment", async (req, res) => {
 
         let updated = false;
         let listingData = null;
+        let detailSource = null;
 
         if (featureId) {
             // Check if feature already exists
@@ -673,6 +713,7 @@ app.post("/api/verify-payment", async (req, res) => {
 
             if (listingSnap.exists) {
                 listingData = listingSnap.data();
+                detailSource = listingData;
 
                 if (listingData.status === "pending_payment") {
                     const isAutoApproved = group === "events" || group === "jobs";
@@ -713,7 +754,8 @@ app.post("/api/verify-payment", async (req, res) => {
                             listingId,
                             collectionName: resolvedCollectionName,
                             stripeSubscriptionId: session.subscription || null,
-                            stripeCustomerId: session.customer || null
+                            stripeCustomerId: session.customer || null,
+                            companyRepresentatives: listingData?.companyRepresentatives || []
                         });
                         console.log(`   ✓ Plan record created`);
                     }
@@ -736,11 +778,12 @@ app.post("/api/verify-payment", async (req, res) => {
                             createdAt: admin.firestore.FieldValue.serverTimestamp(),
                             sessionId: session.id,
                             customerEmail: session.customer_details?.email || "",
-                            selectedCategories: listingData?.selectedCategories || [],
-                            selectedSubcategories: listingData?.selectedSubcategories || [],
-                            serviceCountries: listingData?.serviceCountries || [],
-                            serviceRegions: listingData?.serviceRegions || [],
-                            businessName: listingData?.businessName || ""
+                            selectedCategories: detailSource?.selectedCategories || [],
+                            selectedSubcategories: detailSource?.selectedSubcategories || [],
+                            serviceCountries: detailSource?.serviceCountries || [],
+                            serviceRegions: detailSource?.serviceRegions || [],
+                            businessName: detailSource?.businessName || "",
+                            companyRepresentatives: detailSource?.companyRepresentatives || []
                         });
                         console.log(`   ✓ Transaction record created`);
                     }
@@ -749,6 +792,68 @@ app.post("/api/verify-payment", async (req, res) => {
                 }
             } else {
                 console.log(`   ⚠ Listing not found: ${listingId}`);
+            }
+        } else if (partnerId && planId) {
+            const partnerRef = db.collection("partnersCollection").doc(partnerId);
+            const partnerSnap = await partnerRef.get();
+            const partnerData = partnerSnap.exists ? partnerSnap.data() : {};
+            detailSource = partnerData || null;
+
+            const existingPlan = await partnerRef.collection("planCollection").where("sessionId", "==", session.id).get();
+            if (existingPlan.empty) {
+                const startDate = new Date();
+                const isYearly = planId?.includes('_yr');
+                const billingPeriodEnd = new Date(startDate);
+                if (isYearly) {
+                    billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                } else {
+                    billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                }
+
+                await partnerRef.collection("planCollection").add({
+                    planId,
+                    planName: planId.replace(/_/g, " "),
+                    startDate: startDate,
+                    billingPeriodEnd: billingPeriodEnd,
+                    billingInterval: isYearly ? "year" : "month",
+                    active: true,
+                    lastPaymentReceivedAt: startDate,
+                    listingId: null,
+                    collectionName: null,
+                    group: group || null,
+                    stripeSubscriptionId: session.subscription || null,
+                    stripeCustomerId: session.customer || null,
+                    sessionId: session.id,
+                    companyRepresentatives: partnerData?.companyRepresentatives || []
+                });
+                updated = true;
+            }
+
+            const existingTxn = await db.collection("transactionsCollection")
+                .where("sessionId", "==", session.id).get();
+
+            if (existingTxn.empty) {
+                await db.collection("transactionsCollection").add({
+                    partnerId,
+                    amount: session.amount_total / 100,
+                    currency: session.currency,
+                    status: "succeeded",
+                    type: "listing",
+                    planId: planId || null,
+                    group: group || null,
+                    listingId: null,
+                    collectionName: null,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    sessionId: session.id,
+                    customerEmail: session.customer_details?.email || "",
+                    selectedCategories: detailSource?.selectedCategories || [],
+                    selectedSubcategories: detailSource?.selectedSubcategories || [],
+                    serviceCountries: detailSource?.serviceCountries || [],
+                    serviceRegions: detailSource?.serviceRegions || [],
+                    businessName: detailSource?.businessName || "",
+                    companyRepresentatives: detailSource?.companyRepresentatives || []
+                });
+                updated = true;
             }
         }
 

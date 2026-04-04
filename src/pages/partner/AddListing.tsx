@@ -31,6 +31,7 @@ const GROUP_CONFIG: Record<string, { label: string; icon: any; dbGroup: string; 
 
 // ─── Plan limits ───
 interface PlanLimits { maxCategories: number; maxCountries: number; }
+interface CompanyRepresentative { firstName: string; lastName: string; email: string; }
 
 const PLAN_LIMITS: Record<string, PlanLimits> = {
     basic_mo: { maxCategories: 3, maxCountries: 1 },
@@ -178,6 +179,9 @@ export default function AddListing() {
     const [otherCertText, setOtherCertText] = useState("");
     const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
     const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
+    const [companyRepresentatives, setCompanyRepresentatives] = useState<CompanyRepresentative[]>([
+        { firstName: "", lastName: "", email: "" },
+    ]);
 
     // ─── Event fields ───
     const [eventData, setEventData] = useState({
@@ -215,6 +219,15 @@ export default function AddListing() {
                     setCompanyName(d.businessName || "");
                     setCompanyProfile(d.companyProfileText || "");
                     setBusinessAddress(d.businessAddress || "");
+                    if (Array.isArray(d.companyRepresentatives) && d.companyRepresentatives.length > 0) {
+                        setCompanyRepresentatives(
+                            d.companyRepresentatives.map((rep: any) => ({
+                                firstName: rep.firstName || "",
+                                lastName: rep.lastName || "",
+                                email: rep.email || "",
+                            }))
+                        );
+                    }
                 }
             }
         };
@@ -301,6 +314,19 @@ export default function AddListing() {
         else { if (!isCountryLimitReached) setSelectedCountries(prev => [...prev, val]); }
     };
 
+    const addRepresentative = () => {
+        setCompanyRepresentatives(prev => [...prev, { firstName: "", lastName: "", email: "" }]);
+    };
+    const removeRepresentative = (index: number) => {
+        setCompanyRepresentatives(prev => {
+            if (prev.length === 1) return [{ firstName: "", lastName: "", email: "" }];
+            return prev.filter((_, i) => i !== index);
+        });
+    };
+    const updateRepresentative = (index: number, field: keyof CompanyRepresentative, value: string) => {
+        setCompanyRepresentatives(prev => prev.map((rep, i) => (i === index ? { ...rep, [field]: value } : rep)));
+    };
+
     const getPlansForGroup = () => {
         switch (dbGroup) {
             case "business_offerings": case "consulting":
@@ -377,6 +403,20 @@ export default function AddListing() {
             setError('Please enter a value for "Other" certification.');
             return;
         }
+        const normalizedRepresentatives = companyRepresentatives
+            .map((rep) => ({
+                firstName: rep.firstName.trim(),
+                lastName: rep.lastName.trim(),
+                email: rep.email.trim(),
+            }))
+            .filter((rep) => rep.firstName || rep.lastName || rep.email);
+        const hasInvalidRepresentative = normalizedRepresentatives.some(
+            (rep) => !rep.firstName || !rep.lastName || !rep.email
+        );
+        if (hasInvalidRepresentative) {
+            setError("Each company representative must include first name, last name, and email.");
+            return;
+        }
 
         try {
             if (!auth.currentUser) throw new Error("No authenticated user found. Please login.");
@@ -398,6 +438,7 @@ export default function AddListing() {
                 selectedCategories,
                 selectedSubcategories,
                 selectedSubSubcategories,
+                companyRepresentatives: normalizedRepresentatives,
                 status: "pending_payment",
                 createdAt: serverTimestamp(),
             };
@@ -878,6 +919,49 @@ export default function AddListing() {
                                             ))}
                                         </div>
                                     )}
+                                </div>
+
+                                <div className="pt-6 border-t border-foreground/10 space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-base font-semibold">Company representative(s)</Label>
+                                        <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {companyRepresentatives.map((rep, index) => (
+                                            <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <Input
+                                                    value={rep.firstName}
+                                                    onChange={(e) => updateRepresentative(index, "firstName", e.target.value)}
+                                                    placeholder="First name"
+                                                    className="bg-muted/40 border-foreground/10"
+                                                />
+                                                <Input
+                                                    value={rep.lastName}
+                                                    onChange={(e) => updateRepresentative(index, "lastName", e.target.value)}
+                                                    placeholder="Last name"
+                                                    className="bg-muted/40 border-foreground/10"
+                                                />
+                                                <div className="flex gap-2">
+                                                    <Input
+                                                        type="email"
+                                                        value={rep.email}
+                                                        onChange={(e) => updateRepresentative(index, "email", e.target.value)}
+                                                        placeholder="Email"
+                                                        className="bg-muted/40 border-foreground/10"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => removeRepresentative(index)}
+                                                        className="shrink-0"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>
