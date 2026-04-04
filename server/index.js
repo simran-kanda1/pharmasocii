@@ -362,8 +362,8 @@ app.post("/api/create-checkout-session", async (req, res) => {
         const sessionParams = {
             mode: plan.interval ? "subscription" : "payment",
             line_items: lineItems,
-            success_url: successUrl || "http://localhost:5173/partner/dashboard?payment=success",
-            cancel_url: cancelUrl || "http://localhost:5173/partner/complete-profile?payment=cancelled",
+            success_url: successUrl || "https://orange-bear-967180.hostingersite.com/partner/dashboard?payment=success",
+            cancel_url: cancelUrl || "https://orange-bear-967180.hostingersite.com/partner/complete-profile?payment=cancelled",
             client_reference_id: partnerId,
             metadata: {
                 partnerId,
@@ -416,8 +416,8 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                     quantity: 1,
                 },
             ],
-            success_url: successUrl || "http://localhost:5173/partner/dashboard?feature=success",
-            cancel_url: cancelUrl || "http://localhost:5173/partner/dashboard?feature=cancelled",
+            success_url: successUrl || "https://orange-bear-967180.hostingersite.com/partner/dashboard?payment=success",
+            cancel_url: cancelUrl || "https://orange-bear-967180.hostingersite.com/partner/complete-profile?payment=cancelled",
             customer_email: partnerEmail || undefined,
             client_reference_id: partnerId,
             metadata: { partnerId, featureId },
@@ -544,8 +544,8 @@ app.post("/api/upgrade-subscription", async (req, res) => {
         const session = await stripe.checkout.sessions.create({
             mode: newPlan.interval ? "subscription" : "payment",
             line_items: lineItems,
-            success_url: successUrl || "http://localhost:5173/partner/dashboard?upgrade=success&session_id={CHECKOUT_SESSION_ID}",
-            cancel_url: cancelUrl || "http://localhost:5173/partner/dashboard?upgrade=cancelled",
+            success_url: successUrl || "https://orange-bear-967180.hostingersite.com/partner/dashboard?payment=success",
+            cancel_url: cancelUrl || "https://orange-bear-967180.hostingersite.com/partner/complete-profile?payment=cancelled",
             customer_email: partnerEmail || undefined,
             client_reference_id: partnerId,
             metadata: {
