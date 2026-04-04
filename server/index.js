@@ -783,7 +783,7 @@ if (existsSync(distPath)) {
 }
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
     console.log(`\n🚀 Pharma Socii API server running at port ${PORT}`);
     console.log(`   Stripe test mode connected\n`);
 });
