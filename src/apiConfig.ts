@@ -8,4 +8,4 @@
  * Update VITE_API_URL in your .env.production file or replace the fallback below.
  */
 export const API_BASE_URL: string =
-    import.meta.env.VITE_API_URL as string || "";
+    import.meta.env.VITE_API_URL as string || "https://pharmasocii.onrender.com";

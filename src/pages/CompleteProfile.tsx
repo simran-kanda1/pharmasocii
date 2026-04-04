@@ -16,6 +16,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
+import { API_BASE_URL } from "@/apiConfig";
 import PhoneInput from 'react-phone-number-input'
 import 'react-phone-number-input/style.css'
 
@@ -439,7 +440,7 @@ export default function CompleteProfile() {
 
             // Call backend to create Stripe Checkout Session
             const origin = window.location.origin;
-            const resp = await fetch("/api/create-checkout-session", {
+            const resp = await fetch(`${API_BASE_URL}/api/create-checkout-session`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({

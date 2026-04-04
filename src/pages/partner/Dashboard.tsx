@@ -4,6 +4,7 @@ import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, query, onSnapshot, where } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import { API_BASE_URL } from "@/apiConfig";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut,
@@ -120,7 +121,8 @@ export default function Dashboard() {
             sessionStorage.setItem(processedKey, "true");
 
             console.log("Verifying payment for session:", sessionId);
-            fetch("/api/verify-payment", {
+            // Use our central API verification endpoint
+            fetch(`${API_BASE_URL}/api/verify-payment`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ sessionId })
@@ -152,7 +154,8 @@ export default function Dashboard() {
             // if we have session_id for feature we can verify it similarly
             if (sessionId && !sessionStorage.getItem(processedKey)) {
                 sessionStorage.setItem(processedKey, "true");
-                fetch("/api/verify-payment", {
+                // Use our central API verification endpoint
+                fetch(`${API_BASE_URL}/api/verify-payment`, {
                     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId })
                 }).catch(err => console.error("Feature verification failed:", err));
             }
@@ -318,7 +321,7 @@ export default function Dashboard() {
         try {
             if (auth.currentUser && selectedFeaturePlan) {
                 const origin = window.location.origin;
-                const resp = await fetch("/api/create-feature-checkout", {
+                const resp = await fetch(`${API_BASE_URL}/api/create-feature-checkout`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -410,7 +413,7 @@ export default function Dashboard() {
         try {
             if (auth.currentUser && selectedPlanForAction) {
                 const origin = window.location.origin;
-                const resp = await fetch("/api/upgrade-subscription", {
+                const resp = await fetch(`${API_BASE_URL}/api/upgrade-subscription`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -477,7 +480,8 @@ export default function Dashboard() {
 
                 // If there's a Stripe subscription, cancel it at period end
                 if (selectedPlanForAction.stripeSubscriptionId) {
-                    await fetch("/api/cancel-subscription", {
+                    // Use our central API endpoint
+                    await fetch(`${API_BASE_URL}/api/cancel-subscription`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -507,7 +511,7 @@ export default function Dashboard() {
         try {
             if (auth.currentUser && selectedPlanForAction) {
                 const origin = window.location.origin;
-                const resp = await fetch("/api/create-feature-checkout", {
+                const resp = await fetch(`${API_BASE_URL}/api/create-feature-checkout`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
