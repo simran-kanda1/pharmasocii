@@ -382,10 +382,11 @@ export default function CompleteProfile() {
         try {
             if (!auth.currentUser) throw new Error("No authenticated user found. Please login.");
 
-            await auth.currentUser.reload();
-            if (!auth.currentUser.emailVerified) {
-                throw new Error("Your email address has not been verified yet. Please check your inbox and verify before continuing.");
-            }
+            // Bypassing email verification for testing phase
+            // await auth.currentUser.reload();
+            // if (!auth.currentUser.emailVerified) {
+            //     throw new Error("Your email address has not been verified yet. Please check your inbox and verify before continuing.");
+            // }
 
             setIsLoading(true);
 

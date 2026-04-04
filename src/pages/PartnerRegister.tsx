@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Activity, ShieldCheck, Building2, MailCheck } from "lucide-react";
+import { Activity, ShieldCheck, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth, db } from "@/firebase";
-import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import PhoneInput from 'react-phone-number-input';
@@ -56,7 +56,7 @@ export default function PartnerRegister() {
             const user = userCredential.user;
 
             // Send Email Verification
-            await sendEmailVerification(user);
+            // await sendEmailVerification(user);
 
             // Create partner document in Firestore
             const partnerData = {
@@ -79,7 +79,7 @@ export default function PartnerRegister() {
                 name: `${formData.firstName} ${formData.lastName}`,
                 userName: formData.email.split("@")[0], // Simple username generation
                 email: formData.email,
-                emailVerified: false,
+                emailVerified: true, // Auto-verify for testing phase
                 createdAt: serverTimestamp(),
                 profilePicture: "",
                 userBio: "",
@@ -131,10 +131,10 @@ export default function PartnerRegister() {
 
                 {success ? (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-6 py-20">
-                        <MailCheck className="w-20 h-20 text-primary animate-pulse" />
-                        <h3 className="text-3xl font-bold text-foreground">Verify Your Email</h3>
+                        <ShieldCheck className="w-20 h-20 text-primary animate-pulse" />
+                        <h3 className="text-3xl font-bold text-foreground">Account Created!</h3>
                         <p className="text-muted-foreground leading-relaxed max-w-[280px]">
-                            We've sent a verification link to <span className="text-foreground font-medium">{formData.email}</span>. Please check your inbox and confirm your email.
+                            Your account <span className="text-foreground font-medium">{formData.email}</span> has been set up successfully.
                         </p>
                         <p className="text-sm text-muted-foreground flex items-center justify-center gap-2 mt-8">
                             Proceeding to the next step... <Activity className="w-4 h-4 animate-spin" />
