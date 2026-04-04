@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { db } from "@/firebase";
 import { doc, getDoc, collectionGroup, query, where, getDocs, limit } from "firebase/firestore";
-import { MapPin, ArrowLeft, Globe, ShieldCheck, Phone, ExternalLink, Building2 } from "lucide-react";
+import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -108,29 +108,68 @@ export default function ListingDetail() {
     const getGroupedCategories = () => {
         if (type !== "business") return [];
         
-        const selectedAreas = Array.isArray(item.selectedCategories) ? item.selectedCategories : (item.category ? [item.category] : []);
-        const selectedSubs = Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : [];
-        const selectedSubSubs = Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : [];
+        // Comprehensive fallbacks for different field names used in Firestore
+        const selectedAreas = Array.isArray(item.selectedCategories) ? item.selectedCategories : 
+                              (Array.isArray(item.categories) ? item.categories :
+                              (item.category ? [item.category] : []));
+        const allSelectedSubs = Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : 
+                               (Array.isArray(item.subcategories) ? item.subcategories : []);
+        const allSelectedSubSubs = Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : 
+                                  (Array.isArray(item.subSubcategories) ? item.subSubcategories : []);
 
-        return (selectedAreas as string[]).map(area => {
+        const serviceRegions = Array.isArray(item.serviceRegions) ? item.serviceRegions : [];
+        const serviceCountries = Array.isArray(item.serviceCountries) ? item.serviceCountries : [];
+
+        // Track claimed items for orphan detection
+        const claimedSubs = new Set<string>();
+        const claimedSubSubs = new Set<string>();
+
+        const normalize = (s: any) => (typeof s === 'string' ? s.toLowerCase().trim() : "");
+
+        const grouped = (selectedAreas as string[]).map(area => {
             const areaConfig = BUSINESS_CATEGORIES[area] || [];
             const matchingSubs = areaConfig.map(entry => {
                 const subLabel = typeof entry === "string" ? entry : entry.label;
-                const isSubSelected = selectedSubs.includes(subLabel);
                 
+                // Flexible matching
+                const isSubSelected = allSelectedSubs.some((s: string) => normalize(s) === normalize(subLabel));
+                if (isSubSelected) claimedSubs.add(normalize(subLabel));
+
                 let subSubItems: string[] = [];
                 if (typeof entry !== "string" && entry.subSubcategories) {
-                    subSubItems = entry.subSubcategories.filter(ss => selectedSubSubs.includes(ss));
+                    subSubItems = entry.subSubcategories.filter(ss => 
+                        allSelectedSubSubs.some((selectedSS: string) => normalize(selectedSS) === normalize(ss))
+                    );
+                    subSubItems.forEach(ss => claimedSubSubs.add(normalize(ss)));
                 }
 
                 if (isSubSelected || subSubItems.length > 0) {
-                    return { label: subLabel, subSubs: subSubItems };
+                    const originalSubLabel = allSelectedSubs.find((s: string) => normalize(s) === normalize(subLabel)) || subLabel;
+                    return { label: originalSubLabel, subSubs: subSubItems };
                 }
                 return null;
             }).filter(Boolean);
 
-            return { area, subs: matchingSubs };
+            return { area, subs: matchingSubs, regions: serviceRegions, countries: serviceCountries };
         });
+
+        // Find orphans
+        const orphanSubs = allSelectedSubs.filter((s: string) => !claimedSubs.has(normalize(s)));
+        const orphanSubSubs = allSelectedSubSubs.filter((s: string) => !claimedSubSubs.has(normalize(s)));
+
+        if (orphanSubs.length > 0 || orphanSubSubs.length > 0 || (grouped.length === 0 && (serviceRegions.length > 0 || serviceCountries.length > 0))) {
+            grouped.push({
+                area: grouped.length === 0 ? "General Services" : "Other Specializations",
+                subs: [
+                    ...orphanSubs.map((s: string) => ({ label: s, subSubs: [] })),
+                    ...(orphanSubSubs.length > 0 ? [{ label: "Additional Items", subSubs: orphanSubSubs }] : [])
+                ],
+                regions: serviceRegions,
+                countries: serviceCountries
+            });
+        }
+
+        return grouped;
     };
 
     const groupedCategories = getGroupedCategories();
@@ -213,32 +252,34 @@ export default function ListingDetail() {
                     </div>
                 </Card>
 
-                {/* Categories Table Section */}
+                {/* Categories & Service Regions Table Section */}
                 {type === "business" && groupedCategories.length > 0 && (
                     <div className="mb-16">
                         <div className="rounded-2xl border border-foreground/10 bg-background overflow-hidden shadow-sm">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-muted/30 border-b border-foreground/10">
-                                        <th className="px-8 py-5 text-sm font-bold w-1/3">Area(s)</th>
-                                        <th className="px-8 py-5 text-sm font-bold">Category(ies)</th>
+                                        <th className="px-6 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest w-[20%]">Area(s)</th>
+                                        <th className="px-6 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest w-[35%]">Category(ies)</th>
+                                        <th className="px-4 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest w-[20%]">Service Region(s)</th>
+                                        <th className="px-4 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest">Service Country(ies)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {groupedCategories.map((group: any, idx: number) => (
                                         <tr key={idx} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
-                                            <td className="px-8 py-6 align-top">
+                                            <td className="px-6 py-6 align-top">
                                                 <p className="font-bold text-foreground text-lg">{group.area}</p>
                                             </td>
-                                            <td className="px-8 py-6 space-y-4">
+                                            <td className="px-6 py-6 space-y-4 align-top">
                                                 {group.subs.length > 0 ? (
                                                     group.subs.map((sub: any, sIdx: number) => (
                                                         <div key={sIdx} className="space-y-1">
-                                                            <p className="font-medium text-foreground">{sub.label}</p>
+                                                            <p className="font-bold text-foreground">{sub.label}</p>
                                                             {sub.subSubs.length > 0 && (
-                                                                <div className="flex flex-wrap gap-2 pt-1">
+                                                                <div className="flex flex-wrap gap-1.5 pt-1">
                                                                     {sub.subSubs.map((ss: string, ssIdx: number) => (
-                                                                        <Badge key={ssIdx} variant="secondary" className="bg-primary/5 text-primary border-primary/20 text-[10px] py-0 px-2 rounded-md font-medium">
+                                                                        <Badge key={ssIdx} variant="secondary" className="bg-primary/5 text-primary border-primary/20 text-[9px] py-0 px-2 rounded-md font-medium uppercase tracking-tight">
                                                                             {ss}
                                                                         </Badge>
                                                                     ))}
@@ -247,8 +288,22 @@ export default function ListingDetail() {
                                                         </div>
                                                     ))
                                                 ) : (
-                                                    <p className="text-muted-foreground italic text-sm">Full area specialization</p>
+                                                    <p className="text-muted-foreground/50 italic text-xs">No specific categories</p>
                                                 )}
+                                            </td>
+                                            <td className="px-4 py-6 align-top">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {group.regions.length > 0 ? group.regions.map((region: string, rIdx: number) => (
+                                                        <Badge key={rIdx} variant="outline" className="text-[10px] py-0.5 px-2 rounded-lg border-foreground/10 bg-muted/20">{region}</Badge>
+                                                    )) : <span className="text-muted-foreground/50 text-xs">-</span>}
+                                                </div>
+                                            </td>
+                                            <td className="px-4 py-6 align-top">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {group.countries.length > 0 ? group.countries.map((country: string, cIdx: number) => (
+                                                        <Badge key={cIdx} variant="outline" className="text-[10px] py-0.5 px-2 rounded-lg border-foreground/10 bg-muted/20">{country}</Badge>
+                                                    )) : <span className="text-muted-foreground/50 text-xs">-</span>}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -258,20 +313,7 @@ export default function ListingDetail() {
                     </div>
                 )}
 
-                {/* Service Countries Section */}
-                {Array.isArray(item.serviceCountries) && item.serviceCountries.length > 0 && (
-                    <div className="mb-16 space-y-4">
-                        <h3 className="text-xl font-black uppercase tracking-widest text-muted-foreground px-1">Service Country(ies)</h3>
-                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                            {item.serviceCountries.map((country: string, idx: number) => (
-                                <div key={idx} className="bg-muted/20 border border-foreground/5 px-4 py-3 rounded-xl flex items-center gap-2 group hover:border-primary/30 transition-all">
-                                    <Globe className="w-3.5 h-3.5 text-primary/60 group-hover:text-primary transition-colors" />
-                                    <span className="text-sm font-medium">{country}</span>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
+                {/* Service Countries Section removed as it is now in the table columns */}
 
                 {/* Representatives Section */}
                 {(partner?.primaryName || partner?.secondaryName) && (
