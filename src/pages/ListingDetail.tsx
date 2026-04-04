@@ -153,22 +153,6 @@ export default function ListingDetail() {
             return { area, subs: matchingSubs, regions: serviceRegions, countries: serviceCountries };
         });
 
-        // Find orphans
-        const orphanSubs = allSelectedSubs.filter((s: string) => !claimedSubs.has(normalize(s)));
-        const orphanSubSubs = allSelectedSubSubs.filter((s: string) => !claimedSubSubs.has(normalize(s)));
-
-        if (orphanSubs.length > 0 || orphanSubSubs.length > 0 || (grouped.length === 0 && (serviceRegions.length > 0 || serviceCountries.length > 0))) {
-            grouped.push({
-                area: grouped.length === 0 ? "General Services" : "Other Specializations",
-                subs: [
-                    ...orphanSubs.map((s: string) => ({ label: s, subSubs: [] })),
-                    ...(orphanSubSubs.length > 0 ? [{ label: "Additional Items", subSubs: orphanSubSubs }] : [])
-                ],
-                regions: serviceRegions,
-                countries: serviceCountries
-            });
-        }
-
         return grouped;
     };
 
@@ -252,15 +236,20 @@ export default function ListingDetail() {
                     </div>
                 </Card>
 
-                {/* Categories Table Section */}
+                {/* Tier 1 & 2: Categories & Subcategories Table */}
                 {type === "business" && groupedCategories.length > 0 && (
                     <div className="mb-12">
-                        <div className="rounded-2xl border border-foreground/10 bg-background overflow-hidden shadow-sm">
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
+                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
+                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <Building2 className="w-5 h-5 text-primary" /> Categories & Subcategories
+                                </h3>
+                            </div>
                             <table className="w-full text-left border-collapse">
                                 <thead>
-                                    <tr className="bg-muted/30 border-b border-foreground/10">
-                                        <th className="px-8 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest w-1/3">Area(s)</th>
-                                        <th className="px-8 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest">Category(ies) (Subcategories & Sub-subcategories)</th>
+                                    <tr className="bg-muted/10 border-b border-foreground/10">
+                                        <th className="px-8 py-5 text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest w-1/3">Categories</th>
+                                        <th className="px-8 py-5 text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">Subcategories</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -272,12 +261,15 @@ export default function ListingDetail() {
                                             <td className="px-8 py-6 space-y-4 align-top">
                                                 {group.subs.length > 0 ? (
                                                     group.subs.map((sub: any, sIdx: number) => (
-                                                        <div key={sIdx} className="space-y-1">
-                                                            <p className="font-bold text-foreground">{sub.label}</p>
-                                                            {sub.subSubs.length > 0 && (
-                                                                <div className="flex flex-wrap gap-1.5 pt-1">
+                                                        <div key={sIdx} className="space-y-1.5">
+                                                            <p className="font-semibold text-foreground flex items-center gap-2">
+                                                                <span className="w-2 h-2 rounded-full bg-primary/40 shrink-0" />
+                                                                {sub.label}
+                                                            </p>
+                                                            {sub.subSubs && sub.subSubs.length > 0 && (
+                                                                <div className="flex flex-wrap gap-1.5 pl-4 pt-0.5">
                                                                     {sub.subSubs.map((ss: string, ssIdx: number) => (
-                                                                        <Badge key={ssIdx} variant="secondary" className="bg-primary/5 text-primary border-primary/20 text-[9px] py-0 px-2 rounded-md font-medium uppercase tracking-tight">
+                                                                        <Badge key={ssIdx} variant="secondary" className="text-[10px] py-0 px-2 rounded-md bg-primary/5 text-primary border-primary/10 font-medium uppercase tracking-tight">
                                                                             {ss}
                                                                         </Badge>
                                                                     ))}
@@ -286,24 +278,24 @@ export default function ListingDetail() {
                                                         </div>
                                                     ))
                                                 ) : (
-                                                    <p className="text-muted-foreground/50 italic text-xs">No specific categories</p>
+                                                    <p className="text-muted-foreground/50 italic text-xs">No subcategories selected</p>
                                                 )}
                                             </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
+                        </Card>
                     </div>
                 )}
 
                 {/* Service Locations Section */}
                 {(Array.isArray(item.serviceRegions) && item.serviceRegions.length > 0 || Array.isArray(item.serviceCountries) && item.serviceCountries.length > 0) && (
                     <div className="mb-12">
-                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden border-2 border-primary/5">
-                            <div className="bg-primary/5 px-8 py-6 border-b border-foreground/10">
-                                <h3 className="text-xl font-black text-foreground tracking-tight flex items-center gap-2">
-                                    <MapPin className="w-5 h-5 text-primary" /> Service Locations
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden border-2 border-slate-200">
+                            <div className="bg-slate-50 px-8 py-6 border-b border-foreground/10">
+                                <h3 className="text-lg font-black text-foreground tracking-tight flex items-center gap-2 uppercase tracking-wider">
+                                    <MapPin className="w-5 h-5 text-slate-500" /> Geographic Availability
                                 </h3>
                             </div>
                             <div className="p-8">
@@ -314,12 +306,12 @@ export default function ListingDetail() {
                                         <div className="flex flex-wrap gap-2">
                                             {Array.isArray(item.serviceRegions) && item.serviceRegions.length > 0 ? (
                                                 item.serviceRegions.map((region: string, idx: number) => (
-                                                    <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-muted/50 border-foreground/5 hover:bg-primary/10 transition-colors">
+                                                    <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-muted/50 border-foreground/5 hover:bg-slate-200 transition-colors text-slate-700">
                                                         {region}
                                                     </Badge>
                                                 ))
                                             ) : (
-                                                <p className="text-muted-foreground italic text-sm px-1">Global/All Regions</p>
+                                                <p className="text-muted-foreground italic text-sm px-1">Global Coverage</p>
                                             )}
                                         </div>
                                     </div>
@@ -330,12 +322,12 @@ export default function ListingDetail() {
                                         <div className="flex flex-wrap gap-2">
                                             {Array.isArray(item.serviceCountries) && item.serviceCountries.length > 0 ? (
                                                 item.serviceCountries.map((country: string, idx: number) => (
-                                                    <Badge key={idx} variant="outline" className="text-sm py-1.5 px-4 rounded-xl border-foreground/10 bg-background hover:border-primary/30 transition-all font-semibold">
+                                                    <Badge key={idx} variant="outline" className="text-sm py-1.5 px-4 rounded-xl border-foreground/10 bg-background hover:border-slate-400 transition-all font-semibold">
                                                         {country}
                                                     </Badge>
                                                 ))
                                             ) : (
-                                                <p className="text-muted-foreground italic text-sm px-1">All Countries</p>
+                                                <p className="text-muted-foreground italic text-sm px-1">Multiple International Markets</p>
                                             )}
                                         </div>
                                     </div>
@@ -344,8 +336,6 @@ export default function ListingDetail() {
                         </Card>
                     </div>
                 )}
-
-                {/* Service Countries Section removed as it is now in the table columns */}
 
                 {/* Representatives Section */}
                 {(partner?.primaryName || partner?.secondaryName) && (
