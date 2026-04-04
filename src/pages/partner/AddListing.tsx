@@ -88,6 +88,18 @@ const SERVICE_COUNTRIES = [
 
 const BSL_LEVELS = ["1", "2", "3", "4"];
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+const OTHER_CERT_OPTION = "Others";
+const OTHER_CERT_PREFIX = "other: ";
+
+const REGION_COUNTRY_MAP: Record<string, string[]> = {
+    "North America": ["Barbados", "Belize", "Canada", "Costa Rica", "Cuba", "Dominican Republic", "El Salvador", "Guatemala", "Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua", "Panama", "Trinidad and Tobago", "United States"],
+    "South America": ["Argentina", "Bolivia", "Brazil", "Chile", "Colombia", "Ecuador", "Guyana", "Paraguay", "Peru", "Suriname", "Uruguay", "Venezuela"],
+    "Europe": ["Albania", "Austria", "Belarus", "Belgium", "Bosnia", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Kosovo", "Latvia", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands", "Norway", "Poland", "Portugal", "Romania", "Russia", "Serbia", "Slovak Republic", "Slovenia", "Spain", "Sweden", "Switzerland", "Turkey", "UK", "Ukraine"],
+    "Asia Pacific": ["Afghanistan", "Armenia", "Azerbaijan", "Bangladesh", "Bhutan", "Brunei", "Cambodia", "China", "Georgia", "Hong Kong", "India", "Indonesia", "Japan", "Kazakhstan", "Korea", "Kyrgyzstan", "Laos", "Malaysia", "Maldives", "Mongolia", "Myanmar", "Nepal", "Pakistan", "Philippines", "Singapore", "Sri Lanka", "Taiwan", "Thailand", "Turkmenistan", "Uzbekistan", "Vietnam"],
+    "Middle East": ["Bahrain", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", "Lebanon", "Oman", "Palestine", "Qatar", "Saudi Arabia", "Syria", "UAE", "Yemen"],
+    "Africa": ["Algeria", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Central African Republic", "Chad", "Congo", "Djibouti", "Egypt", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Ghana", "Kenya", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Senegal", "Sierra Leone", "Somalia", "South Africa", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"],
+    "Australia & Oceania": ["Australia", "Fiji", "New Zealand", "Papua New Guinea"],
+};
 
 const getSubLabel = (entry: SubcategoryEntry): string => typeof entry === "string" ? entry : entry.label;
 const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcategories: string[] } => typeof entry !== "string";
@@ -163,6 +175,7 @@ export default function AddListing() {
     // ─── Business Offerings fields ───
     const [selectedBSL, setSelectedBSL] = useState<string[]>([]);
     const [selectedCerts, setSelectedCerts] = useState<string[]>([]);
+    const [otherCertText, setOtherCertText] = useState("");
     const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
     const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
 
@@ -210,6 +223,7 @@ export default function AddListing() {
 
     // ─── Plan limits ───
     const currentLimits = PLAN_LIMITS[plan] || { maxCategories: 0, maxCountries: 0 };
+    const canUseRegionHelper = currentLimits.maxCountries === -1;
 
     // ─── Category count ───
     const categoryCount = useMemo(() => {
@@ -264,8 +278,24 @@ export default function AddListing() {
     };
 
     const toggleBSL = (val: string) => setSelectedBSL(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
-    const toggleCert = (val: string) => setSelectedCerts(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
-    const toggleRegion = (val: string) => setSelectedRegions(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
+    const toggleCert = (val: string) => {
+        setSelectedCerts(prev => {
+            const next = prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val];
+            if (!next.includes(OTHER_CERT_OPTION)) setOtherCertText("");
+            return next;
+        });
+    };
+    const toggleRegion = (val: string) => {
+        if (!canUseRegionHelper) return;
+        const regionCountries = REGION_COUNTRY_MAP[val] || [];
+        if (selectedRegions.includes(val)) {
+            setSelectedRegions(prev => prev.filter(v => v !== val));
+            setSelectedCountries(prev => prev.filter(country => !regionCountries.includes(country)));
+            return;
+        }
+        setSelectedRegions(prev => [...prev, val]);
+        setSelectedCountries(prev => [...new Set([...prev, ...regionCountries])]);
+    };
     const toggleCountry = (val: string) => {
         if (selectedCountries.includes(val)) setSelectedCountries(prev => prev.filter(v => v !== val));
         else { if (!isCountryLimitReached) setSelectedCountries(prev => [...prev, val]); }
@@ -343,12 +373,22 @@ export default function AddListing() {
         setError("");
 
         if (!plan) { setError("Please select a plan before continuing."); return; }
+        if (dbGroup === "business_offerings" && selectedCerts.includes(OTHER_CERT_OPTION) && !otherCertText.trim()) {
+            setError('Please enter a value for "Other" certification.');
+            return;
+        }
 
         try {
             if (!auth.currentUser) throw new Error("No authenticated user found. Please login.");
             setIsLoading(true);
 
             // Build listing data
+            const normalizedCertifications = [
+                ...selectedCerts.filter(cert => cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:")),
+                ...(selectedCerts.includes(OTHER_CERT_OPTION) && otherCertText.trim()
+                    ? [`${OTHER_CERT_PREFIX}${otherCertText.trim()}`]
+                    : []),
+            ];
             const listingData: Record<string, any> = {
                 partnerId: auth.currentUser.uid,
                 businessName: companyName,
@@ -365,7 +405,7 @@ export default function AddListing() {
             // Group-specific fields
             if (dbGroup === "business_offerings") {
                 Object.assign(listingData, {
-                    bioSafetyLevel: selectedBSL, certifications: selectedCerts,
+                    bioSafetyLevel: selectedBSL, certifications: normalizedCertifications,
                     serviceRegions: selectedRegions, serviceCountries: selectedCountries,
                     companyProfileText: companyProfile, businessAddress,
                 });
@@ -558,7 +598,7 @@ export default function AddListing() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3">
                                     <Label>Payment plan <span className="text-red-400">*</span></Label>
-                                    <Select value={plan} onValueChange={val => { setPlan(val); setSelectedCategories([]); setSelectedSubcategories([]); setSelectedSubSubcategories([]); setSelectedCountries([]); }}>
+                                    <Select value={plan} onValueChange={val => { setPlan(val); setSelectedCategories([]); setSelectedSubcategories([]); setSelectedSubSubcategories([]); setSelectedCountries([]); setSelectedRegions([]); }}>
                                         <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select plan" /></SelectTrigger>
                                         <SelectContent className="bg-background/90 border-foreground/10">
                                             {getPlansForGroup().map(p => (
@@ -631,13 +671,30 @@ export default function AddListing() {
                                                 <Label>Certifications</Label>
                                                 <MultiSelectDropdown label="certifications" items={CERTIFICATIONS} selected={selectedCerts} onToggle={toggleCert} open={showCertsDropdown}
                                                     onToggleOpen={() => { setShowCertsDropdown(!showCertsDropdown); setShowBSLDropdown(false); setShowRegionsDropdown(false); setShowCountriesDropdown(false); }} />
+                                                {selectedCerts.includes(OTHER_CERT_OPTION) && (
+                                                    <Input
+                                                        value={otherCertText}
+                                                        onChange={(e) => setOtherCertText(e.target.value)}
+                                                        placeholder='Enter "other" certification'
+                                                        className="bg-muted/40 border-foreground/10"
+                                                    />
+                                                )}
                                             </div>
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                 <Label>Service region(s)</Label>
                                                 <MultiSelectDropdown label="service regions" items={SERVICE_REGIONS} selected={selectedRegions} onToggle={toggleRegion} open={showRegionsDropdown}
-                                                    onToggleOpen={() => { setShowRegionsDropdown(!showRegionsDropdown); setShowBSLDropdown(false); setShowCertsDropdown(false); setShowCountriesDropdown(false); }} />
+                                                    onToggleOpen={() => {
+                                                        if (!canUseRegionHelper) return;
+                                                        setShowRegionsDropdown(!showRegionsDropdown);
+                                                        setShowBSLDropdown(false);
+                                                        setShowCertsDropdown(false);
+                                                        setShowCountriesDropdown(false);
+                                                    }} />
+                                                {!canUseRegionHelper && (
+                                                    <p className="text-xs text-muted-foreground">Region helper is available only on plans with unlimited countries.</p>
+                                                )}
                                             </div>
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                 <Label>
@@ -661,7 +718,14 @@ export default function AddListing() {
                                         <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                             <Label>Region(s)</Label>
                                             <MultiSelectDropdown label="service regions" items={SERVICE_REGIONS} selected={selectedRegions} onToggle={toggleRegion} open={showRegionsDropdown}
-                                                onToggleOpen={() => { setShowRegionsDropdown(!showRegionsDropdown); setShowCountriesDropdown(false); }} />
+                                                onToggleOpen={() => {
+                                                    if (!canUseRegionHelper) return;
+                                                    setShowRegionsDropdown(!showRegionsDropdown);
+                                                    setShowCountriesDropdown(false);
+                                                }} />
+                                            {!canUseRegionHelper && (
+                                                <p className="text-xs text-muted-foreground">Region helper is available only on plans with unlimited countries.</p>
+                                            )}
                                         </div>
                                         <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                             <Label>

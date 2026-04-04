@@ -61,6 +61,7 @@ import {
 
 type AdminTab = "overview" | "partners" | "listings" | "transactions" | "audit";
 type ListingFilter = "all" | "pending" | "approved" | "disabled";
+const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
 type PartnerRecord = {
   id: string;
@@ -372,7 +373,7 @@ export default function AdminDashboard() {
         selectedCategories: splitCsv(listingEditor.selectedCategoriesCsv || ""),
         serviceCountries: splitCsv(listingEditor.serviceCountriesCsv || ""),
         serviceRegions: splitCsv(listingEditor.serviceRegionsCsv || ""),
-        companyProfileText: listingEditor.companyProfileText || "",
+        companyProfileText: (listingEditor.companyProfileText || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
         businessAddress: listingEditor.businessAddress || "",
       };
 
@@ -676,8 +677,10 @@ export default function AdminDashboard() {
               <Textarea
                 value={listingEditor.companyProfileText || ""}
                 onChange={(e) => setListingEditor((prev) => ({ ...prev, companyProfileText: e.target.value }))}
+                maxLength={COMPANY_PROFILE_MAX_LENGTH}
                 className="min-h-24"
               />
+              <p className="text-xs text-slate-500">{(listingEditor.companyProfileText || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium">Business Address</p>

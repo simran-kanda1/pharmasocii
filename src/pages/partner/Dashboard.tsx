@@ -3,7 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, query, onSnapshot, where } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
-import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "firebase/auth";
+import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, updateEmail } from "firebase/auth";
 import { API_BASE_URL } from "@/apiConfig";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
@@ -65,6 +65,8 @@ const FEATURE_PLANS = [
     { id: "home_page", label: "Home Page Spotlight", description: "Featured on the home page for maximum brand visibility", price: "$800.00", icon: Crown },
     { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,000.00", icon: Sparkles },
 ];
+
+const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
 export default function Dashboard() {
     const navigate = useNavigate();
@@ -234,23 +236,41 @@ export default function Dashboard() {
         setProfileMsg("");
         try {
             if (auth.currentUser) {
+                const nextEmail = (profileForm.email || "").trim();
+                const currentEmail = auth.currentUser.email || "";
+                if (nextEmail && nextEmail !== currentEmail) {
+                    try {
+                        await updateEmail(auth.currentUser, nextEmail);
+                    } catch (emailError: any) {
+                        if (emailError?.code === "auth/requires-recent-login") {
+                            setProfileMsg("Please sign out and sign back in before changing your email.");
+                            return;
+                        }
+                        if (emailError?.code === "auth/email-already-in-use") {
+                            setProfileMsg("This email is already in use by another account.");
+                            return;
+                        }
+                        throw emailError;
+                    }
+                }
+
                 const docRef = doc(db, "partnersCollection", auth.currentUser.uid);
                 await updateDoc(docRef, {
                     primaryName: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
-                    primaryEmail: profileForm.email, phoneNumber: profileForm.phone,
+                    primaryEmail: nextEmail, phoneNumber: profileForm.phone,
                     secondaryName: profileForm.altName, secondaryEmail: profileForm.altEmail,
                     businessName: profileForm.companyName, companyWebsite: profileForm.companyWebsite,
                     businessPhoneNumber: profileForm.businessPhone, linkedInProfileLink: profileForm.linkedin,
-                    companyProfileText: profileForm.companyProfile, businessAddress: profileForm.businessAddress,
+                    companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: profileForm.businessAddress,
                 });
                 setPartnerData({
                     ...partnerData, ...{
                         primaryName: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
-                        primaryEmail: profileForm.email, phoneNumber: profileForm.phone,
+                        primaryEmail: nextEmail, phoneNumber: profileForm.phone,
                         secondaryName: profileForm.altName, secondaryEmail: profileForm.altEmail,
                         businessName: profileForm.companyName, companyWebsite: profileForm.companyWebsite,
                         businessPhoneNumber: profileForm.businessPhone, linkedInProfileLink: profileForm.linkedin,
-                        companyProfileText: profileForm.companyProfile, businessAddress: profileForm.businessAddress,
+                        companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: profileForm.businessAddress,
                     }
                 });
 
@@ -1254,7 +1274,7 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Email <span className="text-red-400">*</span></Label>
-                        <Input value={profileForm.email} disabled className="bg-foreground/5 border-foreground/10 h-11 opacity-60" />
+                        <Input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Phone <span className="text-red-400">*</span></Label>
@@ -1306,7 +1326,8 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-foreground/10">
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Company profile <span className="text-red-400">*</span></Label>
-                        <Textarea value={profileForm.companyProfile} onChange={e => setProfileForm({ ...profileForm, companyProfile: e.target.value })} className="h-40 bg-foreground/5 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
+                        <Textarea value={profileForm.companyProfile} onChange={e => setProfileForm({ ...profileForm, companyProfile: e.target.value })} maxLength={COMPANY_PROFILE_MAX_LENGTH} className="h-40 bg-foreground/5 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
+                        <p className="text-xs text-muted-foreground">{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Business address <span className="text-red-400">*</span></Label>
@@ -1474,6 +1495,18 @@ const SERVICE_COUNTRIES = [
 
 const BSL_LEVELS = ["1", "2", "3", "4"];
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+const OTHER_CERT_OPTION = "Others";
+const OTHER_CERT_PREFIX = "other: ";
+
+const REGION_COUNTRY_MAP: Record<string, string[]> = {
+    "North America": ["Barbados", "Belize", "Canada", "Costa Rica", "Cuba", "Dominican Republic", "El Salvador", "Guatemala", "Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua", "Panama", "Trinidad and Tobago", "United States"],
+    "South America": ["Argentina", "Bolivia", "Brazil", "Chile", "Colombia", "Ecuador", "Guyana", "Paraguay", "Peru", "Suriname", "Uruguay", "Venezuela"],
+    "Europe": ["Albania", "Austria", "Belarus", "Belgium", "Bosnia", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Kosovo", "Latvia", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands", "Norway", "Poland", "Portugal", "Romania", "Russia", "Serbia", "Slovak Republic", "Slovenia", "Spain", "Sweden", "Switzerland", "Turkey", "UK", "Ukraine"],
+    "Asia Pacific": ["Afghanistan", "Armenia", "Azerbaijan", "Bangladesh", "Bhutan", "Brunei", "Cambodia", "China", "Georgia", "Hong Kong", "India", "Indonesia", "Japan", "Kazakhstan", "Korea", "Kyrgyzstan", "Laos", "Malaysia", "Maldives", "Mongolia", "Myanmar", "Nepal", "Pakistan", "Philippines", "Singapore", "Sri Lanka", "Taiwan", "Thailand", "Turkmenistan", "Uzbekistan", "Vietnam"],
+    "Middle East": ["Bahrain", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", "Lebanon", "Oman", "Palestine", "Qatar", "Saudi Arabia", "Syria", "UAE", "Yemen"],
+    "Africa": ["Algeria", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Central African Republic", "Chad", "Congo", "Djibouti", "Egypt", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Ghana", "Kenya", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Senegal", "Sierra Leone", "Somalia", "South Africa", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"],
+    "Australia & Oceania": ["Australia", "Fiji", "New Zealand", "Papua New Guinea"],
+};
 
 // ─── MODAL COMPONENTS ───
 
@@ -1490,10 +1523,16 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
     // Form state - categories are read-only after creation
     const categories = listing.selectedCategories || [];
     const subcategories = listing.selectedSubcategories || [];
+    const existingCertifications = Array.isArray(listing.certifications) ? listing.certifications : [];
+    const parsedOtherCert = (existingCertifications.find((cert) => cert.toLowerCase().startsWith("other:")) || "").replace(/^other:\s*/i, "");
     const [countries, setCountries] = useState<string[]>(listing.serviceCountries || []);
     const [regions, setRegions] = useState<string[]>(listing.serviceRegions || []);
     const [bslLevels, setBslLevels] = useState<string[]>(listing.bioSafetyLevel || []);
-    const [certifications, setCertifications] = useState<string[]>(listing.certifications || []);
+    const [certifications, setCertifications] = useState<string[]>([
+        ...existingCertifications.filter((cert: string) => !cert.toLowerCase().startsWith("other:") && cert !== OTHER_CERT_OPTION),
+        ...((parsedOtherCert || existingCertifications.includes(OTHER_CERT_OPTION)) ? [OTHER_CERT_OPTION] : []),
+    ]);
+    const [otherCertText, setOtherCertText] = useState(parsedOtherCert);
     const [companyProfile, setCompanyProfile] = useState(listing.companyProfileText || "");
     const [businessAddress, setBusinessAddress] = useState(listing.businessAddress || "");
 
@@ -1503,6 +1542,7 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
 
     const maxCategories = planConfig?.maxCategories || -1;
     const maxCountries = planConfig?.maxCountries || -1;
+    const canUseRegionHelper = maxCountries === -1;
 
     // Filter countries based on search
     const filteredCountries = SERVICE_COUNTRIES.filter(c =>
@@ -1518,10 +1558,14 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
     };
 
     const toggleRegion = (region: string) => {
+        if (!canUseRegionHelper) return;
+        const regionCountries = REGION_COUNTRY_MAP[region] || [];
         if (regions.includes(region)) {
             setRegions(regions.filter(r => r !== region));
+            setCountries(prev => prev.filter(country => !regionCountries.includes(country)));
         } else {
             setRegions([...regions, region]);
+            setCountries(prev => [...new Set([...prev, ...regionCountries])]);
         }
     };
 
@@ -1535,7 +1579,9 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
 
     const toggleCert = (cert: string) => {
         if (certifications.includes(cert)) {
-            setCertifications(certifications.filter(c => c !== cert));
+            const next = certifications.filter(c => c !== cert);
+            setCertifications(next);
+            if (!next.includes(OTHER_CERT_OPTION)) setOtherCertText("");
         } else {
             setCertifications([...certifications, cert]);
         }
@@ -1596,6 +1642,7 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                                     key={region}
                                     type="button"
                                     onClick={() => toggleRegion(region)}
+                                    disabled={!canUseRegionHelper}
                                     className={`px-3 py-2 rounded-lg text-sm border transition-all ${regions.includes(region)
                                         ? "bg-primary/20 border-primary/50 text-primary font-medium"
                                         : "bg-foreground/5 border-foreground/10 text-foreground/70 hover:border-foreground/30 hover:bg-foreground/10"
@@ -1606,6 +1653,9 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                                 </button>
                             ))}
                         </div>
+                        {!canUseRegionHelper && (
+                            <p className="text-xs text-muted-foreground mt-2">Region helper is available only on plans with unlimited countries.</p>
+                        )}
                     </div>
 
                     {/* Service Countries - Multi-select dropdown with search */}
@@ -1723,6 +1773,19 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                                     </button>
                                 ))}
                             </div>
+                            {certifications.includes(OTHER_CERT_OPTION) && (
+                                <div className="mt-3 space-y-1">
+                                    <Input
+                                        value={otherCertText}
+                                        onChange={(e) => setOtherCertText(e.target.value)}
+                                        placeholder='Enter "other" certification'
+                                        className="bg-foreground/5 border-foreground/10"
+                                    />
+                                    {!otherCertText.trim() && (
+                                        <p className="text-xs text-muted-foreground">Please enter a value for "Other".</p>
+                                    )}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1733,9 +1796,11 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                             <Textarea
                                 value={companyProfile}
                                 onChange={e => setCompanyProfile(e.target.value)}
+                                maxLength={COMPANY_PROFILE_MAX_LENGTH}
                                 placeholder="Describe your company's services and capabilities..."
                                 className="h-32 bg-foreground/5 border-foreground/10 resize-none"
                             />
+                            <p className="text-xs text-muted-foreground mt-2">{companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                         </div>
                     )}
 
@@ -1761,11 +1826,16 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                             serviceCountries: countries,
                             serviceRegions: regions,
                             bioSafetyLevel: bslLevels,
-                            certifications: certifications,
-                            companyProfileText: companyProfile,
+                            certifications: [
+                                ...certifications.filter((cert) => cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:")),
+                                ...(certifications.includes(OTHER_CERT_OPTION) && otherCertText.trim()
+                                    ? [`${OTHER_CERT_PREFIX}${otherCertText.trim()}`]
+                                    : []),
+                            ],
+                            companyProfileText: (companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                             businessAddress: businessAddress,
                         })}
-                        disabled={processing}
+                        disabled={processing || (certifications.includes(OTHER_CERT_OPTION) && !otherCertText.trim())}
                     >
                         {processing ? "Saving..." : "Save Changes"}
                     </Button>

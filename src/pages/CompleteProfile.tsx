@@ -97,6 +97,19 @@ const BSL_LEVELS = ["1", "2", "3", "4"];
 
 // ─── Certifications ───
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+const OTHER_CERT_OPTION = "Others";
+const OTHER_CERT_PREFIX = "other: ";
+const COMPANY_PROFILE_MAX_LENGTH = 1000;
+
+const REGION_COUNTRY_MAP: Record<string, string[]> = {
+    "North America": ["Barbados", "Belize", "Canada", "Costa Rica", "Cuba", "Dominican Republic", "El Salvador", "Guatemala", "Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua", "Panama", "Trinidad and Tobago", "United States"],
+    "South America": ["Argentina", "Bolivia", "Brazil", "Chile", "Colombia", "Ecuador", "Guyana", "Paraguay", "Peru", "Suriname", "Uruguay", "Venezuela"],
+    "Europe": ["Albania", "Austria", "Belarus", "Belgium", "Bosnia", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Kosovo", "Latvia", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands", "Norway", "Poland", "Portugal", "Romania", "Russia", "Serbia", "Slovak Republic", "Slovenia", "Spain", "Sweden", "Switzerland", "Turkey", "UK", "Ukraine"],
+    "Asia Pacific": ["Afghanistan", "Armenia", "Azerbaijan", "Bangladesh", "Bhutan", "Brunei", "Cambodia", "China", "Georgia", "Hong Kong", "India", "Indonesia", "Japan", "Kazakhstan", "Korea", "Kyrgyzstan", "Laos", "Malaysia", "Maldives", "Mongolia", "Myanmar", "Nepal", "Pakistan", "Philippines", "Singapore", "Sri Lanka", "Taiwan", "Thailand", "Turkmenistan", "Uzbekistan", "Vietnam"],
+    "Middle East": ["Bahrain", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", "Lebanon", "Oman", "Palestine", "Qatar", "Saudi Arabia", "Syria", "UAE", "Yemen"],
+    "Africa": ["Algeria", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Central African Republic", "Chad", "Congo", "Djibouti", "Egypt", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Ghana", "Kenya", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Senegal", "Sierra Leone", "Somalia", "South Africa", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"],
+    "Australia & Oceania": ["Australia", "Fiji", "New Zealand", "Papua New Guinea"],
+};
 
 // ─── Helper: get subcategory label ───
 const getSubLabel = (entry: SubcategoryEntry): string =>
@@ -126,6 +139,7 @@ export default function CompleteProfile() {
     // ─── Business details state ───
     const [selectedBSL, setSelectedBSL] = useState<string[]>([]);
     const [selectedCerts, setSelectedCerts] = useState<string[]>([]);
+    const [otherCertText, setOtherCertText] = useState("");
     const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
     const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
 
@@ -193,7 +207,7 @@ export default function CompleteProfile() {
             setFormData(prev => ({ ...prev, plan: value }));
             // Reset categories/countries when plan changes (limits might differ)
             setSelectedCategories([]); setSelectedSubcategories([]); setSelectedSubSubcategories([]);
-            setSelectedCountries([]);
+            setSelectedCountries([]); setSelectedRegions([]);
         } else {
             setFormData(prev => ({ ...prev, [field]: value }));
         }
@@ -201,6 +215,7 @@ export default function CompleteProfile() {
 
     // ─── Current plan limits ───
     const currentLimits = PLAN_LIMITS[formData.plan] || { maxCategories: 0, maxCountries: 0 };
+    const canUseRegionHelper = currentLimits.maxCountries === -1;
 
     // ─── Count selected categories from lowest level ───
     const categoryCount = useMemo(() => {
@@ -293,8 +308,24 @@ export default function CompleteProfile() {
 
     // ─── Multi-select toggle handlers ───
     const toggleBSL = (val: string) => setSelectedBSL(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
-    const toggleCert = (val: string) => setSelectedCerts(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
-    const toggleRegion = (val: string) => setSelectedRegions(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
+    const toggleCert = (val: string) => {
+        setSelectedCerts(prev => {
+            const next = prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val];
+            if (!next.includes(OTHER_CERT_OPTION)) setOtherCertText("");
+            return next;
+        });
+    };
+    const toggleRegion = (val: string) => {
+        if (!canUseRegionHelper) return;
+        const regionCountries = REGION_COUNTRY_MAP[val] || [];
+        if (selectedRegions.includes(val)) {
+            setSelectedRegions(prev => prev.filter(v => v !== val));
+            setSelectedCountries(prev => prev.filter(country => !regionCountries.includes(country)));
+            return;
+        }
+        setSelectedRegions(prev => [...prev, val]);
+        setSelectedCountries(prev => [...new Set([...prev, ...regionCountries])]);
+    };
     const toggleCountry = (val: string) => {
         if (selectedCountries.includes(val)) {
             setSelectedCountries(prev => prev.filter(v => v !== val));
@@ -378,6 +409,10 @@ export default function CompleteProfile() {
             setError("Please select a group and plan before continuing.");
             return;
         }
+        if (formData.group === "business_offerings" && selectedCerts.includes(OTHER_CERT_OPTION) && !otherCertText.trim()) {
+            setError('Please enter a value for "Other" certification.');
+            return;
+        }
 
         try {
             if (!auth.currentUser) throw new Error("No authenticated user found. Please login.");
@@ -392,6 +427,12 @@ export default function CompleteProfile() {
 
             // Save profile + business details to Firestore
             const partnerRef = doc(db, "partnersCollection", auth.currentUser.uid);
+            const normalizedCertifications = [
+                ...selectedCerts.filter(cert => cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:")),
+                ...(selectedCerts.includes(OTHER_CERT_OPTION) && otherCertText.trim()
+                    ? [`${OTHER_CERT_PREFIX}${otherCertText.trim()}`]
+                    : []),
+            ];
             const updateData: Record<string, any> = {
                 primaryName: `${formData.firstName} ${formData.lastName}`.trim(),
                 primaryEmail: formData.email,
@@ -404,7 +445,7 @@ export default function CompleteProfile() {
                 linkedInProfileLink: formData.linkedin,
                 billingEmailAddress: formData.billingEmail,
                 VAT_ABN_EIN_businessId: formData.businessId,
-                companyProfileText: formData.companyProfile,
+                companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                 businessAddress: formData.businessAddress,
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,
@@ -414,7 +455,7 @@ export default function CompleteProfile() {
 
             // Group-specific fields
             if (formData.group === "business_offerings") {
-                Object.assign(updateData, { bioSafetyLevel: selectedBSL, certifications: selectedCerts, serviceRegions: selectedRegions, serviceCountries: selectedCountries });
+                Object.assign(updateData, { bioSafetyLevel: selectedBSL, certifications: normalizedCertifications, serviceRegions: selectedRegions, serviceCountries: selectedCountries });
             } else if (formData.group === "consulting") {
                 Object.assign(updateData, { serviceRegions: selectedRegions, serviceCountries: selectedCountries });
             } else if (formData.group === "events") {
@@ -746,7 +787,8 @@ export default function CompleteProfile() {
 
                                 <div className="space-y-2 md:col-span-1">
                                     <Label htmlFor="companyProfile">Company profile *</Label>
-                                    <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
+                                    <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} maxLength={COMPANY_PROFILE_MAX_LENGTH} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
+                                    <p className="text-xs text-muted-foreground">{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                                 </div>
                                 <div className="space-y-2 md:col-span-1">
                                     <Label htmlFor="businessAddress">Business address</Label>
@@ -855,6 +897,14 @@ export default function CompleteProfile() {
                                                         onToggle={toggleCert} open={showCertsDropdown}
                                                         onToggleOpen={() => { setShowCertsDropdown(!showCertsDropdown); setShowBSLDropdown(false); setShowRegionsDropdown(false); setShowCountriesDropdown(false); }}
                                                     />
+                                                    {selectedCerts.includes(OTHER_CERT_OPTION) && (
+                                                        <Input
+                                                            value={otherCertText}
+                                                            onChange={(e) => setOtherCertText(e.target.value)}
+                                                            placeholder='Enter "other" certification'
+                                                            className="bg-muted/40 border-foreground/10"
+                                                        />
+                                                    )}
                                                 </div>
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -863,8 +913,17 @@ export default function CompleteProfile() {
                                                     <MultiSelectDropdown
                                                         label="service regions" items={SERVICE_REGIONS} selected={selectedRegions}
                                                         onToggle={toggleRegion} open={showRegionsDropdown}
-                                                        onToggleOpen={() => { setShowRegionsDropdown(!showRegionsDropdown); setShowBSLDropdown(false); setShowCertsDropdown(false); setShowCountriesDropdown(false); }}
+                                                        onToggleOpen={() => {
+                                                            if (!canUseRegionHelper) return;
+                                                            setShowRegionsDropdown(!showRegionsDropdown);
+                                                            setShowBSLDropdown(false);
+                                                            setShowCertsDropdown(false);
+                                                            setShowCountriesDropdown(false);
+                                                        }}
                                                     />
+                                                    {!canUseRegionHelper && (
+                                                        <p className="text-xs text-muted-foreground">Region helper is available only on plans with unlimited countries.</p>
+                                                    )}
                                                 </div>
                                                 <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                     <Label>
@@ -893,8 +952,15 @@ export default function CompleteProfile() {
                                                 <MultiSelectDropdown
                                                     label="service regions" items={SERVICE_REGIONS} selected={selectedRegions}
                                                     onToggle={toggleRegion} open={showRegionsDropdown}
-                                                    onToggleOpen={() => { setShowRegionsDropdown(!showRegionsDropdown); setShowCountriesDropdown(false); }}
+                                                    onToggleOpen={() => {
+                                                        if (!canUseRegionHelper) return;
+                                                        setShowRegionsDropdown(!showRegionsDropdown);
+                                                        setShowCountriesDropdown(false);
+                                                    }}
                                                 />
+                                                {!canUseRegionHelper && (
+                                                    <p className="text-xs text-muted-foreground">Region helper is available only on plans with unlimited countries.</p>
+                                                )}
                                             </div>
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                 <Label>
