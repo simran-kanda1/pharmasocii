@@ -252,26 +252,24 @@ export default function ListingDetail() {
                     </div>
                 </Card>
 
-                {/* Categories & Service Regions Table Section */}
+                {/* Categories Table Section */}
                 {type === "business" && groupedCategories.length > 0 && (
-                    <div className="mb-16">
+                    <div className="mb-12">
                         <div className="rounded-2xl border border-foreground/10 bg-background overflow-hidden shadow-sm">
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-muted/30 border-b border-foreground/10">
-                                        <th className="px-6 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest w-[20%]">Area(s)</th>
-                                        <th className="px-6 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest w-[35%]">Category(ies)</th>
-                                        <th className="px-4 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest w-[20%]">Service Region(s)</th>
-                                        <th className="px-4 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest">Service Country(ies)</th>
+                                        <th className="px-8 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest w-1/3">Area(s)</th>
+                                        <th className="px-8 py-5 text-sm font-extrabold text-muted-foreground uppercase tracking-widest">Category(ies) (Subcategories & Sub-subcategories)</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {groupedCategories.map((group: any, idx: number) => (
                                         <tr key={idx} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
-                                            <td className="px-6 py-6 align-top">
+                                            <td className="px-8 py-6 align-top">
                                                 <p className="font-bold text-foreground text-lg">{group.area}</p>
                                             </td>
-                                            <td className="px-6 py-6 space-y-4 align-top">
+                                            <td className="px-8 py-6 space-y-4 align-top">
                                                 {group.subs.length > 0 ? (
                                                     group.subs.map((sub: any, sIdx: number) => (
                                                         <div key={sIdx} className="space-y-1">
@@ -291,25 +289,59 @@ export default function ListingDetail() {
                                                     <p className="text-muted-foreground/50 italic text-xs">No specific categories</p>
                                                 )}
                                             </td>
-                                            <td className="px-4 py-6 align-top">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {group.regions.length > 0 ? group.regions.map((region: string, rIdx: number) => (
-                                                        <Badge key={rIdx} variant="outline" className="text-[10px] py-0.5 px-2 rounded-lg border-foreground/10 bg-muted/20">{region}</Badge>
-                                                    )) : <span className="text-muted-foreground/50 text-xs">-</span>}
-                                                </div>
-                                            </td>
-                                            <td className="px-4 py-6 align-top">
-                                                <div className="flex flex-wrap gap-1">
-                                                    {group.countries.length > 0 ? group.countries.map((country: string, cIdx: number) => (
-                                                        <Badge key={cIdx} variant="outline" className="text-[10px] py-0.5 px-2 rounded-lg border-foreground/10 bg-muted/20">{country}</Badge>
-                                                    )) : <span className="text-muted-foreground/50 text-xs">-</span>}
-                                                </div>
-                                            </td>
                                         </tr>
                                     ))}
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                )}
+
+                {/* Service Locations Section */}
+                {(Array.isArray(item.serviceRegions) && item.serviceRegions.length > 0 || Array.isArray(item.serviceCountries) && item.serviceCountries.length > 0) && (
+                    <div className="mb-12">
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden border-2 border-primary/5">
+                            <div className="bg-primary/5 px-8 py-6 border-b border-foreground/10">
+                                <h3 className="text-xl font-black text-foreground tracking-tight flex items-center gap-2">
+                                    <MapPin className="w-5 h-5 text-primary" /> Service Locations
+                                </h3>
+                            </div>
+                            <div className="p-8">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                    {/* Regions */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest px-1">Regions Served</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {Array.isArray(item.serviceRegions) && item.serviceRegions.length > 0 ? (
+                                                item.serviceRegions.map((region: string, idx: number) => (
+                                                    <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-muted/50 border-foreground/5 hover:bg-primary/10 transition-colors">
+                                                        {region}
+                                                    </Badge>
+                                                ))
+                                            ) : (
+                                                <p className="text-muted-foreground italic text-sm px-1">Global/All Regions</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Countries */}
+                                    <div className="space-y-4">
+                                        <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest px-1">Countries Served</h4>
+                                        <div className="flex flex-wrap gap-2">
+                                            {Array.isArray(item.serviceCountries) && item.serviceCountries.length > 0 ? (
+                                                item.serviceCountries.map((country: string, idx: number) => (
+                                                    <Badge key={idx} variant="outline" className="text-sm py-1.5 px-4 rounded-xl border-foreground/10 bg-background hover:border-primary/30 transition-all font-semibold">
+                                                        {country}
+                                                    </Badge>
+                                                ))
+                                            ) : (
+                                                <p className="text-muted-foreground italic text-sm px-1">All Countries</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
                     </div>
                 )}
 
