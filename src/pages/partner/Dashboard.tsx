@@ -595,7 +595,9 @@ export default function Dashboard() {
     const displayName = partnerData.primaryName || "Partner";
     const currentPlan = PLAN_CONFIGS[partnerData.selectedPlan] || null;
     const currentGroup = partnerData.selectedGroup || "";
-    const hasFeaturePlan = partnerData.selectedAddon && partnerData.selectedAddon !== "none" && partnerData.selectedAddon !== "";
+    const listingAddon = offerings.find((o) => o.selectedAddon && o.selectedAddon !== "none" && o.selectedAddon !== "")?.selectedAddon || "";
+    const resolvedAddon = listingAddon || partnerData.selectedAddon || "";
+    const hasFeaturePlan = resolvedAddon !== "none" && resolvedAddon !== "";
     const includedFeature = currentPlan?.featurePlan || null;
     const hasActivePaidPlan = activePlans.some((plan) => plan.active);
 
@@ -951,7 +953,7 @@ export default function Dashboard() {
                                         {includedFeature ? (
                                             <p className="text-foreground text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Included with your {currentPlan.label} plan — {includedFeature === "home_page" ? "Home Page" : "Landing Page"} spotlight</p>
                                         ) : hasFeaturePlan ? (
-                                            <p className="text-foreground text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Active — {FEATURE_PLANS.find(f => f.id === partnerData.selectedAddon)?.label}</p>
+                                            <p className="text-foreground text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Active — {FEATURE_PLANS.find(f => f.id === resolvedAddon)?.label || resolvedAddon.replace(/_/g, " ")}</p>
                                         ) : (
                                             <p className="text-muted-foreground text-sm">No feature spotlight active. Add one to boost your visibility.</p>
                                         )}

@@ -156,6 +156,12 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         console.log(`   ⚠ Feature purchase listing not found: ${listingId}`);
                     }
                 }
+                if (partnerRef) {
+                    await partnerRef.set({
+                        selectedAddon: featureId,
+                        lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }, { merge: true });
+                }
 
                 await logAudit({
                     partnerId,
@@ -778,6 +784,13 @@ app.post("/api/verify-payment", async (req, res) => {
                     updated = true;
                     console.log(`   ✓ Listing ${listingId} spotlight set to ${featureId}`);
                 }
+            }
+            if (partnerRef) {
+                await partnerRef.set({
+                    selectedAddon: featureId,
+                    lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }, { merge: true });
+                updated = true;
             }
         } else if (listingId && resolvedCollectionName) {
             // Check current listing status
