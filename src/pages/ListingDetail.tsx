@@ -22,26 +22,29 @@ export default function ListingDetail() {
             if (!id || !type) return;
             setLoading(true);
             try {
-                let collectionName = "";
-                let isGroup = false;
+                let collectionNames: string[] = [];
 
                 if (type === "business") {
-                    collectionName = "businessOfferingsCollection";
-                    isGroup = true;
+                    collectionNames = ["businessOfferingsCollection"];
+                } else if (type === "consulting") {
+                    // Keep both names for backward compatibility with existing data.
+                    collectionNames = ["consultingServicesCollection", "consultingCollection"];
+                } else if (type === "events") {
+                    collectionNames = ["eventsCollection"];
+                } else if (type === "jobs") {
+                    collectionNames = ["jobsCollection"];
                 }
-                else if (type === "consulting") collectionName = "consultingCollection";
-                else if (type === "events") collectionName = "eventsCollection";
-                else if (type === "jobs") collectionName = "jobsCollection";
 
-                if (collectionName) {
-                    let docSnap;
-                    if (isGroup) {
-                        const q = query(collectionGroup(db, collectionName), where("active", "==", true), limit(100));
+                if (collectionNames.length > 0) {
+                    let docSnap: any = null;
+                    for (const collectionName of collectionNames) {
+                        const q = query(collectionGroup(db, collectionName), where("active", "==", true), limit(300));
                         const querySnap = await getDocs(q);
-                        docSnap = querySnap.docs.find(d => d.id === id);
-                    } else {
-                        const docRef = doc(db, collectionName, id);
-                        docSnap = await getDoc(docRef);
+                        const found = querySnap.docs.find(d => d.id === id);
+                        if (found) {
+                            docSnap = found;
+                            break;
+                        }
                     }
 
                     if (docSnap && docSnap.exists()) {

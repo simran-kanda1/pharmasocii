@@ -503,7 +503,7 @@ export default function CompleteProfile() {
 
             const collectionMap: Record<string, string> = {
                 "business_offerings": "businessOfferingsCollection",
-                "consulting": "consultingCollection",
+                "consulting": "consultingServicesCollection",
                 "events": "eventsCollection",
                 "jobs": "jobsCollection"
             };

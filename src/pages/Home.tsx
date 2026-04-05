@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 import { db } from "@/firebase";
-import { collection, query, where, limit, getDocs } from "firebase/firestore";
+import { collectionGroup, query, where, limit, getDocs } from "firebase/firestore";
 
 
 
@@ -20,25 +20,51 @@ export default function Home() {
     useEffect(() => {
         const fetchFeaturedData = async () => {
             try {
-                // Fetch featured partners
-                const ptQuery = query(collection(db, "partnersCollection"), where("isFeatured", "==", true), where("partnerStatus", "==", "Approved"), limit(12));
-                const ptDocs = await getDocs(ptQuery);
-                setFeaturedBusinesses(ptDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })));
+                const isHomeSpotlight = (item: Record<string, any>) => {
+                    const addon = item.selectedAddon || item.featuredPlacement || "";
+                    return addon === "home_page" || addon === "both" || (item.isFeatured && !addon);
+                };
+
+                // Fetch business listings for homepage spotlight.
+                const businessQuery = query(collectionGroup(db, "businessOfferingsCollection"), where("active", "==", true), limit(60));
+                const businessDocs = await getDocs(businessQuery);
+                setFeaturedBusinesses(
+                    businessDocs.docs
+                        .map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
+                        .filter(isHomeSpotlight)
+                        .slice(0, 24)
+                );
 
                 // Fetch featured jobs
-                const jobQuery = query(collection(db, "jobsCollection"), where("isFeatured", "==", true), where("active", "==", true), limit(3));
+                const jobQuery = query(collectionGroup(db, "jobsCollection"), where("active", "==", true), limit(40));
                 const jobDocs = await getDocs(jobQuery);
-                setFeaturedJobs(jobDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })));
+                setFeaturedJobs(
+                    jobDocs.docs
+                        .map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
+                        .filter(isHomeSpotlight)
+                        .slice(0, 12)
+                );
 
                 // Fetch featured events
-                const evtQuery = query(collection(db, "eventsCollection"), where("isFeatured", "==", true), where("active", "==", true), limit(3));
+                const evtQuery = query(collectionGroup(db, "eventsCollection"), where("active", "==", true), limit(40));
                 const evtDocs = await getDocs(evtQuery);
-                setFeaturedEvents(evtDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })));
+                setFeaturedEvents(
+                    evtDocs.docs
+                        .map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
+                        .filter(isHomeSpotlight)
+                        .slice(0, 12)
+                );
 
                 // Fetch featured consulting
-                const consultingQuery = query(collection(db, "consultingCollection"), where("isFeatured", "==", true), where("active", "==", true), limit(12));
-                const consultingDocs = await getDocs(consultingQuery);
-                setFeaturedConsulting(consultingDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })));
+                const [consultingServicesDocs, consultingLegacyDocs] = await Promise.all([
+                    getDocs(query(collectionGroup(db, "consultingServicesCollection"), where("active", "==", true), limit(60))),
+                    getDocs(query(collectionGroup(db, "consultingCollection"), where("active", "==", true), limit(60))),
+                ]);
+                const mergedConsulting = [
+                    ...consultingServicesDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
+                    ...consultingLegacyDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
+                ];
+                setFeaturedConsulting(mergedConsulting.filter(isHomeSpotlight).slice(0, 12));
             } catch (err) {
                 console.error("Failed to load featured data:", err);
             }

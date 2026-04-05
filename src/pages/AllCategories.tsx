@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { db } from "@/firebase";
-import { collection, collectionGroup, query, where, getDocs } from "firebase/firestore";
+import { collectionGroup, query, where, getDocs } from "firebase/firestore";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 
 //Types 
@@ -233,27 +233,37 @@ export default function AllCategories() {
         const fetchAllCategoriesData = async () => {
             setLoading(true);
             try {
-                let snap: any = null;
+                let docs: any[] = [];
                 if (currentTab === "business") {
                     const q = query(collectionGroup(db, "businessOfferingsCollection"), where("active", "==", true));
-                    snap = await getDocs(q);
+                    const snap = await getDocs(q);
+                    docs = snap.docs;
                 } else if (currentTab === "consulting") {
-                    const q = query(collection(db, "consultingCollection"), where("active", "==", true));
-                    snap = await getDocs(q);
+                    const [servicesSnap, legacySnap] = await Promise.all([
+                        getDocs(query(collectionGroup(db, "consultingServicesCollection"), where("active", "==", true))),
+                        getDocs(query(collectionGroup(db, "consultingCollection"), where("active", "==", true))),
+                    ]);
+                    docs = [...servicesSnap.docs, ...legacySnap.docs];
                 } else if (currentTab === "events") {
-                    const q = query(collection(db, "eventsCollection"), where("active", "==", true));
-                    snap = await getDocs(q);
+                    const q = query(collectionGroup(db, "eventsCollection"), where("active", "==", true));
+                    const snap = await getDocs(q);
+                    docs = snap.docs;
                 } else if (currentTab === "jobs") {
-                    const q = query(collection(db, "jobsCollection"), where("active", "==", true));
-                    snap = await getDocs(q);
+                    const q = query(collectionGroup(db, "jobsCollection"), where("active", "==", true));
+                    const snap = await getDocs(q);
+                    docs = snap.docs;
                 }
-                if (snap) {
-                    // Filter to only show approved listings (or legacy listings without status field)
-                    const allDocs = snap.docs.map((d: any) => ({ id: d.id, ...(d.data() as Record<string, any>) }));
-                    const approvedDocs = allDocs.filter((doc: any) => {
-                        // Show if: no status field (legacy data) OR status is "Approved"
-                        return !doc.status || doc.status === "Approved";
+
+                if (docs.length > 0) {
+                    // De-duplicate and only show records that are approved/live.
+                    const deduped = new Map<string, any>();
+                    docs.forEach((d: any) => {
+                        const key = d.ref?.path || d.id;
+                        if (!deduped.has(key)) {
+                            deduped.set(key, { id: d.id, ...(d.data() as Record<string, any>) });
+                        }
                     });
+                    const approvedDocs = Array.from(deduped.values()).filter((doc: any) => !doc.status || doc.status === "Approved");
                     setData(approvedDocs);
                 } else {
                     setData([]);
@@ -388,7 +398,10 @@ export default function AllCategories() {
     });
 
     const featuredBusinesses = data.filter(item => {
-        if (!item.isFeatured) return false;
+        const addon = item.selectedAddon || item.featuredPlacement || "";
+        const hasLegacyFeatureFlag = item.isFeatured && !addon;
+        const isLandingSpotlight = addon === "landing_page" || addon === "both";
+        if (!isLandingSpotlight && !hasLegacyFeatureFlag) return false;
 
         if (!searchQuery) return true;
 

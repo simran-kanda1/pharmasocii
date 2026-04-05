@@ -102,6 +102,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
         case "checkout.session.completed": {
             const session = event.data.object;
             const { partnerId, planId, group, listingId, collectionName, featureId } = session.metadata;
+            const partnerRef = partnerId ? db.collection("partnersCollection").doc(partnerId) : null;
 
             console.log(`💰 Payment succeeded for session: ${session.id}`);
             console.log(`   Metadata: partnerId=${partnerId}, planId=${planId}, group=${group}, listingId=${listingId}, collectionName=${collectionName}, featureId=${featureId}`);
@@ -120,14 +121,41 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
 
             if (featureId) {
                 // Feature plan payment
-                await db.collection("partnersCollection").doc(partnerId).collection("featuresCollection").add({
-                    featureId,
-                    featureName: featureId.replace(/_/g, " "),
-                    lastPaymentReceived: new Date(),
-                    active: true,
-                    sessionId: session.id
-                });
-                console.log(`   ✓ Feature plan added: ${featureId}`);
+                const existingFeature = await db.collection("partnersCollection").doc(partnerId)
+                    .collection("featuresCollection").where("sessionId", "==", session.id).limit(1).get();
+                if (existingFeature.empty) {
+                    await db.collection("partnersCollection").doc(partnerId).collection("featuresCollection").add({
+                        featureId,
+                        featureName: featureId.replace(/_/g, " "),
+                        lastPaymentReceived: new Date(),
+                        active: true,
+                        sessionId: session.id
+                    });
+                    console.log(`   ✓ Feature plan added: ${featureId}`);
+                } else {
+                    console.log(`   ℹ Feature plan already exists for session ${session.id}`);
+                }
+
+                // Attach feature visibility to a specific listing when provided.
+                if (listingId && resolvedCollectionName) {
+                    const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
+                    const listingSnap = await listingRef.get();
+                    if (listingSnap.exists) {
+                        listingData = listingSnap.data();
+                        detailSource = listingData;
+                        await listingRef.set({
+                            selectedAddon: featureId,
+                            featuredPlacement: featureId,
+                            isFeatured: true,
+                            active: true,
+                            status: "Approved",
+                            lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        }, { merge: true });
+                        console.log(`   ✓ Listing ${listingId} spotlight set to ${featureId}`);
+                    } else {
+                        console.log(`   ⚠ Feature purchase listing not found: ${listingId}`);
+                    }
+                }
 
                 await logAudit({
                     partnerId,
@@ -138,7 +166,6 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 });
             } else if (listingId && resolvedCollectionName) {
                 // Core listing payment - update the listing status
-                const isAutoApproved = group === "events" || group === "jobs";
                 const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
 
                 // Get the listing data for the transaction record
@@ -150,13 +177,13 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 }
 
                 await listingRef.update({
-                    status: isAutoApproved ? "Approved" : "Pending Review",
+                    status: "Approved",
                     active: true,
                     lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                     stripeSubscriptionId: session.subscription || null,
                     stripeCustomerId: session.customer || null
                 });
-                console.log(`   ✓ Listing ${listingId} updated to status: ${isAutoApproved ? "Approved" : "Pending Review"}`);
+                console.log(`   ✓ Listing ${listingId} updated to status: Approved`);
 
                 // Calculate billing period end date
                 const startDate = new Date();
@@ -168,26 +195,32 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
                 }
 
-                // Also add to partner's plans with more details
-                await db.collection("partnersCollection").doc(partnerId).collection("planCollection").add({
-                    planId,
-                    planName: planId.replace(/_/g, " "),
-                    startDate: startDate,
-                    billingPeriodEnd: billingPeriodEnd,
-                    billingInterval: isYearly ? "year" : "month",
-                    active: true,
-                    lastPaymentReceivedAt: startDate,
-                    listingId,
-                    collectionName: resolvedCollectionName,
-                    stripeSubscriptionId: session.subscription || null,
-                    stripeCustomerId: session.customer || null,
-                    companyRepresentatives: listingData?.companyRepresentatives || []
-                });
-                console.log(`   ✓ Plan record created with billing period end: ${billingPeriodEnd.toISOString()}`);
+                // Also add to partner's plans with more details (idempotent by session)
+                const existingPlan = await db.collection("partnersCollection").doc(partnerId)
+                    .collection("planCollection").where("sessionId", "==", session.id).limit(1).get();
+                if (existingPlan.empty) {
+                    await db.collection("partnersCollection").doc(partnerId).collection("planCollection").add({
+                        planId,
+                        planName: planId.replace(/_/g, " "),
+                        startDate: startDate,
+                        billingPeriodEnd: billingPeriodEnd,
+                        billingInterval: isYearly ? "year" : "month",
+                        active: true,
+                        lastPaymentReceivedAt: startDate,
+                        listingId,
+                        collectionName: resolvedCollectionName,
+                        stripeSubscriptionId: session.subscription || null,
+                        stripeCustomerId: session.customer || null,
+                        sessionId: session.id,
+                        companyRepresentatives: listingData?.companyRepresentatives || []
+                    });
+                    console.log(`   ✓ Plan record created with billing period end: ${billingPeriodEnd.toISOString()}`);
+                } else {
+                    console.log(`   ℹ Plan record already exists for session ${session.id}`);
+                }
             } else {
                 console.log(`   ℹ No listingId (${listingId}) or collectionName (${resolvedCollectionName}) - creating account-level plan record`);
                 if (partnerId && planId) {
-                    const partnerRef = db.collection("partnersCollection").doc(partnerId);
                     const partnerSnap = await partnerRef.get();
                     const partnerData = partnerSnap.exists ? partnerSnap.data() : {};
                     detailSource = partnerData || null;
@@ -223,6 +256,14 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 }
             }
 
+            if (partnerRef) {
+                await partnerRef.set({
+                    partnerStatus: "Approved",
+                    lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }, { merge: true });
+                console.log(`   ✓ Partner ${partnerId} marked as Approved`);
+            }
+
             // Create global transaction record with listing details
             const transactionData = {
                 partnerId,
@@ -247,8 +288,14 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 companyRepresentatives: detailSource?.companyRepresentatives || []
             };
 
-            await db.collection("transactionsCollection").add(transactionData);
-            console.log(`   ✓ Transaction record created`);
+            const existingTransaction = await db.collection("transactionsCollection")
+                .where("sessionId", "==", session.id).limit(1).get();
+            if (existingTransaction.empty) {
+                await db.collection("transactionsCollection").add(transactionData);
+                console.log(`   ✓ Transaction record created`);
+            } else {
+                console.log(`   ℹ Transaction already exists for session ${session.id}`);
+            }
 
             await logAudit({
                 partnerId,
@@ -433,7 +480,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
  */
 app.post("/api/create-feature-checkout", async (req, res) => {
     try {
-        const { featureId, partnerId, partnerEmail, successUrl, cancelUrl } = req.body;
+        const { featureId, partnerId, partnerEmail, listingId, collectionName, group, successUrl, cancelUrl } = req.body;
 
         const feature = FEATURE_PRICES[featureId];
         if (!feature) {
@@ -459,7 +506,13 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             cancel_url: cancelUrl || "https://orange-bear-967180.hostingersite.com/partner/complete-profile?payment=cancelled",
             customer_email: partnerEmail || undefined,
             client_reference_id: partnerId,
-            metadata: { partnerId, featureId },
+            metadata: {
+                partnerId,
+                featureId,
+                listingId: listingId || "",
+                collectionName: collectionName || "",
+                group: group || "",
+            },
         });
 
         console.log(`✓ Feature checkout session created: ${session.id} for ${featureId}`);
@@ -674,6 +727,7 @@ app.post("/api/verify-payment", async (req, res) => {
         }
 
         const { partnerId, planId, group, listingId, collectionName, featureId } = session.metadata;
+        const partnerRef = partnerId ? db.collection("partnersCollection").doc(partnerId) : null;
 
         // Determine the correct collection name
         const resolvedCollectionName = collectionName ||
@@ -706,6 +760,25 @@ app.post("/api/verify-payment", async (req, res) => {
             } else {
                 console.log(`   ℹ Feature already exists for this session`);
             }
+
+            if (listingId && resolvedCollectionName) {
+                const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
+                const listingSnap = await listingRef.get();
+                if (listingSnap.exists) {
+                    listingData = listingSnap.data();
+                    detailSource = listingData;
+                    await listingRef.set({
+                        selectedAddon: featureId,
+                        featuredPlacement: featureId,
+                        isFeatured: true,
+                        active: true,
+                        status: "Approved",
+                        lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }, { merge: true });
+                    updated = true;
+                    console.log(`   ✓ Listing ${listingId} spotlight set to ${featureId}`);
+                }
+            }
         } else if (listingId && resolvedCollectionName) {
             // Check current listing status
             const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
@@ -715,80 +788,48 @@ app.post("/api/verify-payment", async (req, res) => {
                 listingData = listingSnap.data();
                 detailSource = listingData;
 
-                if (listingData.status === "pending_payment") {
-                    const isAutoApproved = group === "events" || group === "jobs";
+                await listingRef.update({
+                    status: "Approved",
+                    active: true,
+                    lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    stripeSubscriptionId: session.subscription || null,
+                    stripeCustomerId: session.customer || null
+                });
+                updated = true;
+                console.log(`   ✓ Listing ${listingId} updated to status: Approved`);
 
-                    await listingRef.update({
-                        status: isAutoApproved ? "Approved" : "Pending Review",
+                // Calculate billing period
+                const startDate = new Date();
+                const isYearly = planId?.includes('_yr');
+                const billingPeriodEnd = new Date(startDate);
+                if (isYearly) {
+                    billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                } else {
+                    billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                }
+
+                // Check if plan record already exists
+                const existingPlan = await db.collection("partnersCollection").doc(partnerId)
+                    .collection("planCollection").where("sessionId", "==", session.id).limit(1).get();
+
+                if (existingPlan.empty) {
+                    await db.collection("partnersCollection").doc(partnerId).collection("planCollection").add({
+                        planId,
+                        planName: planId.replace(/_/g, " "),
+                        startDate: startDate,
+                        billingPeriodEnd: billingPeriodEnd,
+                        billingInterval: isYearly ? "year" : "month",
                         active: true,
-                        lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        lastPaymentReceivedAt: startDate,
+                        listingId,
+                        collectionName: resolvedCollectionName,
                         stripeSubscriptionId: session.subscription || null,
-                        stripeCustomerId: session.customer || null
+                        stripeCustomerId: session.customer || null,
+                        sessionId: session.id,
+                        companyRepresentatives: listingData?.companyRepresentatives || []
                     });
                     updated = true;
-                    console.log(`   ✓ Listing ${listingId} updated to status: ${isAutoApproved ? "Approved" : "Pending Review"}`);
-
-                    // Calculate billing period
-                    const startDate = new Date();
-                    const isYearly = planId?.includes('_yr');
-                    const billingPeriodEnd = new Date(startDate);
-                    if (isYearly) {
-                        billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
-                    } else {
-                        billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
-                    }
-
-                    // Check if plan record already exists
-                    const existingPlan = await db.collection("partnersCollection").doc(partnerId)
-                        .collection("planCollection").where("listingId", "==", listingId).get();
-
-                    if (existingPlan.empty) {
-                        await db.collection("partnersCollection").doc(partnerId).collection("planCollection").add({
-                            planId,
-                            planName: planId.replace(/_/g, " "),
-                            startDate: startDate,
-                            billingPeriodEnd: billingPeriodEnd,
-                            billingInterval: isYearly ? "year" : "month",
-                            active: true,
-                            lastPaymentReceivedAt: startDate,
-                            listingId,
-                            collectionName: resolvedCollectionName,
-                            stripeSubscriptionId: session.subscription || null,
-                            stripeCustomerId: session.customer || null,
-                            companyRepresentatives: listingData?.companyRepresentatives || []
-                        });
-                        console.log(`   ✓ Plan record created`);
-                    }
-
-                    // Check if transaction already exists
-                    const existingTxn = await db.collection("transactionsCollection")
-                        .where("sessionId", "==", session.id).get();
-
-                    if (existingTxn.empty) {
-                        await db.collection("transactionsCollection").add({
-                            partnerId,
-                            amount: session.amount_total / 100,
-                            currency: session.currency,
-                            status: "succeeded",
-                            type: "listing",
-                            planId: planId || null,
-                            group: group || null,
-                            listingId: listingId || null,
-                            collectionName: resolvedCollectionName || null,
-                            createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                            sessionId: session.id,
-                            customerEmail: session.customer_details?.email || "",
-                            selectedCategories: detailSource?.selectedCategories || [],
-                            selectedSubcategories: detailSource?.selectedSubcategories || [],
-                            serviceCountries: detailSource?.serviceCountries || [],
-                            serviceRegions: detailSource?.serviceRegions || [],
-                            businessName: detailSource?.businessName || "",
-                            companyRepresentatives: detailSource?.companyRepresentatives || []
-                        });
-                        console.log(`   ✓ Transaction record created`);
-                    }
-                } else {
-                    console.log(`   ℹ Listing already updated (status: ${listingData.status})`);
+                    console.log(`   ✓ Plan record created`);
                 }
             } else {
                 console.log(`   ⚠ Listing not found: ${listingId}`);
@@ -855,6 +896,43 @@ app.post("/api/verify-payment", async (req, res) => {
                 });
                 updated = true;
             }
+        }
+
+        if (partnerRef) {
+            await partnerRef.set({
+                partnerStatus: "Approved",
+                lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true });
+            updated = true;
+        }
+
+        const existingTxn = await db.collection("transactionsCollection")
+            .where("sessionId", "==", session.id).limit(1).get();
+
+        if (existingTxn.empty) {
+            await db.collection("transactionsCollection").add({
+                partnerId,
+                amount: session.amount_total / 100,
+                currency: session.currency,
+                status: "succeeded",
+                type: featureId ? "feature" : "listing",
+                planId: planId || null,
+                featureId: featureId || null,
+                group: group || null,
+                listingId: listingId || null,
+                collectionName: resolvedCollectionName || null,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                sessionId: session.id,
+                customerEmail: session.customer_details?.email || "",
+                selectedCategories: detailSource?.selectedCategories || [],
+                selectedSubcategories: detailSource?.selectedSubcategories || [],
+                serviceCountries: detailSource?.serviceCountries || [],
+                serviceRegions: detailSource?.serviceRegions || [],
+                businessName: detailSource?.businessName || "",
+                companyRepresentatives: detailSource?.companyRepresentatives || []
+            });
+            updated = true;
+            console.log(`   ✓ Transaction record created`);
         }
 
         res.json({

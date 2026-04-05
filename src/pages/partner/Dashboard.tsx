@@ -187,7 +187,7 @@ export default function Dashboard() {
                     });
 
                     // Fetch all offerings from all 4 sub-collections
-                    const colNames = ["businessOfferingsCollection", "consultingServicesCollection", "eventsCollection", "jobsCollection"];
+                    const colNames = ["businessOfferingsCollection", "consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"];
                     const allUnsubs = colNames.map(col => {
                         const q = query(collection(docRef, col));
                         return onSnapshot(q, (snap) => {
@@ -340,6 +340,10 @@ export default function Dashboard() {
         setFeatureProcessing(true);
         try {
             if (auth.currentUser && selectedFeaturePlan) {
+                const activeListingPlan = activePlans.find((p) => p.active && p.listingId && p.collectionName);
+                if (!activeListingPlan) {
+                    throw new Error("You need an active paid listing before buying a feature add-on.");
+                }
                 const origin = window.location.origin;
                 const resp = await fetch(`${API_BASE_URL}/api/create-feature-checkout`, {
                     method: "POST",
@@ -348,6 +352,9 @@ export default function Dashboard() {
                         featureId: selectedFeaturePlan,
                         partnerId: auth.currentUser.uid,
                         partnerEmail: auth.currentUser.email,
+                        listingId: activeListingPlan.listingId,
+                        collectionName: activeListingPlan.collectionName,
+                        group: activeListingPlan.group || "",
                         successUrl: `${origin}/partner/dashboard?feature=success&session_id={CHECKOUT_SESSION_ID}`,
                         cancelUrl: `${origin}/partner/dashboard?feature=cancelled`,
                     }),
@@ -533,6 +540,9 @@ export default function Dashboard() {
         setActionProcessing(true);
         try {
             if (auth.currentUser && selectedPlanForAction) {
+                if (!selectedPlanForAction.listingId || !selectedPlanForAction.collectionName) {
+                    throw new Error("Feature add-ons require an active listing-backed plan.");
+                }
                 const origin = window.location.origin;
                 const resp = await fetch(`${API_BASE_URL}/api/create-feature-checkout`, {
                     method: "POST",
@@ -542,6 +552,8 @@ export default function Dashboard() {
                         partnerId: auth.currentUser.uid,
                         partnerEmail: auth.currentUser.email,
                         listingId: selectedPlanForAction.listingId,
+                        collectionName: selectedPlanForAction.collectionName,
+                        group: selectedPlanForAction.group || "",
                         successUrl: `${origin}/partner/dashboard?feature=success&session_id={CHECKOUT_SESSION_ID}`,
                         cancelUrl: `${origin}/partner/dashboard?feature=cancelled`,
                     }),
@@ -579,12 +591,13 @@ export default function Dashboard() {
 
     if (!partnerData) return null;
 
-    const isApproved = partnerData.partnerStatus === "Approved";
+    const isApproved = partnerData.partnerStatus !== "Disabled";
     const displayName = partnerData.primaryName || "Partner";
     const currentPlan = PLAN_CONFIGS[partnerData.selectedPlan] || null;
     const currentGroup = partnerData.selectedGroup || "";
     const hasFeaturePlan = partnerData.selectedAddon && partnerData.selectedAddon !== "none" && partnerData.selectedAddon !== "";
     const includedFeature = currentPlan?.featurePlan || null;
+    const hasActivePaidPlan = activePlans.some((plan) => plan.active);
 
     const sidebarItems: { id: TabType | "logout"; label: string; icon: any }[] = [
         { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -810,8 +823,8 @@ export default function Dashboard() {
                     <div className="bg-yellow-500/10 border border-yellow-500/30 p-6 rounded-xl flex items-start flex-col sm:flex-row gap-4 relative overflow-hidden">
                         <Clock className="w-8 h-8 text-yellow-500 shrink-0 mt-1 relative z-10" />
                         <div className="relative z-10">
-                            <h3 className="text-xl font-bold text-yellow-500">Profile Pending Review</h3>
-                            <p className="text-foreground/80 mt-2 leading-relaxed max-w-2xl">Your profile is currently pending review for verification. Once our team approves your submission, your listings will go live in All Categories.</p>
+                            <h3 className="text-xl font-bold text-yellow-500">Account Disabled</h3>
+                            <p className="text-foreground/80 mt-2 leading-relaxed max-w-2xl">Your account is currently disabled. Contact support to reactivate your listings.</p>
                         </div>
                     </div>
                 )}
@@ -820,8 +833,8 @@ export default function Dashboard() {
                     <div className="bg-primary/10 border border-primary/30 p-6 rounded-xl flex items-start flex-col sm:flex-row gap-4 relative overflow-hidden">
                         <CheckCircle2 className="w-8 h-8 text-primary shrink-0 mt-1 relative z-10" />
                         <div className="relative z-10">
-                            <h3 className="text-xl font-bold text-primary">Profile Verified & Active</h3>
-                            <p className="text-foreground/80 mt-2 leading-relaxed max-w-2xl">Your company profile is fully approved and live in All Categories.</p>
+                            <h3 className="text-xl font-bold text-primary">Profile Active</h3>
+                            <p className="text-foreground/80 mt-2 leading-relaxed max-w-2xl">Your paid listings are live and visible in All Categories.</p>
                         </div>
                     </div>
                 )}
@@ -943,7 +956,7 @@ export default function Dashboard() {
                                             <p className="text-muted-foreground text-sm">No feature spotlight active. Add one to boost your visibility.</p>
                                         )}
                                     </div>
-                                    {!includedFeature && !hasFeaturePlan && (
+                                    {!includedFeature && !hasFeaturePlan && hasActivePaidPlan && (
                                         <Button onClick={() => setShowFeatureModal(true)} variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
                                             <Star className="w-4 h-4 mr-2" /> Add Feature Plan
                                         </Button>
