@@ -680,7 +680,7 @@ export default function AdminDashboard() {
                 maxLength={COMPANY_PROFILE_MAX_LENGTH}
                 className="min-h-24"
               />
-              <p className="text-xs text-slate-500">{(listingEditor.companyProfileText || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
+              <p className={`text-xs ${(listingEditor.companyProfileText || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-slate-500'}`}>{(listingEditor.companyProfileText || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium">Business Address</p>

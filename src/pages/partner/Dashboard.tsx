@@ -10,7 +10,7 @@ import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut,
     Building, Mail, Phone, MapPin,
     PlusCircle, LayoutList, Save, CheckCircle2,
-    Clock, ChevronDown, Maximize2, UploadCloud, Eye, EyeOff,
+    Clock, ChevronDown, UploadCloud, Eye, EyeOff,
     CreditCard, Calendar, Star, Sparkles, Crown, Check, X,
     Edit3, ArrowUpCircle, XCircle, AlertTriangle, Globe, Tag
 } from "lucide-react";
@@ -648,9 +648,6 @@ export default function Dashboard() {
                         </div>
                         <span className="font-bold text-base tracking-tight text-white">Pharma Socii</span>
                     </Link>
-                    <button className="ml-auto text-white/40 hover:text-white/80 transition-colors p-1">
-                        <Maximize2 className="w-3.5 h-3.5" />
-                    </button>
                 </div>
                 <nav className="flex-1 py-3">
                     {sidebarItems.map((item) => {
@@ -673,13 +670,9 @@ export default function Dashboard() {
             {/* Main Content */}
             <main className="flex-1 ml-[220px] overflow-y-auto min-h-screen">
                 {/* Top Bar */}
-                <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-foreground/10 px-8 py-3 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <Maximize2 className="w-4 h-4 text-muted-foreground" />
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-foreground">
-                        <span>Welcome, {displayName}</span>
-                        <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
+                <div className="sticky top-0 z-20 bg-background/80 backdrop-blur-md border-b border-foreground/10 px-8 py-3 flex items-center justify-end">
+                    <div className="text-sm text-foreground">
+                        <span>{displayName}</span>
                     </div>
                 </div>
 

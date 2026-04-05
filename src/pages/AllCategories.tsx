@@ -680,9 +680,9 @@ export default function AllCategories() {
 
                                     <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
                                         {featuredBusinesses.map((fb, i) => (
-                                            <div key={`${fb.id}-${i}`} onClick={() => setSelectedProfile(fb)} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                            <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
                                                 <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
-                                            </div>
+                                            </Link>
                                         ))}
                                     </AutoCarousel>
                                 </div>

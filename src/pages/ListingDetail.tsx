@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { db } from "@/firebase";
 import { doc, getDoc, collectionGroup, query, where, getDocs, limit } from "firebase/firestore";
-import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2 } from "lucide-react";
+import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -183,7 +183,7 @@ export default function ListingDetail() {
                                 )}
                             </div>
 
-                            <div className="flex-1 space-y-4">
+                            <div className="flex-1 space-y-4 w-full">
                                 <div className="flex flex-wrap items-center gap-3">
                                     <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground">{listingTitle}</h1>
                                     {item.isFeatured && (
@@ -213,7 +213,7 @@ export default function ListingDetail() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pt-6 border-t border-foreground/10 text-sm text-muted-foreground">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pt-6 text-sm text-muted-foreground">
                                     <div className="flex flex-col gap-3">
                                         <div className="flex items-start gap-3">
                                             <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
@@ -224,15 +224,19 @@ export default function ListingDetail() {
                                             <span>{item.businessPhoneNumber || item.phoneNumber || partner?.businessPhoneNumber || partner?.phoneNumber || "N/A"}</span>
                                         </div>
                                     </div>
-                                    <div className="flex items-start justify-end">
-                                        {(item.companyWebsite || partner?.companyWebsite) && (
-                                            <Button asChild size="lg" className="rounded-xl shadow-lg bg-slate-800 hover:bg-slate-900 border-none px-8 font-bold text-white">
-                                                <a href={item.companyWebsite || partner?.companyWebsite} target="_blank" rel="noopener noreferrer">
-                                                    Visit Website <ExternalLink className="ml-2 w-4 h-4" />
-                                                </a>
-                                            </Button>
-                                        )}
-                                    </div>
+                                    
+                                </div>
+                                <div className="flex flex-wrap justify-start items-center gap-4 pt-4 border-t border-foreground/10">
+                                    <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
+                                        <a href={item.companyWebsite || partner?.companyWebsite || "#"} target="_blank" rel="noopener noreferrer">
+                                            Visit Website <ExternalLink className="ml-2 w-4 h-4" />
+                                        </a>
+                                    </Button>
+                                    <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
+                                        <a href={item.linkedInProfileLink || partner?.linkedInProfileLink || "#"} target="_blank" rel="noopener noreferrer">
+                                            <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
+                                        </a>
+                                    </Button>
                                 </div>
                             </div>
                         </div>

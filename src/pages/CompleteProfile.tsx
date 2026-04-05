@@ -876,7 +876,7 @@ export default function CompleteProfile() {
                                 <div className="space-y-2 md:col-span-1">
                                     <Label htmlFor="companyProfile">Company profile *</Label>
                                     <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} maxLength={COMPANY_PROFILE_MAX_LENGTH} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
-                                    <p className="text-xs text-muted-foreground">{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
+                                    <p className={`text-xs ${formData.companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                                 </div>
                                 <div className="space-y-2 md:col-span-1">
                                     <Label htmlFor="businessAddress">Business address</Label>
