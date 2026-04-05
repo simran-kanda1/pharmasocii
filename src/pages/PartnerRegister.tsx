@@ -36,6 +36,8 @@ export default function PartnerRegister() {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setFormData((prev) => ({ ...prev, [e.target.id]: e.target.value }));
     };
+    const passwordsMismatch =
+        formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword;
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -168,7 +170,14 @@ export default function PartnerRegister() {
                         <div className="space-y-1.5">
                             <Label htmlFor="password" className="text-foreground/80">Password *</Label>
                             <div className="relative">
-                                <Input id="password" type={showPassword ? "text" : "password"} value={formData.password} onChange={handleChange} required className="pr-10 bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
+                                <Input
+                                    id="password"
+                                    type={showPassword ? "text" : "password"}
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    required
+                                    className={`pr-10 bg-foreground/5 text-foreground focus-visible:ring-primary/50 ${passwordsMismatch ? "border-destructive/70" : "border-foreground/10"}`}
+                                />
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword((prev) => !prev)}
@@ -178,12 +187,20 @@ export default function PartnerRegister() {
                                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
                             </div>
+                            {passwordsMismatch && <p className="text-xs text-destructive mt-1">Passwords do not match.</p>}
                         </div>
 
                         <div className="space-y-1.5">
                             <Label htmlFor="confirmPassword" className="text-foreground/80">Confirm password *</Label>
                             <div className="relative">
-                                <Input id="confirmPassword" type={showConfirmPassword ? "text" : "password"} value={formData.confirmPassword} onChange={handleChange} required className="pr-10 bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
+                                <Input
+                                    id="confirmPassword"
+                                    type={showConfirmPassword ? "text" : "password"}
+                                    value={formData.confirmPassword}
+                                    onChange={handleChange}
+                                    required
+                                    className={`pr-10 bg-foreground/5 text-foreground focus-visible:ring-primary/50 ${passwordsMismatch ? "border-destructive/70" : "border-foreground/10"}`}
+                                />
                                 <button
                                     type="button"
                                     onClick={() => setShowConfirmPassword((prev) => !prev)}
@@ -193,6 +210,7 @@ export default function PartnerRegister() {
                                     {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
                             </div>
+                            {passwordsMismatch && <p className="text-xs text-destructive mt-1">Passwords do not match.</p>}
                         </div>
 
                         <div className="space-y-1.5">

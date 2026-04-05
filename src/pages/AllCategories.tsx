@@ -373,16 +373,18 @@ export default function AllCategories() {
             }
         }
 
-        // Subcategory: item must contain ALL selected subs (AND logic)
+        // Subcategory: item can match ANY selected sub (OR logic)
         if (selectedSubcategories.length > 0) {
             const itemSubs: string[] = Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : [];
-            if (!selectedSubcategories.every(sel => itemSubs.includes(sel))) return false;
+            const hasMatchingSubcategory = selectedSubcategories.some(sel => itemSubs.includes(sel));
+            if (!hasMatchingSubcategory) return false;
         }
 
-        // Sub-subcategory: item must contain ALL selected sub-subs (AND logic)
+        // Sub-subcategory: item can match ANY selected sub-sub (OR logic)
         if (selectedSubSubcategories.length > 0) {
             const itemSubSubs: string[] = Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : [];
-            if (!selectedSubSubcategories.every(sel => itemSubSubs.includes(sel))) return false;
+            const hasMatchingSubSubcategory = selectedSubSubcategories.some(sel => itemSubSubs.includes(sel));
+            if (!hasMatchingSubSubcategory) return false;
         }
 
         // Country search: check address string AND serviceCountries array
@@ -718,6 +720,21 @@ export default function AllCategories() {
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
                                                 : currentTab === "events" ? `${item.city || "Venue"}, ${item.location || ""}`
                                                     : `${item.businessName || "Company"} • ${item.jobtype || "Role"}`;
+                                        const categoryInfo = [
+                                            ...(Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
+                                                ? item.selectedCategories
+                                                : item.category
+                                                    ? [item.category]
+                                                    : item.consultingCategory
+                                                        ? [item.consultingCategory]
+                                                        : item.eventCategory
+                                                            ? [item.eventCategory]
+                                                            : item.jobCategory
+                                                                ? [item.jobCategory]
+                                                                : []),
+                                            ...(Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : []),
+                                            ...(Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : []),
+                                        ];
                                         return (
                                             <Link 
                                                 key={item.id} 
@@ -732,6 +749,11 @@ export default function AllCategories() {
                                                 <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24">
                                                     <div className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1">{topLabel}</div>
                                                     <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>
+                                                    {categoryInfo.length > 0 && (
+                                                        <div className="text-[10px] text-muted-foreground/80 line-clamp-1 mt-1 text-center">
+                                                            {categoryInfo.join(" / ")}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </Link>
                                         );

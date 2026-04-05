@@ -108,6 +108,13 @@ export default function Dashboard() {
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<any>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
+    const profileCompanyProfileTooLong = (profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH;
+    const isFeatureEligiblePlan = (plan: any) => {
+        if (!plan?.active || !plan.listingId || !plan.collectionName) return false;
+        const linkedListing = offerings.find((o) => o.id === plan.listingId);
+        if (!linkedListing) return false;
+        return linkedListing.status !== "pending_payment" && linkedListing.active !== false;
+    };
 
     // Verify payment on return from Stripe checkout
     useEffect(() => {
@@ -234,6 +241,11 @@ export default function Dashboard() {
     const handleProfileSave = async () => {
         setProfileSaving(true);
         setProfileMsg("");
+        if (profileCompanyProfileTooLong) {
+            setProfileMsg(`Company profile cannot exceed ${COMPANY_PROFILE_MAX_LENGTH} characters.`);
+            setProfileSaving(false);
+            return;
+        }
         try {
             if (auth.currentUser) {
                 const nextEmail = (profileForm.email || "").trim();
@@ -340,9 +352,9 @@ export default function Dashboard() {
         setFeatureProcessing(true);
         try {
             if (auth.currentUser && selectedFeaturePlan) {
-                const activeListingPlan = activePlans.find((p) => p.active && p.listingId && p.collectionName);
+                const activeListingPlan = activePlans.find(isFeatureEligiblePlan);
                 if (!activeListingPlan) {
-                    throw new Error("You need an active paid listing before buying a feature add-on.");
+                    throw new Error("You need a paid and active listing before buying a feature add-on.");
                 }
                 const origin = window.location.origin;
                 const resp = await fetch(`${API_BASE_URL}/api/create-feature-checkout`, {
@@ -540,8 +552,8 @@ export default function Dashboard() {
         setActionProcessing(true);
         try {
             if (auth.currentUser && selectedPlanForAction) {
-                if (!selectedPlanForAction.listingId || !selectedPlanForAction.collectionName) {
-                    throw new Error("Feature add-ons require an active listing-backed plan.");
+                if (!isFeatureEligiblePlan(selectedPlanForAction)) {
+                    throw new Error("Feature add-ons require a paid and active listing-backed plan.");
                 }
                 const origin = window.location.origin;
                 const resp = await fetch(`${API_BASE_URL}/api/create-feature-checkout`, {
@@ -599,7 +611,7 @@ export default function Dashboard() {
     const resolvedAddon = listingAddon || partnerData.selectedAddon || "";
     const hasFeaturePlan = resolvedAddon !== "none" && resolvedAddon !== "";
     const includedFeature = currentPlan?.featurePlan || null;
-    const hasActivePaidPlan = activePlans.some((plan) => plan.active);
+    const hasActivePaidPlan = activePlans.some(isFeatureEligiblePlan);
 
     const sidebarItems: { id: TabType | "logout"; label: string; icon: any }[] = [
         { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -986,6 +998,7 @@ export default function Dashboard() {
                                     const planRepresentatives = linkedListing?.companyRepresentatives || plan.companyRepresentatives || [];
                                     const hasFeature = linkedListing?.selectedAddon && linkedListing.selectedAddon !== "" && linkedListing.selectedAddon !== "none";
                                     const includedFeature = planConfig?.featurePlan;
+                                    const canAddFeature = !includedFeature && !hasFeature && isFeatureEligiblePlan(plan);
 
                                     return (
                                         <div key={plan.id} className="bg-muted/40 border border-foreground/10 rounded-xl p-5">
@@ -1045,7 +1058,7 @@ export default function Dashboard() {
                                                         >
                                                             <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade
                                                         </Button>
-                                                        {!includedFeature && !hasFeature && (
+                                                        {canAddFeature && (
                                                             <Button
                                                                 variant="outline"
                                                                 size="sm"
@@ -1298,7 +1311,7 @@ export default function Dashboard() {
             <div className="max-w-5xl space-y-8">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold tracking-tight text-foreground">Partner Information</h1>
-                    <Button onClick={handleProfileSave} disabled={profileSaving} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    <Button onClick={handleProfileSave} disabled={profileSaving || profileCompanyProfileTooLong} className="bg-primary text-primary-foreground hover:bg-primary/90">
                         <Save className="w-4 h-4 mr-2" />{profileSaving ? "Saving..." : "Save Changes"}
                     </Button>
                 </div>
@@ -1369,7 +1382,15 @@ export default function Dashboard() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-foreground/10">
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Company profile <span className="text-red-400">*</span></Label>
-                        <Textarea value={profileForm.companyProfile} onChange={e => setProfileForm({ ...profileForm, companyProfile: e.target.value })} maxLength={COMPANY_PROFILE_MAX_LENGTH} className="h-40 bg-foreground/5 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
+                        <Textarea
+                            value={profileForm.companyProfile}
+                            onChange={e => setProfileForm({ ...profileForm, companyProfile: e.target.value })}
+                            className={`h-40 bg-foreground/5 resize-none text-sm ${profileCompanyProfileTooLong ? "border-red-500 focus-visible:ring-red-500" : "border-foreground/10"}`}
+                            placeholder="Briefly describe your company's mission and offerings..."
+                        />
+                        {profileCompanyProfileTooLong && (
+                            <p className="text-xs text-red-500">Company profile cannot exceed {COMPANY_PROFILE_MAX_LENGTH} characters.</p>
+                        )}
                         <p className="text-xs text-muted-foreground">{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                     </div>
                     <div className="space-y-2">
@@ -1589,6 +1610,7 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
     ]);
     const [otherCertText, setOtherCertText] = useState(parsedOtherCert);
     const [companyProfile, setCompanyProfile] = useState(listing.companyProfileText || "");
+    const companyProfileTooLong = companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH;
     const [businessAddress, setBusinessAddress] = useState(listing.businessAddress || "");
     const [representatives, setRepresentatives] = useState<Array<{ firstName: string; lastName: string; email: string }>>(
         Array.isArray(listing.companyRepresentatives) && listing.companyRepresentatives.length > 0
@@ -1872,10 +1894,12 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                             <Textarea
                                 value={companyProfile}
                                 onChange={e => setCompanyProfile(e.target.value)}
-                                maxLength={COMPANY_PROFILE_MAX_LENGTH}
                                 placeholder="Describe your company's services and capabilities..."
-                                className="h-32 bg-foreground/5 border-foreground/10 resize-none"
+                                className={`h-32 bg-foreground/5 resize-none ${companyProfileTooLong ? "border-red-500 focus-visible:ring-red-500" : "border-foreground/10"}`}
                             />
+                            {companyProfileTooLong && (
+                                <p className="text-xs text-red-500 mt-2">Company profile cannot exceed {COMPANY_PROFILE_MAX_LENGTH} characters.</p>
+                            )}
                             <p className="text-xs text-muted-foreground mt-2">{companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                         </div>
                     )}
@@ -1957,6 +1981,7 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                         })}
                         disabled={
                             processing ||
+                            companyProfileTooLong ||
                             (certifications.includes(OTHER_CERT_OPTION) && !otherCertText.trim()) ||
                             representatives
                                 .map((rep) => ({

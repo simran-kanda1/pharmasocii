@@ -239,23 +239,15 @@ export default function AddListing() {
     const canUseRegionHelper = currentLimits.maxCountries === -1;
 
     // ─── Category count ───
+    // Count directly from current selections so repeated labels in taxonomy
+    // (common in consulting categories) do not get counted multiple times.
     const categoryCount = useMemo(() => {
-        const catDict = getCategoriesForGroup(dbGroup);
-        if (!catDict) return 0;
-        let count = 0;
-        for (const [cat, subs] of Object.entries(catDict)) {
-            if (subs.length === 0) { if (selectedCategories.includes(cat)) count++; }
-            else {
-                for (const entry of subs) {
-                    const subLabel = getSubLabel(entry);
-                    if (hasSubSub(entry)) {
-                        for (const ss of entry.subSubcategories) { if (selectedSubSubcategories.includes(ss)) count++; }
-                    } else { if (selectedSubcategories.includes(subLabel)) count++; }
-                }
-            }
-        }
-        return count;
-    }, [dbGroup, selectedCategories, selectedSubcategories, selectedSubSubcategories]);
+        const selectedUnits = new Set<string>();
+        selectedCategories.forEach((cat) => selectedUnits.add(`cat:${cat}`));
+        selectedSubcategories.forEach((sub) => selectedUnits.add(`sub:${sub}`));
+        selectedSubSubcategories.forEach((subSub) => selectedUnits.add(`subsub:${subSub}`));
+        return selectedUnits.size;
+    }, [selectedCategories, selectedSubcategories, selectedSubSubcategories]);
 
     const isCategoryLimitReached = currentLimits.maxCategories !== -1 && categoryCount >= currentLimits.maxCategories;
     const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
@@ -434,7 +426,8 @@ export default function AddListing() {
                 businessName: companyName,
                 selectedGroup: dbGroup,
                 selectedPlan: plan,
-                selectedAddon: addon === "none" ? "" : addon,
+                // Feature add-ons can only be purchased after the base plan is paid.
+                selectedAddon: "",
                 selectedCategories,
                 selectedSubcategories,
                 selectedSubSubcategories,
@@ -655,15 +648,15 @@ export default function AddListing() {
                                 </div>
                                 <div className="space-y-3">
                                     <Label>Feature Package (Optional)</Label>
-                                    <Select value={addon} onValueChange={setAddon}>
-                                        <SelectTrigger className="w-full h-12 bg-primary/10 border-primary/30"><SelectValue placeholder="No additional features" /></SelectTrigger>
+                                    <Select value={addon || "none"} onValueChange={setAddon} disabled>
+                                        <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10 opacity-70 cursor-not-allowed"><SelectValue placeholder="Available after plan payment" /></SelectTrigger>
                                         <SelectContent className="bg-background/90 border-foreground/10">
-                                            <SelectItem value="none">No additional features</SelectItem>
-                                            {getAddonsForGroup().map(a => (
-                                                <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>
-                                            ))}
+                                            <SelectItem value="none">Available after plan payment</SelectItem>
                                         </SelectContent>
                                     </Select>
+                                    <p className="text-xs text-muted-foreground">
+                                        Feature plans are unlocked in Dashboard only after this listing payment is completed.
+                                    </p>
                                 </div>
                             </div>
 

@@ -492,6 +492,32 @@ app.post("/api/create-feature-checkout", async (req, res) => {
         if (!feature) {
             return res.status(400).json({ error: `Unknown feature: ${featureId}` });
         }
+        if (!partnerId || !listingId || !collectionName) {
+            return res.status(400).json({ error: "Feature add-ons require a paid listing-backed plan." });
+        }
+
+        const partnerRef = db.collection("partnersCollection").doc(partnerId);
+        const listingRef = partnerRef.collection(collectionName).doc(listingId);
+        const listingSnap = await listingRef.get();
+        if (!listingSnap.exists) {
+            return res.status(404).json({ error: "Listing not found for feature add-on purchase." });
+        }
+
+        const listingData = listingSnap.data() || {};
+        if (listingData.status === "pending_payment" || listingData.active === false) {
+            return res.status(400).json({ error: "Complete listing plan payment before purchasing a feature add-on." });
+        }
+
+        const activePlanSnap = await partnerRef
+            .collection("planCollection")
+            .where("listingId", "==", listingId)
+            .where("collectionName", "==", collectionName)
+            .where("active", "==", true)
+            .limit(1)
+            .get();
+        if (activePlanSnap.empty) {
+            return res.status(400).json({ error: "No active paid plan found for this listing." });
+        }
 
         const session = await stripe.checkout.sessions.create({
             mode: "payment",
