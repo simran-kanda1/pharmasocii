@@ -1564,7 +1564,7 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
     const categories = listing.selectedCategories || [];
     const subcategories = listing.selectedSubcategories || [];
     const existingCertifications = Array.isArray(listing.certifications) ? listing.certifications : [];
-    const parsedOtherCert = (existingCertifications.find((cert) => cert.toLowerCase().startsWith("other:")) || "").replace(/^other:\s*/i, "");
+    const parsedOtherCert = (existingCertifications.find((cert: string) => cert.toLowerCase().startsWith("other:")) || "").replace(/^other:\s*/i, "");
     const [countries, setCountries] = useState<string[]>(listing.serviceCountries || []);
     const [regions, setRegions] = useState<string[]>(listing.serviceRegions || []);
     const [bslLevels, setBslLevels] = useState<string[]>(listing.bioSafetyLevel || []);

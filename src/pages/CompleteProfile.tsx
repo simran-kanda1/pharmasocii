@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { auth, db } from "@/firebase";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import { API_BASE_URL } from "@/apiConfig";
 import PhoneInput from 'react-phone-number-input'
@@ -501,18 +501,55 @@ export default function CompleteProfile() {
                 companyRepresentatives: normalizedRepresentatives,
             };
 
+            const collectionMap: Record<string, string> = {
+                "business_offerings": "businessOfferingsCollection",
+                "consulting": "consultingCollection",
+                "events": "eventsCollection",
+                "jobs": "jobsCollection"
+            };
+            const collectionName = collectionMap[formData.group];
+
+            const listingData: Record<string, any> = {
+                partnerId: auth.currentUser.uid,
+                businessName: formData.companyName,
+                selectedGroup: formData.group,
+                selectedPlan: formData.plan,
+                selectedAddon: formData.addon === "none" ? "" : formData.addon,
+                selectedCategories,
+                selectedSubcategories,
+                selectedSubSubcategories,
+                companyRepresentatives: normalizedRepresentatives,
+                status: "pending_payment",
+                createdAt: serverTimestamp(),
+            };
+
             // Group-specific fields
             if (formData.group === "business_offerings") {
                 Object.assign(updateData, { bioSafetyLevel: selectedBSL, certifications: normalizedCertifications, serviceRegions: selectedRegions, serviceCountries: selectedCountries });
+                Object.assign(listingData, {
+                    bioSafetyLevel: selectedBSL, certifications: normalizedCertifications,
+                    serviceRegions: selectedRegions, serviceCountries: selectedCountries,
+                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: formData.businessAddress,
+                });
             } else if (formData.group === "consulting") {
                 Object.assign(updateData, { serviceRegions: selectedRegions, serviceCountries: selectedCountries });
+                Object.assign(listingData, {
+                    serviceRegions: selectedRegions, serviceCountries: selectedCountries,
+                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: formData.businessAddress,
+                });
             } else if (formData.group === "events") {
                 Object.assign(updateData, { ...eventData });
+                Object.assign(listingData, { ...eventData });
             } else if (formData.group === "jobs") {
                 Object.assign(updateData, { ...jobData });
+                Object.assign(listingData, { ...jobData });
             }
 
             await updateDoc(partnerRef, updateData);
+
+            // Add listing to subcollection
+            const listingsRef = collection(partnerRef, collectionName);
+            const listingDoc = await addDoc(listingsRef, listingData);
 
             // Log to Audit Trail
             await logActivity({
@@ -524,7 +561,8 @@ export default function CompleteProfile() {
                 metadata: {
                     group: formData.group,
                     plan: formData.plan,
-                    categoriesCount: categoryCount
+                    categoriesCount: categoryCount,
+                    listingId: listingDoc.id
                 }
             });
 
@@ -538,7 +576,9 @@ export default function CompleteProfile() {
                     group: formData.group,
                     partnerId: auth.currentUser.uid,
                     partnerEmail: formData.email,
-                    successUrl: `${origin}/partner/dashboard?payment=success`,
+                    listingId: listingDoc.id,
+                    collectionName: collectionName,
+                    successUrl: `${origin}/partner/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
                     cancelUrl: `${origin}/partner/complete-profile?payment=cancelled`,
                 }),
             });
