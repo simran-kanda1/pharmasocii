@@ -1370,7 +1370,7 @@ export default function Dashboard() {
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Company profile <span className="text-red-400">*</span></Label>
                         <Textarea value={profileForm.companyProfile} onChange={e => setProfileForm({ ...profileForm, companyProfile: e.target.value })} maxLength={COMPANY_PROFILE_MAX_LENGTH} className="h-40 bg-foreground/5 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
-                        <p className="text-xs text-muted-foreground">{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
+                        <p className={`text-xs ${(profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Business address <span className="text-red-400">*</span></Label>
@@ -1876,7 +1876,7 @@ function EditListingModal({ listing, planConfig, onClose, onSave, processing }: 
                                 placeholder="Describe your company's services and capabilities..."
                                 className="h-32 bg-foreground/5 border-foreground/10 resize-none"
                             />
-                            <p className="text-xs text-muted-foreground mt-2">{companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
+                            <p className={`text-xs mt-2 ${companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                         </div>
                     )}
 
