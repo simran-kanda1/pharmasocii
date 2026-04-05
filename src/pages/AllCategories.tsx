@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { db } from "@/firebase";
-import { collectionGroup, query, where, getDocs } from "firebase/firestore";
+import { collection, collectionGroup, query, where, getDocs } from "firebase/firestore";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 
 //Types 
@@ -240,16 +240,16 @@ export default function AllCategories() {
                     docs = snap.docs;
                 } else if (currentTab === "consulting") {
                     const [servicesSnap, legacySnap] = await Promise.all([
-                        getDocs(query(collectionGroup(db, "consultingServicesCollection"), where("active", "==", true))),
-                        getDocs(query(collectionGroup(db, "consultingCollection"), where("active", "==", true))),
+                        getDocs(query(collection(db, "consultingServicesCollection"), where("active", "==", true))),
+                        getDocs(query(collection(db, "consultingCollection"), where("active", "==", true))),
                     ]);
                     docs = [...servicesSnap.docs, ...legacySnap.docs];
                 } else if (currentTab === "events") {
-                    const q = query(collectionGroup(db, "eventsCollection"), where("active", "==", true));
+                    const q = query(collection(db, "eventsCollection"), where("active", "==", true));
                     const snap = await getDocs(q);
                     docs = snap.docs;
                 } else if (currentTab === "jobs") {
-                    const q = query(collectionGroup(db, "jobsCollection"), where("active", "==", true));
+                    const q = query(collection(db, "jobsCollection"), where("active", "==", true));
                     const snap = await getDocs(q);
                     docs = snap.docs;
                 }
@@ -337,6 +337,10 @@ export default function AllCategories() {
                 item.eventName?.toLowerCase().includes(q) ||
                 item.jobTitle?.toLowerCase().includes(q) ||
                 item.category?.toLowerCase().includes(q) ||
+                (Array.isArray(item.categories) &&
+                    item.categories.some((c: string) =>
+                        c.toLowerCase().includes(q)
+                    )) ||
                 item.selectedGroup?.toLowerCase().includes(q) ||
                 (Array.isArray(item.selectedSubcategories) &&
                     item.selectedSubcategories.some((s: string) =>
@@ -354,6 +358,8 @@ export default function AllCategories() {
         // Get item's categories - support both old format (category: string) and new format (selectedCategories: array)
         const itemCategories: string[] = Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
             ? item.selectedCategories
+            : Array.isArray(item.categories) && item.categories.length > 0
+                ? item.categories
             : item.category 
                 ? [item.category]
                 : item.consultingCategory
@@ -723,6 +729,8 @@ export default function AllCategories() {
                                         const categoryInfo = [
                                             ...(Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
                                                 ? item.selectedCategories
+                                                : Array.isArray(item.categories) && item.categories.length > 0
+                                                    ? item.categories
                                                 : item.category
                                                     ? [item.category]
                                                     : item.consultingCategory

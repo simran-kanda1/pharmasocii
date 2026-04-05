@@ -454,9 +454,12 @@ export default function AddListing() {
                 Object.assign(listingData, { ...jobData });
             }
 
-            // Save listing to Firestore sub-collection
+            // Persist listings where the app expects to read them:
+            // only business offerings live under partnersCollection/{partnerId}.
             const partnerRef = doc(db, "partnersCollection", auth.currentUser.uid);
-            const listingsRef = collection(partnerRef, config.collectionName);
+            const listingsRef = dbGroup === "business_offerings"
+                ? collection(partnerRef, config.collectionName)
+                : collection(db, config.collectionName);
             const listingDoc = await addDoc(listingsRef, listingData);
 
             // Log to Audit Trail

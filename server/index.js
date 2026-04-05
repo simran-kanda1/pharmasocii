@@ -50,6 +50,16 @@ try {
 }
 const db = admin.firestore();
 
+function getListingDocRef(partnerId, collectionName, listingId) {
+    if (!collectionName || !listingId) return null;
+    const isPartnerEmbeddedCollection = collectionName === "businessOfferingsCollection";
+    if (isPartnerEmbeddedCollection) {
+        if (!partnerId) return null;
+        return db.collection("partnersCollection").doc(partnerId).collection(collectionName).doc(listingId);
+    }
+    return db.collection(collectionName).doc(listingId);
+}
+
 /**
  * Log action to auditLogs collection
  */
@@ -138,22 +148,26 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
 
                 // Attach feature visibility to a specific listing when provided.
                 if (listingId && resolvedCollectionName) {
-                    const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
-                    const listingSnap = await listingRef.get();
-                    if (listingSnap.exists) {
-                        listingData = listingSnap.data();
-                        detailSource = listingData;
-                        await listingRef.set({
-                            selectedAddon: featureId,
-                            featuredPlacement: featureId,
-                            isFeatured: true,
-                            active: true,
-                            status: "Approved",
-                            lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        }, { merge: true });
-                        console.log(`   ✓ Listing ${listingId} spotlight set to ${featureId}`);
+                    const listingRef = getListingDocRef(partnerId, resolvedCollectionName, listingId);
+                    if (!listingRef) {
+                        console.log(`   ⚠ Feature purchase listing could not be resolved: ${listingId}`);
                     } else {
-                        console.log(`   ⚠ Feature purchase listing not found: ${listingId}`);
+                        const listingSnap = await listingRef.get();
+                        if (listingSnap.exists) {
+                            listingData = listingSnap.data();
+                            detailSource = listingData;
+                            await listingRef.set({
+                                selectedAddon: featureId,
+                                featuredPlacement: featureId,
+                                isFeatured: true,
+                                active: true,
+                                status: "Approved",
+                                lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            }, { merge: true });
+                            console.log(`   ✓ Listing ${listingId} spotlight set to ${featureId}`);
+                        } else {
+                            console.log(`   ⚠ Feature purchase listing not found: ${listingId}`);
+                        }
                     }
                 }
                 if (partnerRef) {
@@ -172,57 +186,60 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 });
             } else if (listingId && resolvedCollectionName) {
                 // Core listing payment - update the listing status
-                const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
-
-                // Get the listing data for the transaction record
-                const listingSnap = await listingRef.get();
-                if (listingSnap.exists) {
-                    listingData = listingSnap.data();
-                    detailSource = listingData;
-                    console.log(`   ✓ Found listing data: categories=${listingData.selectedCategories?.length || 0}, countries=${listingData.serviceCountries?.length || 0}`);
-                }
-
-                await listingRef.update({
-                    status: "Approved",
-                    active: true,
-                    lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    stripeSubscriptionId: session.subscription || null,
-                    stripeCustomerId: session.customer || null
-                });
-                console.log(`   ✓ Listing ${listingId} updated to status: Approved`);
-
-                // Calculate billing period end date
-                const startDate = new Date();
-                const isYearly = planId?.includes('_yr');
-                const billingPeriodEnd = new Date(startDate);
-                if (isYearly) {
-                    billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                const listingRef = getListingDocRef(partnerId, resolvedCollectionName, listingId);
+                if (!listingRef) {
+                    console.log(`   ⚠ Listing could not be resolved for payment: ${listingId}`);
                 } else {
-                    billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
-                }
+                    // Get the listing data for the transaction record
+                    const listingSnap = await listingRef.get();
+                    if (listingSnap.exists) {
+                        listingData = listingSnap.data();
+                        detailSource = listingData;
+                        console.log(`   ✓ Found listing data: categories=${listingData.selectedCategories?.length || 0}, countries=${listingData.serviceCountries?.length || 0}`);
+                    }
 
-                // Also add to partner's plans with more details (idempotent by session)
-                const existingPlan = await db.collection("partnersCollection").doc(partnerId)
-                    .collection("planCollection").where("sessionId", "==", session.id).limit(1).get();
-                if (existingPlan.empty) {
-                    await db.collection("partnersCollection").doc(partnerId).collection("planCollection").add({
-                        planId,
-                        planName: planId.replace(/_/g, " "),
-                        startDate: startDate,
-                        billingPeriodEnd: billingPeriodEnd,
-                        billingInterval: isYearly ? "year" : "month",
+                    await listingRef.update({
+                        status: "Approved",
                         active: true,
-                        lastPaymentReceivedAt: startDate,
-                        listingId,
-                        collectionName: resolvedCollectionName,
+                        lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                         stripeSubscriptionId: session.subscription || null,
-                        stripeCustomerId: session.customer || null,
-                        sessionId: session.id,
-                        companyRepresentatives: listingData?.companyRepresentatives || []
+                        stripeCustomerId: session.customer || null
                     });
-                    console.log(`   ✓ Plan record created with billing period end: ${billingPeriodEnd.toISOString()}`);
-                } else {
-                    console.log(`   ℹ Plan record already exists for session ${session.id}`);
+                    console.log(`   ✓ Listing ${listingId} updated to status: Approved`);
+
+                    // Calculate billing period end date
+                    const startDate = new Date();
+                    const isYearly = planId?.includes('_yr');
+                    const billingPeriodEnd = new Date(startDate);
+                    if (isYearly) {
+                        billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                    } else {
+                        billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                    }
+
+                    // Also add to partner's plans with more details (idempotent by session)
+                    const existingPlan = await db.collection("partnersCollection").doc(partnerId)
+                        .collection("planCollection").where("sessionId", "==", session.id).limit(1).get();
+                    if (existingPlan.empty) {
+                        await db.collection("partnersCollection").doc(partnerId).collection("planCollection").add({
+                            planId,
+                            planName: planId.replace(/_/g, " "),
+                            startDate: startDate,
+                            billingPeriodEnd: billingPeriodEnd,
+                            billingInterval: isYearly ? "year" : "month",
+                            active: true,
+                            lastPaymentReceivedAt: startDate,
+                            listingId,
+                            collectionName: resolvedCollectionName,
+                            stripeSubscriptionId: session.subscription || null,
+                            stripeCustomerId: session.customer || null,
+                            sessionId: session.id,
+                            companyRepresentatives: listingData?.companyRepresentatives || []
+                        });
+                        console.log(`   ✓ Plan record created with billing period end: ${billingPeriodEnd.toISOString()}`);
+                    } else {
+                        console.log(`   ℹ Plan record already exists for session ${session.id}`);
+                    }
                 }
             } else {
                 console.log(`   ℹ No listingId (${listingId}) or collectionName (${resolvedCollectionName}) - creating account-level plan record`);
@@ -497,7 +514,10 @@ app.post("/api/create-feature-checkout", async (req, res) => {
         }
 
         const partnerRef = db.collection("partnersCollection").doc(partnerId);
-        const listingRef = partnerRef.collection(collectionName).doc(listingId);
+        const listingRef = getListingDocRef(partnerId, collectionName, listingId);
+        if (!listingRef) {
+            return res.status(400).json({ error: "Unable to resolve listing for feature add-on purchase." });
+        }
         const listingSnap = await listingRef.get();
         if (!listingSnap.exists) {
             return res.status(404).json({ error: "Listing not found for feature add-on purchase." });
@@ -608,7 +628,11 @@ app.post("/api/upgrade-subscription", async (req, res) => {
 
                 // Update the listing and plan in Firestore
                 if (listingId && collectionName) {
-                    await db.collection("partnersCollection").doc(partnerId).collection(collectionName).doc(listingId).update({
+                    const listingRef = getListingDocRef(partnerId, collectionName, listingId);
+                    if (!listingRef) {
+                        return res.status(400).json({ error: "Unable to resolve listing for upgrade." });
+                    }
+                    await listingRef.update({
                         selectedPlan: newPlanId,
                     });
 
@@ -794,7 +818,10 @@ app.post("/api/verify-payment", async (req, res) => {
             }
 
             if (listingId && resolvedCollectionName) {
-                const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
+                const listingRef = getListingDocRef(partnerId, resolvedCollectionName, listingId);
+                if (!listingRef) {
+                    return res.status(400).json({ error: "Unable to resolve listing for feature verification." });
+                }
                 const listingSnap = await listingRef.get();
                 if (listingSnap.exists) {
                     listingData = listingSnap.data();
@@ -820,7 +847,10 @@ app.post("/api/verify-payment", async (req, res) => {
             }
         } else if (listingId && resolvedCollectionName) {
             // Check current listing status
-            const listingRef = db.collection("partnersCollection").doc(partnerId).collection(resolvedCollectionName).doc(listingId);
+            const listingRef = getListingDocRef(partnerId, resolvedCollectionName, listingId);
+            if (!listingRef) {
+                return res.status(400).json({ error: "Unable to resolve listing for payment verification." });
+            }
             const listingSnap = await listingRef.get();
 
             if (listingSnap.exists) {

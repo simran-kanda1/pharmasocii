@@ -38,12 +38,21 @@ export default function ListingDetail() {
                 if (collectionNames.length > 0) {
                     let docSnap: any = null;
                     for (const collectionName of collectionNames) {
-                        const q = query(collectionGroup(db, collectionName), where("active", "==", true), limit(300));
-                        const querySnap = await getDocs(q);
-                        const found = querySnap.docs.find(d => d.id === id);
-                        if (found) {
-                            docSnap = found;
-                            break;
+                        if (type === "business") {
+                            const q = query(collectionGroup(db, collectionName), where("active", "==", true), limit(300));
+                            const querySnap = await getDocs(q);
+                            const found = querySnap.docs.find(d => d.id === id);
+                            if (found) {
+                                docSnap = found;
+                                break;
+                            }
+                        } else {
+                            const directRef = doc(db, collectionName, id);
+                            const directSnap = await getDoc(directRef);
+                            if (directSnap.exists() && directSnap.data()?.active !== false) {
+                                docSnap = directSnap;
+                                break;
+                            }
                         }
                     }
 

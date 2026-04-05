@@ -7,7 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 import { db } from "@/firebase";
-import { collectionGroup, query, where, limit, getDocs } from "firebase/firestore";
+import { collection, collectionGroup, query, where, limit, getDocs } from "firebase/firestore";
 
 
 
@@ -36,7 +36,7 @@ export default function Home() {
                 );
 
                 // Fetch featured jobs
-                const jobQuery = query(collectionGroup(db, "jobsCollection"), where("active", "==", true), limit(40));
+                const jobQuery = query(collection(db, "jobsCollection"), where("active", "==", true), limit(40));
                 const jobDocs = await getDocs(jobQuery);
                 setFeaturedJobs(
                     jobDocs.docs
@@ -46,7 +46,7 @@ export default function Home() {
                 );
 
                 // Fetch featured events
-                const evtQuery = query(collectionGroup(db, "eventsCollection"), where("active", "==", true), limit(40));
+                const evtQuery = query(collection(db, "eventsCollection"), where("active", "==", true), limit(40));
                 const evtDocs = await getDocs(evtQuery);
                 setFeaturedEvents(
                     evtDocs.docs
@@ -57,8 +57,8 @@ export default function Home() {
 
                 // Fetch featured consulting
                 const [consultingServicesDocs, consultingLegacyDocs] = await Promise.all([
-                    getDocs(query(collectionGroup(db, "consultingServicesCollection"), where("active", "==", true), limit(60))),
-                    getDocs(query(collectionGroup(db, "consultingCollection"), where("active", "==", true), limit(60))),
+                    getDocs(query(collection(db, "consultingServicesCollection"), where("active", "==", true), limit(60))),
+                    getDocs(query(collection(db, "consultingCollection"), where("active", "==", true), limit(60))),
                 ]);
                 const mergedConsulting = [
                     ...consultingServicesDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
