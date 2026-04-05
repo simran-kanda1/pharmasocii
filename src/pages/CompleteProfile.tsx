@@ -139,7 +139,7 @@ export default function CompleteProfile() {
         companyName: "", companyWebsite: "", businessPhone: "", linkedin: "",
         billingEmail: "", businessId: "",
         companyProfile: "", businessAddress: "",
-        group: "", plan: "", addon: "",
+        group: "", plan: "", addon: "none",
     });
 
     // ─── Business details state ───
@@ -236,34 +236,15 @@ export default function CompleteProfile() {
     const canUseRegionHelper = currentLimits.maxCountries === -1;
 
     // ─── Count selected categories from lowest level ───
+    // Count directly from selected arrays so repeated labels in taxonomy
+    // (common in consulting/business structures) don't inflate the total.
     const categoryCount = useMemo(() => {
-        const catDict = getCategoriesForGroup(formData.group);
-        if (!catDict) return 0;
-        let count = 0;
-
-        // For categories with no subcategories, they count directly if selected
-        for (const [cat, subs] of Object.entries(catDict)) {
-            if (subs.length === 0) {
-                if (selectedCategories.includes(cat)) count++;
-            } else {
-                // For categories with subs, count the selected subcategories
-                for (const entry of subs) {
-                    const subLabel = getSubLabel(entry);
-                    if (hasSubSub(entry)) {
-                        // 3-level: count selected sub-subcategories under this sub
-                        for (const ssLabel of entry.subSubcategories) {
-                            if (selectedSubSubcategories.includes(ssLabel)) count++;
-                        }
-                        // If the sub itself is checked but has subSubs, don't double count
-                    } else {
-                        // 2-level: count if the subcategory is selected
-                        if (selectedSubcategories.includes(subLabel)) count++;
-                    }
-                }
-            }
-        }
-        return count;
-    }, [formData.group, selectedCategories, selectedSubcategories, selectedSubSubcategories]);
+        const selectedUnits = new Set<string>();
+        selectedCategories.forEach((cat) => selectedUnits.add(`cat:${cat}`));
+        selectedSubcategories.forEach((sub) => selectedUnits.add(`sub:${sub}`));
+        selectedSubSubcategories.forEach((subSub) => selectedUnits.add(`subsub:${subSub}`));
+        return selectedUnits.size;
+    }, [selectedCategories, selectedSubcategories, selectedSubSubcategories]);
 
     const isCategoryLimitReached = currentLimits.maxCategories !== -1 && categoryCount >= currentLimits.maxCategories;
     const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
@@ -398,23 +379,6 @@ export default function CompleteProfile() {
         }
     };
 
-    const getAddonsForGroup = (group: string) => {
-        switch (group) {
-            case 'business_offerings': case 'consulting':
-                return [
-                    { value: 'addon_landing', label: 'Landing page (within module) - $400.00' },
-                    { value: 'addon_home', label: 'Home page/Brand Visibility - $800.00' },
-                    { value: 'addon_both', label: 'Both (Listing promotion) - $1000.00' },
-                ];
-            case 'events': case 'jobs':
-                return [
-                    { value: 'addon_visibility', label: 'Brand visibility on home page - $800.00' },
-                    { value: 'addon_both', label: 'Both (Module & Home page) - $1000.00' },
-                ];
-            default: return [];
-        }
-    };
-
     // ─── Plan details text ───
     const getPlanDetailsText = (planId: string): string[] => {
         const limits = PLAN_LIMITS[planId];
@@ -496,7 +460,8 @@ export default function CompleteProfile() {
                 businessAddress: formData.businessAddress,
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,
-                selectedAddon: formData.addon === "none" ? "" : formData.addon,
+                // Feature add-ons can only be purchased after base plan payment.
+                selectedAddon: "",
                 selectedCategories, selectedSubcategories, selectedSubSubcategories,
                 companyRepresentatives: normalizedRepresentatives,
             };
@@ -514,7 +479,8 @@ export default function CompleteProfile() {
                 businessName: formData.companyName,
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,
-                selectedAddon: formData.addon === "none" ? "" : formData.addon,
+                // Feature add-ons can only be purchased after base plan payment.
+                selectedAddon: "",
                 selectedCategories,
                 selectedSubcategories,
                 selectedSubSubcategories,
@@ -934,15 +900,17 @@ export default function CompleteProfile() {
                                 {formData.group && (
                                     <div className="space-y-3 md:col-span-2 pt-4 border-t border-foreground/10">
                                         <Label>Separate Feature Package (Optional Upgrade)</Label>
-                                        <Select value={formData.addon} onValueChange={(val) => handleSelectChange("addon", val)}>
-                                            <SelectTrigger className="w-full h-12 bg-primary/10 border-primary/30"><SelectValue placeholder="No additional features selected" /></SelectTrigger>
+                                        <Select value={formData.addon || "none"} onValueChange={(val) => handleSelectChange("addon", val)} disabled>
+                                            <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10 opacity-70 cursor-not-allowed">
+                                                <SelectValue placeholder="Available after plan payment" />
+                                            </SelectTrigger>
                                             <SelectContent className="bg-background/90 border-foreground/10">
-                                                <SelectItem value="none">No additional features</SelectItem>
-                                                {getAddonsForGroup(formData.group).map(addon => (
-                                                    <SelectItem key={addon.value} value={addon.value}>{addon.label}</SelectItem>
-                                                ))}
+                                                <SelectItem value="none">Available after plan payment</SelectItem>
                                             </SelectContent>
                                         </Select>
+                                        <p className="text-xs text-muted-foreground">
+                                            Feature plans are unlocked in Dashboard only after this listing payment is completed.
+                                        </p>
                                     </div>
                                 )}
                             </CardContent>
