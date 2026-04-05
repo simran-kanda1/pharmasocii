@@ -199,7 +199,6 @@ export default function PartnerRegister() {
                             <Label htmlFor="phone" className="text-foreground/80">Phone number *</Label>
                             <PhoneInput
                                 id="phone"
-                                international
                                 defaultCountry="US"
                                 value={formData.phone}
                                 onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}

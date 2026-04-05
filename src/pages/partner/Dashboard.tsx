@@ -1321,7 +1321,7 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Phone <span className="text-red-400">*</span></Label>
-                        <PhoneInput international defaultCountry="CA" value={profileForm.phone} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, phone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
+                        <PhoneInput defaultCountry="US" value={profileForm.phone} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, phone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
                     </div>
                 </div>
 
@@ -1347,7 +1347,7 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Business phone <span className="text-red-400">*</span></Label>
-                        <PhoneInput international defaultCountry="CA" value={profileForm.businessPhone} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, businessPhone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
+                        <PhoneInput defaultCountry="US" value={profileForm.businessPhone} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, businessPhone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Linkedin profile</Label>
