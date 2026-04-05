@@ -349,22 +349,7 @@ export default function AddListing() {
         }
     };
 
-    const getAddonsForGroup = () => {
-        switch (dbGroup) {
-            case "business_offerings": case "consulting":
-                return [
-                    { value: "addon_landing", label: "Landing page (within module) - $400.00" },
-                    { value: "addon_home", label: "Home page/Brand Visibility - $800.00" },
-                    { value: "addon_both", label: "Both (Listing promotion) - $1000.00" },
-                ];
-            case "events": case "jobs":
-                return [
-                    { value: "addon_visibility", label: "Brand visibility on home page - $800.00" },
-                    { value: "addon_both", label: "Both (Module & Home page) - $1000.00" },
-                ];
-            default: return [];
-        }
-    };
+
 
     const getPlanDetailsText = (planId: string): string[] => {
         const limits = PLAN_LIMITS[planId];
