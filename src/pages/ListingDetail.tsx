@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BUSINESS_CATEGORIES } from "./AllCategories";
+import { REGION_COUNTRY_MAP } from "@/constants/regions";
 
 // Simple skeleton placeholder
 const Skeleton = ({ className }: { className: string }) => <div className={`animate-pulse bg-muted rounded ${className}`} />;
@@ -16,6 +17,7 @@ export default function ListingDetail() {
     const [item, setItem] = useState<any>(null);
     const [partner, setPartner] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [activeRegion, setActiveRegion] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchListing = async () => {
@@ -87,6 +89,21 @@ export default function ListingDetail() {
 
         fetchListing();
     }, [type, id]);
+
+    // Handle initial active region
+    useEffect(() => {
+        if (item?.serviceRegions && item.serviceRegions.length > 0) {
+            setActiveRegion(item.serviceRegions[0]);
+        } else if (item?.serviceCountries && item.serviceCountries.length > 0) {
+            // Group by region if no regions provided
+            for (const [region, countries] of Object.entries(REGION_COUNTRY_MAP)) {
+                if (item.serviceCountries.some((c: string) => countries.includes(c))) {
+                    setActiveRegion(region);
+                    break;
+                }
+            }
+        }
+    }, [item]);
 
     if (loading) {
         return (
@@ -344,38 +361,107 @@ export default function ListingDetail() {
                                 </h3>
                             </div>
                             <div className="p-8">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                                    {/* Regions */}
-                                    <div className="space-y-4">
-                                        <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest px-1">Regions Served</h4>
-                                        <div className="flex flex-wrap gap-2">
-                                            {Array.isArray(item.serviceRegions) && item.serviceRegions.length > 0 ? (
-                                                item.serviceRegions.map((region: string, idx: number) => (
-                                                    <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-muted/50 border-foreground/5 hover:bg-slate-200 transition-colors text-slate-700">
-                                                        {region}
-                                                    </Badge>
-                                                ))
-                                            ) : (
-                                                <p className="text-muted-foreground italic text-sm px-1">Global Coverage</p>
-                                            )}
-                                        </div>
-                                    </div>
+                                <div className="space-y-8">
+                                    {/* Pre-process Regions and Countries */}
+                                    {(() => {
+                                        const regionsMapping: Record<string, string[]> = {};
+                                        const unmatchedCountries: string[] = [];
+                                        const serviceCountries = Array.isArray(item.serviceCountries) ? item.serviceCountries : [];
+                                        const serviceRegions = Array.isArray(item.serviceRegions) ? item.serviceRegions : [];
 
-                                    {/* Countries */}
-                                    <div className="space-y-4">
-                                        <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest px-1">Countries Served</h4>
-                                        <div className="flex flex-wrap gap-2">
-                                            {Array.isArray(item.serviceCountries) && item.serviceCountries.length > 0 ? (
-                                                item.serviceCountries.map((country: string, idx: number) => (
-                                                    <Badge key={idx} variant="outline" className="text-sm py-1.5 px-4 rounded-xl border-foreground/10 bg-background hover:border-slate-400 transition-all font-semibold">
-                                                        {country}
-                                                    </Badge>
-                                                ))
-                                            ) : (
-                                                <p className="text-muted-foreground italic text-sm px-1">Multiple International Markets</p>
-                                            )}
-                                        </div>
-                                    </div>
+                                        // 1. Initialize regionsMapping with explicit regions
+                                        serviceRegions.forEach((r: string) => {
+                                            if (r) regionsMapping[r] = [];
+                                        });
+
+                                        // 2. Group countries into regions
+                                        serviceCountries.forEach((country: string) => {
+                                            let matched = false;
+                                            const normalizedCountry = country.trim().toLowerCase();
+                                            
+                                            // Check each region in the map
+                                            for (const [region, regionCountries] of Object.entries(REGION_COUNTRY_MAP)) {
+                                                if (regionCountries.some(rc => rc.trim().toLowerCase() === normalizedCountry)) {
+                                                    if (!regionsMapping[region]) regionsMapping[region] = [];
+                                                    if (!regionsMapping[region].includes(country)) {
+                                                        regionsMapping[region].push(country);
+                                                    }
+                                                    matched = true;
+                                                }
+                                            }
+
+                                            if (!matched && !unmatchedCountries.includes(country)) {
+                                                unmatchedCountries.push(country);
+                                            }
+                                        });
+
+                                        // 3. Handle unmatched countries (International/General)
+                                        if (unmatchedCountries.length > 0) {
+                                            const generalKey = "Global / Other";
+                                            if (!regionsMapping[generalKey]) regionsMapping[generalKey] = [];
+                                            regionsMapping[generalKey].push(...unmatchedCountries);
+                                        }
+
+                                        const regionList = Object.keys(regionsMapping).sort();
+                                        
+                                        // Ensure active region is valid
+                                        const currentActive = regionList.includes(activeRegion || "") 
+                                            ? activeRegion 
+                                            : (regionList.length > 0 ? regionList[0] : null);
+
+                                        if (regionList.length === 0) {
+                                            return <p className="text-muted-foreground italic text-sm px-1">Global Coverage</p>;
+                                        }
+
+                                        return (
+                                            <>
+                                                {/* Regions Tabs */}
+                                                <div className="space-y-4">
+                                                    <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest px-1 text-slate-400">Regions Served</h4>
+                                                    <div className="flex flex-wrap gap-2">
+                                                        {regionList.map((region) => (
+                                                            <button
+                                                                key={region}
+                                                                onClick={() => setActiveRegion(region)}
+                                                                className={`text-sm py-2 px-6 rounded-xl transition-all border-2 ${
+                                                                    currentActive === region 
+                                                                    ? "bg-primary text-primary-foreground border-primary shadow-md transform scale-105" 
+                                                                    : "bg-muted/50 text-slate-600 border-transparent hover:bg-slate-200"
+                                                                }`}
+                                                            >
+                                                                {region}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                {/* Countries in Active Region */}
+                                                {currentActive && (
+                                                    <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                        <div className="flex items-center gap-2">
+                                                            <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest px-1 text-slate-400">Markets in {currentActive}</h4>
+                                                            <div className="h-px flex-1 bg-foreground/5"></div>
+                                                        </div>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {regionsMapping[currentActive].length === 0 ? (
+                                                                <div className="p-6 rounded-2xl bg-slate-50/50 border border-dashed border-slate-200 w-full text-center">
+                                                                    <p className="text-muted-foreground italic text-sm">
+                                                                        Full coverage across all major markets within {currentActive}
+                                                                    </p>
+                                                                </div>
+                                                            ) : (
+                                                                regionsMapping[currentActive].sort().map((country: string, idx: number) => (
+                                                                    <Badge key={idx} variant="outline" className="text-sm py-2 px-5 rounded-xl border-foreground/10 bg-background hover:border-primary/30 transition-all font-semibold">
+                                                                        {country}
+                                                                    </Badge>
+                                                                ))
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </Card>

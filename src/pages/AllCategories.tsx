@@ -225,16 +225,63 @@ export default function AllCategories() {
     const [selectedSubSubcategories, setSelectedSubSubcategories] = useState<string[]>([]);
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
     const [expandedSubcategories, setExpandedSubcategories] = useState<string[]>([]);
-    const [searchCountry, setSearchCountry] = useState("");
+
     const [healthAuthSearch, setHealthAuthSearch] = useState("");
     const [showAllCategories, setShowAllCategories] = useState(false);
-    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [viewMode, setViewMode] = useState<"grid" | "list">("list");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 30;
 
+    // ── Persistence Logic ──
+
+    const [isRestored, setIsRestored] = useState(false);
+
+    // Load state from sessionStorage on mount or tab change
     useEffect(() => {
-        setViewMode("grid");
-        setCurrentPage(1);
+        setIsRestored(false);
+        const prefix = `pharmasocii_${currentTab}_`;
+        
+        const q = sessionStorage.getItem(`${prefix}searchQuery`);
+        if (q !== null) setSearchQuery(q);
+        else setSearchQuery("");
+
+        const cats = sessionStorage.getItem(`${prefix}selectedCategories`);
+        if (cats !== null) setSelectedCategories(JSON.parse(cats));
+        else setSelectedCategories([]);
+
+        const subs = sessionStorage.getItem(`${prefix}selectedSubcategories`);
+        if (subs !== null) setSelectedSubcategories(JSON.parse(subs));
+        else setSelectedSubcategories([]);
+
+        const subSubs = sessionStorage.getItem(`${prefix}selectedSubSubcategories`);
+        if (subSubs !== null) setSelectedSubSubcategories(JSON.parse(subSubs));
+        else setSelectedSubSubcategories([]);
+
+        const view = sessionStorage.getItem(`${prefix}viewMode`);
+        if (view !== null) setViewMode(view as "grid" | "list");
+        else setViewMode("list");
+
+        const page = sessionStorage.getItem(`${prefix}currentPage`);
+        if (page !== null) setCurrentPage(Number(page));
+        else setCurrentPage(1);
+
+        setIsRestored(true);
+    }, [currentTab]);
+
+    // Save state to sessionStorage on any change
+    useEffect(() => {
+        if (!isRestored) return;
+
+        const prefix = `pharmasocii_${currentTab}_`;
+        sessionStorage.setItem(`${prefix}searchQuery`, searchQuery);
+        sessionStorage.setItem(`${prefix}selectedCategories`, JSON.stringify(selectedCategories));
+        sessionStorage.setItem(`${prefix}selectedSubcategories`, JSON.stringify(selectedSubcategories));
+        sessionStorage.setItem(`${prefix}selectedSubSubcategories`, JSON.stringify(selectedSubSubcategories));
+        sessionStorage.setItem(`${prefix}viewMode`, viewMode);
+        sessionStorage.setItem(`${prefix}currentPage`, currentPage.toString());
+    }, [currentTab, searchQuery, selectedCategories, selectedSubcategories, selectedSubSubcategories, viewMode, currentPage, isRestored]);
+
+    useEffect(() => {
         const fetchAllCategoriesData = async () => {
             setLoading(true);
             try {
@@ -322,8 +369,8 @@ export default function AllCategories() {
         setSelectedCategories([]);
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
-        setSearchCountry("");
-        setViewMode("grid");
+
+        setViewMode("list");
         setCurrentPage(1);
     };
 
@@ -331,7 +378,7 @@ export default function AllCategories() {
         setSelectedCategories([]);
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
-        setSearchCountry("");
+
         setCurrentPage(1);
     };
 
@@ -411,6 +458,13 @@ export default function AllCategories() {
                 item.eventName?.toLowerCase().includes(q) ||
                 item.jobTitle?.toLowerCase().includes(q) ||
                 item.category?.toLowerCase().includes(q) ||
+                item.businessCountry?.toLowerCase().includes(q) ||
+                item.eventCountry?.toLowerCase().includes(q) ||
+                item.location?.toLowerCase().includes(q) ||
+                (Array.isArray(item.serviceCountries) &&
+                    item.serviceCountries.some((c: string) =>
+                        c.toLowerCase().includes(q)
+                    )) ||
                 (Array.isArray(item.categories) &&
                     item.categories.some((c: string) =>
                         c.toLowerCase().includes(q)
@@ -463,14 +517,7 @@ export default function AllCategories() {
             }
         }
 
-        // Country search: check address string AND serviceCountries array
-        if (searchCountry) {
-            const q = searchCountry.toLowerCase();
-            const inAddress = item.businessAddress?.toLowerCase().includes(q);
-            const inCountries = Array.isArray(item.serviceCountries) &&
-                item.serviceCountries.some((c: string) => c.toLowerCase().includes(q));
-            if (!inAddress && !inCountries) return false;
-        }
+
 
         return true;
     });
@@ -495,7 +542,15 @@ export default function AllCategories() {
             item.businessName?.toLowerCase().includes(q) ||
             item.primaryName?.toLowerCase().includes(q) ||
             item.eventName?.toLowerCase().includes(q) ||
-            item.jobTitle?.toLowerCase().includes(q)
+            item.jobTitle?.toLowerCase().includes(q) ||
+            item.category?.toLowerCase().includes(q) ||
+            item.businessCountry?.toLowerCase().includes(q) ||
+            item.eventCountry?.toLowerCase().includes(q) ||
+            item.location?.toLowerCase().includes(q) ||
+            (Array.isArray(item.serviceCountries) &&
+                item.serviceCountries.some((c: string) =>
+                    c.toLowerCase().includes(q)
+                ))
         );
     });
     // ── Sidebar: uses selectedCategories array everywhere ──
@@ -647,7 +702,7 @@ export default function AllCategories() {
                     <div className="relative flex-1 w-full">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
                         <Input
-                            placeholder={`Search ${CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title.toLowerCase()}...`}
+                            placeholder="search by business offerings, country, or category"
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
@@ -757,10 +812,7 @@ export default function AllCategories() {
                     <div className="flex flex-col md:flex-row gap-8 pb-24">
                         <div className="w-full md:w-72 shrink-0 space-y-6">
                             <div className="space-y-4">
-                                <div>
-                                    <label className="text-sm font-semibold mb-2 block">Search by country</label>
-                                    <Input className="h-10 rounded-xl bg-foreground/5 border-foreground/10" placeholder="" value={searchCountry} onChange={(e) => setSearchCountry(e.target.value)} />
-                                </div>
+
                                 <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                     {renderSidebarCategories()}
                                 </div>
