@@ -296,7 +296,7 @@ export default function AdminDashboard() {
       setPartners(snap.docs.map((d) => ({ id: d.id, ...d.data() } as PartnerRecord)));
     });
 
-    const qTransactions = query(collection(db, "transactionsCollection"), orderBy("createdAt", "desc"), limit(50));
+    const qTransactions = query(collection(db, "transactionsCollection"), orderBy("createdAt", "desc"), limit(2000));
     const unsubTransactions = onSnapshot(qTransactions, (snap) => {
       setTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
@@ -358,7 +358,7 @@ export default function AdminDashboard() {
     fetchListings();
     const listingsInterval = setInterval(fetchListings, 30000);
 
-    const qAudit = query(collection(db, "auditLogs"), orderBy("timestamp", "desc"), limit(100));
+    const qAudit = query(collection(db, "auditLogs"), orderBy("timestamp", "desc"), limit(2000));
     const unsubAudit = onSnapshot(qAudit, (snap) => {
       setAuditLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });

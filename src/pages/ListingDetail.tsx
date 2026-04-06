@@ -12,6 +12,7 @@ import { BUSINESS_CATEGORIES } from "./AllCategories";
 const Skeleton = ({ className }: { className: string }) => <div className={`animate-pulse bg-muted rounded ${className}`} />;
 
 export default function ListingDetail() {
+    const BUSINESS_LOOKUP_LIMIT = 10000;
     const { type, id } = useParams<{ type: string; id: string }>();
     const [item, setItem] = useState<any>(null);
     const [partner, setPartner] = useState<any>(null);
@@ -39,11 +40,19 @@ export default function ListingDetail() {
                     let docSnap: any = null;
                     for (const collectionName of collectionNames) {
                         if (type === "business") {
-                            const q = query(collectionGroup(db, collectionName), where("active", "==", true), limit(300));
+                            const q = query(collectionGroup(db, collectionName), where("active", "==", true), limit(BUSINESS_LOOKUP_LIMIT));
                             const querySnap = await getDocs(q);
-                            const found = querySnap.docs.find(d => d.id === id);
+                            const found = querySnap.docs.find((d) => d.id === id);
                             if (found) {
                                 docSnap = found;
+                                break;
+                            }
+
+                            // Fallback for legacy records stored in top-level collections.
+                            const directBusinessRef = doc(db, collectionName, id);
+                            const directBusinessSnap = await getDoc(directBusinessRef);
+                            if (directBusinessSnap.exists() && directBusinessSnap.data()?.active !== false) {
+                                docSnap = directBusinessSnap;
                                 break;
                             }
                         } else {

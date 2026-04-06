@@ -9,6 +9,8 @@ import { AutoCarousel } from "@/components/ui/auto-carousel";
 import { db } from "@/firebase";
 import { collection, collectionGroup, query, where, limit, getDocs } from "firebase/firestore";
 
+const FEATURE_FETCH_LIMIT = 5000;
+
 
 
 export default function Home() {
@@ -26,7 +28,7 @@ export default function Home() {
                 };
 
                 // Fetch business listings for homepage spotlight.
-                const businessQuery = query(collectionGroup(db, "businessOfferingsCollection"), where("active", "==", true), limit(60));
+                const businessQuery = query(collectionGroup(db, "businessOfferingsCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT));
                 const businessDocs = await getDocs(businessQuery);
                 setFeaturedBusinesses(
                     businessDocs.docs
@@ -36,7 +38,7 @@ export default function Home() {
                 );
 
                 // Fetch featured jobs
-                const jobQuery = query(collection(db, "jobsCollection"), where("active", "==", true), limit(40));
+                const jobQuery = query(collection(db, "jobsCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT));
                 const jobDocs = await getDocs(jobQuery);
                 setFeaturedJobs(
                     jobDocs.docs
@@ -46,7 +48,7 @@ export default function Home() {
                 );
 
                 // Fetch featured events
-                const evtQuery = query(collection(db, "eventsCollection"), where("active", "==", true), limit(40));
+                const evtQuery = query(collection(db, "eventsCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT));
                 const evtDocs = await getDocs(evtQuery);
                 setFeaturedEvents(
                     evtDocs.docs
@@ -57,8 +59,8 @@ export default function Home() {
 
                 // Fetch featured consulting
                 const [consultingServicesDocs, consultingLegacyDocs] = await Promise.all([
-                    getDocs(query(collection(db, "consultingServicesCollection"), where("active", "==", true), limit(60))),
-                    getDocs(query(collection(db, "consultingCollection"), where("active", "==", true), limit(60))),
+                    getDocs(query(collection(db, "consultingServicesCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT))),
+                    getDocs(query(collection(db, "consultingCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT))),
                 ]);
                 const mergedConsulting = [
                     ...consultingServicesDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
