@@ -228,8 +228,10 @@ export default function AllCategories() {
     const [searchCountry, setSearchCountry] = useState("");
     const [healthAuthSearch, setHealthAuthSearch] = useState("");
     const [showAllCategories, setShowAllCategories] = useState(false);
+    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
 
     useEffect(() => {
+        setViewMode("grid");
         const fetchAllCategoriesData = async () => {
             setLoading(true);
             try {
@@ -311,6 +313,14 @@ export default function AllCategories() {
     };
 
     const resetCategorySelection = () => {
+        setSelectedCategories([]);
+        setSelectedSubcategories([]);
+        setSelectedSubSubcategories([]);
+        setSearchCountry("");
+        setViewMode("grid");
+    };
+
+    const clearFilters = () => {
         setSelectedCategories([]);
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
@@ -644,7 +654,7 @@ export default function AllCategories() {
                                 {s} <X className="w-3 h-3" />
                             </span>
                         ))}
-                        <button onClick={resetCategorySelection} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
+                        <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
                             Clear all
                         </button>
                     </div>
@@ -652,7 +662,7 @@ export default function AllCategories() {
 
                 {loading ? (
                     <div className="flex-1 flex items-center justify-center p-24 text-muted-foreground">Loading {currentTab}...</div>
-                ) : isMainCategoryTab && selectedCategories.length === 0 ? (
+                ) : isMainCategoryTab && viewMode === "grid" ? (
                     <div className="flex flex-col gap-16 pb-24 w-full max-w-7xl mx-auto">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {(showAllCategories
@@ -664,7 +674,7 @@ export default function AllCategories() {
                                 )
                                 .map((catName) => (<div
                                     key={catName}
-                                    onClick={() => toggleCategory(catName)}
+                                    onClick={() => { toggleCategory(catName); setViewMode("list"); }}
                                     className="p-6 border border-foreground/10 hover:border-primary/50 transition-all rounded-xl shadow-sm hover:shadow-md bg-background cursor-pointer flex flex-col justify-center items-center text-center min-h-[120px] group"
                                 >
                                     <span className="font-medium text-sm md:text-base group-hover:text-primary transition-colors">{catName}</span>
@@ -697,7 +707,7 @@ export default function AllCategories() {
                             )}
                         </div>
                     </div>
-                ) : isMainCategoryTab && selectedCategories.length > 0 ? (
+                ) : isMainCategoryTab && viewMode === "list" ? (
                     <div className="flex flex-col md:flex-row gap-8 pb-24">
                         <div className="w-full md:w-72 shrink-0 space-y-6">
                             <div className="space-y-4">
