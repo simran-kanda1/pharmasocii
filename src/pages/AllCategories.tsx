@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { MapPin, Building2, Users, Search, ExternalLink, Calendar, Briefcase, X, ChevronRight, ChevronDown, ShieldCheck } from "lucide-react";
+import { MapPin, Building2, Users, Search, ExternalLink, Calendar, Briefcase, X, ChevronLeft, ChevronRight, ChevronDown, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -228,8 +228,13 @@ export default function AllCategories() {
     const [searchCountry, setSearchCountry] = useState("");
     const [healthAuthSearch, setHealthAuthSearch] = useState("");
     const [showAllCategories, setShowAllCategories] = useState(false);
+    const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 30;
 
     useEffect(() => {
+        setViewMode("grid");
+        setCurrentPage(1);
         const fetchAllCategoriesData = async () => {
             setLoading(true);
             try {
@@ -284,18 +289,21 @@ export default function AllCategories() {
         setSelectedCategories(prev =>
             prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
         );
+        setCurrentPage(1);
     };
 
     const toggleSubcategory = (sub: string) => {
         setSelectedSubcategories(prev =>
             prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]
         );
+        setCurrentPage(1);
     };
 
     const toggleSubSubcategory = (subSub: string) => {
         setSelectedSubSubcategories(prev =>
             prev.includes(subSub) ? prev.filter(s => s !== subSub) : [...prev, subSub]
         );
+        setCurrentPage(1);
     };
 
     const toggleExpandCategory = (cat: string) => {
@@ -315,6 +323,16 @@ export default function AllCategories() {
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
         setSearchCountry("");
+        setViewMode("grid");
+        setCurrentPage(1);
+    };
+
+    const clearFilters = () => {
+        setSelectedCategories([]);
+        setSelectedSubcategories([]);
+        setSelectedSubSubcategories([]);
+        setSearchCountry("");
+        setCurrentPage(1);
     };
 
     const isMainCategoryTab = currentTab === "business" || currentTab === "consulting" || currentTab === "events" || currentTab === "jobs";
@@ -360,15 +378,15 @@ export default function AllCategories() {
             ? item.selectedCategories
             : Array.isArray(item.categories) && item.categories.length > 0
                 ? item.categories
-            : item.category 
-                ? [item.category]
-                : item.consultingCategory
-                    ? [item.consultingCategory]
-                    : item.eventCategory
-                        ? [item.eventCategory]
-                        : item.jobCategory
-                            ? [item.jobCategory]
-                            : [];
+                : item.category
+                    ? [item.category]
+                    : item.consultingCategory
+                        ? [item.consultingCategory]
+                        : item.eventCategory
+                            ? [item.eventCategory]
+                            : item.jobCategory
+                                ? [item.jobCategory]
+                                : [];
 
         // Category: item must match AT LEAST ONE selected category (OR logic across categories)
         // Check if any of the item's categories match any of the selected categories
@@ -404,6 +422,12 @@ export default function AllCategories() {
 
         return true;
     });
+
+    const totalPages = Math.ceil(filteredBusinesses.length / itemsPerPage);
+    const paginatedBusinesses = filteredBusinesses.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
 
     const featuredBusinesses = data.filter(item => {
         const addon = item.selectedAddon || item.featuredPlacement || "";
@@ -644,7 +668,7 @@ export default function AllCategories() {
                                 {s} <X className="w-3 h-3" />
                             </span>
                         ))}
-                        <button onClick={resetCategorySelection} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
+                        <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
                             Clear all
                         </button>
                     </div>
@@ -652,7 +676,7 @@ export default function AllCategories() {
 
                 {loading ? (
                     <div className="flex-1 flex items-center justify-center p-24 text-muted-foreground">Loading {currentTab}...</div>
-                ) : isMainCategoryTab && selectedCategories.length === 0 ? (
+                ) : isMainCategoryTab && viewMode === "grid" ? (
                     <div className="flex flex-col gap-16 pb-24 w-full max-w-7xl mx-auto">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {(showAllCategories
@@ -664,7 +688,7 @@ export default function AllCategories() {
                                 )
                                 .map((catName) => (<div
                                     key={catName}
-                                    onClick={() => toggleCategory(catName)}
+                                    onClick={() => { toggleCategory(catName); setViewMode("list"); }}
                                     className="p-6 border border-foreground/10 hover:border-primary/50 transition-all rounded-xl shadow-sm hover:shadow-md bg-background cursor-pointer flex flex-col justify-center items-center text-center min-h-[120px] group"
                                 >
                                     <span className="font-medium text-sm md:text-base group-hover:text-primary transition-colors">{catName}</span>
@@ -697,7 +721,7 @@ export default function AllCategories() {
                             )}
                         </div>
                     </div>
-                ) : isMainCategoryTab && selectedCategories.length > 0 ? (
+                ) : isMainCategoryTab && viewMode === "list" ? (
                     <div className="flex flex-col md:flex-row gap-8 pb-24">
                         <div className="w-full md:w-72 shrink-0 space-y-6">
                             <div className="space-y-4">
@@ -717,8 +741,9 @@ export default function AllCategories() {
                                     No companies matched your criteria.
                                 </div>
                             ) : (
+                                <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                    {filteredBusinesses.map((item) => {
+                                    {paginatedBusinesses.map((item) => {
                                         const title = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName) : currentTab === "events" ? item.eventName : item.jobTitle;
                                         const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessAddress || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.city || item.location || "Remote"}`;
                                         const bottomLabel = currentTab === "business"
@@ -731,23 +756,23 @@ export default function AllCategories() {
                                                 ? item.selectedCategories
                                                 : Array.isArray(item.categories) && item.categories.length > 0
                                                     ? item.categories
-                                                : item.category
-                                                    ? [item.category]
-                                                    : item.consultingCategory
-                                                        ? [item.consultingCategory]
-                                                        : item.eventCategory
-                                                            ? [item.eventCategory]
-                                                            : item.jobCategory
-                                                                ? [item.jobCategory]
-                                                                : []),
+                                                    : item.category
+                                                        ? [item.category]
+                                                        : item.consultingCategory
+                                                            ? [item.consultingCategory]
+                                                            : item.eventCategory
+                                                                ? [item.eventCategory]
+                                                                : item.jobCategory
+                                                                    ? [item.jobCategory]
+                                                                    : []),
                                             ...(Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : []),
                                             ...(Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : []),
                                         ];
                                         return (
-                                            <Link 
-                                                key={item.id} 
-                                                to={`/listing/${currentTab}/${item.id}`} 
-                                                target="_blank" 
+                                            <Link
+                                                key={item.id}
+                                                to={`/listing/${currentTab}/${item.id}`}
+                                                target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="group rounded-xl border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer overflow-hidden flex flex-col h-[320px]"
                                             >
@@ -767,7 +792,63 @@ export default function AllCategories() {
                                         );
                                     })}
                                 </div>
-                            )}
+
+                                {totalPages > 1 && (
+                                    <div className="flex justify-center items-center gap-2 mt-12 pb-8">
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => {
+                                                setCurrentPage(prev => Math.max(prev - 1, 1));
+                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                            }}
+                                            disabled={currentPage === 1}
+                                            className="rounded-xl"
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                        </Button>
+
+                                        <div className="flex items-center gap-1">
+                                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                .filter(page => {
+                                                    // Show first, last, and pages around current
+                                                    return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+                                                })
+                                                .map((page, index, array) => (
+                                                    <div key={page} className="flex items-center gap-1">
+                                                        {index > 0 && array[index - 1] !== page - 1 && (
+                                                            <span className="text-muted-foreground px-1">...</span>
+                                                        )}
+                                                        <Button
+                                                            variant={currentPage === page ? "default" : "outline"}
+                                                            onClick={() => {
+                                                                setCurrentPage(page);
+                                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                            }}
+                                                            className="w-10 h-10 rounded-xl"
+                                                        >
+                                                            {page}
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                        </div>
+
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => {
+                                                setCurrentPage(prev => Math.min(prev + 1, totalPages));
+                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                            }}
+                                            disabled={currentPage === totalPages}
+                                            className="rounded-xl"
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </>
+                        )}
                         </div>
                     </div>
                 ) : currentTab === "compliance" ? (
@@ -805,6 +886,32 @@ export default function AllCategories() {
                     </div>
                 )}
             </div>
+
+            {selectedCategories.length > 0 && (
+                <div className="w-full border-t border-foreground/10 bg-muted/10 py-16">
+                    <div className="container mx-auto px-4">
+                        <div className="flex flex-col items-center overflow-hidden w-full">
+                            <h3 className="text-2xl font-bold tracking-widest uppercase mb-12">{featuredHeading}</h3>
+                            {featuredBusinesses.length > 0 ? (
+                                <div className="relative flex w-full">
+                                    <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
+                                    <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
+                                        {featuredBusinesses.map((fb, i) => (
+                                            <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                                <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
+                                            </Link>
+                                        ))}
+                                    </AutoCarousel>
+                                </div>
+                            ) : (
+                                <div className="text-muted-foreground">{noFeaturedText}</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {selectedProfile && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={handleCloseModal}>
