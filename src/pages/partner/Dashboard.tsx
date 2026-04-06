@@ -341,10 +341,10 @@ export default function Dashboard() {
 
                     const attachSnapshot = (col: string, source: "partner" | "global", refQuery: any) => {
                         const sourceKey = `${source}:${col}`;
-                        return onSnapshot(refQuery, (snap) => {
+                        return onSnapshot(refQuery, (snap: any) => {
                             setOfferings(prev => {
                                 const withoutThisSource = prev.filter(item => item.__sourceKey !== sourceKey);
-                                const newItems = snap.docs.map(d => ({
+                                const newItems = snap.docs.map((d: any) => ({
                                     id: d.id,
                                     ...d.data(),
                                     __col: col,
