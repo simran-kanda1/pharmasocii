@@ -21,6 +21,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 import {
@@ -64,6 +71,37 @@ const PLAN_CONFIGS: Record<string, PlanConfig> = {
     premium_job: { label: "Premium", subtitle: "Job posting & landing page spotlight", price: "$800.00", period: "", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication", "Extra feature for landing page spotlight"] },
     premium_plus_job: { label: "Premium Plus", subtitle: "Job posting & home page spotlight", price: "$1,000.00", period: "", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication", "Extra feature for home page spotlight"] },
 };
+
+const SERVICE_COUNTRIES = [
+    "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
+    "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia",
+    "Bosnia", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
+    "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia",
+    "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
+    "Denmark", "Djibouti", "Dominican Republic",
+    "Ecuador", "Egypt", "El Salvador", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
+    "Fiji", "Finland", "France",
+    "Gabon", "Georgia", "Germany", "Ghana", "Greece", "Guatemala", "Guyana",
+    "Haiti", "Honduras", "Hong Kong", "Hungary",
+    "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
+    "Jamaica", "Japan", "Jordan",
+    "Kazakhstan", "Kenya", "Korea", "Kosovo", "Kuwait", "Kyrgyzstan",
+    "Laos", "Latvia", "Lebanon", "Liberia", "Libya", "Lithuania", "Luxembourg",
+    "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Mauritius",
+    "Mexico", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+    "Namibia", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "Norway",
+    "Oman",
+    "Pakistan", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
+    "Qatar",
+    "Romania", "Russia", "Rwanda",
+    "Saudi Arabia", "Senegal", "Serbia", "Sierra Leone", "Singapore", "Slovak Republic", "Slovenia",
+    "Somalia", "South Africa", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
+    "Taiwan", "Tanzania", "Thailand", "Togo", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan",
+    "UAE", "Uganda", "UK", "Ukraine", "United States", "Uruguay", "Uzbekistan",
+    "Venezuela", "Vietnam",
+    "Yemen",
+    "Zambia", "Zimbabwe",
+];
 
 const FEATURE_PLANS = [
     { id: "landing_page", label: "Landing Page Spotlight", description: "Featured on the category landing page for increased visibility", price: "$400.00", icon: Star },
@@ -163,7 +201,7 @@ export default function Dashboard() {
     const [profileForm, setProfileForm] = useState<any>({
         firstName: "", lastName: "", email: "", phone: "",
         altName: "", altEmail: "", companyName: "", companyWebsite: "",
-        businessPhone: "", linkedin: "", companyProfile: "", businessAddress: "",
+        businessPhone: "", linkedin: "", companyProfile: "", businessAddress: "", businessCountry: "",
     });
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState("");
@@ -267,6 +305,7 @@ export default function Dashboard() {
                         companyName: data.businessName || "", companyWebsite: data.companyWebsite || "",
                         businessPhone: data.businessPhoneNumber || "", linkedin: data.linkedInProfileLink || "",
                         companyProfile: data.companyProfileText || "", businessAddress: data.businessAddress || "",
+                        businessCountry: data.businessCountry || "",
                     });
 
                     // Fetch all offerings from all 4 sub-collections
@@ -369,7 +408,9 @@ export default function Dashboard() {
                     secondaryName: profileForm.altName, secondaryEmail: profileForm.altEmail,
                     businessName: profileForm.companyName, companyWebsite: profileForm.companyWebsite,
                     businessPhoneNumber: profileForm.businessPhone, linkedInProfileLink: profileForm.linkedin,
-                    companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: profileForm.businessAddress,
+                    companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), 
+                    businessAddress: profileForm.businessAddress,
+                    businessCountry: profileForm.businessCountry || "",
                 });
                 setPartnerData({
                     ...partnerData, ...{
@@ -378,7 +419,9 @@ export default function Dashboard() {
                         secondaryName: profileForm.altName, secondaryEmail: profileForm.altEmail,
                         businessName: profileForm.companyName, companyWebsite: profileForm.companyWebsite,
                         businessPhoneNumber: profileForm.businessPhone, linkedInProfileLink: profileForm.linkedin,
-                        companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: profileForm.businessAddress,
+                        companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), 
+                        businessAddress: profileForm.businessAddress,
+                        businessCountry: profileForm.businessCountry || "",
                     }
                 });
 
@@ -1576,9 +1619,29 @@ export default function Dashboard() {
                         )}
                         <p className="text-xs text-muted-foreground">{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                     </div>
-                    <div className="space-y-2">
-                        <Label className="text-foreground/80">Business address <span className="text-red-400">*</span></Label>
-                        <Textarea value={profileForm.businessAddress} onChange={e => setProfileForm({ ...profileForm, businessAddress: e.target.value })} className="h-40 bg-foreground/5 border-foreground/10 resize-none text-sm" placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-2">
+                            <Label className="text-foreground/80">Business headquarters (Country) <span className="text-red-400">*</span></Label>
+                            <Select value={profileForm.businessCountry} onValueChange={(val) => setProfileForm({ ...profileForm, businessCountry: val })}>
+                                <SelectTrigger className="w-full bg-foreground/5 border-foreground/10 h-10 text-sm">
+                                    <SelectValue placeholder="Select country" />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-60">
+                                    {SERVICE_COUNTRIES.map(country => (
+                                        <SelectItem key={country} value={country}>{country}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+                        <div className="space-y-2">
+                            <Label className="text-foreground/80">Full business address (optional)</Label>
+                            <Textarea 
+                                value={profileForm.businessAddress} 
+                                onChange={e => setProfileForm({ ...profileForm, businessAddress: e.target.value })} 
+                                className="h-[104px] bg-foreground/5 border-foreground/10 resize-none text-sm font-normal" 
+                                placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} 
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1741,36 +1804,7 @@ const SERVICE_REGIONS = [
     "Middle East", "Africa", "Australia & Oceania",
 ];
 
-const SERVICE_COUNTRIES = [
-    "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
-    "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia",
-    "Bosnia", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
-    "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia",
-    "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
-    "Denmark", "Djibouti", "Dominican Republic",
-    "Ecuador", "Egypt", "El Salvador", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
-    "Fiji", "Finland", "France",
-    "Gabon", "Georgia", "Germany", "Ghana", "Greece", "Guatemala", "Guyana",
-    "Haiti", "Honduras", "Hong Kong", "Hungary",
-    "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
-    "Jamaica", "Japan", "Jordan",
-    "Kazakhstan", "Kenya", "Korea", "Kosovo", "Kuwait", "Kyrgyzstan",
-    "Laos", "Latvia", "Lebanon", "Liberia", "Libya", "Lithuania", "Luxembourg",
-    "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Mauritius",
-    "Mexico", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
-    "Namibia", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "Norway",
-    "Oman",
-    "Pakistan", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
-    "Qatar",
-    "Romania", "Russia", "Rwanda",
-    "Saudi Arabia", "Senegal", "Serbia", "Sierra Leone", "Singapore", "Slovak Republic", "Slovenia",
-    "Somalia", "South Africa", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
-    "Taiwan", "Tanzania", "Thailand", "Togo", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan",
-    "UAE", "Uganda", "UK", "Ukraine", "United States", "Uruguay", "Uzbekistan",
-    "Venezuela", "Vietnam",
-    "Yemen",
-    "Zambia", "Zimbabwe",
-];
+// Use the global SERVICE_COUNTRIES defined above for local filtering as well
 
 const BSL_LEVELS = ["1", "2", "3", "4"];
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];

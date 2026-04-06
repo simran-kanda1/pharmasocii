@@ -1,0 +1,76 @@
+474:                            </div>
+475:                        </div>
+486:                                    </div>
+488:                            </div>
+490:                    </div>
+518:                        </div>
+519:                    </div>
+550:                                            </div>
+551:                                        </div>
+565:                                                    </div>
+567:                                            </div>
+569:                                    </div>
+572:                        </div>
+574:                </div>
+590:                </div>
+591:            </div>
+603:                    </div>
+615:                                </div>
+652:                </div>
+674:                    </div>
+678:                    <div className="flex-1 flex items-center justify-center p-24 text-muted-foreground">Loading {currentTab}...</div>
+695:                                </div>
+700:                                </div>
+702:                        </div>
+703:                    </div>
+711:                                </div>
+714:                                </div>
+715:                            </div>
+716:                        </div>
+722:                                </div>
+761:                                                </div>
+763:                                                    <div className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1">{topLabel}</div>
+764:                                                    <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>
+768:                                                        </div>
+770:                                                </div>
+774:                                </div>
+812:                                                    </div>
+814:                                        </div>
+828:                                    </div>
+832:                        </div>
+833:                    </div>
+841:                        </div>
+845:                        </div>
+854:                            </div>
+860:                            </div>
+862:                    </div>
+866:                    </div>
+868:            </div>
+887:                                </div>
+889:                                <div className="text-muted-foreground">{noFeaturedText}</div>
+891:                        </div>
+892:                    </div>
+893:                </div>
+902:                        </div>
+909:                                    </div>
+914:                                        </div>
+918:                                        </div>
+919:                                    </div>
+930:                                            </div>
+931:                                        </div>
+937:                                        </div>
+943:                                        </div>
+952:                                    </div>
+958:                                    </div>
+963:                                        </div>
+972:                                    </div>
+974:                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">City</p><p className="font-semibold">{selectedProfile.city}</p></div>
+975:                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">Venue</p><p className="font-semibold">{selectedProfile.location}</p></div>
+976:                                    </div>
+984:                                            </div>
+985:                                        </div>
+989:                        </div>
+992:                        </div>
+993:                    </div>
+994:                </div>
+996:        </div>

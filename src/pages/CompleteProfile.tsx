@@ -148,7 +148,7 @@ export default function CompleteProfile() {
         altFirstName: "", altLastName: "", altEmail: "",
         companyName: "", companyWebsite: "", businessPhone: "", linkedin: "",
         billingEmail: "", businessId: "",
-        companyProfile: "", businessAddress: "",
+        companyProfile: "", businessAddress: "", businessCountry: "",
         group: "", plan: "", addon: "none",
     });
 
@@ -967,9 +967,24 @@ export default function CompleteProfile() {
                                     <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} maxLength={COMPANY_PROFILE_MAX_LENGTH} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
                                     <p className={`text-xs ${formData.companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                                 </div>
-                                <div className="space-y-2 md:col-span-1">
-                                    <Label htmlFor="businessAddress">Business address *</Label>
-                                    <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} />
+                                <div className="space-y-4 md:col-span-1">
+                                    <div className="space-y-2">
+                                        <Label htmlFor="businessCountry">Business Headquarters (Country) *</Label>
+                                        <Select value={formData.businessCountry} onValueChange={(val) => handleSelectChange("businessCountry", val)} required>
+                                            <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10 text-sm">
+                                                <SelectValue placeholder="Select country" />
+                                            </SelectTrigger>
+                                            <SelectContent className="max-h-60">
+                                                {SERVICE_COUNTRIES.map(country => (
+                                                    <SelectItem key={country} value={country}>{country}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label htmlFor="businessAddress">Full business address (optional)</Label>
+                                        <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} className="h-[104px] bg-muted/40 border-foreground/10 resize-none text-sm font-normal" placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} />
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>

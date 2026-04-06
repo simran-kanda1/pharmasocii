@@ -700,26 +700,6 @@ export default function AllCategories() {
                                 </div>
                             )}
                         </div>
-
-                        <div className="flex flex-col items-center mt-8 overflow-hidden w-full">
-                            <h3 className="text-2xl font-bold tracking-widest uppercase mb-12">{featuredHeading}</h3>
-                            {featuredBusinesses.length > 0 ? (
-                                <div className="relative flex w-full">
-                                    <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-                                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
-
-                                    <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
-                                        {featuredBusinesses.map((fb, i) => (
-                                            <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                                <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
-                                            </Link>
-                                        ))}
-                                    </AutoCarousel>
-                                </div>
-                            ) : (
-                                <div className="text-muted-foreground">{noFeaturedText}</div>
-                            )}
-                        </div>
                     </div>
                 ) : isMainCategoryTab && viewMode === "list" ? (
                     <div className="flex flex-col md:flex-row gap-8 pb-24">
@@ -745,7 +725,7 @@ export default function AllCategories() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                     {paginatedBusinesses.map((item) => {
                                         const title = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName) : currentTab === "events" ? item.eventName : item.jobTitle;
-                                        const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessAddress || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.city || item.location || "Remote"}`;
+                                        const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessCountry || (item.businessAddress ? item.businessAddress.split(',').pop()?.trim() : "N/A")}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
                                         const bottomLabel = currentTab === "business"
                                             ? (Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || "No specific certs")
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
@@ -887,7 +867,7 @@ export default function AllCategories() {
                 )}
             </div>
 
-            {selectedCategories.length > 0 && (
+            {isMainCategoryTab && (
                 <div className="w-full border-t border-foreground/10 bg-muted/10 py-16">
                     <div className="container mx-auto px-4">
                         <div className="flex flex-col items-center overflow-hidden w-full">
@@ -925,7 +905,11 @@ export default function AllCategories() {
                                 <>
                                     <div className="space-y-2">
                                         <h3 className="text-3xl font-bold text-primary">{currentTab === 'consulting' ? (selectedProfile.primaryName || selectedProfile.businessName) : selectedProfile.businessName}</h3>
-                                        {selectedProfile.businessAddress && <p className="text-muted-foreground flex items-center gap-2"><MapPin className="w-4 h-4" /> {selectedProfile.businessAddress}</p>}
+                                        {(selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry || (selectedProfile.businessAddress && selectedProfile.businessAddress.split(',').pop()?.trim())) && (
+                                            <p className="text-muted-foreground flex items-center gap-2">
+                                                <MapPin className="w-4 h-4" /> {selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry || selectedProfile.businessAddress.split(',').pop()?.trim()}
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">

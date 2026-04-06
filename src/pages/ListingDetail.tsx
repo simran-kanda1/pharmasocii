@@ -226,7 +226,7 @@ export default function ListingDetail() {
                                     <div className="flex flex-col gap-3">
                                         <div className="flex items-start gap-3">
                                             <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                                            <span>{item.businessAddress || partner?.businessAddress || "N/A"}</span>
+                                            <span>{item.businessCountry || item.eventCountry || item.jobCountry || partner?.businessCountry || (item.businessAddress ? item.businessAddress.split(',').pop()?.trim() : (partner?.businessAddress ? partner.businessAddress.split(',').pop()?.trim() : "N/A"))}</span>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <Phone className="w-4 h-4 text-primary shrink-0" />

@@ -242,6 +242,7 @@ export default function AddListing() {
     const [companyName, setCompanyName] = useState("");
     const [companyProfile, setCompanyProfile] = useState("");
     const [businessAddress, setBusinessAddress] = useState("");
+    const [businessCountry, setBusinessCountry] = useState("");
 
     // ─── Business Offerings fields ───
     const [selectedBSL, setSelectedBSL] = useState<string[]>([]);
@@ -289,6 +290,7 @@ export default function AddListing() {
                     setCompanyName(d.businessName || "");
                     setCompanyProfile(d.companyProfileText || "");
                     setBusinessAddress(d.businessAddress || "");
+                    setBusinessCountry(d.businessCountry || "");
                     const [altFName, ...altLNames] = ((d.secondaryName || "") as string).split(" ");
                     const altRep = normalizeRepresentative({
                         firstName: d.secondaryFirstName || altFName || "",
@@ -322,6 +324,11 @@ export default function AddListing() {
                             return true;
                         })
                     );
+
+                    // Pre-populate with partner's primary representatives if it's a new listing
+                    if (partnerDocReps.length > 0) {
+                        setCompanyRepresentatives(partnerDocReps);
+                    }
                 }
 
                 if (dbGroup === "business_offerings" || dbGroup === "consulting") {
@@ -587,12 +594,12 @@ export default function AddListing() {
                 Object.assign(listingData, {
                     bioSafetyLevel: selectedBSL, certifications: normalizedCertifications,
                     serviceRegions: selectedRegions, serviceCountries: selectedCountries,
-                    companyProfileText: companyProfile, businessAddress,
+                    companyProfileText: companyProfile, businessAddress, businessCountry,
                 });
             } else if (dbGroup === "consulting") {
                 Object.assign(listingData, {
                     serviceRegions: selectedRegions, serviceCountries: selectedCountries,
-                    companyProfileText: companyProfile, businessAddress,
+                    companyProfileText: companyProfile, businessAddress, businessCountry,
                 });
             } else if (dbGroup === "events") {
                 Object.assign(listingData, { ...eventData });
