@@ -254,21 +254,23 @@ export default function ListingDetail() {
                                     {item.companyProfileText || partner?.companyProfileText || "No company profile available."}
                                 </p>
 
-                                <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pt-2">
-                                    {/* Certifications & BSL */}
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Certifications</span>
-                                        <p className="text-sm font-semibold capitalize text-foreground">
-                                            {Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || partner?.certifications || "N/A"}
-                                        </p>
+                                {type === "business" && (
+                                    <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pt-2">
+                                        {/* Certifications & BSL are business-only fields */}
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Certifications</span>
+                                            <p className="text-sm font-semibold capitalize text-foreground">
+                                                {Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || partner?.certifications || "N/A"}
+                                            </p>
+                                        </div>
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">BSL Level</span>
+                                            <p className="text-sm font-semibold text-foreground">
+                                                {Array.isArray(item.bioSafetyLevel) ? item.bioSafetyLevel.join(", ") : item.bioSafetyLevel || partner?.bioSafetyLevel || "N/A"}
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div className="flex flex-col gap-1">
-                                        <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">BSL Level</span>
-                                        <p className="text-sm font-semibold text-foreground">
-                                            {Array.isArray(item.bioSafetyLevel) ? item.bioSafetyLevel.join(", ") : item.bioSafetyLevel || partner?.bioSafetyLevel || "N/A"}
-                                        </p>
-                                    </div>
-                                </div>
+                                )}
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pt-6 text-sm text-muted-foreground">
                                     <div className="flex flex-col gap-3">

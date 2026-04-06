@@ -148,6 +148,15 @@ const inferPlanGroup = (plan: any): string => {
     return "";
 };
 
+const inferListingGroup = (listing: any): string => {
+    if (listing?.selectedGroup) return listing.selectedGroup;
+    if (listing?.__col === "businessOfferingsCollection") return "business_offerings";
+    if (listing?.__col === "consultingServicesCollection" || listing?.__col === "consultingCollection") return "consulting";
+    if (listing?.__col === "eventsCollection") return "events";
+    if (listing?.__col === "jobsCollection") return "jobs";
+    return "";
+};
+
 const normalizeRepresentative = (rep: any): { firstName: string; lastName: string; email: string } | null => {
     const firstName = (rep?.firstName || "").trim();
     const lastName = (rep?.lastName || "").trim();
@@ -313,19 +322,49 @@ export default function Dashboard() {
                         businessCountry: data.businessCountry || "",
                     });
 
-                    // Fetch all offerings from all 4 sub-collections
-                    const colNames = ["businessOfferingsCollection", "consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"];
-                    const allUnsubs = colNames.map(col => {
-                        const q = query(collection(docRef, col));
-                        return onSnapshot(q, (snap) => {
+                    const sortAndDedupeOfferings = (items: any[]) => {
+                        const mergedByListing = new Map<string, any>();
+                        for (const entry of items) {
+                            const key = `${entry.__col}:${entry.id}`;
+                            const existing = mergedByListing.get(key);
+                            if (!existing) {
+                                mergedByListing.set(key, entry);
+                                continue;
+                            }
+                            // Prefer partner-embedded docs when both sources have same listing id.
+                            if (existing.__source !== "partner" && entry.__source === "partner") {
+                                mergedByListing.set(key, entry);
+                            }
+                        }
+                        return Array.from(mergedByListing.values()).sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                    };
+
+                    const attachSnapshot = (col: string, source: "partner" | "global", refQuery: any) => {
+                        const sourceKey = `${source}:${col}`;
+                        return onSnapshot(refQuery, (snap) => {
                             setOfferings(prev => {
-                                // Filter out existing items from this collection to avoid duplicates on update
-                                const otherCols = prev.filter(item => item.__col !== col);
-                                const newItems = snap.docs.map(d => ({ id: d.id, ...d.data(), __col: col }));
-                                return [...otherCols, ...newItems].sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                                const withoutThisSource = prev.filter(item => item.__sourceKey !== sourceKey);
+                                const newItems = snap.docs.map(d => ({
+                                    id: d.id,
+                                    ...d.data(),
+                                    __col: col,
+                                    __source: source,
+                                    __sourceKey: sourceKey,
+                                }));
+                                return sortAndDedupeOfferings([...withoutThisSource, ...newItems]);
                             });
                         });
-                    });
+                    };
+
+                    // Keep partner-scoped snapshots for backward compatibility.
+                    const partnerEmbeddedCollections = ["businessOfferingsCollection", "consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"];
+                    // Some listing groups are stored as top-level collections keyed by partnerId.
+                    const globalCollections = ["consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"];
+
+                    const allUnsubs = [
+                        ...partnerEmbeddedCollections.map((col) => attachSnapshot(col, "partner", query(collection(docRef, col)))),
+                        ...globalCollections.map((col) => attachSnapshot(col, "global", query(collection(db, col), where("partnerId", "==", user.uid)))),
+                    ];
                     unsubOff = () => allUnsubs.forEach(u => u());
 
                     // Fetch transactions (plans & features)
@@ -815,6 +854,16 @@ export default function Dashboard() {
     const hasFeaturePlan = resolvedAddon !== "none" && resolvedAddon !== "";
     const includedFeature = currentPlan?.featurePlan || null;
     const hasActivePaidPlan = activePlans.some(isFeatureEligiblePlan);
+    const groupPlanDetails = (["business_offerings", "consulting"] as const)
+        .map((group) => {
+            const activeGroupPlan = activePlans.find((plan) => plan.active !== false && inferPlanGroup(plan) === group);
+            if (!activeGroupPlan) return null;
+            const config = PLAN_CONFIGS[activeGroupPlan.planId] || null;
+            const isYearly = activeGroupPlan.billingInterval === "year" || activeGroupPlan.planId?.includes("_yr");
+            return { group, plan: activeGroupPlan, config, isYearly };
+        })
+        .filter(Boolean) as Array<{ group: "business_offerings" | "consulting"; plan: any; config: PlanConfig | null; isYearly: boolean }>;
+    const planForDetails = currentPlan || groupPlanDetails[0]?.config || null;
     const businessOfferingLock = getGroupPlanLock(activePlans, "business_offerings");
     const consultingLock = getGroupPlanLock(activePlans, "consulting");
     const representativeOptions = (() => {
@@ -1138,18 +1187,40 @@ export default function Dashboard() {
                 </div>
 
                 {/* Current Plan Details */}
-                {currentPlan && (
+                {planForDetails && (
                     <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
                         <CardHeader className="pb-4 border-b border-foreground/10">
                             <div className="flex items-center justify-between">
                                 <CardTitle className="text-xl flex items-center gap-2"><Crown className="w-5 h-5 text-primary" /> Your Plan Details</CardTitle>
                                 <div className="flex items-center gap-3">
-                                    <Badge className="bg-primary/20 text-primary border-primary/50 px-3 py-1">{currentPlan.label}</Badge>
-                                    <span className="text-2xl font-bold text-foreground">{currentPlan.price}<span className="text-sm font-normal text-muted-foreground">{currentPlan.period}</span></span>
+                                    <Badge className="bg-primary/20 text-primary border-primary/50 px-3 py-1">
+                                            {groupPlanDetails.length > 1 ? `${groupPlanDetails.length} Active Plans` : (planForDetails?.label || "Active Plan")}
+                                    </Badge>
+                                    {groupPlanDetails.length <= 1 && planForDetails?.price && (
+                                        <span className="text-2xl font-bold text-foreground">{planForDetails.price}<span className="text-sm font-normal text-muted-foreground">{planForDetails.period}</span></span>
+                                    )}
                                 </div>
                             </div>
                         </CardHeader>
                         <CardContent className="pt-6">
+                            {groupPlanDetails.length > 0 && (
+                                <div className="mb-6 pb-6 border-b border-foreground/10">
+                                    <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Active Business & Consulting Plans</h4>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {groupPlanDetails.map(({ group, config, isYearly }) => (
+                                            <div key={group} className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
+                                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
+                                                    {group === "business_offerings" ? "Business Offerings" : "Consulting Services"}
+                                                </p>
+                                                <p className="text-base font-semibold text-foreground">{config?.label || "Active Plan"}</p>
+                                                <p className="text-sm text-foreground/80 mt-1">
+                                                    {config?.price || "N/A"}{config?.period || ""} • {isYearly ? "Yearly" : "Monthly"}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Limits */}
                                 <div className="space-y-3">
@@ -1157,11 +1228,11 @@ export default function Dashboard() {
                                     <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10 space-y-3">
                                         <div className="flex justify-between items-center">
                                             <span className="text-sm text-foreground/80">Max Categories</span>
-                                            <span className="font-bold text-foreground">{currentPlan.maxCategories === -1 ? "Unlimited" : currentPlan.maxCategories}</span>
+                                            <span className="font-bold text-foreground">{planForDetails.maxCategories === -1 ? "Unlimited" : planForDetails.maxCategories}</span>
                                         </div>
                                         <div className="flex justify-between items-center">
                                             <span className="text-sm text-foreground/80">Max Countries</span>
-                                            <span className="font-bold text-foreground">{currentPlan.maxCountries === -1 ? "Unlimited" : currentPlan.maxCountries}</span>
+                                            <span className="font-bold text-foreground">{planForDetails.maxCountries === -1 ? "Unlimited" : planForDetails.maxCountries}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1169,7 +1240,7 @@ export default function Dashboard() {
                                 <div className="space-y-3">
                                     <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Included Features</h4>
                                     <ul className="space-y-1.5">
-                                        {currentPlan.features.map((f, i) => (
+                                        {planForDetails.features.map((f, i) => (
                                             <li key={i} className="flex items-start gap-2 text-sm text-foreground/80">
                                                 <Check className={`w-4 h-4 shrink-0 mt-0.5 ${f.toLowerCase().includes("extra feature") ? "text-primary" : "text-green-500"}`} />
                                                 <span className={f.toLowerCase().includes("extra feature") ? "text-primary font-medium" : ""}>{f}</span>
@@ -1185,7 +1256,7 @@ export default function Dashboard() {
                                     <div>
                                         <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">Feature Spotlight</h4>
                                         {includedFeature ? (
-                                            <p className="text-foreground text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Included with your {currentPlan.label} plan — {includedFeature === "home_page" ? "Home Page" : "Landing Page"} spotlight</p>
+                                            <p className="text-foreground text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Included with your {planForDetails.label} plan — {includedFeature === "home_page" ? "Home Page" : "Landing Page"} spotlight</p>
                                         ) : hasFeaturePlan ? (
                                             <p className="text-foreground text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Active — {FEATURE_PLANS.find(f => f.id === resolvedAddon)?.label || resolvedAddon.replace(/_/g, " ")}</p>
                                         ) : (
@@ -1216,7 +1287,9 @@ export default function Dashboard() {
                                     const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : (plan.startDate ? new Date(plan.startDate) : null);
                                     const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : (plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null);
                                     const isYearly = plan.billingInterval === "year" || plan.planId?.includes('_yr');
-                                    const linkedListing = offerings.find(o => o.id === plan.listingId);
+                                    const linkedListing = offerings.find((o) =>
+                                        o.id === plan.listingId && (!plan.collectionName || o.__col === plan.collectionName)
+                                    ) || offerings.find((o) => o.id === plan.listingId);
                                     const planRepresentatives = linkedListing?.companyRepresentatives || plan.companyRepresentatives || [];
                                     const hasFeature = linkedListing?.selectedAddon && linkedListing.selectedAddon !== "" && linkedListing.selectedAddon !== "none";
                                     const includedFeature = planConfig?.featurePlan;
@@ -1407,6 +1480,7 @@ export default function Dashboard() {
                                                             ? "bg-red-500/20 text-red-400 border-red-500/50"
                                                             : "bg-primary/20 text-primary border-primary/50";
                                                 const statusLabel = offering.status || "Active";
+                                                const listingGroup = inferListingGroup(offering);
 
                                                 return (
                                                     <Card key={offering.id} className="bg-muted/40 border-foreground/10">
@@ -1414,7 +1488,7 @@ export default function Dashboard() {
                                                             <div className="flex justify-between items-start">
                                                                 <div>
                                                                     <CardTitle className="text-lg text-primary">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || offering.planId?.split('_').join(' ').toUpperCase() || offering.eventName || offering.jobTitle || 'Listing'}</CardTitle>
-                                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{offering.selectedGroup?.replace(/_/g, ' ') || offering.__col?.replace('Collection', '').replace(/([A-Z])/g, ' $1').trim()}</p>
+                                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{listingGroup.replace(/_/g, ' ') || offering.__col?.replace('Collection', '').replace(/([A-Z])/g, ' $1').trim()}</p>
                                                                 </div>
                                                                 <Badge className={statusColor}>{statusLabel}</Badge>
                                                             </div>
@@ -1519,13 +1593,15 @@ export default function Dashboard() {
                                                 Pending Payment ({pendingPaymentListings.length})
                                             </h3>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {pendingPaymentListings.map(offering => (
+                                                {pendingPaymentListings.map(offering => {
+                                                    const listingGroup = inferListingGroup(offering);
+                                                    return (
                                                     <Card key={offering.id} className="bg-yellow-500/5 border-yellow-500/20">
                                                         <CardHeader className="pb-3 border-b border-yellow-500/10 bg-yellow-500/5">
                                                             <div className="flex justify-between items-start">
                                                                 <div>
                                                                     <CardTitle className="text-base text-foreground">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || 'Listing'}</CardTitle>
-                                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{offering.selectedGroup?.replace(/_/g, ' ')}</p>
+                                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{listingGroup.replace(/_/g, ' ')}</p>
                                                                 </div>
                                                                 <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">Pending Payment</Badge>
                                                             </div>
@@ -1537,14 +1613,15 @@ export default function Dashboard() {
                                                                 className="w-full"
                                                                 onClick={() => {
                                                                     // Re-initiate checkout for this listing
-                                                                    navigate(`/partner/add-listing/${offering.selectedGroup === "business_offerings" ? "offerings" : offering.selectedGroup}`);
+                                                                    navigate(`/partner/add-listing/${listingGroup === "business_offerings" ? "offerings" : listingGroup}`);
                                                                 }}
                                                             >
                                                                 <CreditCard className="w-4 h-4 mr-2" /> Complete Payment
                                                             </Button>
                                                         </CardContent>
                                                     </Card>
-                                                ))}
+                                                );
+                                                })}
                                             </div>
                                         </div>
                                     )}
