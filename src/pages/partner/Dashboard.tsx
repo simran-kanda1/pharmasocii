@@ -5,6 +5,8 @@ import { doc, getDoc, updateDoc, collection, query, onSnapshot, where } from "fi
 import { logActivity } from "@/lib/auditLogger";
 import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, updateEmail } from "firebase/auth";
 import { API_BASE_URL } from "@/apiConfig";
+import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
+import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut,
@@ -381,6 +383,21 @@ export default function Dashboard() {
             setProfileSaving(false);
             return;
         }
+        if (!profileForm.businessCountry) {
+            setProfileMsg("Please select your business headquarters country.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.businessAddress?.trim()) {
+            setProfileMsg("Please enter your business address.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!isValidBusinessAddress(profileForm.businessAddress)) {
+            setProfileMsg("Please enter a valid business address (include street number and street name).");
+            setProfileSaving(false);
+            return;
+        }
         try {
             if (auth.currentUser) {
                 const nextEmail = (profileForm.email || "").trim();
@@ -564,6 +581,12 @@ export default function Dashboard() {
                 }
                 if (updatedData.selectedSubSubcategories !== undefined) {
                     updateObj.selectedSubSubcategories = updatedData.selectedSubSubcategories;
+                }
+                if (updatedData.selectedCategoriesDisplay !== undefined) {
+                    updateObj.selectedCategoriesDisplay = updatedData.selectedCategoriesDisplay;
+                }
+                if (updatedData.selectedSubcategoriesDisplay !== undefined) {
+                    updateObj.selectedSubcategoriesDisplay = updatedData.selectedSubcategoriesDisplay;
                 }
 
                 // Add business offering specific fields if present
@@ -1410,7 +1433,7 @@ export default function Dashboard() {
                                                                 <div className="flex flex-col gap-1 text-foreground/80">
                                                                     <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Subcategories</span>
                                                                     <div className="flex flex-wrap gap-1.5">
-                                                                        {offering.selectedSubcategories.map((sub: string, i: number) => (
+                                                                        {(offering.selectedSubcategories || []).map((sub: string, i: number) => (
                                                                             <Badge key={i} variant="outline" className="border-foreground/20 text-xs">{sub}</Badge>
                                                                         ))}
                                                                     </div>
@@ -1634,7 +1657,7 @@ export default function Dashboard() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-foreground/80">Full business address (optional)</Label>
+                            <Label className="text-foreground/80">Full business address <span className="text-red-400">*</span></Label>
                             <Textarea 
                                 value={profileForm.businessAddress} 
                                 onChange={e => setProfileForm({ ...profileForm, businessAddress: e.target.value })} 
@@ -1727,7 +1750,7 @@ export default function Dashboard() {
                                             <div className="mt-3 pt-3 border-t border-foreground/10">
                                                 <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Categories</span>
                                                 <div className="flex flex-wrap gap-1.5">
-                                                    {txn.selectedCategories.map((cat: string, i: number) => (
+                                                    {(txn.selectedCategories || []).map((cat: string, i: number) => (
                                                         <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">{cat}</Badge>
                                                     ))}
                                                 </div>
@@ -1737,7 +1760,7 @@ export default function Dashboard() {
                                             <div className="mt-3 pt-3 border-t border-foreground/10">
                                                 <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Subcategories</span>
                                                 <div className="flex flex-wrap gap-1.5">
-                                                    {txn.selectedSubcategories.map((sub: string, i: number) => (
+                                                    {(txn.selectedSubcategories || []).map((sub: string, i: number) => (
                                                         <Badge key={i} variant="outline" className="border-foreground/20 text-xs">{sub}</Badge>
                                                     ))}
                                                 </div>
@@ -1930,6 +1953,7 @@ function EditListingModal({ listing, planConfig, representativeOptions, onClose,
 
     const toggleCategorySelection = (cat: string, hasSubs: boolean) => {
         if (hasSubs) {
+            setSelectedCategories(prev => prev.filter(c => c !== cat));
             toggleExpandCategory(cat);
             return;
         }
@@ -1942,6 +1966,7 @@ function EditListingModal({ listing, planConfig, representativeOptions, onClose,
     };
     const toggleSubcategorySelection = (sub: string, hasSubSubs: boolean) => {
         if (hasSubSubs) {
+            setSelectedSubcategories(prev => prev.filter(s => s !== sub));
             toggleExpandSubcategory(sub);
             return;
         }
@@ -2442,30 +2467,45 @@ function EditListingModal({ listing, planConfig, representativeOptions, onClose,
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3 shrink-0">
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
                     <Button
-                        onClick={() => onSave({
-                            selectedCategories,
-                            selectedSubcategories,
-                            selectedSubSubcategories,
-                            serviceCountries: countries,
-                            serviceRegions: canUseRegionHelper ? regions : [],
-                            bioSafetyLevel: bslLevels,
-                            certifications: Array.from(
-                                new Set(
-                                    certifications
-                                        .map((cert) => cert.trim())
-                                        .filter((cert) => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"))
-                                )
-                            ),
-                            companyProfileText: (companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
-                            businessAddress: businessAddress,
-                            companyRepresentatives: representatives
-                                .map((rep) => ({
-                                    firstName: rep.firstName.trim(),
-                                    lastName: rep.lastName.trim(),
-                                    email: rep.email.trim(),
-                                }))
-                                .filter((rep) => rep.firstName || rep.lastName || rep.email),
-                        })}
+                        onClick={() => {
+                            const sanitizedSelections = sanitizeLowestLevelSelections(
+                                getCategoriesForGroup(listingGroup) as any,
+                                selectedCategories,
+                                selectedSubcategories,
+                                selectedSubSubcategories
+                            );
+                            const categoryDisplayFields = buildDisplayCategoryFields(
+                                getCategoriesForGroup(listingGroup) as any,
+                                sanitizedSelections.selectedCategories,
+                                sanitizedSelections.selectedSubcategories,
+                                sanitizedSelections.selectedSubSubcategories
+                            );
+                            onSave({
+                                selectedCategories: sanitizedSelections.selectedCategories,
+                                selectedSubcategories: sanitizedSelections.selectedSubcategories,
+                                selectedSubSubcategories: sanitizedSelections.selectedSubSubcategories,
+                                ...categoryDisplayFields,
+                                serviceCountries: countries,
+                                serviceRegions: canUseRegionHelper ? regions : [],
+                                bioSafetyLevel: bslLevels,
+                                certifications: Array.from(
+                                    new Set(
+                                        certifications
+                                            .map((cert) => cert.trim())
+                                            .filter((cert) => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"))
+                                    )
+                                ),
+                                companyProfileText: (companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
+                                businessAddress: businessAddress,
+                                companyRepresentatives: representatives
+                                    .map((rep) => ({
+                                        firstName: rep.firstName.trim(),
+                                        lastName: rep.lastName.trim(),
+                                        email: rep.email.trim(),
+                                    }))
+                                    .filter((rep) => rep.firstName || rep.lastName || rep.email),
+                            });
+                        }}
                         disabled={
                             processing ||
                             companyProfileTooLong ||

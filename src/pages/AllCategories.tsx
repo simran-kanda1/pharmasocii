@@ -344,8 +344,64 @@ export default function AllCategories() {
         auth.country.toLowerCase().includes(healthAuthSearch.toLowerCase())
     );
 
+    const normalizeToken = (value: any) => (typeof value === "string" ? value.trim().toLowerCase() : "");
+    const selectedCategoryTokens = selectedCategories.map(normalizeToken).filter(Boolean);
+    const selectedSubcategoryTokens = selectedSubcategories.map(normalizeToken).filter(Boolean);
+    const selectedSubSubcategoryTokens = selectedSubSubcategories.map(normalizeToken).filter(Boolean);
+    const subToCategoryTokens = new Map<string, Set<string>>();
+    const subSubToCategoryTokens = new Map<string, Set<string>>();
+    Object.entries(currentCategoriesDict as CategoriesDict).forEach(([cat, entries]) => {
+        const catToken = normalizeToken(cat);
+        (entries || []).forEach((entry: SubcategoryEntry) => {
+            const subToken = normalizeToken(getSubLabel(entry));
+            if (subToken) {
+                if (!subToCategoryTokens.has(subToken)) subToCategoryTokens.set(subToken, new Set<string>());
+                subToCategoryTokens.get(subToken)!.add(catToken);
+            }
+            if (hasSubSub(entry) && Array.isArray(entry.subSubcategories)) {
+                entry.subSubcategories.forEach((subSub) => {
+                    const subSubToken = normalizeToken(subSub);
+                    if (!subSubToken) return;
+                    if (!subSubToCategoryTokens.has(subSubToken)) subSubToCategoryTokens.set(subSubToken, new Set<string>());
+                    subSubToCategoryTokens.get(subSubToken)!.add(catToken);
+                });
+            }
+        });
+    });
+
     // ── Filter logic: all three levels use array state ──
     const filteredBusinesses = data.filter((item) => {
+        const itemSubs: string[] = Array.isArray(item.selectedSubcategoriesDisplay)
+            ? item.selectedSubcategoriesDisplay
+            : Array.isArray(item.selectedSubcategories)
+                ? item.selectedSubcategories
+            : Array.isArray(item.subcategories)
+                ? item.subcategories
+                : [];
+        const itemSubSubs: string[] = Array.isArray(item.selectedSubSubcategories)
+            ? item.selectedSubSubcategories
+            : Array.isArray(item.subSubcategories)
+                ? item.subSubcategories
+                : [];
+        const itemSubTokens = itemSubs.map(normalizeToken).filter(Boolean);
+        const itemSubSubTokens = itemSubSubs.map(normalizeToken).filter(Boolean);
+        const itemCategories: string[] = Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
+            ? item.selectedCategoriesDisplay
+            : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
+                ? item.selectedCategories
+            : Array.isArray(item.categories) && item.categories.length > 0
+                ? item.categories
+                : item.category
+                    ? [item.category]
+                    : item.consultingCategory
+                        ? [item.consultingCategory]
+                        : item.eventCategory
+                            ? [item.eventCategory]
+                            : item.jobCategory
+                                ? [item.jobCategory]
+                                : [];
+        const itemCategoryTokens = itemCategories.map(normalizeToken).filter(Boolean);
+
         if (searchQuery.trim()) {
             const q = searchQuery.toLowerCase();
 
@@ -360,55 +416,51 @@ export default function AllCategories() {
                         c.toLowerCase().includes(q)
                     )) ||
                 item.selectedGroup?.toLowerCase().includes(q) ||
-                (Array.isArray(item.selectedSubcategories) &&
-                    item.selectedSubcategories.some((s: string) =>
-                        s.toLowerCase().includes(q)
-                    )) ||
-                (Array.isArray(item.selectedSubSubcategories) &&
-                    item.selectedSubSubcategories.some((s: string) =>
-                        s.toLowerCase().includes(q)
-                    ));
+                itemSubTokens.some((s: string) => s.includes(q)) ||
+                itemSubSubTokens.some((s: string) => s.includes(q));
 
             if (!matches) return false;
         }
         if (!isMainCategoryTab) return true;
 
-        // Get item's categories - support both old format (category: string) and new format (selectedCategories: array)
-        const itemCategories: string[] = Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
-            ? item.selectedCategories
-            : Array.isArray(item.categories) && item.categories.length > 0
-                ? item.categories
-                : item.category
-                    ? [item.category]
-                    : item.consultingCategory
-                        ? [item.consultingCategory]
-                        : item.eventCategory
-                            ? [item.eventCategory]
-                            : item.jobCategory
-                                ? [item.jobCategory]
-                                : [];
+        // Category-tree filtering by selected branches.
+        // If a top-level category is selected with no child selections in that branch,
+        // include all items in that category.
+        if (selectedCategoryTokens.length > 0) {
+            const hasBranchMatch = selectedCategoryTokens.some((categoryToken) => {
+                if (!itemCategoryTokens.includes(categoryToken)) return false;
 
-        // Category: item must match AT LEAST ONE selected category (OR logic across categories)
-        // Check if any of the item's categories match any of the selected categories
-        if (selectedCategories.length > 0) {
-            const hasMatchingCategory = itemCategories.some(itemCat => selectedCategories.includes(itemCat));
-            if (!hasMatchingCategory) {
-                return false;
+                const subFiltersForCategory = selectedSubcategoryTokens.filter(
+                    (subToken) => subToCategoryTokens.get(subToken)?.has(categoryToken)
+                );
+                const subSubFiltersForCategory = selectedSubSubcategoryTokens.filter(
+                    (subSubToken) => subSubToCategoryTokens.get(subSubToken)?.has(categoryToken)
+                );
+
+                if (subFiltersForCategory.length === 0 && subSubFiltersForCategory.length === 0) {
+                    return true;
+                }
+
+                const subMatch =
+                    subFiltersForCategory.length === 0 ||
+                    subFiltersForCategory.some((subToken) => itemSubTokens.includes(subToken));
+                const subSubMatch =
+                    subSubFiltersForCategory.length === 0 ||
+                    subSubFiltersForCategory.some((subSubToken) => itemSubSubTokens.includes(subSubToken));
+
+                return subMatch && subSubMatch;
+            });
+            if (!hasBranchMatch) return false;
+        } else {
+            // No top-level category selected: apply sub/sub-sub filters globally.
+            if (selectedSubcategoryTokens.length > 0) {
+                const hasMatchingSubcategory = selectedSubcategoryTokens.some((sel) => itemSubTokens.includes(sel));
+                if (!hasMatchingSubcategory) return false;
             }
-        }
-
-        // Subcategory: item can match ANY selected sub (OR logic)
-        if (selectedSubcategories.length > 0) {
-            const itemSubs: string[] = Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : [];
-            const hasMatchingSubcategory = selectedSubcategories.some(sel => itemSubs.includes(sel));
-            if (!hasMatchingSubcategory) return false;
-        }
-
-        // Sub-subcategory: item can match ANY selected sub-sub (OR logic)
-        if (selectedSubSubcategories.length > 0) {
-            const itemSubSubs: string[] = Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : [];
-            const hasMatchingSubSubcategory = selectedSubSubcategories.some(sel => itemSubSubs.includes(sel));
-            if (!hasMatchingSubSubcategory) return false;
+            if (selectedSubSubcategoryTokens.length > 0) {
+                const hasMatchingSubSubcategory = selectedSubSubcategoryTokens.some((sel) => itemSubSubTokens.includes(sel));
+                if (!hasMatchingSubSubcategory) return false;
+            }
         }
 
         // Country search: check address string AND serviceCountries array
@@ -725,15 +777,17 @@ export default function AllCategories() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                     {paginatedBusinesses.map((item) => {
                                         const title = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName) : currentTab === "events" ? item.eventName : item.jobTitle;
-                                        const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessCountry || (item.businessAddress ? item.businessAddress.split(',').pop()?.trim() : "N/A")}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
+                                        const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
                                         const bottomLabel = currentTab === "business"
                                             ? (Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || "No specific certs")
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
                                                 : currentTab === "events" ? `${item.city || "Venue"}, ${item.location || ""}`
                                                     : `${item.businessName || "Company"} • ${item.jobtype || "Role"}`;
                                         const categoryInfo = [
-                                            ...(Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
-                                                ? item.selectedCategories
+                                            ...(Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
+                                                ? item.selectedCategoriesDisplay
+                                                : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
+                                                    ? item.selectedCategories
                                                 : Array.isArray(item.categories) && item.categories.length > 0
                                                     ? item.categories
                                                     : item.category
@@ -745,7 +799,7 @@ export default function AllCategories() {
                                                                 : item.jobCategory
                                                                     ? [item.jobCategory]
                                                                     : []),
-                                            ...(Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : []),
+                                            ...(Array.isArray(item.selectedSubcategoriesDisplay) ? item.selectedSubcategoriesDisplay : Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : []),
                                             ...(Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : []),
                                         ];
                                         return (
@@ -905,9 +959,9 @@ export default function AllCategories() {
                                 <>
                                     <div className="space-y-2">
                                         <h3 className="text-3xl font-bold text-primary">{currentTab === 'consulting' ? (selectedProfile.primaryName || selectedProfile.businessName) : selectedProfile.businessName}</h3>
-                                        {(selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry || (selectedProfile.businessAddress && selectedProfile.businessAddress.split(',').pop()?.trim())) && (
+                                        {(selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry) && (
                                             <p className="text-muted-foreground flex items-center gap-2">
-                                                <MapPin className="w-4 h-4" /> {selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry || selectedProfile.businessAddress.split(',').pop()?.trim()}
+                                                <MapPin className="w-4 h-4" /> {selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry}
                                             </p>
                                         )}
                                     </div>
@@ -921,11 +975,12 @@ export default function AllCategories() {
                                             <p className="font-semibold capitalize">{selectedProfile.selectedPlan?.replace(/_/g, ' ') || selectedProfile.planId?.replace(/_/g, ' ') || "N/A"}</p>
                                         </div>
                                     </div>
-                                    {Array.isArray(selectedProfile.selectedSubcategories) && selectedProfile.selectedSubcategories.length > 0 && (
+                                    {(Array.isArray(selectedProfile.selectedSubcategoriesDisplay) && selectedProfile.selectedSubcategoriesDisplay.length > 0) ||
+                                    (Array.isArray(selectedProfile.selectedSubcategories) && selectedProfile.selectedSubcategories.length > 0) ? (
                                         <div>
                                             <p className="font-bold mb-2 text-sm uppercase text-muted-foreground tracking-wider">Specializations</p>
                                             <div className="flex flex-wrap gap-2">
-                                                {selectedProfile.selectedSubcategories.map((s: string, i: number) => (
+                                                {(selectedProfile.selectedSubcategoriesDisplay || selectedProfile.selectedSubcategories || []).map((s: string, i: number) => (
                                                     <span key={i} className="bg-foreground/10 px-3 py-1 rounded-full text-xs">{s}</span>
                                                 ))}
                                                 {Array.isArray(selectedProfile.selectedSubSubcategories) && selectedProfile.selectedSubSubcategories.map((s: string, i: number) => (
@@ -933,7 +988,7 @@ export default function AllCategories() {
                                                 ))}
                                             </div>
                                         </div>
-                                    )}
+                                    ) : null}
                                     {selectedProfile.companyProfileText && (
                                         <div>
                                             <p className="font-bold mb-2">{currentTab === 'consulting' ? "Expert Profile" : "Company Overview"}</p>

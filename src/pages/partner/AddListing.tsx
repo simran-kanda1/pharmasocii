@@ -14,6 +14,7 @@ import { auth, db } from "@/firebase";
 import { doc, getDoc, collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import { API_BASE_URL } from "@/apiConfig";
+import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
 
 
 import {
@@ -385,13 +386,13 @@ export default function AddListing() {
     const toggleExpandSubcategory = (sub: string) => setExpandedSubcategories(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
 
     const toggleCategorySelection = (cat: string, hasSubs: boolean) => {
-        if (hasSubs) { toggleExpandCategory(cat); return; }
+        if (hasSubs) { setSelectedCategories(prev => prev.filter(c => c !== cat)); toggleExpandCategory(cat); return; }
         if (selectedCategories.includes(cat)) setSelectedCategories(prev => prev.filter(c => c !== cat));
         else { if (!isCategoryLimitReached) setSelectedCategories(prev => [...prev, cat]); }
     };
 
     const toggleSubcategorySelection = (sub: string, hasSubSubs: boolean) => {
-        if (hasSubSubs) { toggleExpandSubcategory(sub); return; }
+        if (hasSubSubs) { setSelectedSubcategories(prev => prev.filter(s => s !== sub)); toggleExpandSubcategory(sub); return; }
         if (selectedSubcategories.includes(sub)) setSelectedSubcategories(prev => prev.filter(s => s !== sub));
         else { if (!isCategoryLimitReached) setSelectedSubcategories(prev => [...prev, sub]); }
     };
@@ -574,6 +575,18 @@ export default function AddListing() {
                         .filter(cert => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"))
                 )
             );
+            const sanitizedSelections = sanitizeLowestLevelSelections(
+                getCategoriesForGroup(dbGroup) as any,
+                selectedCategories,
+                selectedSubcategories,
+                selectedSubSubcategories
+            );
+            const categoryDisplayFields = buildDisplayCategoryFields(
+                getCategoriesForGroup(dbGroup) as any,
+                sanitizedSelections.selectedCategories,
+                sanitizedSelections.selectedSubcategories,
+                sanitizedSelections.selectedSubSubcategories
+            );
             const listingData: Record<string, any> = {
                 partnerId: auth.currentUser.uid,
                 businessName: companyName,
@@ -581,9 +594,10 @@ export default function AddListing() {
                 selectedPlan: plan,
                 // Feature add-ons can only be purchased after the base plan is paid.
                 selectedAddon: "",
-                selectedCategories,
-                selectedSubcategories,
-                selectedSubSubcategories,
+                selectedCategories: sanitizedSelections.selectedCategories,
+                selectedSubcategories: sanitizedSelections.selectedSubcategories,
+                selectedSubSubcategories: sanitizedSelections.selectedSubSubcategories,
+                ...categoryDisplayFields,
                 companyRepresentatives: normalizedRepresentatives,
                 status: "pending_payment",
                 createdAt: serverTimestamp(),

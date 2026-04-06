@@ -115,19 +115,25 @@ export default function ListingDetail() {
     }
 
     const listingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? item.eventName : item.jobTitle;
+    const normalizeToken = (value: any) => (typeof value === "string" ? value.trim().toLowerCase() : "");
+    const explicitCategoryTokens = new Set(
+        (Array.isArray(item.selectedCategories) ? item.selectedCategories : []).map(normalizeToken).filter(Boolean)
+    );
 
     // Helper to group subcategories by Area
     const getGroupedCategories = () => {
         if (type !== "business") return [];
         
         // Comprehensive fallbacks for different field names used in Firestore
-        const selectedAreas = Array.isArray(item.selectedCategories) ? item.selectedCategories : 
+        const selectedAreas = Array.isArray(item.selectedCategoriesDisplay) ? item.selectedCategoriesDisplay :
+                              (Array.isArray(item.selectedCategories) ? item.selectedCategories : 
                               (Array.isArray(item.categories) ? item.categories :
-                              (item.category ? [item.category] : []));
-        const allSelectedSubs = Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : 
-                               (Array.isArray(item.subcategories) ? item.subcategories : []);
-        const allSelectedSubSubs = Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : 
-                                  (Array.isArray(item.subSubcategories) ? item.subSubcategories : []);
+                              (item.category ? [item.category] : [])));
+        const allSelectedSubs = Array.isArray(item.selectedSubcategoriesDisplay) ? item.selectedSubcategoriesDisplay :
+            (Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories :
+                (Array.isArray(item.subcategories) ? item.subcategories : []));
+        const allSelectedSubSubs = Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories :
+            (Array.isArray(item.subSubcategories) ? item.subSubcategories : []);
 
         const serviceRegions = Array.isArray(item.serviceRegions) ? item.serviceRegions : [];
         const serviceCountries = Array.isArray(item.serviceCountries) ? item.serviceCountries : [];
@@ -164,6 +170,22 @@ export default function ListingDetail() {
 
             return { area, subs: matchingSubs, regions: serviceRegions, countries: serviceCountries };
         });
+
+        // Show selected sub/sub-sub values even when taxonomy mapping is mismatched.
+        const orphanSubs = allSelectedSubs.filter((sub: string) => !claimedSubs.has(normalize(sub)));
+        const orphanSubSubs = allSelectedSubSubs.filter((subSub: string) => !claimedSubSubs.has(normalize(subSub)));
+        if (orphanSubs.length > 0 || orphanSubSubs.length > 0) {
+            const orphanEntries = orphanSubs.map((sub: string) => ({ label: sub, subSubs: [] as string[] }));
+            if (orphanSubSubs.length > 0) {
+                orphanEntries.push({ label: "Additional specializations", subSubs: orphanSubSubs });
+            }
+            grouped.push({
+                area: "Other selected specializations",
+                subs: orphanEntries,
+                regions: serviceRegions,
+                countries: serviceCountries,
+            });
+        }
 
         return grouped;
     };
@@ -226,7 +248,7 @@ export default function ListingDetail() {
                                     <div className="flex flex-col gap-3">
                                         <div className="flex items-start gap-3">
                                             <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                                            <span>{item.businessCountry || item.eventCountry || item.jobCountry || partner?.businessCountry || (item.businessAddress ? item.businessAddress.split(',').pop()?.trim() : (partner?.businessAddress ? partner.businessAddress.split(',').pop()?.trim() : "N/A"))}</span>
+                                            <span>{item.businessCountry || item.eventCountry || item.jobCountry || partner?.businessCountry || "N/A"}</span>
                                         </div>
                                         <div className="flex items-center gap-3">
                                             <Phone className="w-4 h-4 text-primary shrink-0" />
@@ -272,7 +294,14 @@ export default function ListingDetail() {
                                     {groupedCategories.map((group: any, idx: number) => (
                                         <tr key={idx} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
                                             <td className="px-8 py-6 align-top">
-                                                <p className="font-bold text-foreground text-lg">{group.area}</p>
+                                                <p className="font-bold text-foreground text-lg flex items-center gap-2">
+                                                    {group.area}
+                                                    {!explicitCategoryTokens.has(normalizeToken(group.area)) && (
+                                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+                                                            inferred
+                                                        </span>
+                                                    )}
+                                                </p>
                                             </td>
                                             <td className="px-8 py-6 space-y-4 align-top">
                                                 {group.subs.length > 0 ? (
@@ -353,8 +382,8 @@ export default function ListingDetail() {
                     </div>
                 )}
 
-                {/* Representatives Section */}
-                {(partner?.primaryName || partner?.secondaryName) && (
+                {/* Representatives Section (listing-level only) */}
+                {Array.isArray(item.companyRepresentatives) && item.companyRepresentatives.length > 0 && (
                     <div className="space-y-4">
                         <h3 className="text-xl font-black uppercase tracking-widest text-muted-foreground px-1">Representative(s)</h3>
                         <div className="rounded-2xl border border-foreground/10 bg-background overflow-hidden shadow-sm">
@@ -367,20 +396,13 @@ export default function ListingDetail() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {partner?.primaryName && (
-                                        <tr className="border-b border-foreground/10 hover:bg-muted/5 transition-colors">
-                                            <td className="px-8 py-4 text-sm">{partner.primaryName.split(' ')[0]}</td>
-                                            <td className="px-8 py-4 text-sm">{partner.primaryName.split(' ').slice(1).join(' ')}</td>
-                                            <td className="px-8 py-4 text-sm text-primary underline underline-offset-4">{partner.primaryEmail}</td>
+                                    {item.companyRepresentatives.map((rep: any, idx: number) => (
+                                        <tr key={`${rep.email || "rep"}-${idx}`} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
+                                            <td className="px-8 py-4 text-sm">{rep.firstName || "-"}</td>
+                                            <td className="px-8 py-4 text-sm">{rep.lastName || "-"}</td>
+                                            <td className="px-8 py-4 text-sm text-primary underline underline-offset-4">{rep.email || "-"}</td>
                                         </tr>
-                                    )}
-                                    {partner?.secondaryName && (
-                                        <tr className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
-                                            <td className="px-8 py-4 text-sm">{partner.secondaryName.split(' ')[0]}</td>
-                                            <td className="px-8 py-4 text-sm">{partner.secondaryName.split(' ').slice(1).join(' ')}</td>
-                                            <td className="px-8 py-4 text-sm text-primary underline underline-offset-4">{partner.secondaryEmail}</td>
-                                        </tr>
-                                    )}
+                                    ))}
                                 </tbody>
                             </table>
                         </div>

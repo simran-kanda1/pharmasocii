@@ -17,6 +17,8 @@ import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import { API_BASE_URL } from "@/apiConfig";
+import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
+import { isValidBusinessAddress } from "@/lib/addressValidation";
 import PhoneInput from 'react-phone-number-input'
 import 'react-phone-number-input/style.css'
 
@@ -309,6 +311,7 @@ export default function CompleteProfile() {
     const toggleCategorySelection = (cat: string, hasSubs: boolean) => {
         if (hasSubs) {
             // Just expand/collapse — parent with subs doesn't count
+            setSelectedCategories(prev => prev.filter(c => c !== cat));
             toggleExpandCategory(cat);
             return;
         }
@@ -323,6 +326,7 @@ export default function CompleteProfile() {
 
     const toggleSubcategorySelection = (sub: string, hasSubSubs: boolean) => {
         if (hasSubSubs) {
+            setSelectedSubcategories(prev => prev.filter(s => s !== sub));
             toggleExpandSubcategory(sub);
             return;
         }
@@ -482,6 +486,14 @@ export default function CompleteProfile() {
             setError("Please enter your business address.");
             return;
         }
+        if (!isValidBusinessAddress(formData.businessAddress)) {
+            setError("Please enter a valid business address (include street number and street name).");
+            return;
+        }
+        if (!formData.businessCountry) {
+            setError("Please select your business headquarters country.");
+            return;
+        }
 
         if (!formData.group || !formData.plan) {
             setError("Please select a group and plan before continuing.");
@@ -526,6 +538,12 @@ export default function CompleteProfile() {
                         .filter(cert => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"))
                 )
             );
+            const sanitizedSelections = sanitizeLowestLevelSelections(
+                getCategoriesForGroup(formData.group) as any,
+                selectedCategories,
+                selectedSubcategories,
+                selectedSubSubcategories
+            );
             const updateData: Record<string, any> = {
                 primaryName: `${formData.firstName} ${formData.lastName}`.trim(),
                 primaryEmail: formData.email,
@@ -546,9 +564,18 @@ export default function CompleteProfile() {
                 selectedPlan: formData.plan,
                 // Feature add-ons can only be purchased after base plan payment.
                 selectedAddon: "",
-                selectedCategories, selectedSubcategories, selectedSubSubcategories,
+                selectedCategories: sanitizedSelections.selectedCategories,
+                selectedSubcategories: sanitizedSelections.selectedSubcategories,
+                selectedSubSubcategories: sanitizedSelections.selectedSubSubcategories,
                 companyRepresentatives: normalizedRepresentatives,
             };
+            const categoryDisplayFields = buildDisplayCategoryFields(
+                getCategoriesForGroup(formData.group) as any,
+                sanitizedSelections.selectedCategories,
+                sanitizedSelections.selectedSubcategories,
+                sanitizedSelections.selectedSubSubcategories
+            );
+            Object.assign(updateData, categoryDisplayFields);
 
             const collectionMap: Record<string, string> = {
                 "business_offerings": "businessOfferingsCollection",
@@ -565,9 +592,10 @@ export default function CompleteProfile() {
                 selectedPlan: formData.plan,
                 // Feature add-ons can only be purchased after base plan payment.
                 selectedAddon: "",
-                selectedCategories,
-                selectedSubcategories,
-                selectedSubSubcategories,
+                selectedCategories: sanitizedSelections.selectedCategories,
+                selectedSubcategories: sanitizedSelections.selectedSubcategories,
+                selectedSubSubcategories: sanitizedSelections.selectedSubSubcategories,
+                ...categoryDisplayFields,
                 companyRepresentatives: normalizedRepresentatives,
                 status: "pending_payment",
                 createdAt: serverTimestamp(),
@@ -982,8 +1010,8 @@ export default function CompleteProfile() {
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="businessAddress">Full business address (optional)</Label>
-                                        <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} className="h-[104px] bg-muted/40 border-foreground/10 resize-none text-sm font-normal" placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} />
+                                        <Label htmlFor="businessAddress">Full business address *</Label>
+                                        <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} required className="h-[104px] bg-muted/40 border-foreground/10 resize-none text-sm font-normal" placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} />
                                     </div>
                                 </div>
                             </CardContent>
