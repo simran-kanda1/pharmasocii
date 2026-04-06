@@ -60,6 +60,23 @@ function getListingDocRef(partnerId, collectionName, listingId) {
     return db.collection(collectionName).doc(listingId);
 }
 
+function getInvoiceSubscriptionId(invoice) {
+    if (!invoice?.subscription) return null;
+    return typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription.id || null;
+}
+
+function getInvoiceCustomerId(invoice) {
+    if (!invoice?.customer) return null;
+    return typeof invoice.customer === "string" ? invoice.customer : invoice.customer.id || null;
+}
+
+function getInvoicePeriodEndDate(invoice) {
+    const firstLine = invoice?.lines?.data?.[0];
+    const periodEndSeconds = firstLine?.period?.end || null;
+    if (!periodEndSeconds) return null;
+    return new Date(periodEndSeconds * 1000);
+}
+
 /**
  * Log action to auditLogs collection
  */
@@ -283,6 +300,8 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 await partnerRef.set({
                     partnerStatus: "Approved",
                     lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    stripeSubscriptionId: session.subscription || null,
+                    stripeCustomerId: session.customer || null,
                 }, { merge: true });
                 console.log(`   ✓ Partner ${partnerId} marked as Approved`);
             }
@@ -335,6 +354,157 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
             break;
         }
 
+        case "invoice.paid": {
+            const invoice = event.data.object;
+            const subscriptionId = getInvoiceSubscriptionId(invoice);
+            const customerId = getInvoiceCustomerId(invoice);
+            const billingReason = invoice.billing_reason || "unknown";
+            const billingPeriodEnd = getInvoicePeriodEndDate(invoice);
+
+            console.log(`💳 Invoice paid: ${invoice.id} (reason: ${billingReason})`);
+
+            if (!subscriptionId) {
+                console.log("   ℹ No subscription ID on invoice, skipping subscription renewal sync.");
+                break;
+            }
+
+            const planSnap = await db.collectionGroup("planCollection")
+                .where("stripeSubscriptionId", "==", subscriptionId)
+                .get();
+
+            if (planSnap.empty) {
+                console.log(`   ⚠ No plan records found for subscription ${subscriptionId}`);
+                break;
+            }
+
+            const partnerIds = new Set();
+            let primaryPlanContext = null;
+
+            for (const planDoc of planSnap.docs) {
+                const planData = planDoc.data() || {};
+                const partnerId = planDoc.ref.path.split("/")[1] || "";
+                if (!partnerId) continue;
+
+                partnerIds.add(partnerId);
+
+                const planUpdate = {
+                    active: true,
+                    lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    stripeSubscriptionId: subscriptionId,
+                    ...(customerId ? { stripeCustomerId: customerId } : {}),
+                    ...(billingPeriodEnd ? { billingPeriodEnd } : {}),
+                };
+                await planDoc.ref.set(planUpdate, { merge: true });
+
+                if (!primaryPlanContext) {
+                    primaryPlanContext = {
+                        partnerId,
+                        planId: planData.planId || null,
+                        group: planData.group || null,
+                        listingId: planData.listingId || null,
+                        collectionName: planData.collectionName || null,
+                    };
+                }
+
+                if (planData.listingId && planData.collectionName) {
+                    const listingRef = getListingDocRef(partnerId, planData.collectionName, planData.listingId);
+                    if (listingRef) {
+                        await listingRef.set({
+                            active: true,
+                            status: "Approved",
+                            lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            stripeSubscriptionId: subscriptionId,
+                            ...(customerId ? { stripeCustomerId: customerId } : {}),
+                        }, { merge: true });
+                    }
+                }
+            }
+
+            for (const partnerId of partnerIds) {
+                await db.collection("partnersCollection").doc(partnerId).set({
+                    partnerStatus: "Approved",
+                    lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    stripeSubscriptionId: subscriptionId,
+                    ...(customerId ? { stripeCustomerId: customerId } : {}),
+                }, { merge: true });
+            }
+
+            // checkout.session.completed already records the initial charge.
+            // For invoice events, only record cycle renewals (and not creation invoices).
+            if (billingReason === "subscription_create") {
+                console.log(`   ℹ Initial subscription invoice ${invoice.id} already covered by checkout event.`);
+                break;
+            }
+
+            const existingInvoiceTxn = await db.collection("transactionsCollection")
+                .where("invoiceId", "==", invoice.id).limit(1).get();
+            if (!existingInvoiceTxn.empty) {
+                console.log(`   ℹ Transaction already exists for invoice ${invoice.id}`);
+                break;
+            }
+
+            let detailSource = null;
+            if (primaryPlanContext?.listingId && primaryPlanContext?.collectionName) {
+                const listingRef = getListingDocRef(
+                    primaryPlanContext.partnerId,
+                    primaryPlanContext.collectionName,
+                    primaryPlanContext.listingId
+                );
+                if (listingRef) {
+                    const listingSnap = await listingRef.get();
+                    if (listingSnap.exists) detailSource = listingSnap.data();
+                }
+            }
+
+            if (!detailSource && primaryPlanContext?.partnerId) {
+                const partnerSnap = await db.collection("partnersCollection").doc(primaryPlanContext.partnerId).get();
+                if (partnerSnap.exists) detailSource = partnerSnap.data();
+            }
+
+            const renewalTransaction = {
+                partnerId: primaryPlanContext?.partnerId || null,
+                amount: (invoice.amount_paid || invoice.amount_due || 0) / 100,
+                currency: invoice.currency || "usd",
+                status: "succeeded",
+                type: "listing",
+                planId: primaryPlanContext?.planId || null,
+                group: primaryPlanContext?.group || null,
+                listingId: primaryPlanContext?.listingId || null,
+                collectionName: primaryPlanContext?.collectionName || null,
+                createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                invoiceId: invoice.id,
+                stripeInvoiceId: invoice.id,
+                stripeSubscriptionId: subscriptionId,
+                stripeCustomerId: customerId || null,
+                customerEmail: invoice.customer_email || "",
+                selectedCategories: detailSource?.selectedCategories || [],
+                selectedSubcategories: detailSource?.selectedSubcategories || [],
+                serviceCountries: detailSource?.serviceCountries || [],
+                serviceRegions: detailSource?.serviceRegions || [],
+                businessName: detailSource?.businessName || "",
+                companyRepresentatives: detailSource?.companyRepresentatives || []
+            };
+
+            await db.collection("transactionsCollection").add(renewalTransaction);
+            console.log(`   ✓ Renewal transaction recorded for invoice ${invoice.id}`);
+
+            for (const partnerId of partnerIds) {
+                await logAudit({
+                    partnerId,
+                    action: "PAYMENT_SUCCESS",
+                    details: `Recurring invoice ${invoice.id} paid (${renewalTransaction.amount} ${renewalTransaction.currency.toUpperCase()}).`,
+                    category: "billing",
+                    metadata: {
+                        invoiceId: invoice.id,
+                        subscriptionId,
+                        billingReason
+                    }
+                });
+            }
+
+            break;
+        }
+
         case "customer.subscription.deleted": {
             const subscription = event.data.object;
             console.log(`❌ Subscription deleted: ${subscription.id}`);
@@ -366,19 +536,37 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
 
         case "invoice.payment_failed": {
             const invoice = event.data.object;
-            const customerId = invoice.customer;
-            console.log(`❌ Invoice payment failed for customer: ${customerId}`);
+            const customerId = getInvoiceCustomerId(invoice);
+            const subscriptionId = getInvoiceSubscriptionId(invoice);
+            console.log(`❌ Invoice payment failed for customer: ${customerId || "unknown"}`);
 
-            // Find partner by customer ID
-            const partnerSnap = await db.collection("partnersCollection").where("stripeCustomerId", "==", customerId).limit(1).get();
-            if (!partnerSnap.empty) {
-                const partnerDoc = partnerSnap.docs[0];
+            const partnerIds = new Set();
+            if (customerId) {
+                const partnerSnap = await db.collection("partnersCollection").where("stripeCustomerId", "==", customerId).get();
+                partnerSnap.docs.forEach((p) => partnerIds.add(p.id));
+            }
+
+            if (partnerIds.size === 0 && subscriptionId) {
+                const planSnap = await db.collectionGroup("planCollection")
+                    .where("stripeSubscriptionId", "==", subscriptionId)
+                    .get();
+                planSnap.docs.forEach((p) => {
+                    const partnerId = p.ref.path.split("/")[1];
+                    if (partnerId) partnerIds.add(partnerId);
+                });
+            }
+
+            for (const partnerId of partnerIds) {
                 await logAudit({
-                    partnerId: partnerDoc.id,
+                    partnerId,
                     action: "PAYMENT_FAILED",
-                    details: `Invoice payment failed for $${invoice.amount_due / 100}.`,
+                    details: `Invoice payment failed for $${(invoice.amount_due || 0) / 100}.`,
                     category: "billing",
-                    metadata: { invoiceId: invoice.id, amountDue: invoice.amount_due / 100 }
+                    metadata: {
+                        invoiceId: invoice.id,
+                        amountDue: (invoice.amount_due || 0) / 100,
+                        subscriptionId: subscriptionId || null
+                    }
                 });
             }
             break;
