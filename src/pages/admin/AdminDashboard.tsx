@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  Download,
   ExternalLink,
   Eye,
   FileText,
@@ -18,11 +19,14 @@ import {
   Receipt,
   Search,
   SearchX,
+  Settings,
   ShieldCheck,
+  Sparkles,
+  Tags,
   User,
   Users,
 } from "lucide-react";
-import { db, auth } from "@/firebase";
+import { db, auth, storage } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import {
@@ -35,8 +39,10 @@ import {
   onSnapshot,
   orderBy,
   query,
+  setDoc,
   updateDoc,
 } from "firebase/firestore";
+import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -58,8 +64,18 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES } from "../AllCategories";
 
-type AdminTab = "overview" | "partners" | "listings" | "transactions" | "audit";
+type AdminTab =
+  | "overview"
+  | "partners"
+  | "listings"
+  | "plans"
+  | "featuredPlans"
+  | "categories"
+  | "settings"
+  | "transactions"
+  | "audit";
 type ListingFilter = "all" | "pending" | "approved" | "disabled";
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
@@ -91,6 +107,34 @@ type ListingRecord = {
   __col: string;
   __path: string;
   [key: string]: any;
+};
+
+type PartnerPlanRecord = {
+  id: string;
+  partnerId: string;
+  planId?: string;
+  planName?: string;
+  createdAt?: { seconds?: number };
+};
+
+type FeaturedPlanPurchase = {
+  id: string;
+  partnerId: string;
+  featureId?: string;
+  featureName?: string;
+  active?: boolean;
+  createdAt?: { seconds?: number };
+};
+
+type AdminSettingsRecord = {
+  email?: string;
+  phone?: string;
+  facebook?: string;
+  twitter?: string;
+  linkedin?: string;
+  youtube?: string;
+  instagram?: string;
+  logoUrl?: string;
 };
 
 const splitCsv = (value: string) =>
@@ -129,6 +173,59 @@ const getStatusBadge = (status?: string) => {
   }
 };
 
+const PLAN_LIMITS: Record<string, { maxCategories: number; maxCountries: number }> = {
+  basic_mo: { maxCategories: 3, maxCountries: 1 },
+  standard_mo: { maxCategories: 5, maxCountries: 3 },
+  premium_mo: { maxCategories: 15, maxCountries: 15 },
+  premium_plus_mo: { maxCategories: -1, maxCountries: -1 },
+  basic_yr: { maxCategories: 3, maxCountries: 1 },
+  standard_yr: { maxCategories: 5, maxCountries: 3 },
+  premium_yr: { maxCategories: 15, maxCountries: 15 },
+  premium_plus_yr: { maxCategories: -1, maxCountries: -1 },
+  basic_event: { maxCategories: -1, maxCountries: -1 },
+  standard_event: { maxCategories: -1, maxCountries: -1 },
+  premium_event: { maxCategories: -1, maxCountries: -1 },
+  premium_plus_event: { maxCategories: -1, maxCountries: -1 },
+  standard_job: { maxCategories: -1, maxCountries: -1 },
+  premium_job: { maxCategories: -1, maxCountries: -1 },
+  premium_plus_job: { maxCategories: -1, maxCountries: -1 },
+};
+
+const AVAILABLE_PLANS: Array<{
+  service: string;
+  planId: string;
+  label: string;
+  priceUsd: number;
+  billing: string;
+}> = [
+  { service: "Business Offerings / Consulting", planId: "basic_mo", label: "Basic (Monthly)", priceUsd: 100, billing: "Monthly" },
+  { service: "Business Offerings / Consulting", planId: "standard_mo", label: "Standard (Monthly)", priceUsd: 200, billing: "Monthly" },
+  { service: "Business Offerings / Consulting", planId: "premium_mo", label: "Premium (Monthly)", priceUsd: 400, billing: "Monthly" },
+  { service: "Business Offerings / Consulting", planId: "premium_plus_mo", label: "Premium Plus (Monthly)", priceUsd: 1000, billing: "Monthly" },
+  { service: "Business Offerings / Consulting", planId: "basic_yr", label: "Basic (Annual)", priceUsd: 1080, billing: "Yearly" },
+  { service: "Business Offerings / Consulting", planId: "standard_yr", label: "Standard (Annual)", priceUsd: 2184, billing: "Yearly" },
+  { service: "Business Offerings / Consulting", planId: "premium_yr", label: "Premium (Annual)", priceUsd: 4320, billing: "Yearly" },
+  { service: "Business Offerings / Consulting", planId: "premium_plus_yr", label: "Premium Plus (Annual)", priceUsd: 10800, billing: "Yearly" },
+  { service: "Events", planId: "basic_event", label: "Basic Event", priceUsd: 500, billing: "Monthly" },
+  { service: "Events", planId: "standard_event", label: "Standard Event", priceUsd: 850, billing: "Monthly" },
+  { service: "Events", planId: "premium_event", label: "Premium Event", priceUsd: 1250, billing: "Monthly" },
+  { service: "Events", planId: "premium_plus_event", label: "Premium Plus Event", priceUsd: 1450, billing: "Monthly" },
+  { service: "Jobs", planId: "standard_job", label: "Standard Job Listing", priceUsd: 400, billing: "One-time" },
+  { service: "Jobs", planId: "premium_job", label: "Premium Job Listing", priceUsd: 800, billing: "One-time" },
+  { service: "Jobs", planId: "premium_plus_job", label: "Premium Plus Job Listing", priceUsd: 1000, billing: "One-time" },
+];
+
+const FEATURED_PLAN_CATALOG = [
+  {
+    service: "Business Offerings & Consulting Services",
+    options: [
+      { id: "home_page", label: "Home Page", price: 1000, durationDays: 30, countryLimit: 1, categoryLimit: 2, specification: "Home page" },
+      { id: "landing_page", label: "Landing Page", price: 700, durationDays: 30, countryLimit: 5, categoryLimit: 5, specification: "This is feature plan" },
+      { id: "both", label: "Both Page", price: 1500, durationDays: 30, countryLimit: 5, categoryLimit: 2, specification: "Both plan" },
+    ],
+  },
+];
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
@@ -136,6 +233,8 @@ export default function AdminDashboard() {
   const [partners, setPartners] = useState<PartnerRecord[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [listings, setListings] = useState<ListingRecord[]>([]);
+  const [partnerPlans, setPartnerPlans] = useState<PartnerPlanRecord[]>([]);
+  const [featuredPlans, setFeaturedPlans] = useState<FeaturedPlanPurchase[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [listingSearchTerm, setListingSearchTerm] = useState("");
   const [listingFilter, setListingFilter] = useState<ListingFilter>("all");
@@ -145,6 +244,19 @@ export default function AdminDashboard() {
   const [saveNotice, setSaveNotice] = useState("");
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditSearchTerm, setAuditSearchTerm] = useState("");
+  const [settingsData, setSettingsData] = useState<AdminSettingsRecord>({
+    email: "",
+    phone: "",
+    facebook: "",
+    twitter: "",
+    linkedin: "",
+    youtube: "",
+    instagram: "",
+    logoUrl: "",
+  });
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [categorySearch, setCategorySearch] = useState("");
 
   const [selectedPartner, setSelectedPartner] = useState<PartnerRecord | null>(null);
   const [partnerEditor, setPartnerEditor] = useState<Record<string, string>>({});
@@ -189,6 +301,28 @@ export default function AdminDashboard() {
       setTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
+    const qPartnerPlans = query(collectionGroup(db, "planCollection"), orderBy("createdAt", "desc"));
+    const unsubPartnerPlans = onSnapshot(qPartnerPlans, (snap) => {
+      setPartnerPlans(
+        snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Record<string, any>),
+          partnerId: d.ref.path.split("/")[1] || "",
+        })) as PartnerPlanRecord[],
+      );
+    });
+
+    const qFeatured = query(collectionGroup(db, "featuresCollection"), orderBy("createdAt", "desc"));
+    const unsubFeatured = onSnapshot(qFeatured, (snap) => {
+      setFeaturedPlans(
+        snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Record<string, any>),
+          partnerId: d.ref.path.split("/")[1] || "",
+        })) as FeaturedPlanPurchase[],
+      );
+    });
+
     const fetchListings = async () => {
       const collectionNames = [
         "businessOfferingsCollection",
@@ -229,10 +363,19 @@ export default function AdminDashboard() {
       setAuditLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
+    const settingsRef = doc(db, "adminSettingsCollection", "platformSettings");
+    const unsubSettings = onSnapshot(settingsRef, (settingsSnap) => {
+      const settings = settingsSnap.data() as AdminSettingsRecord | undefined;
+      setSettingsData((prev) => ({ ...prev, ...(settings || {}) }));
+    });
+
     return () => {
       unsubPartners();
       unsubTransactions();
+      unsubPartnerPlans();
+      unsubFeatured();
       unsubAudit();
+      unsubSettings();
       clearInterval(listingsInterval);
     };
   }, [isAuthorized]);
@@ -415,6 +558,175 @@ export default function AdminDashboard() {
   const approvedListings = listings.filter((l) => l.status === "Approved");
   const disabledListings = listings.filter((l) => l.status === "Disabled");
 
+  const partnerInsights = useMemo(() => {
+    const latestPlansByPartner = new Map<string, PartnerPlanRecord>();
+    const listingCountByPartner = new Map<string, number>();
+    const featuredCountByPartner = new Map<string, number>();
+
+    listings.forEach((listing) => {
+      const partnerId = listing.__path.split("/")[1] || "";
+      if (!partnerId) return;
+      listingCountByPartner.set(partnerId, (listingCountByPartner.get(partnerId) || 0) + 1);
+    });
+
+    featuredPlans.forEach((feature) => {
+      if (!feature.partnerId) return;
+      featuredCountByPartner.set(feature.partnerId, (featuredCountByPartner.get(feature.partnerId) || 0) + 1);
+    });
+
+    partnerPlans.forEach((plan) => {
+      if (!plan.partnerId) return;
+      const existing = latestPlansByPartner.get(plan.partnerId);
+      const existingTs = existing?.createdAt?.seconds || 0;
+      const currentTs = plan?.createdAt?.seconds || 0;
+      if (!existing || currentTs >= existingTs) {
+        latestPlansByPartner.set(plan.partnerId, plan);
+      }
+    });
+
+    return partners.reduce((acc, partner) => {
+      const latestPlan = latestPlansByPartner.get(partner.id);
+      acc[partner.id] = {
+        latestPlan: latestPlan?.planName || latestPlan?.planId || "-",
+        listingCount: listingCountByPartner.get(partner.id) || 0,
+        featuredCount: featuredCountByPartner.get(partner.id) || 0,
+      };
+      return acc;
+    }, {} as Record<string, { latestPlan: string; listingCount: number; featuredCount: number }>);
+  }, [partners, partnerPlans, listings, featuredPlans]);
+
+  const categoryRows = useMemo(() => {
+    const sources = [
+      { group: "Business Offerings", data: BUSINESS_CATEGORIES },
+      { group: "Consulting Services", data: CONSULTING_CATEGORIES },
+      { group: "Events", data: EVENTS_CATEGORIES },
+      { group: "Jobs", data: JOBS_CATEGORIES },
+    ];
+    const rows: Array<{ group: string; category: string; subcategory: string; subSubcategory: string }> = [];
+
+    sources.forEach(({ group, data }) => {
+      Object.entries(data).forEach(([category, subEntries]) => {
+        if (!Array.isArray(subEntries) || subEntries.length === 0) {
+          rows.push({ group, category, subcategory: "-", subSubcategory: "-" });
+          return;
+        }
+
+        subEntries.forEach((sub: any) => {
+          if (typeof sub === "string") {
+            rows.push({ group, category, subcategory: sub, subSubcategory: "-" });
+            return;
+          }
+          rows.push({
+            group,
+            category,
+            subcategory: sub.label || "-",
+            subSubcategory:
+              Array.isArray(sub.subSubcategories) && sub.subSubcategories.length > 0
+                ? sub.subSubcategories.join(", ")
+                : "-",
+          });
+        });
+      });
+    });
+
+    return rows;
+  }, []);
+
+  const filteredCategoryRows = useMemo(() => {
+    if (!categorySearch.trim()) return categoryRows;
+    const q = categorySearch.toLowerCase();
+    return categoryRows.filter(
+      (row) =>
+        row.group.toLowerCase().includes(q) ||
+        row.category.toLowerCase().includes(q) ||
+        row.subcategory.toLowerCase().includes(q) ||
+        row.subSubcategory.toLowerCase().includes(q),
+    );
+  }, [categoryRows, categorySearch]);
+
+  const exportPartners = (format: "csv" | "excel") => {
+    const headers = [
+      "Business Name",
+      "Primary Contact",
+      "Email",
+      "Phone",
+      "Website",
+      "Address",
+      "Status",
+      "Latest Plan",
+      "Listings",
+      "Featured",
+    ];
+
+    const rows = filteredPartners.map((partner) => {
+      const insight = partnerInsights[partner.id];
+      return [
+        partner.businessName || "",
+        partner.primaryName || "",
+        partner.primaryEmail || "",
+        partner.phoneNumber || "",
+        partner.companyWebsite || "",
+        partner.businessAddress || "",
+        partner.partnerStatus || "",
+        insight?.latestPlan || "-",
+        `${insight?.listingCount || 0}`,
+        `${insight?.featuredCount || 0}`,
+      ];
+    });
+
+    const separator = format === "excel" ? "\t" : ",";
+    const escapedRows = rows.map((row) =>
+      row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(separator),
+    );
+    const content = [headers.join(separator), ...escapedRows].join("\n");
+
+    const blob = new Blob([content], {
+      type: format === "excel" ? "application/vnd.ms-excel;charset=utf-8;" : "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `partners-export-${new Date().toISOString().slice(0, 10)}.${format === "excel" ? "xls" : "csv"}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const saveAdminSettings = async () => {
+    try {
+      setSettingsSaving(true);
+      await setDoc(
+        doc(db, "adminSettingsCollection", "platformSettings"),
+        { ...settingsData, updatedAt: new Date() },
+        { merge: true },
+      );
+      setSaveNotice("Settings saved.");
+    } catch (error) {
+      console.error(error);
+      setSaveNotice("Could not save settings.");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleLogoUpload = async (file?: File) => {
+    if (!file) return;
+    try {
+      setLogoUploading(true);
+      const fileRef = ref(storage, `admin/settings/logo-${Date.now()}-${file.name}`);
+      await uploadBytes(fileRef, file);
+      const logoUrl = await getDownloadURL(fileRef);
+      setSettingsData((prev) => ({ ...prev, logoUrl }));
+      setSaveNotice("Logo uploaded. Click submit to save settings.");
+    } catch (error) {
+      console.error(error);
+      setSaveNotice("Could not upload logo.");
+    } finally {
+      setLogoUploading(false);
+    }
+  };
+
   const filteredListings = useMemo(() => {
     return listings.filter((l) => {
       if (listingFilter === "pending" && l.status !== "Pending Review") return false;
@@ -438,6 +750,18 @@ export default function AdminDashboard() {
     pendingApprovals: partners.filter((p) => p.partnerStatus === "Pending").length,
     pendingListings: pendingListings.length,
     activeListings: approvedListings.length,
+  };
+
+  const activeTabLabelMap: Record<AdminTab, string> = {
+    overview: "Overview",
+    partners: "Partners",
+    listings: "Listings",
+    plans: "Plans",
+    featuredPlans: "Featured Plans",
+    categories: "Categories",
+    settings: "Settings",
+    transactions: "Transactions",
+    audit: "Audit Trail",
   };
 
   if (isAuthorized === null) {
@@ -466,6 +790,10 @@ export default function AdminDashboard() {
             <SidebarItem label="Overview" icon={LayoutDashboard} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
             <SidebarItem label="Partners" icon={Users} active={activeTab === "partners"} onClick={() => setActiveTab("partners")} badge={stats.pendingApprovals > 0 ? stats.pendingApprovals : undefined} />
             <SidebarItem label="Listings" icon={FileText} active={activeTab === "listings"} onClick={() => setActiveTab("listings")} badge={stats.pendingListings > 0 ? stats.pendingListings : undefined} />
+            <SidebarItem label="Plans" icon={Tags} active={activeTab === "plans"} onClick={() => setActiveTab("plans")} />
+            <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
+            <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
+            <SidebarItem label="Settings" icon={Settings} active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
             <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
             <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
           </nav>
@@ -483,7 +811,7 @@ export default function AdminDashboard() {
 
       <main className="flex-1 overflow-y-auto custom-scrollbar">
         <header className="h-20 border-b border-slate-200 bg-white flex items-center justify-between px-10 sticky top-0 z-40">
-          <h2 className="text-xl font-semibold capitalize">{activeTab}</h2>
+          <h2 className="text-xl font-semibold">{activeTabLabelMap[activeTab]}</h2>
           <div className="flex items-center gap-3">
             <div className="text-right">
               <p className="text-sm font-medium">{adminName}</p>
@@ -514,17 +842,28 @@ export default function AdminDashboard() {
 
           {activeTab === "partners" && (
             <div className="space-y-4">
-              <div className="relative w-full md:w-96">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Search partners by business or email..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 h-11 bg-white border-slate-200"
-                />
+              <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    placeholder="Search partners by business or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10 h-11 bg-white border-slate-200"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => exportPartners("csv")}>
+                    <Download className="w-4 h-4 mr-2" /> Export CSV
+                  </Button>
+                  <Button variant="outline" onClick={() => exportPartners("excel")}>
+                    <Download className="w-4 h-4 mr-2" /> Export Excel
+                  </Button>
+                </div>
               </div>
               <PartnerList
                 partners={filteredPartners}
+                partnerInsights={partnerInsights}
                 onView={openPartnerEditor}
                 onSetStatus={setPartnerStatus}
               />
@@ -569,6 +908,38 @@ export default function AdminDashboard() {
           )}
 
           {activeTab === "transactions" && <TransactionList transactions={transactions} />}
+
+          {activeTab === "plans" && <PlansCatalogTab />}
+
+          {activeTab === "featuredPlans" && (
+            <FeaturedPlansTab featuredPlans={featuredPlans} partners={partners} />
+          )}
+
+          {activeTab === "categories" && (
+            <div className="space-y-4">
+              <div className="relative w-full md:w-96">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                <Input
+                  placeholder="Search categories, subcategories..."
+                  value={categorySearch}
+                  onChange={(e) => setCategorySearch(e.target.value)}
+                  className="pl-10 h-11 bg-white border-slate-200"
+                />
+              </div>
+              <CategoryBreakdownTable rows={filteredCategoryRows} />
+            </div>
+          )}
+
+          {activeTab === "settings" && (
+            <AdminSettingsTab
+              settingsData={settingsData}
+              settingsSaving={settingsSaving}
+              logoUploading={logoUploading}
+              onChange={(patch) => setSettingsData((prev) => ({ ...prev, ...patch }))}
+              onSave={saveAdminSettings}
+              onLogoUpload={handleLogoUpload}
+            />
+          )}
 
           {activeTab === "audit" && (
             <div className="space-y-4">
@@ -844,10 +1215,12 @@ function OverviewTab({
 
 function PartnerList({
   partners,
+  partnerInsights,
   onView,
   onSetStatus,
 }: {
   partners: PartnerRecord[];
+  partnerInsights: Record<string, { latestPlan: string; listingCount: number; featuredCount: number }>;
   onView: (partner: PartnerRecord) => void;
   onSetStatus: (partner: PartnerRecord, status: string) => void;
 }) {
@@ -868,7 +1241,12 @@ function PartnerList({
           <TableHeader>
             <TableRow>
               <TableHead className="pl-6">Business</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Phone</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>User Plan</TableHead>
+              <TableHead>Listings</TableHead>
+              <TableHead>Featured</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead className="text-right pr-6">Actions</TableHead>
             </TableRow>
@@ -880,10 +1258,15 @@ function PartnerList({
                   <p className="font-medium">{partner.businessName || "Unnamed Business"}</p>
                   <p className="text-xs text-slate-500">{partner.companyWebsite || "-"}</p>
                 </TableCell>
+                <TableCell className="text-sm">{partner.primaryEmail || "-"}</TableCell>
+                <TableCell className="text-sm">{partner.phoneNumber || "-"}</TableCell>
                 <TableCell>{getStatusBadge(partner.partnerStatus)}</TableCell>
+                <TableCell className="text-sm">{partnerInsights[partner.id]?.latestPlan || "-"}</TableCell>
+                <TableCell>{partnerInsights[partner.id]?.listingCount || 0}</TableCell>
+                <TableCell>{partnerInsights[partner.id]?.featuredCount || 0}</TableCell>
                 <TableCell>
                   <p className="text-sm">{partner.primaryName || "-"}</p>
-                  <p className="text-xs text-slate-500">{partner.primaryEmail || "-"}</p>
+                  <p className="text-xs text-slate-500">{partner.businessAddress || "-"}</p>
                 </TableCell>
                 <TableCell className="text-right pr-6">
                   <DropdownMenu>
@@ -898,9 +1281,6 @@ function PartnerList({
                         <Eye className="w-4 h-4 mr-2" /> View / Edit profile
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => onSetStatus(partner, "Approved")}>
-                        <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Approve
-                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onSetStatus(partner, "Pending")}>
                         <Clock className="w-4 h-4 mr-2 text-amber-600" /> Unapprove (set pending)
                       </DropdownMenuItem>
@@ -912,6 +1292,243 @@ function PartnerList({
                 </TableCell>
               </TableRow>
             ))}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function PlansCatalogTab() {
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle>Available Plans by Service</CardTitle>
+        <CardDescription>Pricing and limitations by plan.</CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">Service</TableHead>
+              <TableHead>Plan</TableHead>
+              <TableHead>Billing</TableHead>
+              <TableHead>Price (USD)</TableHead>
+              <TableHead>Max Categories</TableHead>
+              <TableHead>Max Countries</TableHead>
+              <TableHead className="pr-6">Notes</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {AVAILABLE_PLANS.map((plan) => {
+              const limits = PLAN_LIMITS[plan.planId];
+              return (
+                <TableRow key={plan.planId}>
+                  <TableCell className="pl-6">{plan.service}</TableCell>
+                  <TableCell>{plan.label}</TableCell>
+                  <TableCell>{plan.billing}</TableCell>
+                  <TableCell className="font-semibold text-emerald-700">${plan.priceUsd.toLocaleString()}</TableCell>
+                  <TableCell>{limits?.maxCategories === -1 ? "Unlimited" : limits?.maxCategories ?? "-"}</TableCell>
+                  <TableCell>{limits?.maxCountries === -1 ? "Unlimited" : limits?.maxCountries ?? "-"}</TableCell>
+                  <TableCell className="pr-6">
+                    {plan.planId.includes("premium_plus")
+                      ? "Eligible for stronger homepage visibility options."
+                      : "Standard listing visibility."}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FeaturedPlansTab({
+  featuredPlans,
+  partners,
+}: {
+  featuredPlans: FeaturedPlanPurchase[];
+  partners: PartnerRecord[];
+}) {
+  const purchaseCountByFeature = useMemo(() => {
+    return featuredPlans.reduce((acc, feature) => {
+      const id = feature.featureId || "unknown";
+      acc[id] = (acc[id] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+  }, [featuredPlans]);
+
+  const recentPurchases = useMemo(() => {
+    return featuredPlans.slice(0, 12).map((feature) => {
+      const partner = partners.find((p) => p.id === feature.partnerId);
+      return {
+        ...feature,
+        partnerName: partner?.businessName || "Unknown partner",
+      };
+    });
+  }, [featuredPlans, partners]);
+
+  return (
+    <div className="space-y-6">
+      <Card className="bg-white border-slate-200 shadow-sm">
+        <CardHeader>
+          <CardTitle>Feature Plans</CardTitle>
+          <CardDescription>Featured placements, information, and pricing.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {FEATURED_PLAN_CATALOG.map((group) => (
+            <div key={group.service} className="space-y-3">
+              <h4 className="font-semibold">{group.service}</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {group.options.map((option) => (
+                  <div key={option.id} className="rounded-xl border border-slate-200 p-4 space-y-2">
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
+                    <p className="font-semibold">{option.label}</p>
+                    <p className="text-sm text-slate-600">Specification : {option.specification}</p>
+                    <p className="font-semibold">Amount In $ : {option.price}</p>
+                    <p>For : {option.durationDays} days</p>
+                    <p>Number of Country : {option.countryLimit}</p>
+                    <p>Number of Category : {option.categoryLimit}</p>
+                    <p className="text-xs text-slate-500">Purchased: {purchaseCountByFeature[option.id] || 0}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card className="bg-white border-slate-200 shadow-sm">
+        <CardHeader>
+          <CardTitle>Recent Featured Purchases</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">Partner</TableHead>
+                <TableHead>Feature</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="pr-6">Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recentPurchases.length === 0 ? (
+                <TableRow>
+                  <TableCell className="pl-6 text-slate-500" colSpan={4}>
+                    No featured purchases yet.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                recentPurchases.map((purchase) => (
+                  <TableRow key={purchase.id}>
+                    <TableCell className="pl-6">{purchase.partnerName}</TableCell>
+                    <TableCell>{purchase.featureName || purchase.featureId || "-"}</TableCell>
+                    <TableCell>
+                      <Badge className={purchase.active === false ? "bg-slate-200 text-slate-700 border-slate-300" : "bg-emerald-50 text-emerald-700 border-emerald-200"}>
+                        {purchase.active === false ? "Inactive" : "Active"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="pr-6 text-slate-500">
+                      {purchase.createdAt?.seconds
+                        ? new Date(purchase.createdAt.seconds * 1000).toLocaleDateString()
+                        : "-"}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function AdminSettingsTab({
+  settingsData,
+  settingsSaving,
+  logoUploading,
+  onChange,
+  onSave,
+  onLogoUpload,
+}: {
+  settingsData: AdminSettingsRecord;
+  settingsSaving: boolean;
+  logoUploading: boolean;
+  onChange: (patch: Partial<AdminSettingsRecord>) => void;
+  onSave: () => void;
+  onLogoUpload: (file?: File) => void;
+}) {
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle>Settings</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="space-y-1">
+          <p className="text-sm font-medium">Website Logo</p>
+          <Input type="file" accept="image/*" onChange={(e) => onLogoUpload(e.target.files?.[0])} />
+          {logoUploading ? <p className="text-xs text-slate-500">Uploading logo...</p> : null}
+          {settingsData.logoUrl ? (
+            <img src={settingsData.logoUrl} alt="Website logo" className="h-20 w-auto object-contain border rounded-md p-2 bg-white" />
+          ) : null}
+        </div>
+        <Field label="Email" value={settingsData.email || ""} onChange={(v) => onChange({ email: v })} />
+        <Field label="Phone" value={settingsData.phone || ""} onChange={(v) => onChange({ phone: v })} />
+        <Field label="Facebook" value={settingsData.facebook || ""} onChange={(v) => onChange({ facebook: v })} />
+        <Field label="Twitter" value={settingsData.twitter || ""} onChange={(v) => onChange({ twitter: v })} />
+        <Field label="Linkedin" value={settingsData.linkedin || ""} onChange={(v) => onChange({ linkedin: v })} />
+        <Field label="Youtube" value={settingsData.youtube || ""} onChange={(v) => onChange({ youtube: v })} />
+        <Field label="Instagram" value={settingsData.instagram || ""} onChange={(v) => onChange({ instagram: v })} />
+        <Button onClick={onSave} disabled={settingsSaving}>
+          {settingsSaving ? "Saving..." : "Submit"}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CategoryBreakdownTable({
+  rows,
+}: {
+  rows: Array<{ group: string; category: string; subcategory: string; subSubcategory: string }>;
+}) {
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardHeader>
+        <CardTitle>All Categories</CardTitle>
+        <CardDescription>Categories, sub categories, and sub sub categories.</CardDescription>
+      </CardHeader>
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">Group</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Sub Category</TableHead>
+              <TableHead className="pr-6">Sub Sub Categories</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.length === 0 ? (
+              <TableRow>
+                <TableCell className="pl-6 text-slate-500" colSpan={4}>
+                  No categories found.
+                </TableCell>
+              </TableRow>
+            ) : (
+              rows.map((row, index) => (
+                <TableRow key={`${row.group}-${row.category}-${row.subcategory}-${index}`}>
+                  <TableCell className="pl-6">{row.group}</TableCell>
+                  <TableCell>{row.category}</TableCell>
+                  <TableCell>{row.subcategory}</TableCell>
+                  <TableCell className="pr-6">{row.subSubcategory}</TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </CardContent>
