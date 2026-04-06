@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { MapPin, Building2, Users, Search, ExternalLink, Calendar, Briefcase, X, ChevronRight, ChevronDown, ShieldCheck } from "lucide-react";
+import { MapPin, Building2, Users, Search, ExternalLink, Calendar, Briefcase, X, ChevronLeft, ChevronRight, ChevronDown, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -229,9 +229,12 @@ export default function AllCategories() {
     const [healthAuthSearch, setHealthAuthSearch] = useState("");
     const [showAllCategories, setShowAllCategories] = useState(false);
     const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+    const [currentPage, setCurrentPage] = useState(1);
+    const itemsPerPage = 30;
 
     useEffect(() => {
         setViewMode("grid");
+        setCurrentPage(1);
         const fetchAllCategoriesData = async () => {
             setLoading(true);
             try {
@@ -286,18 +289,21 @@ export default function AllCategories() {
         setSelectedCategories(prev =>
             prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]
         );
+        setCurrentPage(1);
     };
 
     const toggleSubcategory = (sub: string) => {
         setSelectedSubcategories(prev =>
             prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]
         );
+        setCurrentPage(1);
     };
 
     const toggleSubSubcategory = (subSub: string) => {
         setSelectedSubSubcategories(prev =>
             prev.includes(subSub) ? prev.filter(s => s !== subSub) : [...prev, subSub]
         );
+        setCurrentPage(1);
     };
 
     const toggleExpandCategory = (cat: string) => {
@@ -318,6 +324,7 @@ export default function AllCategories() {
         setSelectedSubSubcategories([]);
         setSearchCountry("");
         setViewMode("grid");
+        setCurrentPage(1);
     };
 
     const clearFilters = () => {
@@ -325,6 +332,7 @@ export default function AllCategories() {
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
         setSearchCountry("");
+        setCurrentPage(1);
     };
 
     const isMainCategoryTab = currentTab === "business" || currentTab === "consulting" || currentTab === "events" || currentTab === "jobs";
@@ -414,6 +422,12 @@ export default function AllCategories() {
 
         return true;
     });
+
+    const totalPages = Math.ceil(filteredBusinesses.length / itemsPerPage);
+    const paginatedBusinesses = filteredBusinesses.slice(
+        (currentPage - 1) * itemsPerPage,
+        currentPage * itemsPerPage
+    );
 
     const featuredBusinesses = data.filter(item => {
         const addon = item.selectedAddon || item.featuredPlacement || "";
@@ -727,8 +741,9 @@ export default function AllCategories() {
                                     No companies matched your criteria.
                                 </div>
                             ) : (
+                                <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                                    {filteredBusinesses.map((item) => {
+                                    {paginatedBusinesses.map((item) => {
                                         const title = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName) : currentTab === "events" ? item.eventName : item.jobTitle;
                                         const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessAddress || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.city || item.location || "Remote"}`;
                                         const bottomLabel = currentTab === "business"
@@ -777,7 +792,63 @@ export default function AllCategories() {
                                         );
                                     })}
                                 </div>
-                            )}
+
+                                {totalPages > 1 && (
+                                    <div className="flex justify-center items-center gap-2 mt-12 pb-8">
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => {
+                                                setCurrentPage(prev => Math.max(prev - 1, 1));
+                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                            }}
+                                            disabled={currentPage === 1}
+                                            className="rounded-xl"
+                                        >
+                                            <ChevronLeft className="w-4 h-4" />
+                                        </Button>
+
+                                        <div className="flex items-center gap-1">
+                                            {Array.from({ length: totalPages }, (_, i) => i + 1)
+                                                .filter(page => {
+                                                    // Show first, last, and pages around current
+                                                    return page === 1 || page === totalPages || Math.abs(page - currentPage) <= 1;
+                                                })
+                                                .map((page, index, array) => (
+                                                    <div key={page} className="flex items-center gap-1">
+                                                        {index > 0 && array[index - 1] !== page - 1 && (
+                                                            <span className="text-muted-foreground px-1">...</span>
+                                                        )}
+                                                        <Button
+                                                            variant={currentPage === page ? "default" : "outline"}
+                                                            onClick={() => {
+                                                                setCurrentPage(page);
+                                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                                            }}
+                                                            className="w-10 h-10 rounded-xl"
+                                                        >
+                                                            {page}
+                                                        </Button>
+                                                    </div>
+                                                ))}
+                                        </div>
+
+                                        <Button
+                                            variant="outline"
+                                            size="icon"
+                                            onClick={() => {
+                                                setCurrentPage(prev => Math.min(prev + 1, totalPages));
+                                                window.scrollTo({ top: 0, behavior: 'smooth' });
+                                            }}
+                                            disabled={currentPage === totalPages}
+                                            className="rounded-xl"
+                                        >
+                                            <ChevronRight className="w-4 h-4" />
+                                        </Button>
+                                    </div>
+                                )}
+                            </>
+                        )}
                         </div>
                     </div>
                 ) : currentTab === "compliance" ? (
