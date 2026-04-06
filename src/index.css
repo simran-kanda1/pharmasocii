@@ -44,4 +44,8 @@
   body {
     @apply bg-background text-foreground tracking-[-0.02em];
   }
+
+  body.hide-footer footer {
+    display: none !important;
+  }
 }
