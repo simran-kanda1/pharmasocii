@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { auth, db } from "@/firebase";
-import { doc, getDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import { API_BASE_URL } from "@/apiConfig";
 
@@ -32,6 +32,17 @@ const GROUP_CONFIG: Record<string, { label: string; icon: any; dbGroup: string; 
 // ─── Plan limits ───
 interface PlanLimits { maxCategories: number; maxCountries: number; }
 interface CompanyRepresentative { firstName: string; lastName: string; email: string; }
+
+const normalizeRepresentative = (rep: any): CompanyRepresentative | null => {
+    const firstName = (rep?.firstName || "").trim();
+    const lastName = (rep?.lastName || "").trim();
+    const email = (rep?.email || "").trim();
+    if (!firstName || !lastName || !email) return null;
+    return { firstName, lastName, email };
+};
+
+const representativeKey = (rep: CompanyRepresentative): string =>
+    `${rep.firstName.toLowerCase()}|${rep.lastName.toLowerCase()}|${rep.email.toLowerCase()}`;
 
 const PLAN_LIMITS: Record<string, PlanLimits> = {
     basic_mo: { maxCategories: 3, maxCountries: 1 },
@@ -90,7 +101,6 @@ const SERVICE_COUNTRIES = [
 const BSL_LEVELS = ["1", "2", "3", "4"];
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
 const OTHER_CERT_OPTION = "Others";
-const OTHER_CERT_PREFIX = "other: ";
 
 const REGION_COUNTRY_MAP: Record<string, string[]> = {
     "North America": ["Barbados", "Belize", "Canada", "Costa Rica", "Cuba", "Dominican Republic", "El Salvador", "Guatemala", "Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua", "Panama", "Trinidad and Tobago", "United States"],
@@ -104,6 +114,65 @@ const REGION_COUNTRY_MAP: Record<string, string[]> = {
 
 const getSubLabel = (entry: SubcategoryEntry): string => typeof entry === "string" ? entry : entry.label;
 const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcategories: string[] } => typeof entry !== "string";
+
+const toDateValue = (value: any): Date | null => {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value?.toDate === "function") {
+        const converted = value.toDate();
+        return converted instanceof Date && !Number.isNaN(converted.getTime()) ? converted : null;
+    }
+    if (typeof value === "number") {
+        const millis = value > 1e12 ? value : value * 1000;
+        const converted = new Date(millis);
+        return Number.isNaN(converted.getTime()) ? null : converted;
+    }
+    if (typeof value === "string") {
+        const converted = new Date(value);
+        return Number.isNaN(converted.getTime()) ? null : converted;
+    }
+    if (typeof value?.seconds === "number") {
+        const converted = new Date(value.seconds * 1000);
+        return Number.isNaN(converted.getTime()) ? null : converted;
+    }
+    return null;
+};
+
+const inferPlanGroup = (plan: any): string => {
+    if (plan?.group) return plan.group;
+    if (plan?.collectionName === "businessOfferingsCollection") return "business_offerings";
+    if (plan?.collectionName === "consultingServicesCollection" || plan?.collectionName === "consultingCollection") return "consulting";
+    if (plan?.collectionName === "eventsCollection") return "events";
+    if (plan?.collectionName === "jobsCollection") return "jobs";
+    return "";
+};
+
+const getGroupPurchaseLock = (plans: any[], group: "business_offerings" | "consulting") => {
+    const now = new Date();
+    let blocked = false;
+    let blockedUntil: Date | null = null;
+    let hasOpenEndedBlock = false;
+
+    for (const plan of plans || []) {
+        if (inferPlanGroup(plan) !== group) continue;
+        const isActive = plan?.active !== false;
+        if (!isActive) continue;
+
+        if (!plan?.cancelAtPeriodEnd) {
+            blocked = true;
+            hasOpenEndedBlock = true;
+            blockedUntil = null;
+            continue;
+        }
+
+        const periodEnd = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
+        if (!periodEnd || now < periodEnd) {
+            blocked = true;
+            if (!hasOpenEndedBlock && periodEnd && (!blockedUntil || periodEnd > blockedUntil)) blockedUntil = periodEnd;
+        }
+    }
+    return { blocked, blockedUntil };
+};
 
 // ─── Reusable MultiSelect Dropdown ───
 function MultiSelectDropdown({ label, items, selected, onToggle, open, onToggleOpen, disabled, search, setSearch, filteredItems }: {
@@ -162,6 +231,7 @@ export default function AddListing() {
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
+    const [groupPurchaseLock, setGroupPurchaseLock] = useState<{ blocked: boolean; blockedUntil: Date | null }>({ blocked: false, blockedUntil: null });
     const [showPlanDetails, setShowPlanDetails] = useState(false);
 
     // ─── Plan selection ───
@@ -177,11 +247,11 @@ export default function AddListing() {
     const [selectedBSL, setSelectedBSL] = useState<string[]>([]);
     const [selectedCerts, setSelectedCerts] = useState<string[]>([]);
     const [otherCertText, setOtherCertText] = useState("");
+    const [showOtherCertInput, setShowOtherCertInput] = useState(false);
     const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
     const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
-    const [companyRepresentatives, setCompanyRepresentatives] = useState<CompanyRepresentative[]>([
-        { firstName: "", lastName: "", email: "" },
-    ]);
+    const [companyRepresentatives, setCompanyRepresentatives] = useState<CompanyRepresentative[]>([]);
+    const [availableRepresentatives, setAvailableRepresentatives] = useState<CompanyRepresentative[]>([]);
 
     // ─── Event fields ───
     const [eventData, setEventData] = useState({
@@ -219,20 +289,61 @@ export default function AddListing() {
                     setCompanyName(d.businessName || "");
                     setCompanyProfile(d.companyProfileText || "");
                     setBusinessAddress(d.businessAddress || "");
-                    if (Array.isArray(d.companyRepresentatives) && d.companyRepresentatives.length > 0) {
-                        setCompanyRepresentatives(
-                            d.companyRepresentatives.map((rep: any) => ({
-                                firstName: rep.firstName || "",
-                                lastName: rep.lastName || "",
-                                email: rep.email || "",
-                            }))
+                    const [altFName, ...altLNames] = ((d.secondaryName || "") as string).split(" ");
+                    const altRep = normalizeRepresentative({
+                        firstName: d.secondaryFirstName || altFName || "",
+                        lastName: d.secondaryLastName || altLNames.join(" ") || "",
+                        email: d.secondaryEmail || "",
+                    });
+                    const partnerDocReps = Array.isArray(d.companyRepresentatives)
+                        ? d.companyRepresentatives.map(normalizeRepresentative).filter(Boolean) as CompanyRepresentative[]
+                        : [];
+
+                    const listingResults = await Promise.allSettled([
+                        getDocs(collection(doc(db, "partnersCollection", auth.currentUser.uid), "businessOfferingsCollection")),
+                        getDocs(query(collection(db, "consultingServicesCollection"), where("partnerId", "==", auth.currentUser.uid))),
+                        getDocs(query(collection(db, "eventsCollection"), where("partnerId", "==", auth.currentUser.uid))),
+                        getDocs(query(collection(db, "jobsCollection"), where("partnerId", "==", auth.currentUser.uid))),
+                    ]);
+                    const listingReps = listingResults
+                        .filter((result): result is PromiseFulfilledResult<any> => result.status === "fulfilled")
+                        .flatMap((result) => result.value.docs.map((docItem: any) => docItem.data()))
+                        .flatMap((listingData: any) => Array.isArray(listingData.companyRepresentatives) ? listingData.companyRepresentatives : [])
+                        .map(normalizeRepresentative)
+                        .filter(Boolean) as CompanyRepresentative[];
+
+                    const allSuggestions = [...partnerDocReps, ...listingReps, ...(altRep ? [altRep] : [])];
+                    const seen = new Set<string>();
+                    setAvailableRepresentatives(
+                        allSuggestions.filter((rep) => {
+                            const key = representativeKey(rep);
+                            if (seen.has(key)) return false;
+                            seen.add(key);
+                            return true;
+                        })
+                    );
+                }
+
+                if (dbGroup === "business_offerings" || dbGroup === "consulting") {
+                    const plansSnap = await getDocs(collection(doc(db, "partnersCollection", auth.currentUser.uid), "planCollection"));
+                    const plans = plansSnap.docs.map((d) => d.data());
+                    const lock = getGroupPurchaseLock(plans, dbGroup);
+                    setGroupPurchaseLock(lock);
+                    if (lock.blocked) {
+                        const nextDate = lock.blockedUntil?.toLocaleDateString();
+                        setError(
+                            nextDate
+                                ? `You can add another ${dbGroup === "business_offerings" ? "Business Offering" : "Consulting Service"} after ${nextDate}.`
+                                : `You can only have one active ${dbGroup === "business_offerings" ? "Business Offering" : "Consulting Service"} at a time.`
                         );
                     }
+                } else {
+                    setGroupPurchaseLock({ blocked: false, blockedUntil: null });
                 }
             }
         };
         fetchPartner();
-    }, []);
+    }, [dbGroup]);
 
     // ─── Plan limits ───
     const currentLimits = PLAN_LIMITS[plan] || { maxCategories: 0, maxCountries: 0 };
@@ -251,6 +362,7 @@ export default function AddListing() {
 
     const isCategoryLimitReached = currentLimits.maxCategories !== -1 && categoryCount >= currentLimits.maxCategories;
     const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
+    const canSelectAllCategories = currentLimits.maxCategories === -1;
 
     function getCategoriesForGroup(group: string): CategoriesDict | Record<string, string[]> | null {
         switch (group) {
@@ -284,10 +396,40 @@ export default function AddListing() {
 
     const toggleBSL = (val: string) => setSelectedBSL(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
     const toggleCert = (val: string) => {
+        if (val === OTHER_CERT_OPTION) {
+            setShowCertsDropdown(false);
+            if (showOtherCertInput) {
+                const customValue = otherCertText.trim();
+                setShowOtherCertInput(false);
+                setOtherCertText("");
+                if (customValue) {
+                    setSelectedCerts(prev => prev.filter(cert => cert !== customValue));
+                }
+            } else {
+                setShowOtherCertInput(true);
+            }
+            return;
+        }
         setSelectedCerts(prev => {
-            const next = prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val];
-            if (!next.includes(OTHER_CERT_OPTION)) setOtherCertText("");
-            return next;
+            if (prev.includes(val)) {
+                const next = prev.filter(v => v !== val);
+                if (val === otherCertText.trim()) {
+                    setOtherCertText("");
+                    setShowOtherCertInput(false);
+                }
+                return next;
+            }
+            return [...prev, val];
+        });
+    };
+    const handleOtherCertTextChange = (value: string) => {
+        const previousCustomValue = otherCertText.trim();
+        const nextCustomValue = value.trim();
+        setOtherCertText(value);
+        setSelectedCerts(prev => {
+            const withoutPreviousCustom = prev.filter(cert => cert !== previousCustomValue && cert !== OTHER_CERT_OPTION);
+            if (!nextCustomValue) return withoutPreviousCustom;
+            return Array.from(new Set([...withoutPreviousCustom, nextCustomValue]));
         });
     };
     const toggleRegion = (val: string) => {
@@ -309,11 +451,19 @@ export default function AddListing() {
     const addRepresentative = () => {
         setCompanyRepresentatives(prev => [...prev, { firstName: "", lastName: "", email: "" }]);
     };
-    const removeRepresentative = (index: number) => {
+    const addRepresentativeFromSaved = (rep: CompanyRepresentative) => {
         setCompanyRepresentatives(prev => {
-            if (prev.length === 1) return [{ firstName: "", lastName: "", email: "" }];
-            return prev.filter((_, i) => i !== index);
+            const exists = prev.some((existing) => representativeKey({
+                firstName: existing.firstName.trim(),
+                lastName: existing.lastName.trim(),
+                email: existing.email.trim(),
+            }) === representativeKey(rep));
+            if (exists) return prev;
+            return [...prev, { ...rep }];
         });
+    };
+    const removeRepresentative = (index: number) => {
+        setCompanyRepresentatives(prev => prev.filter((_, i) => i !== index));
     };
     const updateRepresentative = (index: number, field: keyof CompanyRepresentative, value: string) => {
         setCompanyRepresentatives(prev => prev.map((rep, i) => (i === index ? { ...rep, [field]: value } : rep)));
@@ -375,8 +525,18 @@ export default function AddListing() {
         e.preventDefault();
         setError("");
 
+        if (groupPurchaseLock.blocked) {
+            const nextDate = groupPurchaseLock.blockedUntil?.toLocaleDateString();
+            setError(
+                nextDate
+                    ? `You can add another ${dbGroup === "business_offerings" ? "Business Offering" : "Consulting Service"} after ${nextDate}.`
+                    : `You can only have one active ${dbGroup === "business_offerings" ? "Business Offering" : "Consulting Service"} at a time.`
+            );
+            return;
+        }
+
         if (!plan) { setError("Please select a plan before continuing."); return; }
-        if (dbGroup === "business_offerings" && selectedCerts.includes(OTHER_CERT_OPTION) && !otherCertText.trim()) {
+        if (dbGroup === "business_offerings" && showOtherCertInput && !otherCertText.trim()) {
             setError('Please enter a value for "Other" certification.');
             return;
         }
@@ -400,12 +560,13 @@ export default function AddListing() {
             setIsLoading(true);
 
             // Build listing data
-            const normalizedCertifications = [
-                ...selectedCerts.filter(cert => cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:")),
-                ...(selectedCerts.includes(OTHER_CERT_OPTION) && otherCertText.trim()
-                    ? [`${OTHER_CERT_PREFIX}${otherCertText.trim()}`]
-                    : []),
-            ];
+            const normalizedCertifications = Array.from(
+                new Set(
+                    selectedCerts
+                        .map(cert => cert.trim())
+                        .filter(cert => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"))
+                )
+            );
             const listingData: Record<string, any> = {
                 partnerId: auth.currentUser.uid,
                 businessName: companyName,
@@ -577,6 +738,41 @@ export default function AddListing() {
         });
     }
 
+    const handleSelectAllCategories = () => {
+        const catDict = getCategoriesForGroup(dbGroup);
+        if (!catDict || !canSelectAllCategories) return;
+
+        const allLeafCategories: string[] = [];
+        const allLeafSubcategories: string[] = [];
+        const allSubSubcategories: string[] = [];
+        const allCategoryKeys = Object.keys(catDict);
+        const allNestedSubcategoryLabels: string[] = [];
+        const isBusinessGroup = dbGroup === "business_offerings";
+
+        Object.entries(catDict).forEach(([cat, subs]) => {
+            if (!subs.length) {
+                allLeafCategories.push(cat);
+                return;
+            }
+
+            subs.forEach((entry: SubcategoryEntry) => {
+                const subLabel = getSubLabel(entry);
+                if (isBusinessGroup && hasSubSub(entry)) {
+                    allNestedSubcategoryLabels.push(subLabel);
+                    entry.subSubcategories.forEach((ss) => allSubSubcategories.push(ss));
+                } else {
+                    allLeafSubcategories.push(subLabel);
+                }
+            });
+        });
+
+        setSelectedCategories(Array.from(new Set(allLeafCategories)));
+        setSelectedSubcategories(Array.from(new Set(allLeafSubcategories)));
+        setSelectedSubSubcategories(Array.from(new Set(allSubSubcategories)));
+        setExpandedCategories(allCategoryKeys);
+        setExpandedSubcategories(Array.from(new Set(allNestedSubcategoryLabels)));
+    };
+
     if (!config) {
         return (
             <div className="flex-1 flex items-center justify-center p-16">
@@ -693,13 +889,20 @@ export default function AddListing() {
                                                 <Label>Certifications</Label>
                                                 <MultiSelectDropdown label="certifications" items={CERTIFICATIONS} selected={selectedCerts} onToggle={toggleCert} open={showCertsDropdown}
                                                     onToggleOpen={() => { setShowCertsDropdown(!showCertsDropdown); setShowBSLDropdown(false); setShowRegionsDropdown(false); setShowCountriesDropdown(false); }} />
-                                                {selectedCerts.includes(OTHER_CERT_OPTION) && (
-                                                    <Input
-                                                        value={otherCertText}
-                                                        onChange={(e) => setOtherCertText(e.target.value)}
-                                                        placeholder='Enter "other" certification'
-                                                        className="bg-muted/40 border-foreground/10"
-                                                    />
+                                                {showOtherCertInput && (
+                                                    <div className="space-y-1">
+                                                        <Input
+                                                            autoFocus
+                                                            required={showOtherCertInput}
+                                                            value={otherCertText}
+                                                            onChange={(e) => handleOtherCertTextChange(e.target.value)}
+                                                            placeholder='Enter "other" certification'
+                                                            className="bg-muted/40 border-foreground/10"
+                                                        />
+                                                        {!otherCertText.trim() && (
+                                                            <p className="text-xs text-muted-foreground">Please enter a value for "Other".</p>
+                                                        )}
+                                                    </div>
                                                 )}
                                             </div>
                                         </div>
@@ -874,8 +1077,15 @@ export default function AddListing() {
                                             <Label className="text-base font-semibold">Category(ies) <span className="text-red-400">*</span></Label>
                                             <p className="text-xs text-muted-foreground mt-1">Select categories from the lowest level. Parent categories with subcategories expand when clicked.</p>
                                         </div>
-                                        <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>
-                                            {categoryCount} / {currentLimits.maxCategories === -1 ? "∞" : currentLimits.maxCategories}
+                                        <div className="flex items-center gap-2">
+                                            {canSelectAllCategories && (
+                                                <Button type="button" variant="outline" size="sm" onClick={handleSelectAllCategories}>
+                                                    Select all
+                                                </Button>
+                                            )}
+                                            <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>
+                                                {categoryCount} / {currentLimits.maxCategories === -1 ? "∞" : currentLimits.maxCategories}
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="max-h-[500px] overflow-y-auto border border-foreground/10 rounded-xl bg-background p-4 space-y-0.5 custom-scrollbar">
@@ -907,6 +1117,27 @@ export default function AddListing() {
                                         <Label className="text-base font-semibold">Company representative(s)</Label>
                                         <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
                                     </div>
+                                    {availableRepresentatives.length > 0 && (
+                                        <div className="space-y-2">
+                                            <p className="text-xs text-muted-foreground">Choose from existing representatives</p>
+                                            <div className="flex flex-wrap gap-2">
+                                                {availableRepresentatives.map((rep) => (
+                                                    <Button
+                                                        key={representativeKey(rep)}
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={() => addRepresentativeFromSaved(rep)}
+                                                    >
+                                                        {rep.firstName} {rep.lastName} - {rep.email}
+                                                    </Button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {companyRepresentatives.length === 0 && (
+                                        <p className="text-xs text-muted-foreground">Optional: Add a new representative or choose one from existing contacts.</p>
+                                    )}
                                     <div className="space-y-3">
                                         {companyRepresentatives.map((rep, index) => (
                                             <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -951,7 +1182,7 @@ export default function AddListing() {
                     {/* Submit */}
                     <div className="flex justify-end pt-4 pb-20">
                         <Button type="button" variant="outline" className="mr-4 border-foreground/10" onClick={() => navigate("/partner/dashboard")}>Cancel</Button>
-                        <Button type="submit" size="lg" className="h-14 px-10 shadow-lg shadow-primary/20 text-lg" disabled={isLoading || !plan}>
+                        <Button type="submit" size="lg" className="h-14 px-10 shadow-lg shadow-primary/20 text-lg" disabled={isLoading || !plan || groupPurchaseLock.blocked}>
                             {isLoading ? (
                                 <span className="flex items-center gap-2">
                                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />

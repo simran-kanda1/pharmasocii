@@ -11,6 +11,13 @@ import { logActivity } from "@/lib/auditLogger";
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
 
+const passwordRequirements = {
+    minLength: (password: string) => password.length >= 8,
+    uppercase: (password: string) => /[A-Z]/.test(password),
+    lowercase: (password: string) => /[a-z]/.test(password),
+    special: (password: string) => /[^A-Za-z0-9]/.test(password),
+};
+
 export default function PartnerRegister() {
     const navigate = useNavigate();
     const [isLoading, setIsLoading] = useState(false);
@@ -38,17 +45,29 @@ export default function PartnerRegister() {
     };
     const passwordsMismatch =
         formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword;
+    const passwordChecks = {
+        minLength: passwordRequirements.minLength(formData.password),
+        uppercase: passwordRequirements.uppercase(formData.password),
+        lowercase: passwordRequirements.lowercase(formData.password),
+        special: passwordRequirements.special(formData.password),
+    };
+    const isPasswordValid = Object.values(passwordChecks).every(Boolean);
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+
+        if (!isPasswordValid) {
+            setError("Password must include at least 8 characters, uppercase, lowercase, and a special character.");
+            return;
+        }
 
         if (formData.password !== formData.confirmPassword) {
             setError("Passwords do not match");
             return;
         }
 
-        if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.phone || !formData.companyName) {
+        if (!formData.firstName || !formData.lastName || !formData.email || !formData.password || !formData.phone || !formData.companyName || !formData.altFirstName || !formData.altLastName || !formData.altEmail) {
             setError("Please fill in all required fields");
             return;
         }
@@ -70,7 +89,9 @@ export default function PartnerRegister() {
                 businessName: formData.companyName,
                 phoneNumber: formData.phone,
                 billingEmailAddress: formData.email, // Default to primary email initially
-                secondaryName: formData.altFirstName || formData.altLastName ? `${formData.altFirstName} ${formData.altLastName}`.trim() : "",
+                secondaryName: `${formData.altFirstName} ${formData.altLastName}`.trim(),
+                secondaryFirstName: formData.altFirstName,
+                secondaryLastName: formData.altLastName,
                 secondaryEmail: formData.altEmail,
                 createdAt: serverTimestamp(),
             };
@@ -187,6 +208,12 @@ export default function PartnerRegister() {
                                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                 </button>
                             </div>
+                            <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                                <li className={passwordChecks.minLength ? "text-green-500" : ""}>At least 8 characters</li>
+                                <li className={passwordChecks.uppercase ? "text-green-500" : ""}>At least 1 uppercase letter</li>
+                                <li className={passwordChecks.lowercase ? "text-green-500" : ""}>At least 1 lowercase letter</li>
+                                <li className={passwordChecks.special ? "text-green-500" : ""}>At least 1 special character</li>
+                            </ul>
                             {passwordsMismatch && <p className="text-xs text-destructive mt-1">Passwords do not match.</p>}
                         </div>
 
@@ -231,22 +258,22 @@ export default function PartnerRegister() {
 
                         {/* Alternate Contact Section */}
                         <div className="pt-4 pb-2">
-                            <p className="text-sm font-semibold text-primary">Alternate Contact (Optional)</p>
+                            <p className="text-sm font-semibold text-primary">Alternate Contact</p>
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altFirstName" className="text-foreground/80">First name (alternate contact)</Label>
-                            <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
+                            <Label htmlFor="altFirstName" className="text-foreground/80">Alternate contact first name *</Label>
+                            <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altLastName" className="text-foreground/80">Last name (alternate contact)</Label>
-                            <Input id="altLastName" value={formData.altLastName} onChange={handleChange} className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
+                            <Label htmlFor="altLastName" className="text-foreground/80">Alternate contact last name *</Label>
+                            <Input id="altLastName" value={formData.altLastName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altEmail" className="text-foreground/80">Email (alternate contact)</Label>
-                            <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
+                            <Label htmlFor="altEmail" className="text-foreground/80">Alternate contact email *</Label>
+                            <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="pt-4">

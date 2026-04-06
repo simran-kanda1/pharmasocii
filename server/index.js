@@ -611,6 +611,73 @@ const FEATURE_PRICES = {
     both: { amount: 100000, name: "Landing + Home Page Spotlight" },
 };
 
+const toDateValue = (value) => {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value?.toDate === "function") {
+        const converted = value.toDate();
+        return converted instanceof Date && !Number.isNaN(converted.getTime()) ? converted : null;
+    }
+    if (typeof value === "number") {
+        const millis = value > 1e12 ? value : value * 1000;
+        const converted = new Date(millis);
+        return Number.isNaN(converted.getTime()) ? null : converted;
+    }
+    if (typeof value === "string") {
+        const converted = new Date(value);
+        return Number.isNaN(converted.getTime()) ? null : converted;
+    }
+    if (typeof value?.seconds === "number") {
+        const converted = new Date(value.seconds * 1000);
+        return Number.isNaN(converted.getTime()) ? null : converted;
+    }
+    return null;
+};
+
+const inferPlanGroup = (plan) => {
+    if (plan?.group) return plan.group;
+    if (plan?.collectionName === "businessOfferingsCollection") return "business_offerings";
+    if (plan?.collectionName === "consultingServicesCollection" || plan?.collectionName === "consultingCollection") return "consulting";
+    if (plan?.collectionName === "eventsCollection") return "events";
+    if (plan?.collectionName === "jobsCollection") return "jobs";
+    return "";
+};
+
+const getGroupPurchaseLockForPartner = async (partnerId, group) => {
+    if (!partnerId || !["business_offerings", "consulting"].includes(group)) {
+        return { blocked: false, blockedUntil: null };
+    }
+
+    const now = new Date();
+    let blocked = false;
+    let blockedUntil = null;
+    let hasOpenEndedBlock = false;
+    const plansSnap = await db
+        .collection("partnersCollection")
+        .doc(partnerId)
+        .collection("planCollection")
+        .where("active", "==", true)
+        .get();
+
+    plansSnap.forEach((doc) => {
+        const plan = doc.data() || {};
+        if (inferPlanGroup(plan) !== group) return;
+        if (!plan.cancelAtPeriodEnd) {
+            blocked = true;
+            hasOpenEndedBlock = true;
+            blockedUntil = null;
+            return;
+        }
+        const periodEnd = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
+        if (!periodEnd || now < periodEnd) {
+            blocked = true;
+            if (!hasOpenEndedBlock && periodEnd && (!blockedUntil || periodEnd > blockedUntil)) blockedUntil = periodEnd;
+        }
+    });
+
+    return { blocked, blockedUntil };
+};
+
 /**
  * POST /api/create-checkout-session
  * Body: { planId, group, partnerId, partnerEmail, successUrl, cancelUrl }
@@ -623,6 +690,23 @@ app.post("/api/create-checkout-session", async (req, res) => {
         const plan = PLAN_PRICES[planId];
         if (!plan) {
             return res.status(400).json({ error: `Unknown plan: ${planId}` });
+        }
+        if (!partnerId || !group) {
+            return res.status(400).json({ error: "partnerId and group are required." });
+        }
+
+        if (group === "business_offerings" || group === "consulting") {
+            const lock = await getGroupPurchaseLockForPartner(partnerId, group);
+            if (lock.blocked) {
+                const listingType = group === "business_offerings" ? "Business Offering" : "Consulting Service";
+                const dateLabel = lock.blockedUntil ? lock.blockedUntil.toISOString().slice(0, 10) : null;
+                return res.status(409).json({
+                    error: dateLabel
+                        ? `You can add another ${listingType} after ${dateLabel}.`
+                        : `You can only have one active ${listingType} plan at a time.`,
+                    blockedUntil: lock.blockedUntil ? lock.blockedUntil.toISOString() : null,
+                });
+            }
         }
 
         const lineItems = [];

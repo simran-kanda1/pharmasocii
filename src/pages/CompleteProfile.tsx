@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { auth, db } from "@/firebase";
-import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import { API_BASE_URL } from "@/apiConfig";
 import PhoneInput from 'react-phone-number-input'
@@ -41,6 +41,17 @@ interface CompanyRepresentative {
     lastName: string;
     email: string;
 }
+
+const normalizeRepresentative = (rep: any): CompanyRepresentative | null => {
+    const firstName = (rep?.firstName || "").trim();
+    const lastName = (rep?.lastName || "").trim();
+    const email = (rep?.email || "").trim();
+    if (!firstName || !lastName || !email) return null;
+    return { firstName, lastName, email };
+};
+
+const representativeKey = (rep: CompanyRepresentative): string =>
+    `${rep.firstName.toLowerCase()}|${rep.lastName.toLowerCase()}|${rep.email.toLowerCase()}`;
 
 const PLAN_LIMITS: Record<string, PlanLimits> = {
     basic_mo: { maxCategories: 3, maxCountries: 1 },
@@ -104,7 +115,6 @@ const BSL_LEVELS = ["1", "2", "3", "4"];
 // ─── Certifications ───
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
 const OTHER_CERT_OPTION = "Others";
-const OTHER_CERT_PREFIX = "other: ";
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
 const REGION_COUNTRY_MAP: Record<string, string[]> = {
@@ -135,7 +145,7 @@ export default function CompleteProfile() {
     // Form state
     const [formData, setFormData] = useState({
         firstName: "", lastName: "", email: "", phone: "",
-        altName: "", altEmail: "",
+        altFirstName: "", altLastName: "", altEmail: "",
         companyName: "", companyWebsite: "", businessPhone: "", linkedin: "",
         billingEmail: "", businessId: "",
         companyProfile: "", businessAddress: "",
@@ -146,11 +156,11 @@ export default function CompleteProfile() {
     const [selectedBSL, setSelectedBSL] = useState<string[]>([]);
     const [selectedCerts, setSelectedCerts] = useState<string[]>([]);
     const [otherCertText, setOtherCertText] = useState("");
+    const [showOtherCertInput, setShowOtherCertInput] = useState(false);
     const [selectedRegions, setSelectedRegions] = useState<string[]>([]);
     const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
-    const [companyRepresentatives, setCompanyRepresentatives] = useState<CompanyRepresentative[]>([
-        { firstName: "", lastName: "", email: "" },
-    ]);
+    const [companyRepresentatives, setCompanyRepresentatives] = useState<CompanyRepresentative[]>([]);
+    const [availableRepresentatives, setAvailableRepresentatives] = useState<CompanyRepresentative[]>([]);
 
     // ─── Event details state ───
     const [eventData, setEventData] = useState({
@@ -187,22 +197,48 @@ export default function CompleteProfile() {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     const [fName, ...lNames] = (data.primaryName || "").split(" ");
+                    const [altFName, ...altLNames] = (
+                        data.secondaryName || ""
+                    ).split(" ");
                     setFormData(prev => ({
                         ...prev,
                         firstName: fName || "", lastName: lNames.join(" ") || "",
                         email: data.primaryEmail || "", companyName: data.businessName || "",
-                        phone: data.phoneNumber || "", altName: data.secondaryName || "",
+                        phone: data.phoneNumber || "",
+                        altFirstName: data.secondaryFirstName || altFName || "",
+                        altLastName: data.secondaryLastName || altLNames.join(" ") || "",
                         altEmail: data.secondaryEmail || "", billingEmail: data.billingEmailAddress || "",
                     }));
-                    if (Array.isArray(data.companyRepresentatives) && data.companyRepresentatives.length > 0) {
-                        setCompanyRepresentatives(
-                            data.companyRepresentatives.map((rep: any) => ({
-                                firstName: rep.firstName || "",
-                                lastName: rep.lastName || "",
-                                email: rep.email || "",
-                            }))
-                        );
-                    }
+                    const altRep = normalizeRepresentative({
+                        firstName: data.secondaryFirstName || altFName || "",
+                        lastName: data.secondaryLastName || altLNames.join(" ") || "",
+                        email: data.secondaryEmail || "",
+                    });
+                    const partnerDocReps = Array.isArray(data.companyRepresentatives)
+                        ? data.companyRepresentatives.map(normalizeRepresentative).filter(Boolean) as CompanyRepresentative[]
+                        : [];
+                    const listingResults = await Promise.allSettled([
+                        getDocs(collection(doc(db, "partnersCollection", auth.currentUser.uid), "businessOfferingsCollection")),
+                        getDocs(query(collection(db, "consultingServicesCollection"), where("partnerId", "==", auth.currentUser.uid))),
+                        getDocs(query(collection(db, "eventsCollection"), where("partnerId", "==", auth.currentUser.uid))),
+                        getDocs(query(collection(db, "jobsCollection"), where("partnerId", "==", auth.currentUser.uid))),
+                    ]);
+                    const listingReps = listingResults
+                        .filter((result): result is PromiseFulfilledResult<any> => result.status === "fulfilled")
+                        .flatMap((result) => result.value.docs.map((docItem: any) => docItem.data()))
+                        .flatMap((listingData: any) => Array.isArray(listingData.companyRepresentatives) ? listingData.companyRepresentatives : [])
+                        .map(normalizeRepresentative)
+                        .filter(Boolean) as CompanyRepresentative[];
+                    const allSuggestions = [...partnerDocReps, ...listingReps, ...(altRep ? [altRep] : [])];
+                    const seen = new Set<string>();
+                    setAvailableRepresentatives(
+                        allSuggestions.filter((rep) => {
+                            const key = representativeKey(rep);
+                            if (seen.has(key)) return false;
+                            seen.add(key);
+                            return true;
+                        })
+                    );
                 }
             }
         };
@@ -218,6 +254,7 @@ export default function CompleteProfile() {
             setFormData(prev => ({ ...prev, group: value, plan: "", addon: "none" }));
             // Reset business details when group changes
             setSelectedBSL([]); setSelectedCerts([]); setSelectedRegions([]);
+            setOtherCertText(""); setShowOtherCertInput(false);
             setSelectedCountries([]); setSelectedCategories([]);
             setSelectedSubcategories([]); setSelectedSubSubcategories([]);
             setExpandedCategories([]); setExpandedSubcategories([]);
@@ -248,6 +285,7 @@ export default function CompleteProfile() {
 
     const isCategoryLimitReached = currentLimits.maxCategories !== -1 && categoryCount >= currentLimits.maxCategories;
     const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
+    const canSelectAllCategories = currentLimits.maxCategories === -1;
 
     // ─── Category tree helpers ───
     function getCategoriesForGroup(group: string): CategoriesDict | Record<string, string[]> | null {
@@ -308,10 +346,40 @@ export default function CompleteProfile() {
     // ─── Multi-select toggle handlers ───
     const toggleBSL = (val: string) => setSelectedBSL(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
     const toggleCert = (val: string) => {
+        if (val === OTHER_CERT_OPTION) {
+            setShowCertsDropdown(false);
+            if (showOtherCertInput) {
+                const customValue = otherCertText.trim();
+                setShowOtherCertInput(false);
+                setOtherCertText("");
+                if (customValue) {
+                    setSelectedCerts(prev => prev.filter(cert => cert !== customValue));
+                }
+            } else {
+                setShowOtherCertInput(true);
+            }
+            return;
+        }
         setSelectedCerts(prev => {
-            const next = prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val];
-            if (!next.includes(OTHER_CERT_OPTION)) setOtherCertText("");
-            return next;
+            if (prev.includes(val)) {
+                const next = prev.filter(v => v !== val);
+                if (val === otherCertText.trim()) {
+                    setOtherCertText("");
+                    setShowOtherCertInput(false);
+                }
+                return next;
+            }
+            return [...prev, val];
+        });
+    };
+    const handleOtherCertTextChange = (value: string) => {
+        const previousCustomValue = otherCertText.trim();
+        const nextCustomValue = value.trim();
+        setOtherCertText(value);
+        setSelectedCerts(prev => {
+            const withoutPreviousCustom = prev.filter(cert => cert !== previousCustomValue && cert !== OTHER_CERT_OPTION);
+            if (!nextCustomValue) return withoutPreviousCustom;
+            return Array.from(new Set([...withoutPreviousCustom, nextCustomValue]));
         });
     };
     const toggleRegion = (val: string) => {
@@ -337,12 +405,20 @@ export default function CompleteProfile() {
     const addRepresentative = () => {
         setCompanyRepresentatives(prev => [...prev, { firstName: "", lastName: "", email: "" }]);
     };
+    const addRepresentativeFromSaved = (rep: CompanyRepresentative) => {
+        setCompanyRepresentatives(prev => {
+            const exists = prev.some((existing) => representativeKey({
+                firstName: existing.firstName.trim(),
+                lastName: existing.lastName.trim(),
+                email: existing.email.trim(),
+            }) === representativeKey(rep));
+            if (exists) return prev;
+            return [...prev, { ...rep }];
+        });
+    };
 
     const removeRepresentative = (index: number) => {
-        setCompanyRepresentatives(prev => {
-            if (prev.length === 1) return [{ firstName: "", lastName: "", email: "" }];
-            return prev.filter((_, i) => i !== index);
-        });
+        setCompanyRepresentatives(prev => prev.filter((_, i) => i !== index));
     };
 
     const updateRepresentative = (index: number, field: keyof CompanyRepresentative, value: string) => {
@@ -402,11 +478,16 @@ export default function CompleteProfile() {
         e.preventDefault();
         setError(""); setSuccess("");
 
+        if (!formData.businessAddress.trim()) {
+            setError("Please enter your business address.");
+            return;
+        }
+
         if (!formData.group || !formData.plan) {
             setError("Please select a group and plan before continuing.");
             return;
         }
-        if (formData.group === "business_offerings" && selectedCerts.includes(OTHER_CERT_OPTION) && !otherCertText.trim()) {
+        if (formData.group === "business_offerings" && showOtherCertInput && !otherCertText.trim()) {
             setError('Please enter a value for "Other" certification.');
             return;
         }
@@ -438,17 +519,20 @@ export default function CompleteProfile() {
 
             // Save profile + business details to Firestore
             const partnerRef = doc(db, "partnersCollection", auth.currentUser.uid);
-            const normalizedCertifications = [
-                ...selectedCerts.filter(cert => cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:")),
-                ...(selectedCerts.includes(OTHER_CERT_OPTION) && otherCertText.trim()
-                    ? [`${OTHER_CERT_PREFIX}${otherCertText.trim()}`]
-                    : []),
-            ];
+            const normalizedCertifications = Array.from(
+                new Set(
+                    selectedCerts
+                        .map(cert => cert.trim())
+                        .filter(cert => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"))
+                )
+            );
             const updateData: Record<string, any> = {
                 primaryName: `${formData.firstName} ${formData.lastName}`.trim(),
                 primaryEmail: formData.email,
                 phoneNumber: formData.phone,
-                secondaryName: formData.altName,
+                secondaryName: `${formData.altFirstName} ${formData.altLastName}`.trim(),
+                secondaryFirstName: formData.altFirstName,
+                secondaryLastName: formData.altLastName,
                 secondaryEmail: formData.altEmail,
                 businessName: formData.companyName,
                 companyWebsite: formData.companyWebsite,
@@ -457,7 +541,7 @@ export default function CompleteProfile() {
                 billingEmailAddress: formData.billingEmail,
                 VAT_ABN_EIN_businessId: formData.businessId,
                 companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
-                businessAddress: formData.businessAddress,
+                businessAddress: formData.businessAddress.trim(),
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,
                 // Feature add-ons can only be purchased after base plan payment.
@@ -495,13 +579,13 @@ export default function CompleteProfile() {
                 Object.assign(listingData, {
                     bioSafetyLevel: selectedBSL, certifications: normalizedCertifications,
                     serviceRegions: selectedRegions, serviceCountries: selectedCountries,
-                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: formData.businessAddress,
+                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: formData.businessAddress.trim(),
                 });
             } else if (formData.group === "consulting") {
                 Object.assign(updateData, { serviceRegions: selectedRegions, serviceCountries: selectedCountries });
                 Object.assign(listingData, {
                     serviceRegions: selectedRegions, serviceCountries: selectedCountries,
-                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: formData.businessAddress,
+                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: formData.businessAddress.trim(),
                 });
             } else if (formData.group === "events") {
                 Object.assign(updateData, { ...eventData });
@@ -662,6 +746,41 @@ export default function CompleteProfile() {
         });
     }
 
+    const handleSelectAllCategories = () => {
+        const catDict = getCategoriesForGroup(formData.group);
+        if (!catDict || !canSelectAllCategories) return;
+
+        const allLeafCategories: string[] = [];
+        const allLeafSubcategories: string[] = [];
+        const allSubSubcategories: string[] = [];
+        const allCategoryKeys = Object.keys(catDict);
+        const allNestedSubcategoryLabels: string[] = [];
+        const isBusinessGroup = formData.group === "business_offerings";
+
+        Object.entries(catDict).forEach(([cat, subs]) => {
+            if (!subs.length) {
+                allLeafCategories.push(cat);
+                return;
+            }
+
+            subs.forEach((entry: SubcategoryEntry) => {
+                const subLabel = getSubLabel(entry);
+                if (isBusinessGroup && hasSubSub(entry)) {
+                    allNestedSubcategoryLabels.push(subLabel);
+                    entry.subSubcategories.forEach((ss) => allSubSubcategories.push(ss));
+                } else {
+                    allLeafSubcategories.push(subLabel);
+                }
+            });
+        });
+
+        setSelectedCategories(Array.from(new Set(allLeafCategories)));
+        setSelectedSubcategories(Array.from(new Set(allLeafSubcategories)));
+        setSelectedSubSubcategories(Array.from(new Set(allSubSubcategories)));
+        setExpandedCategories(allCategoryKeys);
+        setExpandedSubcategories(Array.from(new Set(allNestedSubcategoryLabels)));
+    };
+
     // ─── Multi-select dropdown component ───
     function MultiSelectDropdown({ label, items, selected, onToggle, open, onToggleOpen, disabled, search, setSearch, filteredItems }: {
         label: string; items?: string[]; selected: string[]; onToggle: (v: string) => void; open: boolean; onToggleOpen: () => void; disabled?: (v: string) => boolean;
@@ -780,12 +899,16 @@ export default function CompleteProfile() {
                                 </div>
                                 <div className="space-y-2 pt-4 border-t border-foreground/10 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <Label htmlFor="altName">Alternate contact first & last name</Label>
-                                        <Input id="altName" value={formData.altName} onChange={handleChange} className="bg-muted/40 border-foreground/10" />
+                                        <Label htmlFor="altFirstName">Alternate contact first name *</Label>
+                                        <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="altEmail">Alternate email address</Label>
-                                        <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} className="bg-muted/40 border-foreground/10" />
+                                        <Label htmlFor="altLastName">Alternate contact last name *</Label>
+                                        <Input id="altLastName" value={formData.altLastName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
+                                    </div>
+                                    <div className="space-y-2 md:col-span-2">
+                                        <Label htmlFor="altEmail">Alternate email address *</Label>
+                                        <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                 </div>
                             </CardContent>
@@ -845,8 +968,8 @@ export default function CompleteProfile() {
                                     <p className={`text-xs ${formData.companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                                 </div>
                                 <div className="space-y-2 md:col-span-1">
-                                    <Label htmlFor="businessAddress">Business address</Label>
-                                    <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} />
+                                    <Label htmlFor="businessAddress">Business address *</Label>
+                                    <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} />
                                 </div>
                             </CardContent>
                         </Card>
@@ -953,13 +1076,20 @@ export default function CompleteProfile() {
                                                         onToggle={toggleCert} open={showCertsDropdown}
                                                         onToggleOpen={() => { setShowCertsDropdown(!showCertsDropdown); setShowBSLDropdown(false); setShowRegionsDropdown(false); setShowCountriesDropdown(false); }}
                                                     />
-                                                    {selectedCerts.includes(OTHER_CERT_OPTION) && (
-                                                        <Input
-                                                            value={otherCertText}
-                                                            onChange={(e) => setOtherCertText(e.target.value)}
-                                                            placeholder='Enter "other" certification'
-                                                            className="bg-muted/40 border-foreground/10"
-                                                        />
+                                                    {showOtherCertInput && (
+                                                        <div className="space-y-1">
+                                                            <Input
+                                                                autoFocus
+                                                                required={showOtherCertInput}
+                                                                value={otherCertText}
+                                                                onChange={(e) => handleOtherCertTextChange(e.target.value)}
+                                                                placeholder='Enter "other" certification'
+                                                                className="bg-muted/40 border-foreground/10"
+                                                            />
+                                                            {!otherCertText.trim() && (
+                                                                <p className="text-xs text-muted-foreground">Please enter a value for "Other".</p>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>
@@ -1153,8 +1283,15 @@ export default function CompleteProfile() {
                                                 </Label>
                                                 <p className="text-xs text-muted-foreground mt-1">Select categories from the lowest level. Parent categories with subcategories expand when clicked.</p>
                                             </div>
-                                            <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>
-                                                {categoryCount} / {currentLimits.maxCategories === -1 ? "∞" : currentLimits.maxCategories}
+                                            <div className="flex items-center gap-2">
+                                                {canSelectAllCategories && (
+                                                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAllCategories}>
+                                                        Select all
+                                                    </Button>
+                                                )}
+                                                <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>
+                                                    {categoryCount} / {currentLimits.maxCategories === -1 ? "∞" : currentLimits.maxCategories}
+                                                </div>
                                             </div>
                                         </div>
 
@@ -1188,6 +1325,27 @@ export default function CompleteProfile() {
                                             <Label className="text-base font-semibold">Company representative(s)</Label>
                                             <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
                                         </div>
+                                        {availableRepresentatives.length > 0 && (
+                                            <div className="space-y-2">
+                                                <p className="text-xs text-muted-foreground">Choose from existing representatives</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {availableRepresentatives.map((rep) => (
+                                                        <Button
+                                                            key={representativeKey(rep)}
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => addRepresentativeFromSaved(rep)}
+                                                        >
+                                                            {rep.firstName} {rep.lastName} - {rep.email}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {companyRepresentatives.length === 0 && (
+                                            <p className="text-xs text-muted-foreground">Optional: Add a new representative or choose one from existing contacts.</p>
+                                        )}
                                         <div className="space-y-3">
                                             {companyRepresentatives.map((rep, index) => (
                                                 <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3">
