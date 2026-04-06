@@ -768,25 +768,6 @@ export default function AllCategories() {
                                     })}
                                 </div>
                             )}
-                            <div className="flex flex-col items-center mt-12 pt-12 border-t border-foreground/10 overflow-hidden w-full mb-12">
-                                <h3 className="text-2xl font-bold tracking-widest uppercase mb-12">{featuredHeading}</h3>
-                                {featuredBusinesses.length > 0 ? (
-                                    <div className="relative flex w-full">
-                                        <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-                                        <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
-
-                                        <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
-                                            {featuredBusinesses.map((fb, i) => (
-                                                <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                                    <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
-                                                </Link>
-                                            ))}
-                                        </AutoCarousel>
-                                    </div>
-                                ) : (
-                                    <div className="text-muted-foreground">{noFeaturedText}</div>
-                                )}
-                            </div>
                         </div>
                     </div>
                 ) : currentTab === "compliance" ? (
@@ -824,6 +805,32 @@ export default function AllCategories() {
                     </div>
                 )}
             </div>
+
+            {selectedCategories.length > 0 && (
+                <div className="w-full border-t border-foreground/10 bg-muted/10 py-16">
+                    <div className="container mx-auto px-4">
+                        <div className="flex flex-col items-center overflow-hidden w-full">
+                            <h3 className="text-2xl font-bold tracking-widest uppercase mb-12">{featuredHeading}</h3>
+                            {featuredBusinesses.length > 0 ? (
+                                <div className="relative flex w-full">
+                                    <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
+                                    <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
+                                        {featuredBusinesses.map((fb, i) => (
+                                            <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                                <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
+                                            </Link>
+                                        ))}
+                                    </AutoCarousel>
+                                </div>
+                            ) : (
+                                <div className="text-muted-foreground">{noFeaturedText}</div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {selectedProfile && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" onClick={handleCloseModal}>
