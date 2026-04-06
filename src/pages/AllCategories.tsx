@@ -322,28 +322,6 @@ export default function AllCategories() {
     const featuredHeading = currentTab === "business" ? "Featured Businesses/Services" : currentTab === "consulting" ? "Meet the Experts" : currentTab === "events" ? "Featured Events" : "Featured Jobs/Opportunities";
     const noFeaturedText = currentTab === "business" ? "No featured businesses available at the moment." : currentTab === "consulting" ? "No experts available at the moment." : currentTab === "events" ? "No featured events available at the moment." : "No featured jobs available at the moment.";
 
-    const renderFeaturedCarousel = () => (
-        <div className="flex flex-col items-center mt-12 pt-12 border-t border-foreground/10 overflow-hidden w-full mb-12">
-            <h3 className="text-2xl font-bold tracking-widest uppercase mb-12">{featuredHeading}</h3>
-            {featuredBusinesses.length > 0 ? (
-                <div className="relative flex w-full">
-                    <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
-
-                    <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
-                        {featuredBusinesses.map((fb, i) => (
-                            <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
-                            </Link>
-                        ))}
-                    </AutoCarousel>
-                </div>
-            ) : (
-                <div className="text-muted-foreground">{noFeaturedText}</div>
-            )}
-        </div>
-    );
-
     const filteredHealthAuths = HEALTH_AUTHORITIES.filter((auth) =>
         auth.country.toLowerCase().includes(healthAuthSearch.toLowerCase())
     );
@@ -382,15 +360,15 @@ export default function AllCategories() {
             ? item.selectedCategories
             : Array.isArray(item.categories) && item.categories.length > 0
                 ? item.categories
-            : item.category 
-                ? [item.category]
-                : item.consultingCategory
-                    ? [item.consultingCategory]
-                    : item.eventCategory
-                        ? [item.eventCategory]
-                        : item.jobCategory
-                            ? [item.jobCategory]
-                            : [];
+                : item.category
+                    ? [item.category]
+                    : item.consultingCategory
+                        ? [item.consultingCategory]
+                        : item.eventCategory
+                            ? [item.eventCategory]
+                            : item.jobCategory
+                                ? [item.jobCategory]
+                                : [];
 
         // Category: item must match AT LEAST ONE selected category (OR logic across categories)
         // Check if any of the item's categories match any of the selected categories
@@ -699,7 +677,25 @@ export default function AllCategories() {
                             )}
                         </div>
 
-                        {renderFeaturedCarousel()}
+                        <div className="flex flex-col items-center mt-8 overflow-hidden w-full">
+                            <h3 className="text-2xl font-bold tracking-widest uppercase mb-12">{featuredHeading}</h3>
+                            {featuredBusinesses.length > 0 ? (
+                                <div className="relative flex w-full">
+                                    <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                                    <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
+                                    <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
+                                        {featuredBusinesses.map((fb, i) => (
+                                            <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                                <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
+                                            </Link>
+                                        ))}
+                                    </AutoCarousel>
+                                </div>
+                            ) : (
+                                <div className="text-muted-foreground">{noFeaturedText}</div>
+                            )}
+                        </div>
                     </div>
                 ) : isMainCategoryTab && selectedCategories.length > 0 ? (
                     <div className="flex flex-col md:flex-row gap-8 pb-24">
@@ -735,23 +731,23 @@ export default function AllCategories() {
                                                 ? item.selectedCategories
                                                 : Array.isArray(item.categories) && item.categories.length > 0
                                                     ? item.categories
-                                                : item.category
-                                                    ? [item.category]
-                                                    : item.consultingCategory
-                                                        ? [item.consultingCategory]
-                                                        : item.eventCategory
-                                                            ? [item.eventCategory]
-                                                            : item.jobCategory
-                                                                ? [item.jobCategory]
-                                                                : []),
+                                                    : item.category
+                                                        ? [item.category]
+                                                        : item.consultingCategory
+                                                            ? [item.consultingCategory]
+                                                            : item.eventCategory
+                                                                ? [item.eventCategory]
+                                                                : item.jobCategory
+                                                                    ? [item.jobCategory]
+                                                                    : []),
                                             ...(Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : []),
                                             ...(Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : []),
                                         ];
                                         return (
-                                            <Link 
-                                                key={item.id} 
-                                                to={`/listing/${currentTab}/${item.id}`} 
-                                                target="_blank" 
+                                            <Link
+                                                key={item.id}
+                                                to={`/listing/${currentTab}/${item.id}`}
+                                                target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="group rounded-xl border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer overflow-hidden flex flex-col h-[320px]"
                                             >
@@ -772,7 +768,25 @@ export default function AllCategories() {
                                     })}
                                 </div>
                             )}
-                            {renderFeaturedCarousel()}
+                            <div className="flex flex-col items-center mt-12 pt-12 border-t border-foreground/10 overflow-hidden w-full mb-12">
+                                <h3 className="text-2xl font-bold tracking-widest uppercase mb-12">{featuredHeading}</h3>
+                                {featuredBusinesses.length > 0 ? (
+                                    <div className="relative flex w-full">
+                                        <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+                                        <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+
+                                        <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
+                                            {featuredBusinesses.map((fb, i) => (
+                                                <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                                    <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
+                                                </Link>
+                                            ))}
+                                        </AutoCarousel>
+                                    </div>
+                                ) : (
+                                    <div className="text-muted-foreground">{noFeaturedText}</div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 ) : currentTab === "compliance" ? (
