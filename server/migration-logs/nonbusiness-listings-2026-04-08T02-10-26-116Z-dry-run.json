@@ -1,0 +1,543 @@
+{
+  "mode": "dry-run",
+  "generatedAt": "2026-04-08T02:10:26.127Z",
+  "totals": {
+    "scannedEmbeddedDocs": 9,
+    "toCreateTopLevel": 9,
+    "toMergeTopLevel": 0,
+    "toDeleteEmbedded": 9,
+    "migratedCreated": 0,
+    "migratedMerged": 0,
+    "deletedEmbedded": 0,
+    "errors": 0
+  },
+  "perCollection": {
+    "consultingServicesCollection": {
+      "embeddedFound": 6,
+      "create": 6,
+      "merge": 0,
+      "deleted": 0,
+      "errors": 0
+    },
+    "consultingCollection": {
+      "embeddedFound": 0,
+      "create": 0,
+      "merge": 0,
+      "deleted": 0,
+      "errors": 0
+    },
+    "eventsCollection": {
+      "embeddedFound": 0,
+      "create": 0,
+      "merge": 0,
+      "deleted": 0,
+      "errors": 0
+    },
+    "jobsCollection": {
+      "embeddedFound": 3,
+      "create": 3,
+      "merge": 0,
+      "deleted": 0,
+      "errors": 0
+    }
+  },
+  "actions": [
+    {
+      "collection": "consultingServicesCollection",
+      "id": "1pXyRblfHp8ZJqo0HW9d",
+      "partnerPath": "partnersCollection/3HmGmuAZbbg6nyDKC0B0ONwqR8g2/consultingServicesCollection/1pXyRblfHp8ZJqo0HW9d",
+      "topPath": "consultingServicesCollection/1pXyRblfHp8ZJqo0HW9d",
+      "actionType": "create-top-and-delete-embedded",
+      "before": {
+        "embeddedData": {
+          "partnerId": "3HmGmuAZbbg6nyDKC0B0ONwqR8g2",
+          "businessName": "Life sciences  experts",
+          "selectedGroup": "consulting",
+          "selectedPlan": "basic_mo",
+          "selectedAddon": "",
+          "selectedCategories": [],
+          "selectedSubcategories": [
+            "Manufacturing",
+            "Filling",
+            "Storage"
+          ],
+          "selectedSubSubcategories": [],
+          "selectedCategoriesDisplay": [
+            "Radiopharmaceuticals",
+            "Facility Design & Qualifications"
+          ],
+          "selectedSubcategoriesDisplay": [
+            "Manufacturing",
+            "Filling",
+            "Storage"
+          ],
+          "companyRepresentatives": [
+            {
+              "firstName": "bbb",
+              "lastName": "ddd",
+              "email": "bd@yahoo.com"
+            },
+            {
+              "firstName": "Simi",
+              "lastName": "Jaa",
+              "email": "simi@gmail.com"
+            }
+          ],
+          "status": "pending_payment",
+          "serviceRegions": [],
+          "serviceCountries": [
+            "Chile"
+          ],
+          "companyProfileText": "A quiet rhythm settled over the room as the late afternoon light stretched across the floor, softening the edges of everything it touched. It was the kind of moment that didn’t demand attention yet invited a slower breath, a small pause, a gentle reset. Outside, distant sounds drifted in—faint traffic, a dog barking, someone laughing as they passed by—each one adding a subtle layer to the calm. Nothing remarkable was happening, yet the stillness carried its own quiet significance, as if reminding you that clarity often arrives not in grand revelations but in these understated, almost forgettable pockets of time.",
+          "businessAddress": "hhhhh wya\nturn street\nGA, USA \n8976555",
+          "createdAt": {
+            "_seconds": 1775609109,
+            "_nanoseconds": 1000000
+          }
+        },
+        "topData": null
+      },
+      "status": "planned"
+    },
+    {
+      "collection": "consultingServicesCollection",
+      "id": "xgbGYEWPpSwikDfdrhLZ",
+      "partnerPath": "partnersCollection/8SVxcWYZtuVncRMTMGJ8UjRbWby2/consultingServicesCollection/xgbGYEWPpSwikDfdrhLZ",
+      "topPath": "consultingServicesCollection/xgbGYEWPpSwikDfdrhLZ",
+      "actionType": "create-top-and-delete-embedded",
+      "before": {
+        "embeddedData": {
+          "partnerId": "8SVxcWYZtuVncRMTMGJ8UjRbWby2",
+          "businessName": "Genees Incorporated ",
+          "selectedGroup": "consulting",
+          "selectedPlan": "standard_mo",
+          "selectedAddon": "",
+          "selectedCategories": [
+            "Contract Research Site Management",
+            "Environmental Monitoring & Testing"
+          ],
+          "selectedSubcategories": [
+            "Pricing",
+            "Market Research",
+            "Market Access & Health Technology"
+          ],
+          "selectedSubSubcategories": [],
+          "companyRepresentatives": [
+            {
+              "firstName": "yuvi",
+              "lastName": "hoomes",
+              "email": "yuvi@gmail.com"
+            },
+            {
+              "firstName": "sse",
+              "lastName": "saaa",
+              "email": "sse@yahoo.com"
+            }
+          ],
+          "serviceRegions": [],
+          "serviceCountries": [
+            "Belarus",
+            "Barbados",
+            "Cameroon"
+          ],
+          "companyProfileText": "ccccccccc",
+          "businessAddress": "7865 way\nhhhhh\n7865544\nUK ",
+          "createdAt": {
+            "_seconds": 1775423520,
+            "_nanoseconds": 350000000
+          },
+          "stripeSubscriptionId": "sub_1TIxyMCW18H9SmzuqJ44DClM",
+          "active": true,
+          "lastPaymentReceivedAt": {
+            "_seconds": 1775423573,
+            "_nanoseconds": 144000000
+          },
+          "stripeCustomerId": "cus_UHX2lHlNvj9VHB",
+          "status": "Approved"
+        },
+        "topData": null
+      },
+      "status": "planned"
+    },
+    {
+      "collection": "consultingServicesCollection",
+      "id": "Sp1pcLSlbeHjf6MxflQv",
+      "partnerPath": "partnersCollection/8w7R1X6eHsd2KHgUy2v3JIOMJGm2/consultingServicesCollection/Sp1pcLSlbeHjf6MxflQv",
+      "topPath": "consultingServicesCollection/Sp1pcLSlbeHjf6MxflQv",
+      "actionType": "create-top-and-delete-embedded",
+      "before": {
+        "embeddedData": {
+          "partnerId": "8w7R1X6eHsd2KHgUy2v3JIOMJGm2",
+          "businessName": "Stability Experts Global ",
+          "selectedGroup": "consulting",
+          "selectedPlan": "premium_mo",
+          "selectedAddon": "",
+          "selectedCategories": [
+            "Due Diligence",
+            "Contract Research Site Management",
+            "Contract Manufacturing Site Management",
+            "Insilico Assessments",
+            "In Country Testing",
+            "In Country Representative",
+            "Import & Export Services"
+          ],
+          "selectedSubcategories": [
+            "Manufacturing",
+            "Process",
+            "Laboratory Systems & Design",
+            "Facility",
+            "Equipment",
+            "Packaging",
+            "Storage",
+            "Consumer Health"
+          ],
+          "selectedSubSubcategories": [],
+          "selectedCategoriesDisplay": [
+            "Due Diligence",
+            "Contract Research Site Management",
+            "Contract Manufacturing Site Management",
+            "Insilico Assessments",
+            "In Country Testing",
+            "In Country Representative",
+            "Import & Export Services",
+            "Radiopharmaceuticals",
+            "Validation",
+            "Engineering",
+            "Facility Design & Qualifications",
+            "Medical Devices"
+          ],
+          "selectedSubcategoriesDisplay": [
+            "Manufacturing",
+            "Process",
+            "Laboratory Systems & Design",
+            "Facility",
+            "Equipment",
+            "Packaging",
+            "Storage",
+            "Consumer Health"
+          ],
+          "companyRepresentatives": [
+            {
+              "firstName": "NNN",
+              "lastName": "CCC",
+              "email": "CCC@hotmail.com"
+            },
+            {
+              "firstName": "vvv",
+              "lastName": "jjj",
+              "email": "vij@yahoo.com"
+            }
+          ],
+          "status": "pending_payment",
+          "serviceRegions": [],
+          "serviceCountries": [
+            "Gabon",
+            "Argentina",
+            "Albania",
+            "Algeria",
+            "Barbados",
+            "Belarus",
+            "Bhutan",
+            "Belgium",
+            "Belize",
+            "Benin",
+            "Djibouti",
+            "Bosnia",
+            "Chile",
+            "Botswana",
+            "Cyprus"
+          ],
+          "companyProfileText": "ggggg",
+          "businessAddress": "6667\nbbbb\nusa , ba",
+          "createdAt": {
+            "_seconds": 1775610306,
+            "_nanoseconds": 62000000
+          }
+        },
+        "topData": null
+      },
+      "status": "planned"
+    },
+    {
+      "collection": "consultingServicesCollection",
+      "id": "0kcoak83RiW7qdapTFdv",
+      "partnerPath": "partnersCollection/o3114GAS7jb6yDiEtoaLOs4HVcy2/consultingServicesCollection/0kcoak83RiW7qdapTFdv",
+      "topPath": "consultingServicesCollection/0kcoak83RiW7qdapTFdv",
+      "actionType": "create-top-and-delete-embedded",
+      "before": {
+        "embeddedData": {
+          "partnerId": "o3114GAS7jb6yDiEtoaLOs4HVcy2",
+          "businessName": "",
+          "selectedGroup": "consulting",
+          "selectedPlan": "premium_mo",
+          "selectedAddon": "addon_both",
+          "selectedCategories": [
+            "Artificial Intelligence",
+            "Analytical Comparability"
+          ],
+          "selectedSubcategories": [
+            "Equipment",
+            "Facility",
+            "Laboratory"
+          ],
+          "selectedSubSubcategories": [],
+          "status": "pending_payment",
+          "serviceRegions": [
+            "South America",
+            "Asia Pacific",
+            "Middle East"
+          ],
+          "serviceCountries": [
+            "Afghanistan",
+            "Algeria",
+            "Bulgaria",
+            "Burkina Faso",
+            "Greece",
+            "Ghana",
+            "Georgia"
+          ],
+          "companyProfileText": "",
+          "businessAddress": "",
+          "createdAt": {
+            "_seconds": 1775080353,
+            "_nanoseconds": 622000000
+          }
+        },
+        "topData": null
+      },
+      "status": "planned"
+    },
+    {
+      "collection": "consultingServicesCollection",
+      "id": "JKqdHTQT5KBBgr14TxO2",
+      "partnerPath": "partnersCollection/o3114GAS7jb6yDiEtoaLOs4HVcy2/consultingServicesCollection/JKqdHTQT5KBBgr14TxO2",
+      "topPath": "consultingServicesCollection/JKqdHTQT5KBBgr14TxO2",
+      "actionType": "create-top-and-delete-embedded",
+      "before": {
+        "embeddedData": {
+          "partnerId": "o3114GAS7jb6yDiEtoaLOs4HVcy2",
+          "businessName": "Simvana Digital Agency",
+          "selectedGroup": "consulting",
+          "selectedPlan": "standard_mo",
+          "selectedAddon": "",
+          "selectedCategories": [
+            "Analytical Comparability"
+          ],
+          "selectedSubcategories": [
+            "Advanced Therapies"
+          ],
+          "selectedSubSubcategories": [],
+          "status": "pending_payment",
+          "serviceRegions": [
+            "South America"
+          ],
+          "serviceCountries": [
+            "Afghanistan"
+          ],
+          "companyProfileText": "websites, web apps and ai tools",
+          "businessAddress": "5292 Forest Hill Drive",
+          "createdAt": {
+            "_seconds": 1775238331,
+            "_nanoseconds": 56000000
+          }
+        },
+        "topData": null
+      },
+      "status": "planned"
+    },
+    {
+      "collection": "consultingServicesCollection",
+      "id": "qkz9VSYMEMfQ4MQ27ueD",
+      "partnerPath": "partnersCollection/o3114GAS7jb6yDiEtoaLOs4HVcy2/consultingServicesCollection/qkz9VSYMEMfQ4MQ27ueD",
+      "topPath": "consultingServicesCollection/qkz9VSYMEMfQ4MQ27ueD",
+      "actionType": "create-top-and-delete-embedded",
+      "before": {
+        "embeddedData": {
+          "partnerId": "o3114GAS7jb6yDiEtoaLOs4HVcy2",
+          "businessName": "Simvana Digital Agency",
+          "selectedGroup": "consulting",
+          "selectedPlan": "premium_mo",
+          "selectedAddon": "addon_home",
+          "selectedCategories": [
+            "Cold Chain Solutions",
+            "Clinical Trials & Research",
+            "Analytical Comparability",
+            "Artificial Intelligence",
+            "Gene Editing Based Therapies",
+            "Genomics"
+          ],
+          "selectedSubcategories": [
+            "Clinical",
+            "CMC",
+            "Labeling",
+            "Regulatory",
+            "Target Selection"
+          ],
+          "selectedSubSubcategories": [],
+          "status": "pending_payment",
+          "serviceRegions": [
+            "South America",
+            "Asia Pacific",
+            "Africa"
+          ],
+          "serviceCountries": [
+            "Afghanistan",
+            "Algeria",
+            "Argentina",
+            "Belarus",
+            "Bangladesh",
+            "Bahrain",
+            "Azerbaijan",
+            "China",
+            "Eswatini",
+            "Greece",
+            "Ghana",
+            "Germany"
+          ],
+          "companyProfileText": "websites, web apps and ai tools",
+          "businessAddress": "5292 Forest Hill Drive",
+          "createdAt": {
+            "_seconds": 1775078304,
+            "_nanoseconds": 611000000
+          }
+        },
+        "topData": null
+      },
+      "status": "planned"
+    },
+    {
+      "collection": "jobsCollection",
+      "id": "XjjB7AYaR2hHkcy8K4QD",
+      "partnerPath": "partnersCollection/91aF7U3gHNQRm51DYdNFSDCxHgx1/jobsCollection/XjjB7AYaR2hHkcy8K4QD",
+      "topPath": "jobsCollection/XjjB7AYaR2hHkcy8K4QD",
+      "actionType": "create-top-and-delete-embedded",
+      "before": {
+        "embeddedData": {
+          "partnerId": "91aF7U3gHNQRm51DYdNFSDCxHgx1",
+          "businessName": "Bottles and Caps ",
+          "selectedGroup": "jobs",
+          "selectedPlan": "premium_job",
+          "selectedAddon": "",
+          "selectedCategories": [
+            "Drug Discovery",
+            "Facilities & Building Systems",
+            "Finance",
+            "Formulation & Development"
+          ],
+          "selectedSubcategories": [],
+          "selectedSubSubcategories": [],
+          "companyRepresentatives": [
+            {
+              "firstName": "James",
+              "lastName": "JJ",
+              "email": "james@yahoo.com"
+            },
+            {
+              "firstName": "Seema",
+              "lastName": "Saaa",
+              "email": "saa@gmail.com"
+            }
+          ],
+          "jobTitle": "QAManager ",
+          "industry": "Clinical Research",
+          "positionType": "Full-time",
+          "experienceLevel": "Senior",
+          "positionLink": "https://www.amazon.com/stores/page/CE6A6E70-D162-4324-BE03-3C4BAFACCBB4?ingress=3&visitId=f4892396-fcbf-4360-807e-aff22867bf47&channel=discovbar&ref_=nav_cs_amazonbasics",
+          "jobCountry": "Australia",
+          "location": "Mississauga",
+          "jobSummary": "A quiet rhythm settled over the room as the late afternoon light stretched across the floor, softening the edges of everything it touched. It was the kind of moment that didn’t demand attention yet invited a slower breath, a small pause, a gentle reset. Outside, distant sounds drifted in—faint traffic, a dog barking, someone laughing as they passed by—each one adding a subtle layer to the calm. Nothing remarkable was happening, yet the stillness carried its own quiet significance, as if reminding you that clarity often arrives not in grand revelations but in these understated, almost forgettable pockets of time.\n \n",
+          "createdAt": {
+            "_seconds": 1775423125,
+            "_nanoseconds": 973000000
+          },
+          "stripeSubscriptionId": null,
+          "active": true,
+          "lastPaymentReceivedAt": {
+            "_seconds": 1775423193,
+            "_nanoseconds": 158000000
+          },
+          "stripeCustomerId": null,
+          "status": "Approved"
+        },
+        "topData": null
+      },
+      "status": "planned"
+    },
+    {
+      "collection": "jobsCollection",
+      "id": "Qk2JT0sg9ukKLT5BT2yn",
+      "partnerPath": "partnersCollection/o3114GAS7jb6yDiEtoaLOs4HVcy2/jobsCollection/Qk2JT0sg9ukKLT5BT2yn",
+      "topPath": "jobsCollection/Qk2JT0sg9ukKLT5BT2yn",
+      "actionType": "create-top-and-delete-embedded",
+      "before": {
+        "embeddedData": {
+          "partnerId": "o3114GAS7jb6yDiEtoaLOs4HVcy2",
+          "businessName": "Simvana Digital Agency",
+          "selectedGroup": "jobs",
+          "selectedPlan": "premium_plus_job",
+          "selectedAddon": "",
+          "selectedCategories": [
+            "Administration",
+            "Analytical Sciences"
+          ],
+          "selectedSubcategories": [],
+          "selectedSubSubcategories": [],
+          "status": "pending_payment",
+          "jobTitle": "sg",
+          "industry": "Diagnostics",
+          "positionType": "Part-time",
+          "experienceLevel": "Mid-Level",
+          "positionLink": "https://www.simvana.ca",
+          "jobCountry": "Algeria",
+          "location": "mississauga",
+          "jobSummary": "",
+          "createdAt": {
+            "_seconds": 1775238398,
+            "_nanoseconds": 421000000
+          }
+        },
+        "topData": null
+      },
+      "status": "planned"
+    },
+    {
+      "collection": "jobsCollection",
+      "id": "tLUFa3gKpSqO2fYxPeXd",
+      "partnerPath": "partnersCollection/o3114GAS7jb6yDiEtoaLOs4HVcy2/jobsCollection/tLUFa3gKpSqO2fYxPeXd",
+      "topPath": "jobsCollection/tLUFa3gKpSqO2fYxPeXd",
+      "actionType": "create-top-and-delete-embedded",
+      "before": {
+        "embeddedData": {
+          "partnerId": "o3114GAS7jb6yDiEtoaLOs4HVcy2",
+          "businessName": "Simvana Digital Agency",
+          "selectedGroup": "jobs",
+          "selectedPlan": "premium_job",
+          "selectedAddon": "",
+          "selectedCategories": [
+            "Administration",
+            "Analytical Sciences",
+            "Artificial Intelligence & Bioinformatics",
+            "Business Development"
+          ],
+          "selectedSubcategories": [],
+          "selectedSubSubcategories": [],
+          "status": "pending_payment",
+          "jobTitle": "sdfg",
+          "industry": "Medical Devices",
+          "positionType": "Part-time",
+          "experienceLevel": "Junior",
+          "positionLink": "https://www.simvana.ca",
+          "jobCountry": "Albania",
+          "location": "mississauga",
+          "jobSummary": "",
+          "createdAt": {
+            "_seconds": 1775238213,
+            "_nanoseconds": 498000000
+          }
+        },
+        "topData": null
+      },
+      "status": "planned"
+    }
+  ]
+}

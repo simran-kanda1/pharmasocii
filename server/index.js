@@ -60,6 +60,27 @@ function getListingDocRef(partnerId, collectionName, listingId) {
     return db.collection(collectionName).doc(listingId);
 }
 
+async function resolveListingDocRef(partnerId, collectionName, listingId) {
+    const canonicalRef = getListingDocRef(partnerId, collectionName, listingId);
+    if (!canonicalRef) return null;
+
+    const canonicalSnap = await canonicalRef.get();
+    if (canonicalSnap.exists) return canonicalRef;
+
+    // Transitional fallback: some historical non-business records were embedded under partnersCollection.
+    if (partnerId && collectionName && collectionName !== "businessOfferingsCollection") {
+        const legacyEmbeddedRef = db
+            .collection("partnersCollection")
+            .doc(partnerId)
+            .collection(collectionName)
+            .doc(listingId);
+        const legacySnap = await legacyEmbeddedRef.get();
+        if (legacySnap.exists) return legacyEmbeddedRef;
+    }
+
+    return canonicalRef;
+}
+
 function getInvoiceSubscriptionId(invoice) {
     if (!invoice?.subscription) return null;
     return typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription.id || null;
@@ -165,7 +186,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
 
                 // Attach feature visibility to a specific listing when provided.
                 if (listingId && resolvedCollectionName) {
-                    const listingRef = getListingDocRef(partnerId, resolvedCollectionName, listingId);
+                    const listingRef = await resolveListingDocRef(partnerId, resolvedCollectionName, listingId);
                     if (!listingRef) {
                         console.log(`   ⚠ Feature purchase listing could not be resolved: ${listingId}`);
                     } else {
@@ -203,7 +224,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 });
             } else if (listingId && resolvedCollectionName) {
                 // Core listing payment - update the listing status
-                const listingRef = getListingDocRef(partnerId, resolvedCollectionName, listingId);
+                const listingRef = await resolveListingDocRef(partnerId, resolvedCollectionName, listingId);
                 if (!listingRef) {
                     console.log(`   ⚠ Listing could not be resolved for payment: ${listingId}`);
                 } else {
@@ -407,7 +428,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 }
 
                 if (planData.listingId && planData.collectionName) {
-                    const listingRef = getListingDocRef(partnerId, planData.collectionName, planData.listingId);
+                    const listingRef = await resolveListingDocRef(partnerId, planData.collectionName, planData.listingId);
                     if (listingRef) {
                         await listingRef.set({
                             active: true,
@@ -445,7 +466,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
 
             let detailSource = null;
             if (primaryPlanContext?.listingId && primaryPlanContext?.collectionName) {
-                const listingRef = getListingDocRef(
+                const listingRef = await resolveListingDocRef(
                     primaryPlanContext.partnerId,
                     primaryPlanContext.collectionName,
                     primaryPlanContext.listingId
@@ -786,7 +807,7 @@ app.post("/api/create-feature-checkout", async (req, res) => {
         }
 
         const partnerRef = db.collection("partnersCollection").doc(partnerId);
-        const listingRef = getListingDocRef(partnerId, collectionName, listingId);
+        const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
         if (!listingRef) {
             return res.status(400).json({ error: "Unable to resolve listing for feature add-on purchase." });
         }
@@ -900,7 +921,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
 
                 // Update the listing and plan in Firestore
                 if (listingId && collectionName) {
-                    const listingRef = getListingDocRef(partnerId, collectionName, listingId);
+                    const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
                     if (!listingRef) {
                         return res.status(400).json({ error: "Unable to resolve listing for upgrade." });
                     }
@@ -1090,7 +1111,7 @@ app.post("/api/verify-payment", async (req, res) => {
             }
 
             if (listingId && resolvedCollectionName) {
-                const listingRef = getListingDocRef(partnerId, resolvedCollectionName, listingId);
+                const listingRef = await resolveListingDocRef(partnerId, resolvedCollectionName, listingId);
                 if (!listingRef) {
                     return res.status(400).json({ error: "Unable to resolve listing for feature verification." });
                 }
@@ -1119,7 +1140,7 @@ app.post("/api/verify-payment", async (req, res) => {
             }
         } else if (listingId && resolvedCollectionName) {
             // Check current listing status
-            const listingRef = getListingDocRef(partnerId, resolvedCollectionName, listingId);
+            const listingRef = await resolveListingDocRef(partnerId, resolvedCollectionName, listingId);
             if (!listingRef) {
                 return res.status(400).json({ error: "Unable to resolve listing for payment verification." });
             }

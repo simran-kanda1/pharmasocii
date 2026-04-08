@@ -599,13 +599,16 @@ export default function Dashboard() {
         setActionProcessing(true);
         try {
             if (auth.currentUser && selectedListingForEdit) {
-                const listingRef = doc(
-                    db,
-                    "partnersCollection",
-                    auth.currentUser.uid,
-                    selectedListingForEdit.__col,
-                    selectedListingForEdit.id
-                );
+                const isBusinessCollection = selectedListingForEdit.__col === "businessOfferingsCollection";
+                const listingRef = isBusinessCollection
+                    ? doc(
+                        db,
+                        "partnersCollection",
+                        auth.currentUser.uid,
+                        selectedListingForEdit.__col,
+                        selectedListingForEdit.id
+                    )
+                    : doc(db, selectedListingForEdit.__col, selectedListingForEdit.id);
 
                 // Build update object with only changed/provided fields
                 const updateObj: Record<string, any> = {

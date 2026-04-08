@@ -624,8 +624,10 @@ export default function CompleteProfile() {
 
             await updateDoc(partnerRef, updateData);
 
-            // Add listing to subcollection
-            const listingsRef = collection(partnerRef, collectionName);
+            // Only business offerings are embedded under partner.
+            const listingsRef = formData.group === "business_offerings"
+                ? collection(partnerRef, collectionName)
+                : collection(db, collectionName);
             const listingDoc = await addDoc(listingsRef, listingData);
 
             // Log to Audit Trail
