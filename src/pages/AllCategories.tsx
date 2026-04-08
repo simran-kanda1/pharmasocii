@@ -227,7 +227,7 @@ export default function AllCategories() {
     const [expandedSubcategories, setExpandedSubcategories] = useState<string[]>([]);
 
     const [healthAuthSearch, setHealthAuthSearch] = useState("");
-    const [showAllCategories, setShowAllCategories] = useState(false);
+    const [showAllCategories, setShowAllCategories] = useState(true);
     const [viewMode, setViewMode] = useState<"grid" | "list">("list");
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 30;
@@ -246,29 +246,18 @@ export default function AllCategories() {
         setIsRestored(false);
         const prefix = `pharmasocii_${currentTab}_`;
         
-        const q = sessionStorage.getItem(`${prefix}searchQuery`);
-        if (q !== null) setSearchQuery(q);
-        else setSearchQuery("");
+        setSearchQuery("");
 
-        const cats = sessionStorage.getItem(`${prefix}selectedCategories`);
-        if (cats !== null) setSelectedCategories(JSON.parse(cats));
-        else setSelectedCategories([]);
-
-        const subs = sessionStorage.getItem(`${prefix}selectedSubcategories`);
-        if (subs !== null) setSelectedSubcategories(JSON.parse(subs));
-        else setSelectedSubcategories([]);
-
-        const subSubs = sessionStorage.getItem(`${prefix}selectedSubSubcategories`);
-        if (subSubs !== null) setSelectedSubSubcategories(JSON.parse(subSubs));
-        else setSelectedSubSubcategories([]);
+        // Avoid hidden/stale filters when reopening the page.
+        setSelectedCategories([]);
+        setSelectedSubcategories([]);
+        setSelectedSubSubcategories([]);
 
         const view = sessionStorage.getItem(`${prefix}viewMode`);
         if (view !== null) setViewMode(view as "grid" | "list");
         else setViewMode("list");
 
-        const page = sessionStorage.getItem(`${prefix}currentPage`);
-        if (page !== null) setCurrentPage(Number(page));
-        else setCurrentPage(1);
+        setCurrentPage(1);
 
         setIsRestored(true);
     }, [currentTab]);
@@ -278,13 +267,8 @@ export default function AllCategories() {
         if (!isRestored) return;
 
         const prefix = `pharmasocii_${currentTab}_`;
-        sessionStorage.setItem(`${prefix}searchQuery`, searchQuery);
-        sessionStorage.setItem(`${prefix}selectedCategories`, JSON.stringify(selectedCategories));
-        sessionStorage.setItem(`${prefix}selectedSubcategories`, JSON.stringify(selectedSubcategories));
-        sessionStorage.setItem(`${prefix}selectedSubSubcategories`, JSON.stringify(selectedSubSubcategories));
         sessionStorage.setItem(`${prefix}viewMode`, viewMode);
-        sessionStorage.setItem(`${prefix}currentPage`, currentPage.toString());
-    }, [currentTab, searchQuery, selectedCategories, selectedSubcategories, selectedSubSubcategories, viewMode, currentPage, isRestored]);
+    }, [currentTab, viewMode, isRestored]);
 
     useEffect(() => {
         const fetchAllCategoriesData = async () => {
