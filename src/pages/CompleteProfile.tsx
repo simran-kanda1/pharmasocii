@@ -474,7 +474,6 @@ export default function CompleteProfile() {
             "Add representative(s) for direct communication",
             "Certifications (optional)",
             "Biosafety level (optional) — BSL disclosure",
-            ...(planId.includes("premium_plus") ? ["Extra Feature: Homepage spotlight for increased visibility"] : []),
         ];
     };
 

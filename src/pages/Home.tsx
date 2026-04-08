@@ -23,7 +23,7 @@ export default function Home() {
         const fetchFeaturedData = async () => {
             try {
                 const isHomeSpotlight = (item: Record<string, any>) => {
-                    const addon = item.selectedAddon || item.featuredPlacement || "";
+                    const addon = String(item.selectedAddon || item.featuredPlacement || "").trim().toLowerCase();
                     return addon === "home_page" || addon === "both" || (item.isFeatured && !addon);
                 };
 

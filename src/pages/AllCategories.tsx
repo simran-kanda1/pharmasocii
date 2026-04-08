@@ -235,6 +235,11 @@ export default function AllCategories() {
     // ── Persistence Logic ──
 
     const [isRestored, setIsRestored] = useState(false);
+    const isApprovedStatus = (value: any): boolean => {
+        if (!value) return true;
+        const normalized = String(value).trim().toLowerCase();
+        return normalized === "approved" || normalized === "active";
+    };
 
     // Load state from sessionStorage on mount or tab change
     useEffect(() => {
@@ -315,7 +320,7 @@ export default function AllCategories() {
                             deduped.set(key, { id: d.id, ...(d.data() as Record<string, any>) });
                         }
                     });
-                    const approvedDocs = Array.from(deduped.values()).filter((doc: any) => !doc.status || doc.status === "Approved");
+                    const approvedDocs = Array.from(deduped.values()).filter((doc: any) => isApprovedStatus(doc.status));
                     setData(approvedDocs);
                 } else {
                     setData([]);
@@ -529,29 +534,11 @@ export default function AllCategories() {
     );
 
     const featuredBusinesses = data.filter(item => {
-        const addon = item.selectedAddon || item.featuredPlacement || "";
+        const addon = String(item.selectedAddon || item.featuredPlacement || "").trim().toLowerCase();
         const hasLegacyFeatureFlag = item.isFeatured && !addon;
         const isLandingSpotlight = addon === "landing_page" || addon === "both";
         if (!isLandingSpotlight && !hasLegacyFeatureFlag) return false;
-
-        if (!searchQuery) return true;
-
-        const q = searchQuery.toLowerCase();
-
-        return (
-            item.businessName?.toLowerCase().includes(q) ||
-            item.primaryName?.toLowerCase().includes(q) ||
-            item.eventName?.toLowerCase().includes(q) ||
-            item.jobTitle?.toLowerCase().includes(q) ||
-            item.category?.toLowerCase().includes(q) ||
-            item.businessCountry?.toLowerCase().includes(q) ||
-            item.eventCountry?.toLowerCase().includes(q) ||
-            item.location?.toLowerCase().includes(q) ||
-            (Array.isArray(item.serviceCountries) &&
-                item.serviceCountries.some((c: string) =>
-                    c.toLowerCase().includes(q)
-                ))
-        );
+        return true;
     });
     // ── Sidebar: uses selectedCategories array everywhere ──
     const renderSidebarCategories = () => {
@@ -828,7 +815,7 @@ export default function AllCategories() {
                                 <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                     {paginatedBusinesses.map((item) => {
-                                        const title = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName) : currentTab === "events" ? item.eventName : item.jobTitle;
+                                        const title = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
                                         const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
                                         const bottomLabel = currentTab === "business"
                                             ? (Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || "No specific certs")
@@ -986,7 +973,7 @@ export default function AllCategories() {
                                     <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
                                         {featuredBusinesses.map((fb, i) => (
                                             <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                                <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName) : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
+                                                <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName || fb.companyName || "Consulting Listing") : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
                                             </Link>
                                         ))}
                                     </AutoCarousel>

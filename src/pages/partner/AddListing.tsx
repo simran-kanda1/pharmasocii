@@ -522,7 +522,6 @@ export default function AddListing() {
             "Direct website link",
             "Add representative(s) for direct communication",
             ...(dbGroup === "business_offerings" ? ["Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] : []),
-            ...(planId.includes("premium_plus") ? ["Extra Feature: Homepage spotlight for increased visibility"] : []),
         ];
     };
 
