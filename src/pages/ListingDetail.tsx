@@ -185,10 +185,10 @@ export default function ListingDetail() {
 
                 let subSubItems: string[] = [];
                 if (typeof entry !== "string" && entry.subSubcategories) {
-                    subSubItems = entry.subSubcategories.filter(ss => 
+                    subSubItems = (entry.subSubcategories as string[]).filter((ss: string) => 
                         allSelectedSubSubs.some((selectedSS: string) => normalize(selectedSS) === normalize(ss))
                     );
-                    subSubItems.forEach(ss => claimedSubSubs.add(normalize(ss)));
+                    subSubItems.forEach((ss: string) => claimedSubSubs.add(normalize(ss)));
                 }
 
                 if (isSubSelected || subSubItems.length > 0) {
