@@ -439,9 +439,10 @@ export default function AllCategories() {
         const itemCategoryTokens = itemCategories.map(normalizeToken).filter(Boolean);
 
         if (searchQuery.trim()) {
-            const q = searchQuery.toLowerCase();
+            const searchTerms = searchQuery.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+            if (searchTerms.length === 0) return true;
 
-            const matches =
+            const matches = searchTerms.some(q => 
                 item.businessName?.toLowerCase().includes(q) ||
                 item.primaryName?.toLowerCase().includes(q) ||
                 item.eventName?.toLowerCase().includes(q) ||
@@ -449,7 +450,14 @@ export default function AllCategories() {
                 item.category?.toLowerCase().includes(q) ||
                 item.businessCountry?.toLowerCase().includes(q) ||
                 item.eventCountry?.toLowerCase().includes(q) ||
+                item.jobCountry?.toLowerCase().includes(q) ||
                 item.location?.toLowerCase().includes(q) ||
+                item.city?.toLowerCase().includes(q) ||
+                item.state?.toLowerCase().includes(q) ||
+                item.jobtype?.toLowerCase().includes(q) ||
+                item.workModel?.toLowerCase().includes(q) ||
+                item.experienceLevel?.toLowerCase().includes(q) ||
+                item.industry?.toLowerCase().includes(q) ||
                 (Array.isArray(item.serviceCountries) &&
                     item.serviceCountries.some((c: string) =>
                         c.toLowerCase().includes(q)
@@ -460,7 +468,8 @@ export default function AllCategories() {
                     )) ||
                 item.selectedGroup?.toLowerCase().includes(q) ||
                 itemSubTokens.some((s: string) => s.includes(q)) ||
-                itemSubSubTokens.some((s: string) => s.includes(q));
+                itemSubSubTokens.some((s: string) => s.includes(q))
+            );
 
             if (!matches) return false;
         }
