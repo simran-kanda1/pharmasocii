@@ -6,7 +6,7 @@ import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedi
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BUSINESS_CATEGORIES } from "./AllCategories";
+import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES } from "./AllCategories";
 import { REGION_COUNTRY_MAP } from "@/constants/regions";
 
 // Simple skeleton placeholder
@@ -148,13 +148,15 @@ export default function ListingDetail() {
 
     // Helper to group subcategories by Area
     const getGroupedCategories = () => {
-        if (type !== "business") return [];
+        if (type !== "business" && type !== "consulting") return [];
         
         // Comprehensive fallbacks for different field names used in Firestore
         const selectedAreas = Array.isArray(item.selectedCategoriesDisplay) ? item.selectedCategoriesDisplay :
                               (Array.isArray(item.selectedCategories) ? item.selectedCategories : 
                               (Array.isArray(item.categories) ? item.categories :
-                              (item.category ? [item.category] : [])));
+                              (item.category ? [item.category] : 
+                              (item.consultingCategory ? [item.consultingCategory] : []))));
+
         const allSelectedSubs = Array.isArray(item.selectedSubcategoriesDisplay) ? item.selectedSubcategoriesDisplay :
             (Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories :
                 (Array.isArray(item.subcategories) ? item.subcategories : []));
@@ -170,9 +172,11 @@ export default function ListingDetail() {
 
         const normalize = (s: any) => (typeof s === 'string' ? s.toLowerCase().trim() : "");
 
+        const categoriesDict = type === "business" ? BUSINESS_CATEGORIES : CONSULTING_CATEGORIES;
+
         const grouped = (selectedAreas as string[]).map(area => {
-            const areaConfig = BUSINESS_CATEGORIES[area] || [];
-            const matchingSubs = areaConfig.map(entry => {
+            const areaConfig = (categoriesDict as any)[area] || [];
+            const matchingSubs = areaConfig.map((entry: any) => {
                 const subLabel = typeof entry === "string" ? entry : entry.label;
                 
                 // Flexible matching
@@ -303,7 +307,7 @@ export default function ListingDetail() {
                 </Card>
 
                 {/* Tier 1 & 2: Categories & Subcategories Table */}
-                {type === "business" && groupedCategories.length > 0 && (
+                {(type === "business" || type === "consulting") && groupedCategories.length > 0 && (
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
