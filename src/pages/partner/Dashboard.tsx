@@ -41,6 +41,7 @@ import { REGION_COUNTRY_MAP } from "@/constants/regions";
 
 
 type TabType = "dashboard" | "profile" | "password" | "transactions";
+type CancelScope = "feature" | "plan" | "plan_and_feature";
 
 // ─── PLAN CONFIG ───
 // Maps plan IDs to their limits and features
@@ -234,9 +235,21 @@ export default function Dashboard() {
     const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
     const [selectedPlanForAction, setSelectedPlanForAction] = useState<any>(null);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<any>(null);
+    const [pendingUpgradePlanId, setPendingUpgradePlanId] = useState<string | null>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
     const profileCompanyProfileTooLong = (profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH;
+    const getLinkedListingForPlan = (plan: any) =>
+        offerings.find((o) =>
+            o.id === plan?.listingId &&
+            (!plan?.collectionName || o.__col === plan.collectionName)
+        ) || offerings.find((o) => o.id === plan?.listingId);
+    const hasStandaloneFeatureForPlan = (plan: any) => {
+        const linkedListing = getLinkedListingForPlan(plan);
+        const hasFeature = Boolean(linkedListing?.selectedAddon && linkedListing.selectedAddon !== "none");
+        const hasIncludedFeature = Boolean(PLAN_CONFIGS[plan?.planId]?.featurePlan);
+        return hasFeature && !hasIncludedFeature;
+    };
     const isFeatureEligiblePlan = (plan: any) => {
         if (!plan?.active || !plan.listingId || !plan.collectionName) return false;
         const linkedListing = offerings.find((o) => o.id === plan.listingId);
@@ -594,6 +607,58 @@ export default function Dashboard() {
         navigate("/login");
     };
 
+    const startUpgradeCheckout = async (newPlanId: string) => {
+        if (!auth.currentUser || !selectedPlanForAction) {
+            throw new Error("Upgrade session expired. Please select upgrade again.");
+        }
+        const origin = window.location.origin;
+        const resp = await fetch(`${API_BASE_URL}/api/upgrade-subscription`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                subscriptionId: selectedPlanForAction.stripeSubscriptionId || null,
+                newPlanId,
+                partnerId: auth.currentUser.uid,
+                partnerEmail: auth.currentUser.email,
+                listingId: selectedPlanForAction.listingId,
+                collectionName: selectedPlanForAction.collectionName,
+                successUrl: `${origin}/partner/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}&upgrade=true`,
+                cancelUrl: `${origin}/partner/dashboard?upgrade=cancelled`,
+            }),
+        });
+        if (!resp.ok) {
+            let errMessage = "Server error occurred.";
+            try {
+                const errData = await resp.json();
+                errMessage = errData.error || errMessage;
+            } catch {
+                errMessage = "API offline: Please ensure backend server is running.";
+            }
+            throw new Error(errMessage);
+        }
+        const data = await resp.json();
+        if (data.url) {
+            window.location.href = data.url;
+            return;
+        }
+        if (data.success) {
+            setActionMessage({
+                type: "success",
+                text: "Upgrade completed successfully. Your next renewal uses the new plan price.",
+            });
+            setPendingUpgradePlanId(null);
+            setTimeout(() => {
+                setShowUpgradeModal(false);
+                setShowEditListingModal(false);
+                setSelectedPlanForAction(null);
+                setSelectedListingForEdit(null);
+                setActionMessage({ type: "", text: "" });
+            }, 1800);
+            return;
+        }
+        throw new Error("Stripe did not return a payment page. Please try the upgrade again.");
+    };
+
     // Handle saving listing edits (all editable fields)
     const handleSaveListingEdit = async (updatedData: any) => {
         setActionProcessing(true);
@@ -652,129 +717,87 @@ export default function Dashboard() {
                 }
 
                 await updateDoc(listingRef, updateObj);
+
+                if (pendingUpgradePlanId) {
+                    setActionMessage({ type: "success", text: "Details saved. Redirecting to Stripe for upgrade payment..." });
+                    await startUpgradeCheckout(pendingUpgradePlanId);
+                    return;
+                }
+
                 setActionMessage({ type: "success", text: "Listing updated successfully!" });
                 setTimeout(() => {
                     setShowEditListingModal(false);
                     setSelectedListingForEdit(null);
+                    setSelectedPlanForAction(null);
                     setActionMessage({ type: "", text: "" });
                 }, 1500);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to update listing:", err);
-            setActionMessage({ type: "error", text: "Failed to update listing. Please try again." });
+            setActionMessage({ type: "error", text: err?.message || "Failed to update listing. Please try again." });
         } finally {
             setActionProcessing(false);
         }
     };
 
-    // Handle plan upgrade - uses Stripe subscription update or creates new checkout
+    // Handle plan upgrade - edit details first, then Stripe upgrade flow
     const handleUpgradePlan = async (newPlanId: string) => {
+        if (!selectedPlanForAction) return;
+        const linkedListing = offerings.find((o) =>
+            o.id === selectedPlanForAction.listingId &&
+            (!selectedPlanForAction.collectionName || o.__col === selectedPlanForAction.collectionName)
+        ) || offerings.find((o) => o.id === selectedPlanForAction.listingId);
+
+        if (linkedListing) {
+            setPendingUpgradePlanId(newPlanId);
+            setSelectedListingForEdit(linkedListing);
+            setShowUpgradeModal(false);
+            setShowEditListingModal(true);
+            setActionMessage({ type: "success", text: "Update your listing details before continuing to Stripe." });
+            return;
+        }
+
         setActionProcessing(true);
         try {
-            if (auth.currentUser && selectedPlanForAction) {
-                const origin = window.location.origin;
-                const resp = await fetch(`${API_BASE_URL}/api/upgrade-subscription`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        subscriptionId: selectedPlanForAction.stripeSubscriptionId || null,
-                        newPlanId,
-                        partnerId: auth.currentUser.uid,
-                        partnerEmail: auth.currentUser.email,
-                        listingId: selectedPlanForAction.listingId,
-                        collectionName: selectedPlanForAction.collectionName,
-                        successUrl: `${origin}/partner/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}&upgrade=true`,
-                        cancelUrl: `${origin}/partner/dashboard?upgrade=cancelled`,
-                    }),
-                });
-                if (!resp.ok) {
-                    let errMessage = "Server error occurred.";
-                    try {
-                        const errData = await resp.json();
-                        errMessage = errData.error || errMessage;
-                    } catch {
-                        errMessage = `API offline: Please ensure backend server is running.`;
-                    }
-                    throw new Error(errMessage);
-                }
-                const data = await resp.json();
-
-                if (data.url) {
-                    // Redirect to Stripe checkout for new subscription
-                    window.location.href = data.url;
-                } else if (data.success) {
-                    // Subscription was updated directly
-                    setActionMessage({ type: "success", text: "Plan upgraded successfully!" });
-                    setTimeout(() => {
-                        setShowUpgradeModal(false);
-                        setSelectedPlanForAction(null);
-                        setActionMessage({ type: "", text: "" });
-                    }, 1500);
-                    setActionProcessing(false);
-                }
-            }
+            await startUpgradeCheckout(newPlanId);
         } catch (err: any) {
             console.error("Failed to upgrade plan:", err);
             setActionMessage({ type: "error", text: err.message || "Failed to upgrade plan." });
+        } finally {
             setActionProcessing(false);
         }
     };
 
-    // Handle plan cancellation (cancel at period end)
-    const handleCancelPlan = async () => {
+    const handleCancelPlan = async (cancelScope: CancelScope) => {
         setActionProcessing(true);
         try {
             if (auth.currentUser && selectedPlanForAction) {
-                const planRef = doc(
-                    db,
-                    "partnersCollection",
-                    auth.currentUser.uid,
-                    "planCollection",
-                    selectedPlanForAction.id
-                );
-
-                let stripeCancelAt: number | null = null;
-
-                // If there's a Stripe subscription, cancel it at period end first.
-                // Only mark Firestore as cancelled after Stripe confirms.
-                if (selectedPlanForAction.stripeSubscriptionId) {
-                    const response = await fetch(`${API_BASE_URL}/api/cancel-subscription`, {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                            subscriptionId: selectedPlanForAction.stripeSubscriptionId,
-                        }),
-                    });
-
-                    let payload: any = null;
-                    try {
-                        payload = await response.json();
-                    } catch {
-                        payload = null;
-                    }
-
-                    if (!response.ok || !payload?.success) {
-                        const errMessage =
-                            payload?.error ||
-                            "Stripe did not confirm cancellation at period end. Please try again.";
-                        throw new Error(errMessage);
-                    }
-
-                    stripeCancelAt = typeof payload?.cancelAt === "number" ? payload.cancelAt : null;
+                const response = await fetch(`${API_BASE_URL}/api/cancel-plan`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        partnerId: auth.currentUser.uid,
+                        planDocId: selectedPlanForAction.id,
+                        cancelScope,
+                    }),
+                });
+                let payload: any = null;
+                try {
+                    payload = await response.json();
+                } catch {
+                    payload = null;
+                }
+                if (!response.ok || !payload?.success) {
+                    throw new Error(payload?.error || "Cancellation request failed.");
                 }
 
-                const planUpdate: Record<string, any> = {
-                    cancelAtPeriodEnd: true,
-                    cancelledAt: new Date(),
-                };
-                if (stripeCancelAt) {
-                    const periodEndDate = new Date(stripeCancelAt * 1000);
-                    planUpdate.billingPeriodEnd = periodEndDate;
-                    planUpdate.cancelAt = periodEndDate;
-                }
-                await updateDoc(planRef, planUpdate);
-
-                setActionMessage({ type: "success", text: "Subscription will be cancelled at the end of the billing period." });
+                const successText = cancelScope === "feature"
+                    ? "Feature spotlight cancelled successfully."
+                    : cancelScope === "plan_and_feature"
+                        ? "Plan and feature cancellation scheduled successfully."
+                        : "Subscription will be cancelled at the end of the billing period.";
+                setActionMessage({ type: "success", text: successText });
+                setPendingUpgradePlanId(null);
                 setTimeout(() => {
                     setShowCancelModal(false);
                     setSelectedPlanForAction(null);
@@ -1033,12 +1056,14 @@ export default function Dashboard() {
                     <EditListingModal
                         listing={selectedListingForEdit}
                         plan={selectedPlanForAction}
-                        planConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
+                        planConfig={PLAN_CONFIGS[pendingUpgradePlanId || selectedPlanForAction?.planId]}
+                        isUpgradeFlow={Boolean(pendingUpgradePlanId)}
                         representativeOptions={representativeOptions}
                         onClose={() => {
                             setShowEditListingModal(false);
                             setSelectedListingForEdit(null);
                             setSelectedPlanForAction(null);
+                            setPendingUpgradePlanId(null);
                         }}
                         onSave={handleSaveListingEdit}
                         processing={actionProcessing}
@@ -1054,6 +1079,7 @@ export default function Dashboard() {
                         onClose={() => {
                             setShowUpgradeModal(false);
                             setSelectedPlanForAction(null);
+                            setPendingUpgradePlanId(null);
                         }}
                         onUpgrade={handleUpgradePlan}
                         processing={actionProcessing}
@@ -1065,9 +1091,11 @@ export default function Dashboard() {
                     <CancelPlanModal
                         plan={selectedPlanForAction}
                         planConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
+                        hasFeature={hasStandaloneFeatureForPlan(selectedPlanForAction)}
                         onClose={() => {
                             setShowCancelModal(false);
                             setSelectedPlanForAction(null);
+                            setPendingUpgradePlanId(null);
                         }}
                         onCancel={handleCancelPlan}
                         processing={actionProcessing}
@@ -1339,6 +1367,7 @@ export default function Dashboard() {
                                                                 onClick={() => {
                                                                     setSelectedListingForEdit(linkedListing);
                                                                     setSelectedPlanForAction(plan);
+                                                                    setPendingUpgradePlanId(null);
                                                                     setShowEditListingModal(true);
                                                                 }}
                                                             >
@@ -1351,6 +1380,7 @@ export default function Dashboard() {
                                                             className="border-primary/50 text-primary hover:bg-primary/10"
                                                             onClick={() => {
                                                                 setSelectedPlanForAction(plan);
+                                                                setPendingUpgradePlanId(null);
                                                                 setShowUpgradeModal(true);
                                                             }}
                                                         >
@@ -1364,6 +1394,7 @@ export default function Dashboard() {
                                                                 onClick={() => {
                                                                     setSelectedPlanForAction(plan);
                                                                     setSelectedListingForEdit(linkedListing);
+                                                                    setPendingUpgradePlanId(null);
                                                                     setShowAddFeatureModal(true);
                                                                 }}
                                                             >
@@ -1377,6 +1408,7 @@ export default function Dashboard() {
                                                                 className="border-red-500/50 text-red-400 hover:bg-red-500/10"
                                                                 onClick={() => {
                                                                     setSelectedPlanForAction(plan);
+                                                                    setPendingUpgradePlanId(null);
                                                                     setShowCancelModal(true);
                                                                 }}
                                                             >
@@ -1930,13 +1962,14 @@ interface EditListingModalProps {
     listing: any;
     plan: any;
     planConfig: any;
+    isUpgradeFlow?: boolean;
     representativeOptions: Array<{ firstName: string; lastName: string; email: string }>;
     onClose: () => void;
     onSave: (data: any) => void;
     processing: boolean;
 }
 
-function EditListingModal({ listing, planConfig, representativeOptions, onClose, onSave, processing }: EditListingModalProps) {
+function EditListingModal({ listing, planConfig, isUpgradeFlow = false, representativeOptions, onClose, onSave, processing }: EditListingModalProps) {
     // Form state
     const listingGroup = listing.selectedGroup
         || (listing.__col === "businessOfferingsCollection" ? "business_offerings"
@@ -2594,7 +2627,7 @@ function EditListingModal({ listing, planConfig, representativeOptions, onClose,
                                 .some((rep) => (rep.firstName || rep.lastName || rep.email) && (!rep.firstName || !rep.lastName || !rep.email))
                         }
                     >
-                        {processing ? "Saving..." : "Save Changes"}
+                        {processing ? "Saving..." : isUpgradeFlow ? "Save & Continue to Stripe" : "Save Changes"}
                     </Button>
                 </div>
             </div>
@@ -2735,7 +2768,7 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-sm text-muted-foreground">Upgrade cost (prorated)</p>
-                                <p className="text-xs text-muted-foreground">You'll be charged the difference for the remaining billing period</p>
+                                <p className="text-xs text-muted-foreground">Next step: update listing details, then complete payment on Stripe.</p>
                             </div>
                             <p className="text-xl font-bold text-primary">+${priceDifference.toFixed(2)}</p>
                         </div>
@@ -2744,7 +2777,7 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3 shrink-0">
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
                     <Button onClick={() => onUpgrade(selectedPlan)} disabled={!selectedPlan || processing || upgradePlans.length === 0}>
-                        {processing ? "Processing..." : selectedPlan ? `Upgrade to ${allPlans[selectedPlan]?.label}` : "Select a Plan"}
+                        {processing ? "Processing..." : selectedPlan ? "Continue" : "Select a Plan"}
                     </Button>
                 </div>
             </div>
@@ -2755,13 +2788,15 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
 interface CancelPlanModalProps {
     plan: any;
     planConfig: any;
+    hasFeature: boolean;
     onClose: () => void;
-    onCancel: () => void;
+    onCancel: (scope: CancelScope) => void;
     processing: boolean;
 }
 
-function CancelPlanModal({ plan, planConfig, onClose, onCancel, processing }: CancelPlanModalProps) {
+function CancelPlanModal({ plan, planConfig, hasFeature, onClose, onCancel, processing }: CancelPlanModalProps) {
     const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : null;
+    const [cancelScope, setCancelScope] = useState<CancelScope>(hasFeature ? "plan_and_feature" : "plan");
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -2778,17 +2813,64 @@ function CancelPlanModal({ plan, planConfig, onClose, onCancel, processing }: Ca
                     <p className="text-foreground">
                         Are you sure you want to cancel your <span className="font-semibold">{planConfig?.label}</span> subscription?
                     </p>
+                    {hasFeature && (
+                        <div className="space-y-2">
+                            <p className="text-sm font-medium text-foreground">What would you like to cancel?</p>
+                            <button
+                                type="button"
+                                onClick={() => setCancelScope("feature")}
+                                className={`w-full text-left rounded-lg border p-3 transition-colors ${cancelScope === "feature"
+                                    ? "border-primary bg-primary/10"
+                                    : "border-foreground/15 bg-foreground/5 hover:border-foreground/30"
+                                    }`}
+                            >
+                                Cancel feature only
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setCancelScope("plan_and_feature")}
+                                className={`w-full text-left rounded-lg border p-3 transition-colors ${cancelScope === "plan_and_feature"
+                                    ? "border-primary bg-primary/10"
+                                    : "border-foreground/15 bg-foreground/5 hover:border-foreground/30"
+                                    }`}
+                            >
+                                Cancel plan and feature
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setCancelScope("plan")}
+                                className={`w-full text-left rounded-lg border p-3 transition-colors ${cancelScope === "plan"
+                                    ? "border-primary bg-primary/10"
+                                    : "border-foreground/15 bg-foreground/5 hover:border-foreground/30"
+                                    }`}
+                            >
+                                Cancel plan only
+                            </button>
+                        </div>
+                    )}
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
                         <p className="text-sm text-yellow-400">
-                            Your subscription will remain active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>.
-                            After that, your listing will be deactivated and removed from public view.
+                            {cancelScope === "feature"
+                                ? "Your feature spotlight will be removed while your plan remains active."
+                                : (
+                                    <>
+                                        Your subscription will remain active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>.
+                                        After that, your listing will be deactivated and removed from public view.
+                                    </>
+                                )}
                         </p>
                     </div>
                 </div>
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
                     <Button variant="ghost" onClick={onClose}>Keep Subscription</Button>
-                    <Button variant="destructive" onClick={onCancel} disabled={processing}>
-                        {processing ? "Cancelling..." : "Cancel Subscription"}
+                    <Button variant="destructive" onClick={() => onCancel(cancelScope)} disabled={processing}>
+                        {processing
+                            ? "Cancelling..."
+                            : cancelScope === "feature"
+                                ? "Cancel Feature"
+                                : cancelScope === "plan_and_feature"
+                                    ? "Cancel Plan + Feature"
+                                    : "Cancel Subscription"}
                     </Button>
                 </div>
             </div>
