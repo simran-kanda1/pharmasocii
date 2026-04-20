@@ -185,7 +185,6 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 const upgradedSubscription = await stripe.subscriptions.update(subscriptionId, {
                     items: [{ id: subscriptionItemId, price: newPriceId }],
                     proration_behavior: "none",
-                    billing_cycle_anchor: "now",
                     metadata: {
                         partnerId,
                         planId: newPlanId,
@@ -1021,11 +1020,19 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             }
 
             const currentAmount = subscriptionItem.price?.unit_amount || 0;
-            const fixedUpgradeDiff = newPlan.amount - currentAmount;
-            if (fixedUpgradeDiff <= 0) {
+            const planDiffAmount = newPlan.amount - currentAmount;
+            if (planDiffAmount <= 0) {
                 return res.status(400).json({ error: "Selected plan is not higher than the current plan." });
             }
-            const proratedDiffAmount = fixedUpgradeDiff;
+
+            // Time-based proration: charge only for the remaining portion of current billing period.
+            const periodStart = subscription.current_period_start || Math.floor(Date.now() / 1000);
+            const periodEnd = subscription.current_period_end || periodStart;
+            const now = Math.floor(Date.now() / 1000);
+            const totalSeconds = Math.max(periodEnd - periodStart, 1);
+            const remainingSeconds = Math.max(periodEnd - now, 0);
+            const remainingRatio = Math.min(Math.max(remainingSeconds / totalSeconds, 0), 1);
+            const proratedDiffAmount = Math.max(Math.round(planDiffAmount * remainingRatio), 0);
 
             const newPrice = await stripe.prices.create({
                 currency: "usd",
@@ -1035,6 +1042,26 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     name: `Pharma Socii — ${newPlan.name}`,
                 },
             });
+
+            if (proratedDiffAmount <= 0) {
+                const updatedSubscription = await stripe.subscriptions.update(effectiveSubscriptionId, {
+                    items: [{ id: subscriptionItem.id, price: newPrice.id }],
+                    proration_behavior: "none",
+                    metadata: {
+                        partnerId: partnerId || "",
+                        planId: newPlanId,
+                        listingId: listingId || "",
+                        collectionName: collectionName || "",
+                    },
+                });
+
+                return res.json({
+                    success: true,
+                    subscriptionId: updatedSubscription.id,
+                    proratedAmount: 0,
+                    message: "Upgrade applied with no prorated charge remaining in this billing cycle.",
+                });
+            }
 
             const stripeCustomerId =
                 typeof subscription.customer === "string"
@@ -1339,7 +1366,6 @@ app.post("/api/verify-payment", async (req, res) => {
                 : await stripe.subscriptions.update(upgradeSubscriptionId, {
                     items: [{ id: itemIdToUpdate, price: newPriceId }],
                     proration_behavior: "none",
-                    billing_cycle_anchor: "now",
                     metadata: {
                         partnerId,
                         planId: newPlanId,
