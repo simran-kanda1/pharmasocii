@@ -139,6 +139,16 @@ const toDateValue = (value: any): Date | null => {
     return null;
 };
 
+const getPlanPeriodEndDate = (plan: any): Date | null =>
+    toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
+
+const isPlanBillingLive = (plan: any): boolean => {
+    if (plan?.active === false) return false;
+    const end = getPlanPeriodEndDate(plan);
+    if (end && end.getTime() < Date.now()) return false;
+    return true;
+};
+
 const inferPlanGroup = (plan: any): string => {
     if (plan?.group) return plan.group;
     if (plan?.collectionName === "businessOfferingsCollection") return "business_offerings";
@@ -156,8 +166,7 @@ const getGroupPurchaseLock = (plans: any[], group: "business_offerings" | "consu
 
     for (const plan of plans || []) {
         if (inferPlanGroup(plan) !== group) continue;
-        const isActive = plan?.active !== false;
-        if (!isActive) continue;
+        if (!isPlanBillingLive(plan)) continue;
 
         if (!plan?.cancelAtPeriodEnd) {
             blocked = true;

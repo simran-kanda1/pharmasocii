@@ -279,6 +279,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                                 lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                             }, { merge: true });
                             console.log(`   ✓ Listing ${listingId} spotlight set to ${featureId}`);
+                            await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
                         } else {
                             console.log(`   ⚠ Feature purchase listing not found: ${listingId}`);
                         }
@@ -293,10 +294,16 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
 
                 await logAudit({
                     partnerId,
-                    action: "FEATURE_ADDED",
-                    details: `New feature added: ${featureId.replace(/_/g, " ")}.`,
+                    action: session.metadata?.featureUpgrade === "true" ? "FEATURE_UPGRADED" : "FEATURE_ADDED",
+                    details:
+                        session.metadata?.featureUpgrade === "true"
+                            ? `Spotlight upgraded to ${featureId.replace(/_/g, " ")}.`
+                            : `New feature added: ${featureId.replace(/_/g, " ")}.`,
                     category: "listing",
-                    metadata: { featureId }
+                    metadata: {
+                        featureId,
+                        previousFeatureId: session.metadata?.previousFeatureId || null,
+                    },
                 });
             } else if (listingId && resolvedCollectionName) {
                 // Core listing payment - update the listing status
@@ -617,7 +624,11 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 }
                 const pSnap = await pDoc.ref.collection("planCollection").where("stripeSubscriptionId", "==", subscription.id).get();
                 for (const pPlan of pSnap.docs) {
-                    await pPlan.ref.update({ active: false });
+                    await pPlan.ref.update({
+                        active: false,
+                        cancelAtPeriodEnd: false,
+                        expiredAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
                 }
 
                 await logAudit({
@@ -701,12 +712,117 @@ const PLAN_PRICES = {
     premium_plus_job: { amount: 100000, name: "Premium Plus Job Listing", interval: null },
 };
 
+/** Tier rank for upgrade rules (higher = higher tier). Same rank for mo/yr of same product level. */
+const PLAN_TIER_RANK = {
+    basic_mo: 1,
+    standard_mo: 2,
+    premium_mo: 3,
+    premium_plus_mo: 4,
+    basic_yr: 1,
+    standard_yr: 2,
+    premium_yr: 3,
+    premium_plus_yr: 4,
+    basic_event: 1,
+    standard_event: 2,
+    premium_event: 3,
+    premium_plus_event: 4,
+    standard_job: 1,
+    premium_job: 2,
+    premium_plus_job: 3,
+};
+
+const SECONDS_PER_YEAR = 31557600; // 365.25 * 24 * 3600
+
+function inferCurrentPlanIdFromSubscription(subscription, subscriptionItem) {
+    const metaId = subscription?.metadata?.planId;
+    if (metaId && PLAN_PRICES[metaId]) return metaId;
+    const ua = subscriptionItem?.price?.unit_amount;
+    const iv = subscriptionItem?.price?.recurring?.interval || null;
+    if (ua == null) return null;
+    for (const [pid, p] of Object.entries(PLAN_PRICES)) {
+        if (p.amount === ua && p.interval === iv) return pid;
+    }
+    return null;
+}
+
+function isAllowedSubscriptionUpgrade(currentPlanId, newPlanId) {
+    if (!currentPlanId || !newPlanId || currentPlanId === newPlanId) return false;
+    const curTier = PLAN_TIER_RANK[currentPlanId] ?? 0;
+    const newTier = PLAN_TIER_RANK[newPlanId] ?? 0;
+    if (!curTier || !newTier) return false;
+
+    if (currentPlanId.includes("_event")) {
+        return newPlanId.includes("_event") && newTier > curTier;
+    }
+    if (currentPlanId.includes("_job")) {
+        return newPlanId.includes("_job") && newTier > curTier;
+    }
+    if (newPlanId.includes("_event") || newPlanId.includes("_job")) return false;
+
+    const curMo = currentPlanId.includes("_mo");
+    const curYr = currentPlanId.includes("_yr");
+    const newMo = newPlanId.includes("_mo");
+    const newYr = newPlanId.includes("_yr");
+    if (curMo && newMo) return newTier > curTier;
+    if (curMo && newYr) return newTier >= curTier;
+    if (curYr && newYr) return newTier > curTier;
+    return false;
+}
+
 // ─── Feature plan add-ons ───
 const FEATURE_PRICES = {
     landing_page: { amount: 40000, name: "Landing Page Spotlight" },
     home_page: { amount: 80000, name: "Home Page Spotlight" },
     both: { amount: 100000, name: "Landing + Home Page Spotlight" },
 };
+
+const FEATURE_SPOTLIGHT_TIER = {
+    landing_page: 1,
+    home_page: 2,
+    both: 3,
+};
+
+function resolveFeatureCheckoutAmount(targetFeatureId, listingAddonRaw, featuredPlacementRaw) {
+    const target = FEATURE_PRICES[targetFeatureId];
+    if (!target) {
+        return { error: `Unknown feature: ${targetFeatureId}` };
+    }
+    const cur = String(listingAddonRaw || featuredPlacementRaw || "").trim();
+    if (!cur || !FEATURE_PRICES[cur]) {
+        return { unitAmount: target.amount, previousFeatureId: "", isUpgrade: false };
+    }
+    if (cur === targetFeatureId) {
+        return { error: "You already have this spotlight tier." };
+    }
+    const curTier = FEATURE_SPOTLIGHT_TIER[cur];
+    const newTier = FEATURE_SPOTLIGHT_TIER[targetFeatureId];
+    if (!curTier || !newTier || newTier <= curTier) {
+        return { error: "That is not a valid upgrade from your current spotlight tier." };
+    }
+    const diff = target.amount - FEATURE_PRICES[cur].amount;
+    if (diff <= 0) {
+        return { error: "Invalid upgrade pricing." };
+    }
+    return { unitAmount: diff, previousFeatureId: cur, isUpgrade: true };
+}
+
+async function deactivateSupersededPartnerFeatures(partnerRef, listingId, newFeatureId) {
+    if (!partnerRef || !listingId || !newFeatureId) return;
+    const snap = await partnerRef.collection("featuresCollection").where("listingId", "==", listingId).get();
+    for (const doc of snap.docs) {
+        const d = doc.data() || {};
+        if (d.active && d.featureId && d.featureId !== newFeatureId) {
+            await doc.ref.set(
+                {
+                    active: false,
+                    supersededBy: newFeatureId,
+                    supersededAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+            );
+        }
+    }
+}
 
 const toDateValue = (value) => {
     if (!value) return null;
@@ -740,6 +856,13 @@ const inferPlanGroup = (plan) => {
     return "";
 };
 
+const isFirestorePlanBillingLive = (plan) => {
+    if (plan?.active === false) return false;
+    const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
+    if (end && end.getTime() < Date.now()) return false;
+    return true;
+};
+
 const getGroupPurchaseLockForPartner = async (partnerId, group) => {
     if (!partnerId || !["business_offerings", "consulting"].includes(group)) {
         return { blocked: false, blockedUntil: null };
@@ -759,6 +882,7 @@ const getGroupPurchaseLockForPartner = async (partnerId, group) => {
     plansSnap.forEach((doc) => {
         const plan = doc.data() || {};
         if (inferPlanGroup(plan) !== group) return;
+        if (!isFirestorePlanBillingLive(plan)) return;
         if (!plan.cancelAtPeriodEnd) {
             blocked = true;
             hasOpenEndedBlock = true;
@@ -902,11 +1026,28 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             .where("listingId", "==", listingId)
             .where("collectionName", "==", collectionName)
             .where("active", "==", true)
-            .limit(1)
+            .limit(5)
             .get();
-        if (activePlanSnap.empty) {
+        const livePlanDoc = activePlanSnap.docs.find((d) => isFirestorePlanBillingLive(d.data() || {}));
+        if (!livePlanDoc) {
             return res.status(400).json({ error: "No active paid plan found for this listing." });
         }
+
+        const pricing = resolveFeatureCheckoutAmount(
+            featureId,
+            listingData.selectedAddon,
+            listingData.featuredPlacement
+        );
+        if (pricing.error) {
+            return res.status(400).json({ error: pricing.error });
+        }
+
+        const productName = pricing.isUpgrade
+            ? `Pharma Socii — Spotlight upgrade (${pricing.previousFeatureId.replace(/_/g, " ")} → ${feature.name})`
+            : `Pharma Socii — ${feature.name}`;
+        const productDescription = pricing.isUpgrade
+            ? "Upgrade pricing is the difference to your new spotlight tier."
+            : "Feature add-on for increased visibility";
 
         const session = await stripe.checkout.sessions.create({
             mode: "payment",
@@ -915,10 +1056,10 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                     price_data: {
                         currency: "usd",
                         product_data: {
-                            name: `Pharma Socii — ${feature.name}`,
-                            description: "Feature add-on for increased visibility",
+                            name: productName,
+                            description: productDescription,
                         },
-                        unit_amount: feature.amount,
+                        unit_amount: pricing.unitAmount,
                     },
                     quantity: 1,
                 },
@@ -933,10 +1074,14 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                 listingId: listingId || "",
                 collectionName: collectionName || "",
                 group: group || "",
+                previousFeatureId: pricing.previousFeatureId || "",
+                featureUpgrade: pricing.isUpgrade ? "true" : "false",
             },
         });
 
-        console.log(`✓ Feature checkout session created: ${session.id} for ${featureId}`);
+        console.log(
+            `✓ Feature checkout session created: ${session.id} for ${featureId}${pricing.isUpgrade ? ` (upgrade from ${pricing.previousFeatureId})` : ""}`
+        );
         res.json({ url: session.url, sessionId: session.id });
     } catch (err) {
         console.error("Stripe feature error:", err.message);
@@ -1020,19 +1165,52 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             }
 
             const currentAmount = subscriptionItem.price?.unit_amount || 0;
-            const planDiffAmount = newPlan.amount - currentAmount;
-            if (planDiffAmount <= 0) {
-                return res.status(400).json({ error: "Selected plan is not higher than the current plan." });
+            const currentInterval = subscriptionItem.price?.recurring?.interval || null;
+            const currentPlanId = inferCurrentPlanIdFromSubscription(subscription, subscriptionItem);
+
+            if (!currentPlanId) {
+                return res.status(400).json({
+                    error:
+                        "Could not determine your current plan from Stripe. Please contact support or complete the upgrade after your subscription metadata is updated.",
+                });
             }
 
-            // Time-based proration: charge only for the remaining portion of current billing period.
+            if (!isAllowedSubscriptionUpgrade(currentPlanId, newPlanId)) {
+                return res.status(400).json({
+                    error:
+                        "That plan change is not allowed. Choose a higher tier on the same billing cycle, or an annual plan at the same tier or higher.",
+                });
+            }
+
+            // Time-based proration for the remainder of the current Stripe billing period.
             const periodStart = subscription.current_period_start || Math.floor(Date.now() / 1000);
             const periodEnd = subscription.current_period_end || periodStart;
             const now = Math.floor(Date.now() / 1000);
             const totalSeconds = Math.max(periodEnd - periodStart, 1);
             const remainingSeconds = Math.max(periodEnd - now, 0);
             const remainingRatio = Math.min(Math.max(remainingSeconds / totalSeconds, 0), 1);
-            const proratedDiffAmount = Math.max(Math.round(planDiffAmount * remainingRatio), 0);
+
+            const newInterval = newPlan.interval;
+            const normalizedCurrentIv = currentInterval || null;
+            const normalizedNewIv = newInterval || null;
+            const alignedBillingIntervals = normalizedCurrentIv === normalizedNewIv;
+
+            let proratedDiffAmount;
+            if (alignedBillingIntervals) {
+                const planDiffAmount = newPlan.amount - currentAmount;
+                if (planDiffAmount <= 0) {
+                    return res.status(400).json({ error: "Selected plan is not higher than the current plan." });
+                }
+                proratedDiffAmount = Math.max(Math.round(planDiffAmount * remainingRatio), 0);
+            } else {
+                // e.g. monthly → annual: credit unused monthly prepayment, charge annual slice for the same wall time.
+                const creditCents = Math.round(currentAmount * remainingRatio);
+                const newCentsForRemainder =
+                    newInterval === "year"
+                        ? Math.round((remainingSeconds / SECONDS_PER_YEAR) * newPlan.amount)
+                        : Math.round((remainingSeconds / totalSeconds) * newPlan.amount);
+                proratedDiffAmount = Math.max(0, newCentsForRemainder - creditCents);
+            }
 
             const newPrice = await stripe.prices.create({
                 currency: "usd",
@@ -1120,9 +1298,9 @@ app.post("/api/upgrade-subscription", async (req, res) => {
 
 /**
  * POST /api/cancel-plan
- * Cancel feature only, plan only, or both.
+ * Cancel spotlight add-on only, or cancel the subscription (which also removes a paid add-on on the listing).
  * Body: { partnerId, planDocId, cancelScope }
- * cancelScope: "feature" | "plan" | "plan_and_feature"
+ * cancelScope: "feature" | "plan" (plan_and_feature accepted as alias of plan for older clients)
  */
 app.post("/api/cancel-plan", async (req, res) => {
     try {
@@ -1132,7 +1310,7 @@ app.post("/api/cancel-plan", async (req, res) => {
             return res.status(400).json({ error: "partnerId and planDocId are required." });
         }
         if (!["feature", "plan", "plan_and_feature"].includes(cancelScope)) {
-            return res.status(400).json({ error: "cancelScope must be one of: feature, plan, plan_and_feature." });
+            return res.status(400).json({ error: "cancelScope must be feature or plan." });
         }
 
         const partnerRef = db.collection("partnersCollection").doc(partnerId);
@@ -1148,64 +1326,69 @@ app.post("/api/cancel-plan", async (req, res) => {
         let stripeCancelAt = null;
         let linkedFeatureId = null;
 
-        const shouldCancelFeature = cancelScope === "feature" || cancelScope === "plan_and_feature";
-        const shouldCancelPlan = cancelScope === "plan" || cancelScope === "plan_and_feature";
+        const cancelFeatureOnly = cancelScope === "feature";
+        const cancelPlan = cancelScope === "plan" || cancelScope === "plan_and_feature";
+        const shouldClearListingAddon = cancelFeatureOnly || cancelPlan;
 
-        if (shouldCancelFeature) {
+        if (shouldClearListingAddon) {
             if (!plan.listingId || !plan.collectionName) {
-                return res.status(400).json({ error: "Feature cancellation requires a listing-backed plan." });
-            }
+                if (cancelFeatureOnly) {
+                    return res.status(400).json({ error: "Feature cancellation requires a listing-backed plan." });
+                }
+            } else {
+                const listingRef = await resolveListingDocRef(partnerId, plan.collectionName, plan.listingId);
+                if (!listingRef) {
+                    if (cancelFeatureOnly) {
+                        return res.status(400).json({ error: "Unable to resolve listing for feature cancellation." });
+                    }
+                } else {
+                    const listingSnap = await listingRef.get();
+                    const listingData = listingSnap.exists ? listingSnap.data() || {} : {};
+                    linkedFeatureId = listingData.selectedAddon || listingData.featuredPlacement || null;
 
-            const listingRef = await resolveListingDocRef(partnerId, plan.collectionName, plan.listingId);
-            if (!listingRef) {
-                return res.status(400).json({ error: "Unable to resolve listing for feature cancellation." });
-            }
+                    if (listingSnap.exists) {
+                        await listingRef.set({
+                            selectedAddon: admin.firestore.FieldValue.delete(),
+                            featuredPlacement: admin.firestore.FieldValue.delete(),
+                            isFeatured: false,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        }, { merge: true });
+                        cancelledFeature = true;
+                    }
 
-            const listingSnap = await listingRef.get();
-            const listingData = listingSnap.exists ? listingSnap.data() || {} : {};
-            linkedFeatureId = listingData.selectedAddon || listingData.featuredPlacement || null;
+                    const featuresRef = partnerRef.collection("featuresCollection");
+                    let featureDocs = [];
+                    if (plan.listingId) {
+                        const byListing = await featuresRef
+                            .where("listingId", "==", plan.listingId)
+                            .where("active", "==", true)
+                            .get();
+                        featureDocs = byListing.docs;
+                    }
+                    if (featureDocs.length === 0 && linkedFeatureId) {
+                        const byFeatureId = await featuresRef
+                            .where("featureId", "==", linkedFeatureId)
+                            .where("active", "==", true)
+                            .get();
+                        featureDocs = byFeatureId.docs;
+                    }
+                    for (const fDoc of featureDocs) {
+                        await fDoc.ref.set({
+                            active: false,
+                            cancelledAt: new Date(),
+                            cancelScope: cancelFeatureOnly ? "feature" : "plan",
+                        }, { merge: true });
+                        cancelledFeature = true;
+                    }
 
-            if (listingSnap.exists) {
-                await listingRef.set({
-                    selectedAddon: admin.firestore.FieldValue.delete(),
-                    featuredPlacement: admin.firestore.FieldValue.delete(),
-                    isFeatured: false,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                }, { merge: true });
-                cancelledFeature = true;
+                    await partnerRef.set({
+                        selectedAddon: admin.firestore.FieldValue.delete(),
+                    }, { merge: true });
+                }
             }
-
-            const featuresRef = partnerRef.collection("featuresCollection");
-            let featureDocs = [];
-            if (plan.listingId) {
-                const byListing = await featuresRef
-                    .where("listingId", "==", plan.listingId)
-                    .where("active", "==", true)
-                    .get();
-                featureDocs = byListing.docs;
-            }
-            if (featureDocs.length === 0 && linkedFeatureId) {
-                const byFeatureId = await featuresRef
-                    .where("featureId", "==", linkedFeatureId)
-                    .where("active", "==", true)
-                    .get();
-                featureDocs = byFeatureId.docs;
-            }
-            for (const fDoc of featureDocs) {
-                await fDoc.ref.set({
-                    active: false,
-                    cancelledAt: new Date(),
-                    cancelScope,
-                }, { merge: true });
-                cancelledFeature = true;
-            }
-
-            await partnerRef.set({
-                selectedAddon: admin.firestore.FieldValue.delete(),
-            }, { merge: true });
         }
 
-        if (shouldCancelPlan) {
+        if (cancelPlan) {
             if (plan.stripeSubscriptionId) {
                 const subscription = await stripe.subscriptions.update(plan.stripeSubscriptionId, {
                     cancel_at_period_end: true,
@@ -1478,6 +1661,9 @@ app.post("/api/verify-payment", async (req, res) => {
                     }, { merge: true });
                     updated = true;
                     console.log(`   ✓ Listing ${listingId} spotlight set to ${featureId}`);
+                    if (partnerRef) {
+                        await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
+                    }
                 }
             }
             if (partnerRef) {

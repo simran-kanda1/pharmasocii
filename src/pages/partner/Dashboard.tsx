@@ -41,7 +41,7 @@ import { REGION_COUNTRY_MAP } from "@/constants/regions";
 
 
 type TabType = "dashboard" | "profile" | "password" | "transactions";
-type CancelScope = "feature" | "plan" | "plan_and_feature";
+type CancelScope = "feature" | "plan";
 
 // ─── PLAN CONFIG ───
 // Maps plan IDs to their limits and features
@@ -115,6 +115,32 @@ const FEATURE_PLANS = [
     { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,000.00", icon: Sparkles },
 ];
 
+const FEATURE_PRICE_CENTS: Record<string, number> = {
+    landing_page: 40000,
+    home_page: 80000,
+    both: 100000,
+};
+
+const getSpotlightAddonTierId = (listing: any): string | null => {
+    const raw = String(listing?.selectedAddon || listing?.featuredPlacement || "").trim();
+    if (raw === "landing_page" || raw === "home_page" || raw === "both") return raw;
+    return null;
+};
+
+const getFeatureUpgradeTargets = (currentId: string | null | undefined): string[] => {
+    const c = (currentId || "").trim();
+    if (c === "landing_page") return ["home_page", "both"];
+    if (c === "home_page") return ["both"];
+    return [];
+};
+
+const formatFeatureUpgradeDelta = (fromId: string, toId: string): string => {
+    const from = FEATURE_PRICE_CENTS[fromId];
+    const to = FEATURE_PRICE_CENTS[toId];
+    if (from == null || to == null) return "";
+    return `+$${((to - from) / 100).toFixed(2)} today`;
+};
+
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
 const toDateValue = (value: any): Date | null => {
@@ -140,6 +166,17 @@ const toDateValue = (value: any): Date | null => {
     return null;
 };
 
+const getPlanPeriodEndDate = (plan: any): Date | null =>
+    toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
+
+/** Paid access still in effect (not lapsed / not deactivated). */
+const isPlanBillingLive = (plan: any): boolean => {
+    if (plan?.active === false) return false;
+    const end = getPlanPeriodEndDate(plan);
+    if (end && end.getTime() < Date.now()) return false;
+    return true;
+};
+
 const inferPlanGroup = (plan: any): string => {
     if (plan?.group) return plan.group;
     if (plan?.collectionName === "businessOfferingsCollection") return "business_offerings";
@@ -147,6 +184,15 @@ const inferPlanGroup = (plan: any): string => {
     if (plan?.collectionName === "eventsCollection") return "events";
     if (plan?.collectionName === "jobsCollection") return "jobs";
     return "";
+};
+
+const addListingRouteTypeForPlan = (plan: any): "offerings" | "consulting" | "events" | "jobs" | null => {
+    const g = inferPlanGroup(plan);
+    if (g === "business_offerings") return "offerings";
+    if (g === "consulting") return "consulting";
+    if (g === "events") return "events";
+    if (g === "jobs") return "jobs";
+    return null;
 };
 
 const inferListingGroup = (listing: any): string => {
@@ -177,8 +223,7 @@ const getGroupPlanLock = (plans: any[], group: "business_offerings" | "consultin
 
     for (const plan of plans || []) {
         if (inferPlanGroup(plan) !== group) continue;
-        const isActive = plan?.active !== false;
-        if (!isActive) continue;
+        if (!isPlanBillingLive(plan)) continue;
 
         if (!plan?.cancelAtPeriodEnd) {
             blocked = true;
@@ -233,6 +278,7 @@ export default function Dashboard() {
     const [showUpgradeModal, setShowUpgradeModal] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
+    const [showUpgradeFeatureModal, setShowUpgradeFeatureModal] = useState(false);
     const [selectedPlanForAction, setSelectedPlanForAction] = useState<any>(null);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<any>(null);
     const [pendingUpgradePlanId, setPendingUpgradePlanId] = useState<string | null>(null);
@@ -251,7 +297,7 @@ export default function Dashboard() {
         return hasFeature && !hasIncludedFeature;
     };
     const isFeatureEligiblePlan = (plan: any) => {
-        if (!plan?.active || !plan.listingId || !plan.collectionName) return false;
+        if (!isPlanBillingLive(plan) || !plan.listingId || !plan.collectionName) return false;
         const linkedListing = offerings.find((o) => o.id === plan.listingId);
         if (!linkedListing) return false;
         return linkedListing.status !== "pending_payment" && linkedListing.active !== false;
@@ -563,7 +609,7 @@ export default function Dashboard() {
         setFeatureProcessing(true);
         try {
             if (auth.currentUser && selectedFeaturePlan) {
-                const activeListingPlan = activePlans.find(isFeatureEligiblePlan);
+                const activeListingPlan = activePlans.filter(isPlanBillingLive).find(isFeatureEligiblePlan);
                 if (!activeListingPlan) {
                     throw new Error("You need a paid and active listing before buying a feature add-on.");
                 }
@@ -791,11 +837,10 @@ export default function Dashboard() {
                     throw new Error(payload?.error || "Cancellation request failed.");
                 }
 
-                const successText = cancelScope === "feature"
-                    ? "Feature spotlight cancelled successfully."
-                    : cancelScope === "plan_and_feature"
-                        ? "Plan and feature cancellation scheduled successfully."
-                        : "Subscription will be cancelled at the end of the billing period.";
+                const successText =
+                    cancelScope === "feature"
+                        ? "Feature spotlight cancelled successfully."
+                        : "Subscription will end after the current billing period. Any separate spotlight add-on for this listing has been removed.";
                 setActionMessage({ type: "success", text: successText });
                 setPendingUpgradePlanId(null);
                 setTimeout(() => {
@@ -820,7 +865,7 @@ export default function Dashboard() {
         setActionProcessing(true);
         try {
             if (auth.currentUser && selectedPlanForAction) {
-                if (!isFeatureEligiblePlan(selectedPlanForAction)) {
+                if (!isFeatureEligiblePlan(selectedPlanForAction) || !isPlanBillingLive(selectedPlanForAction)) {
                     throw new Error("Feature add-ons require a paid and active listing-backed plan.");
                 }
                 const origin = window.location.origin;
@@ -871,6 +916,9 @@ export default function Dashboard() {
 
     if (!partnerData) return null;
 
+    const livePlans = activePlans.filter(isPlanBillingLive);
+    const expiredPlans = activePlans.filter((p) => !isPlanBillingLive(p) && (p.planId || p.planName));
+
     const isApproved = partnerData.partnerStatus !== "Disabled";
     const displayName = partnerData.primaryName || "Partner";
     const currentPlan = PLAN_CONFIGS[partnerData.selectedPlan] || null;
@@ -879,10 +927,10 @@ export default function Dashboard() {
     const resolvedAddon = listingAddon || partnerData.selectedAddon || "";
     const hasFeaturePlan = resolvedAddon !== "none" && resolvedAddon !== "";
     const includedFeature = currentPlan?.featurePlan || null;
-    const hasActivePaidPlan = activePlans.some(isFeatureEligiblePlan);
+    const hasActivePaidPlan = livePlans.some(isFeatureEligiblePlan);
     const groupPlanDetails = (["business_offerings", "consulting"] as const)
         .map((group) => {
-            const activeGroupPlan = activePlans.find((plan) => plan.active !== false && inferPlanGroup(plan) === group);
+            const activeGroupPlan = livePlans.find((plan) => inferPlanGroup(plan) === group);
             if (!activeGroupPlan) return null;
             const config = PLAN_CONFIGS[activeGroupPlan.planId] || null;
             const isYearly = activeGroupPlan.billingInterval === "year" || activeGroupPlan.planId?.includes("_yr");
@@ -892,6 +940,33 @@ export default function Dashboard() {
     const planForDetails = currentPlan || groupPlanDetails[0]?.config || null;
     const businessOfferingLock = getGroupPlanLock(activePlans, "business_offerings");
     const consultingLock = getGroupPlanLock(activePlans, "consulting");
+
+    const liveListingPlanForFeatures = livePlans.find(isFeatureEligiblePlan);
+    const listingForGlobalFeatureModal = liveListingPlanForFeatures
+        ? offerings.find(
+            (o) =>
+                o.id === liveListingPlanForFeatures.listingId &&
+                (!liveListingPlanForFeatures.collectionName || o.__col === liveListingPlanForFeatures.collectionName)
+        ) || offerings.find((o) => o.id === liveListingPlanForFeatures.listingId)
+        : null;
+    const globalModalAddonTier = getSpotlightAddonTierId(listingForGlobalFeatureModal);
+    const globalModalUpgradeTargets = getFeatureUpgradeTargets(globalModalAddonTier);
+
+    const planForSpotlightUpgrade = livePlans.find((p) => {
+        const l =
+            offerings.find((o) => o.id === p.listingId && (!p.collectionName || o.__col === p.collectionName)) ||
+            offerings.find((o) => o.id === p.listingId);
+        if (!l || !hasStandaloneFeatureForPlan(p)) return false;
+        return getFeatureUpgradeTargets(getSpotlightAddonTierId(l)).length > 0;
+    });
+    const listingForSpotlightUpgrade = planForSpotlightUpgrade
+        ? offerings.find(
+            (o) =>
+                o.id === planForSpotlightUpgrade.listingId &&
+                (!planForSpotlightUpgrade.collectionName || o.__col === planForSpotlightUpgrade.collectionName)
+        ) || offerings.find((o) => o.id === planForSpotlightUpgrade.listingId)
+        : null;
+
     const representativeOptions = (() => {
         const [altFName, ...altLNames] = ((partnerData?.secondaryName || "") as string).split(" ");
         const altRep = normalizeRepresentative({
@@ -994,18 +1069,33 @@ export default function Dashboard() {
                             ) : (
                                 <>
                                     <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                                        <h2 className="text-xl font-bold text-foreground">Add Feature Plan</h2>
-                                        <button onClick={() => { setShowFeatureModal(false); setSelectedFeaturePlan(""); }} className="text-muted-foreground hover:text-foreground p-1"><X className="w-5 h-5" /></button>
+                                        <h2 className="text-xl font-bold text-foreground">
+                                            {globalModalUpgradeTargets.length > 0 ? "Upgrade spotlight" : "Add Feature Plan"}
+                                        </h2>
+                                        <button type="button" onClick={() => { setShowFeatureModal(false); setSelectedFeaturePlan(""); }} className="text-muted-foreground hover:text-foreground p-1"><X className="w-5 h-5" /></button>
                                     </div>
                                     <div className="p-6 space-y-4">
-                                        <p className="text-muted-foreground text-sm mb-2">Get extra visibility by being featured on the category page or the home page. Select a plan below:</p>
+                                        <p className="text-muted-foreground text-sm mb-2">
+                                            {globalModalUpgradeTargets.length > 0
+                                                ? "Move up to a higher spotlight tier. You pay only the difference in price."
+                                                : "Get extra visibility by being featured on the category page or the home page. Select a plan below:"}
+                                        </p>
                                         {FEATURE_PLANS.map(fp => {
                                             const Ic = fp.icon;
                                             const isSelected = selectedFeaturePlan === fp.id;
-                                            const alreadyHas = partnerData.selectedAddon === fp.id || includedFeature === fp.id;
+                                            const alreadyHasExact =
+                                                partnerData.selectedAddon === fp.id ||
+                                                includedFeature === fp.id ||
+                                                globalModalAddonTier === fp.id;
+                                            const isValidUpgradeChoice = globalModalUpgradeTargets.includes(fp.id);
+                                            const inUpgradeMode = globalModalUpgradeTargets.length > 0;
+                                            const disabled =
+                                                featureProcessing ||
+                                                alreadyHasExact ||
+                                                (inUpgradeMode && !isValidUpgradeChoice);
                                             return (
-                                                <button key={fp.id} disabled={alreadyHas || featureProcessing} onClick={() => setSelectedFeaturePlan(fp.id)}
-                                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${alreadyHas ? "border-green-500/30 bg-green-500/5 opacity-70 cursor-not-allowed" : isSelected ? "border-primary bg-primary/5" : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"}`}>
+                                                <button key={fp.id} type="button" disabled={disabled} onClick={() => setSelectedFeaturePlan(fp.id)}
+                                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${disabled ? "border-foreground/10 opacity-50 cursor-not-allowed" : isSelected ? "border-primary bg-primary/5" : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"}`}>
                                                     <div className="flex items-center gap-3">
                                                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
                                                             <Ic className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
@@ -1013,11 +1103,20 @@ export default function Dashboard() {
                                                         <div className="flex-1">
                                                             <p className="font-semibold text-foreground flex items-center gap-2">
                                                                 {fp.label}
-                                                                {alreadyHas && <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px]">Active</Badge>}
+                                                                {alreadyHasExact && <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px]">Active</Badge>}
+                                                                {isValidUpgradeChoice && globalModalAddonTier && (
+                                                                    <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">Upgrade</Badge>
+                                                                )}
                                                             </p>
                                                             <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
                                                         </div>
-                                                        <p className="text-lg font-bold text-foreground">{fp.price}</p>
+                                                        <div className="text-right shrink-0">
+                                                            {inUpgradeMode && isValidUpgradeChoice && globalModalAddonTier ? (
+                                                                <p className="text-lg font-bold text-primary">{formatFeatureUpgradeDelta(globalModalAddonTier, fp.id)}</p>
+                                                            ) : (
+                                                                <p className="text-lg font-bold text-foreground">{fp.price}</p>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </button>
                                             );
@@ -1027,7 +1126,7 @@ export default function Dashboard() {
                                         <Button variant="ghost" onClick={() => { setShowFeatureModal(false); setSelectedFeaturePlan(""); }}>Cancel</Button>
                                         <Button disabled={!selectedFeaturePlan || featureProcessing} onClick={handlePurchaseFeature} className="px-8 flex items-center">
                                             <CreditCard className="w-4 h-4 mr-2" />
-                                            {featureProcessing ? "Processing..." : "Purchase Feature Plan"}
+                                            {featureProcessing ? "Processing..." : globalModalUpgradeTargets.length > 0 ? "Continue to payment" : "Purchase Feature Plan"}
                                         </Button>
                                     </div>
                                 </>
@@ -1089,6 +1188,7 @@ export default function Dashboard() {
                 {/* Cancel Plan Modal */}
                 {showCancelModal && selectedPlanForAction && (
                     <CancelPlanModal
+                        key={selectedPlanForAction.id}
                         plan={selectedPlanForAction}
                         planConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
                         hasFeature={hasStandaloneFeatureForPlan(selectedPlanForAction)}
@@ -1110,6 +1210,20 @@ export default function Dashboard() {
                         featurePlans={FEATURE_PLANS}
                         onClose={() => {
                             setShowAddFeatureModal(false);
+                            setShowUpgradeFeatureModal(false);
+                            setSelectedPlanForAction(null);
+                            setSelectedListingForEdit(null);
+                        }}
+                        onPurchase={handlePurchaseFeaturePlan}
+                        processing={actionProcessing}
+                    />
+                )}
+
+                {showUpgradeFeatureModal && selectedPlanForAction && selectedListingForEdit && getSpotlightAddonTierId(selectedListingForEdit) && (
+                    <UpgradeFeaturePlanModal
+                        currentAddonId={getSpotlightAddonTierId(selectedListingForEdit) as string}
+                        onClose={() => {
+                            setShowUpgradeFeatureModal(false);
                             setSelectedPlanForAction(null);
                             setSelectedListingForEdit(null);
                         }}
@@ -1294,26 +1408,44 @@ export default function Dashboard() {
                                             <p className="text-muted-foreground text-sm">No feature spotlight active. Add one to boost your visibility.</p>
                                         )}
                                     </div>
-                                    {!includedFeature && !hasFeaturePlan && hasActivePaidPlan && (
-                                        <Button onClick={() => setShowFeatureModal(true)} variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
-                                            <Star className="w-4 h-4 mr-2" /> Add Feature Plan
-                                        </Button>
-                                    )}
+                                    <div className="flex flex-wrap gap-2 justify-end">
+                                        {planForSpotlightUpgrade && listingForSpotlightUpgrade && (
+                                            <Button
+                                                onClick={() => {
+                                                    setSelectedPlanForAction(planForSpotlightUpgrade);
+                                                    setSelectedListingForEdit(listingForSpotlightUpgrade);
+                                                    setShowUpgradeFeatureModal(true);
+                                                }}
+                                                variant="outline"
+                                                className="border-primary/50 text-primary hover:bg-primary/10"
+                                            >
+                                                <ArrowUpCircle className="w-4 h-4 mr-2" /> Upgrade spotlight
+                                            </Button>
+                                        )}
+                                        {!includedFeature && !hasFeaturePlan && hasActivePaidPlan && (
+                                            <Button onClick={() => setShowFeatureModal(true)} variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
+                                                <Star className="w-4 h-4 mr-2" /> Add Feature Plan
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
                 )}
 
-                {/* Active Subscriptions Section */}
-                {activePlans.length > 0 && (
+                {/* Active & past subscriptions */}
+                {(livePlans.length > 0 || expiredPlans.length > 0) && (
                     <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
                         <CardHeader className="pb-4 border-b border-foreground/10">
-                            <CardTitle className="text-xl flex items-center gap-2"><CreditCard className="w-5 h-5 text-primary" /> Active Subscriptions</CardTitle>
+                            <CardTitle className="text-xl flex items-center gap-2"><CreditCard className="w-5 h-5 text-primary" /> Subscriptions</CardTitle>
                         </CardHeader>
-                        <CardContent className="pt-6">
-                            <div className="space-y-4">
-                                {activePlans.filter(p => p.active).map(plan => {
+                        <CardContent className="pt-6 space-y-8">
+                            {livePlans.length > 0 && (
+                            <div className="space-y-3">
+                                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active</h3>
+                                <div className="space-y-4">
+                                {livePlans.map(plan => {
                                     const planConfig = PLAN_CONFIGS[plan.planId];
                                     const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : (plan.startDate ? new Date(plan.startDate) : null);
                                     const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : (plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null);
@@ -1325,6 +1457,8 @@ export default function Dashboard() {
                                     const hasFeature = linkedListing?.selectedAddon && linkedListing.selectedAddon !== "" && linkedListing.selectedAddon !== "none";
                                     const includedFeature = planConfig?.featurePlan;
                                     const canAddFeature = !includedFeature && !hasFeature && isFeatureEligiblePlan(plan);
+                                    const spotlightTier = hasStandaloneFeatureForPlan(plan) ? getSpotlightAddonTierId(linkedListing) : null;
+                                    const spotlightUpgradeTargets = spotlightTier ? getFeatureUpgradeTargets(spotlightTier) : [];
 
                                     return (
                                         <div key={plan.id} className="bg-muted/40 border border-foreground/10 rounded-xl p-5">
@@ -1395,10 +1529,27 @@ export default function Dashboard() {
                                                                     setSelectedPlanForAction(plan);
                                                                     setSelectedListingForEdit(linkedListing);
                                                                     setPendingUpgradePlanId(null);
+                                                                    setShowUpgradeFeatureModal(false);
                                                                     setShowAddFeatureModal(true);
                                                                 }}
                                                             >
                                                                 <Star className="w-3.5 h-3.5 mr-1.5" /> Add Feature
+                                                            </Button>
+                                                        )}
+                                                        {spotlightUpgradeTargets.length > 0 && linkedListing && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="border-primary/50 text-primary hover:bg-primary/10"
+                                                                onClick={() => {
+                                                                    setSelectedPlanForAction(plan);
+                                                                    setSelectedListingForEdit(linkedListing);
+                                                                    setPendingUpgradePlanId(null);
+                                                                    setShowAddFeatureModal(false);
+                                                                    setShowUpgradeFeatureModal(true);
+                                                                }}
+                                                            >
+                                                                <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade spotlight
                                                             </Button>
                                                         )}
                                                         {!plan.cancelAtPeriodEnd && (
@@ -1445,7 +1596,49 @@ export default function Dashboard() {
                                         </div>
                                     );
                                 })}
+                                </div>
                             </div>
+                            )}
+                            {expiredPlans.length > 0 && (
+                                <div className="space-y-3">
+                                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Expired</h3>
+                                    <p className="text-xs text-muted-foreground">These plans are no longer billing. You can purchase a new plan when you are ready.</p>
+                                    <div className="space-y-4">
+                                        {expiredPlans.map((plan) => {
+                                            const planConfig = PLAN_CONFIGS[plan.planId];
+                                            const endedAt =
+                                                getPlanPeriodEndDate(plan) ||
+                                                (plan.expiredAt?.seconds ? new Date(plan.expiredAt.seconds * 1000) : null);
+                                            const addType = addListingRouteTypeForPlan(plan);
+                                            return (
+                                                <div key={plan.id} className="bg-muted/20 border border-foreground/10 rounded-xl p-5 opacity-90">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                        <div>
+                                                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                                                                <h4 className="text-lg font-bold text-foreground">{planConfig?.label || plan.planName || plan.planId}</h4>
+                                                                <Badge className="bg-foreground/20 text-muted-foreground border-foreground/30">Expired</Badge>
+                                                            </div>
+                                                            {endedAt && (
+                                                                <p className="text-sm text-muted-foreground">Ended {endedAt.toLocaleDateString()}</p>
+                                                            )}
+                                                        </div>
+                                                        {addType && (
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="border-primary/50 text-primary shrink-0"
+                                                                onClick={() => handleAddPlan(addType)}
+                                                            >
+                                                                Repurchase plan
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 )}
@@ -2662,7 +2855,8 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
     const currentTier = planTierOrder[currentPlan.planId] || 0;
 
     // Determine plan type and billing cycle
-    const isMonthly = currentPlan.planId?.includes('_mo') || currentPlan.planId?.includes('_event');
+    const isBusinessMonthly = currentPlan.planId?.includes('_mo');
+    const isBusinessYearly = currentPlan.planId?.includes('_yr');
     const isEvent = currentPlan.planId?.includes('event');
     const isJob = currentPlan.planId?.includes('job');
 
@@ -2673,26 +2867,41 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
 
     const currentPrice = parsePrice(currentPlanConfig?.price || "0");
 
-    // Filter to show only UPGRADE options (higher tier, same billing cycle)
+    // Filter upgrade options: events/jobs = higher tier only; business monthly = higher monthly OR annual at same/higher tier; business yearly = higher annual only
     const upgradePlans = Object.entries(allPlans).filter(([id]) => {
         const targetTier = planTierOrder[id] || 0;
 
-        // Must be higher tier
-        if (targetTier <= currentTier) return false;
+        if (isEvent) return id.includes('event') && targetTier > currentTier;
+        if (isJob) return id.includes('job') && targetTier > currentTier;
 
-        // Must match plan type
-        if (isEvent) return id.includes('event');
-        if (isJob) return id.includes('job');
+        const targetMo = id.includes('_mo');
+        const targetYr = id.includes('_yr');
+        if (!targetMo && !targetYr) return false;
 
-        // For business/consulting, match monthly/yearly
-        if (isMonthly) return id.includes('_mo') && !id.includes('event') && !id.includes('job');
-        return id.includes('_yr') && !id.includes('event') && !id.includes('job');
-    }).sort((a, b) => (planTierOrder[a[0]] || 0) - (planTierOrder[b[0]] || 0));
+        if (isBusinessMonthly) {
+            if (targetMo) return targetTier > currentTier;
+            if (targetYr) return targetTier >= currentTier;
+            return false;
+        }
+        if (isBusinessYearly) {
+            return targetYr && targetTier > currentTier;
+        }
+        return false;
+    }).sort((a, b) => {
+        const ta = planTierOrder[a[0]] || 0;
+        const tb = planTierOrder[b[0]] || 0;
+        if (ta !== tb) return ta - tb;
+        if (a[0].includes("_mo") && b[0].includes("_yr")) return -1;
+        if (a[0].includes("_yr") && b[0].includes("_mo")) return 1;
+        return 0;
+    });
 
-    // Calculate price difference for selected plan
     const selectedPlanConfig = selectedPlan ? allPlans[selectedPlan] : null;
     const selectedPrice = selectedPlanConfig ? parsePrice(selectedPlanConfig.price) : 0;
     const priceDifference = selectedPrice - currentPrice;
+    const selectedIsAnnual = Boolean(selectedPlan?.includes('_yr'));
+    const crossIntervalBusinessUpgrade =
+        Boolean(isBusinessMonthly && selectedIsAnnual);
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -2726,7 +2935,9 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                             <p className="text-sm font-medium text-foreground">Select a plan to upgrade to:</p>
                             <div className="space-y-3">
                                 {upgradePlans.map(([id, config]) => {
-                                    const upgradeDiff = parsePrice(config.price) - currentPrice;
+                                    const rowIsAnnual = id.includes('_yr');
+                                    const rowCrossInterval = Boolean(isBusinessMonthly && rowIsAnnual);
+                                    const listPriceDiff = parsePrice(config.price) - currentPrice;
                                     return (
                                         <button
                                             key={id}
@@ -2753,7 +2964,11 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-lg font-bold text-foreground">{config.price}<span className="text-sm font-normal text-muted-foreground">{config.period}</span></p>
-                                                    <p className="text-xs text-green-400 mt-1">+${upgradeDiff.toFixed(2)} difference</p>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        {rowCrossInterval
+                                                            ? "Prorated charge at checkout"
+                                                            : `+ $${listPriceDiff.toFixed(2)} vs current list price`}
+                                                    </p>
                                                 </div>
                                             </div>
                                         </button>
@@ -2765,12 +2980,18 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                 </div>
                 {selectedPlan && (
                     <div className="px-6 py-3 bg-primary/5 border-t border-primary/20">
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-3">
                             <div>
                                 <p className="text-sm text-muted-foreground">Upgrade cost (prorated)</p>
                                 <p className="text-xs text-muted-foreground">Next step: update listing details, then complete payment on Stripe.</p>
                             </div>
-                            <p className="text-xl font-bold text-primary">+${priceDifference.toFixed(2)}</p>
+                            {crossIntervalBusinessUpgrade ? (
+                                <p className="text-sm font-semibold text-primary text-right shrink-0">
+                                    Based on your billing period
+                                </p>
+                            ) : (
+                                <p className="text-xl font-bold text-primary shrink-0">+${priceDifference.toFixed(2)}</p>
+                            )}
                         </div>
                     </div>
                 )}
@@ -2795,82 +3016,154 @@ interface CancelPlanModalProps {
 }
 
 function CancelPlanModal({ plan, planConfig, hasFeature, onClose, onCancel, processing }: CancelPlanModalProps) {
-    const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : null;
-    const [cancelScope, setCancelScope] = useState<CancelScope>(hasFeature ? "plan_and_feature" : "plan");
+    const billingEnd =
+        plan.billingPeriodEnd?.seconds
+            ? new Date(plan.billingPeriodEnd.seconds * 1000)
+            : getPlanPeriodEndDate(plan);
+    const [cancelChoice, setCancelChoice] = useState<CancelScope | null>(hasFeature ? null : "plan");
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-md shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-yellow-500" /> Cancel Subscription
+                        <AlertTriangle className="w-5 h-5 text-yellow-500" /> Cancel subscription
                     </h2>
-                    <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+                    <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
                     </button>
                 </div>
                 <div className="p-6 space-y-4">
                     <p className="text-foreground">
-                        Are you sure you want to cancel your <span className="font-semibold">{planConfig?.label}</span> subscription?
+                        {hasFeature
+                            ? <>You have an active <span className="font-semibold">spotlight add-on</span> on this listing, plus your <span className="font-semibold">{planConfig?.label}</span> plan. Choose what to cancel.</>
+                            : <>Cancel your <span className="font-semibold">{planConfig?.label}</span> subscription?</>}
                     </p>
                     {hasFeature && (
                         <div className="space-y-2">
-                            <p className="text-sm font-medium text-foreground">What would you like to cancel?</p>
+                            <p className="text-sm font-medium text-foreground">Choose one option</p>
                             <button
                                 type="button"
-                                onClick={() => setCancelScope("feature")}
-                                className={`w-full text-left rounded-lg border p-3 transition-colors ${cancelScope === "feature"
+                                onClick={() => setCancelChoice("feature")}
+                                className={`w-full text-left rounded-lg border p-3 transition-colors ${cancelChoice === "feature"
                                     ? "border-primary bg-primary/10"
                                     : "border-foreground/15 bg-foreground/5 hover:border-foreground/30"
                                     }`}
                             >
-                                Cancel feature only
+                                <span className="font-medium text-foreground">Cancel spotlight add-on only</span>
+                                <span className="text-xs text-muted-foreground block mt-1">Your plan keeps billing until you cancel it separately.</span>
                             </button>
                             <button
                                 type="button"
-                                onClick={() => setCancelScope("plan_and_feature")}
-                                className={`w-full text-left rounded-lg border p-3 transition-colors ${cancelScope === "plan_and_feature"
+                                onClick={() => setCancelChoice("plan")}
+                                className={`w-full text-left rounded-lg border p-3 transition-colors ${cancelChoice === "plan"
                                     ? "border-primary bg-primary/10"
                                     : "border-foreground/15 bg-foreground/5 hover:border-foreground/30"
                                     }`}
                             >
-                                Cancel plan and feature
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setCancelScope("plan")}
-                                className={`w-full text-left rounded-lg border p-3 transition-colors ${cancelScope === "plan"
-                                    ? "border-primary bg-primary/10"
-                                    : "border-foreground/15 bg-foreground/5 hover:border-foreground/30"
-                                    }`}
-                            >
-                                Cancel plan only
+                                <span className="font-medium text-foreground">Cancel this subscription</span>
+                                <span className="text-xs text-muted-foreground block mt-1">Stops the plan after the billing date below. Any separate spotlight on this listing is removed.</span>
                             </button>
                         </div>
                     )}
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
                         <p className="text-sm text-yellow-400">
-                            {cancelScope === "feature"
-                                ? "Your feature spotlight will be removed while your plan remains active."
-                                : (
-                                    <>
-                                        Your subscription will remain active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>.
-                                        After that, your listing will be deactivated and removed from public view.
-                                    </>
-                                )}
+                            {hasFeature && cancelChoice === "feature" ? (
+                                "The spotlight add-on is removed now. Your listing plan stays active until you cancel it."
+                            ) : !hasFeature || cancelChoice === "plan" ? (
+                                <>
+                                    Your subscription stays active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>.
+                                    After that, access tied to this plan ends unless you purchase again.
+                                </>
+                            ) : (
+                                "Select an option above to continue."
+                            )}
                         </p>
                     </div>
                 </div>
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
-                    <Button variant="ghost" onClick={onClose}>Keep Subscription</Button>
-                    <Button variant="destructive" onClick={() => onCancel(cancelScope)} disabled={processing}>
+                    <Button variant="ghost" onClick={onClose}>Keep subscription</Button>
+                    <Button
+                        variant="destructive"
+                        onClick={() => onCancel(hasFeature ? (cancelChoice as CancelScope) : "plan")}
+                        disabled={processing || (hasFeature && !cancelChoice)}
+                    >
                         {processing
                             ? "Cancelling..."
-                            : cancelScope === "feature"
-                                ? "Cancel Feature"
-                                : cancelScope === "plan_and_feature"
-                                    ? "Cancel Plan + Feature"
-                                    : "Cancel Subscription"}
+                            : hasFeature && cancelChoice === "feature"
+                                ? "Cancel spotlight"
+                                : "Cancel subscription"}
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+interface UpgradeFeaturePlanModalProps {
+    currentAddonId: string;
+    onClose: () => void;
+    onPurchase: (featureId: string) => void;
+    processing: boolean;
+}
+
+function UpgradeFeaturePlanModal({ currentAddonId, onClose, onPurchase, processing }: UpgradeFeaturePlanModalProps) {
+    const [selectedFeature, setSelectedFeature] = useState<string>("");
+    const targets = FEATURE_PLANS.filter((fp) => getFeatureUpgradeTargets(currentAddonId).includes(fp.id));
+
+    return (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
+                <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+                        <ArrowUpCircle className="w-5 h-5 text-primary" /> Upgrade spotlight
+                    </h2>
+                    <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                <div className="p-6 space-y-4">
+                    <p className="text-muted-foreground text-sm">
+                        Choose a higher tier. You are charged only the difference in list price (handled at checkout).
+                    </p>
+                    {targets.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">You are already on the highest spotlight tier.</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {targets.map((fp) => {
+                                const Icon = fp.icon;
+                                const isSelected = selectedFeature === fp.id;
+                                return (
+                                    <button
+                                        key={fp.id}
+                                        type="button"
+                                        onClick={() => setSelectedFeature(fp.id)}
+                                        className={`w-full text-left p-4 rounded-xl border-2 transition-all ${isSelected
+                                            ? "border-primary bg-primary/5"
+                                            : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
+                                            }`}
+                                    >
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
+                                                <Icon className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-semibold text-foreground">{fp.label}</p>
+                                                <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                            </div>
+                                            <p className="text-lg font-bold text-primary shrink-0">{formatFeatureUpgradeDelta(currentAddonId, fp.id)}</p>
+                                        </div>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+                <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
+                    <Button variant="ghost" onClick={onClose}>Cancel</Button>
+                    <Button onClick={() => onPurchase(selectedFeature)} disabled={!selectedFeature || processing || targets.length === 0}>
+                        <CreditCard className="w-4 h-4 mr-2" />
+                        {processing ? "Processing..." : "Continue to payment"}
                     </Button>
                 </div>
             </div>
