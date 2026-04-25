@@ -238,6 +238,36 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     },
                 });
 
+                // Record prorated upgrade checkout payment in transactions history.
+                const existingUpgradeTxn = await db.collection("transactionsCollection")
+                    .where("sessionId", "==", session.id)
+                    .limit(1)
+                    .get();
+                if (existingUpgradeTxn.empty) {
+                    await db.collection("transactionsCollection").add({
+                        partnerId,
+                        amount: (session.amount_total || 0) / 100,
+                        currency: session.currency || "usd",
+                        status: "succeeded",
+                        type: "listing",
+                        planId: newPlanId,
+                        featureId: null,
+                        group: group || null,
+                        listingId: upgradeListingId || null,
+                        collectionName: upgradeCollectionName || null,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        sessionId: session.id,
+                        customerEmail: session.customer_details?.email || "",
+                        selectedCategories: [],
+                        selectedSubcategories: [],
+                        serviceCountries: [],
+                        serviceRegions: [],
+                        businessName: "",
+                        companyRepresentatives: [],
+                    });
+                    console.log(`   ✓ Upgrade transaction record created for session ${session.id}`);
+                }
+
                 break;
             }
 
@@ -1385,11 +1415,17 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             } else {
                 // e.g. monthly → annual: credit unused monthly prepayment, charge annual slice for the same wall time.
                 const creditCents = Math.round(currentAmount * remainingRatio);
-                const newCentsForRemainder =
-                    newInterval === "year"
-                        ? Math.round((remainingSeconds / SECONDS_PER_YEAR) * newPlan.amount)
-                        : Math.round((remainingSeconds / totalSeconds) * newPlan.amount);
-                proratedDiffAmount = Math.max(0, newCentsForRemainder - creditCents);
+                if (normalizedCurrentIv === "month" && normalizedNewIv === "year") {
+                    // For monthly -> annual upgrades, charge annual price now minus unused monthly credit.
+                    // This avoids accidental $0 upgrades caused by prorating annual cost to only the remaining month.
+                    proratedDiffAmount = Math.max(0, newPlan.amount - creditCents);
+                } else {
+                    const newCentsForRemainder =
+                        newInterval === "year"
+                            ? Math.round((remainingSeconds / SECONDS_PER_YEAR) * newPlan.amount)
+                            : Math.round((remainingSeconds / totalSeconds) * newPlan.amount);
+                    proratedDiffAmount = Math.max(0, newCentsForRemainder - creditCents);
+                }
             }
 
             const newPrice = await stripe.prices.create({
