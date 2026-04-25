@@ -1293,6 +1293,52 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 });
             }
 
+            if (
+                partnerId &&
+                listingId &&
+                collectionName &&
+                expectedCurrentPlanId &&
+                expectedCurrentPlanId !== currentPlanId
+            ) {
+                const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
+                if (listingRef) {
+                    await listingRef.set({
+                        selectedPlan: currentPlanId,
+                        stripeSubscriptionId: subscription.id,
+                        stripeCustomerId: subscription.customer || null,
+                        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }, { merge: true });
+                }
+
+                const planCollectionRef = db.collection("partnersCollection").doc(partnerId).collection("planCollection");
+                const planByListingSnap = await planCollectionRef
+                    .where("listingId", "==", listingId)
+                    .where("collectionName", "==", collectionName)
+                    .limit(5)
+                    .get();
+                const mismatchedPlanDoc = planByListingSnap.docs.find((doc) => {
+                    const d = doc.data() || {};
+                    return d.stripeSubscriptionId === effectiveSubscriptionId || d.planId === expectedCurrentPlanId;
+                }) || planByListingSnap.docs[0];
+                if (mismatchedPlanDoc) {
+                    await mismatchedPlanDoc.ref.set({
+                        planId: currentPlanId,
+                        planName: currentPlanId.replace(/_/g, " "),
+                        stripeSubscriptionId: subscription.id,
+                        stripeCustomerId: subscription.customer || null,
+                        billingPeriodEnd: subscription.current_period_end
+                            ? new Date(subscription.current_period_end * 1000)
+                            : admin.firestore.FieldValue.delete(),
+                        updatedAt: new Date(),
+                    }, { merge: true });
+                }
+
+                return res.status(409).json({
+                    error: `Your billing record was out of sync. We've refreshed this listing to ${currentPlanId.replace(/_/g, " ")} from Stripe. Please retry upgrade.`,
+                    syncedPlanId: currentPlanId,
+                });
+            }
+
             if (!isAllowedSubscriptionUpgrade({
                 currentPlanId,
                 newPlanId,
@@ -1355,6 +1401,70 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                         collectionName: collectionName || "",
                     },
                 });
+
+                if (listingId && collectionName && partnerId) {
+                    const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
+                    if (listingRef) {
+                        await listingRef.set({
+                            selectedPlan: newPlanId,
+                            stripeSubscriptionId: updatedSubscription.id,
+                            stripeCustomerId: updatedSubscription.customer || null,
+                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        }, { merge: true });
+                    }
+                }
+
+                if (partnerId) {
+                    const planCollectionRef = db.collection("partnersCollection").doc(partnerId).collection("planCollection");
+                    let targetPlanDoc = null;
+
+                    if (listingId) {
+                        let byListingQuery = planCollectionRef.where("listingId", "==", listingId);
+                        if (collectionName) {
+                            byListingQuery = byListingQuery.where("collectionName", "==", collectionName);
+                        }
+                        const byListingSnap = await byListingQuery.limit(5).get();
+                        targetPlanDoc = byListingSnap.docs.find((doc) => {
+                            const d = doc.data() || {};
+                            return d.stripeSubscriptionId === effectiveSubscriptionId;
+                        }) || byListingSnap.docs[0] || null;
+                    }
+
+                    if (!targetPlanDoc) {
+                        const bySubSnap = await planCollectionRef
+                            .where("stripeSubscriptionId", "==", effectiveSubscriptionId)
+                            .limit(3)
+                            .get();
+                        targetPlanDoc = bySubSnap.docs[0] || null;
+                    }
+
+                    if (targetPlanDoc) {
+                        await targetPlanDoc.ref.set({
+                            planId: newPlanId,
+                            planName: newPlanId.replace(/_/g, " "),
+                            billingPeriodEnd: updatedSubscription.current_period_end
+                                ? new Date(updatedSubscription.current_period_end * 1000)
+                                : admin.firestore.FieldValue.delete(),
+                            upgradedAt: new Date(),
+                            stripeSubscriptionId: updatedSubscription.id,
+                            stripeCustomerId: updatedSubscription.customer || null,
+                            cancelAtPeriodEnd: false,
+                            cancelAt: admin.firestore.FieldValue.delete(),
+                        }, { merge: true });
+                    }
+
+                    await logAudit({
+                        partnerId,
+                        action: "PLAN_UPGRADED",
+                        details: `Plan upgraded to ${newPlanId.replace(/_/g, " ")} with no prorated payment required.`,
+                        category: "billing",
+                        metadata: {
+                            subscriptionId: updatedSubscription.id,
+                            planId: newPlanId,
+                            noProrationCharge: true,
+                        },
+                    });
+                }
 
                 return res.json({
                     success: true,
