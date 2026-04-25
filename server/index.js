@@ -733,36 +733,97 @@ const PLAN_TIER_RANK = {
 
 const SECONDS_PER_YEAR = 31557600; // 365.25 * 24 * 3600
 
+const LEGACY_PLAN_ID_ALIASES = {
+    basic: { month: "basic_mo", year: "basic_yr" },
+    standard: { month: "standard_mo", year: "standard_yr" },
+    premium: { month: "premium_mo", year: "premium_yr" },
+    premium_plus: { month: "premium_plus_mo", year: "premium_plus_yr" },
+    premiumplus: { month: "premium_plus_mo", year: "premium_plus_yr" },
+};
+
+function normalizePlanId(planId, interval = null) {
+    if (!planId || typeof planId !== "string") return null;
+    if (PLAN_PRICES[planId]) return planId;
+
+    const normalized = planId.trim().toLowerCase().replace(/[\s-]+/g, "_");
+    const alias = LEGACY_PLAN_ID_ALIASES[normalized];
+    if (!alias) return null;
+    if (interval === "year" && alias.year) return alias.year;
+    if (interval === "month" && alias.month) return alias.month;
+    return alias.month || alias.year || null;
+}
+
+function resolveTierRank({ planId = null, amount = null, interval = null }) {
+    const normalizedPlanId = normalizePlanId(planId, interval) || planId;
+    const tierFromId = PLAN_TIER_RANK[normalizedPlanId];
+    if (tierFromId) return tierFromId;
+
+    if (amount != null) {
+        const matched = Object.entries(PLAN_PRICES).find(([, p]) => p.amount === amount && p.interval === interval);
+        if (matched) {
+            return PLAN_TIER_RANK[matched[0]] || 0;
+        }
+    }
+
+    return 0;
+}
+
 function inferCurrentPlanIdFromSubscription(subscription, subscriptionItem) {
     const metaId = subscription?.metadata?.planId;
-    if (metaId && PLAN_PRICES[metaId]) return metaId;
+    const recurringInterval = subscriptionItem?.price?.recurring?.interval || null;
     const ua = subscriptionItem?.price?.unit_amount;
-    const iv = subscriptionItem?.price?.recurring?.interval || null;
-    if (ua == null) return null;
-    for (const [pid, p] of Object.entries(PLAN_PRICES)) {
-        if (p.amount === ua && p.interval === iv) return pid;
+    const iv = recurringInterval;
+    if (ua != null) {
+        for (const [pid, p] of Object.entries(PLAN_PRICES)) {
+            if (p.amount === ua && p.interval === iv) return pid;
+        }
+    }
+
+    const normalizedMetaId = normalizePlanId(metaId, recurringInterval);
+    if (normalizedMetaId && PLAN_PRICES[normalizedMetaId]) {
+        const normalizedMetaPlan = PLAN_PRICES[normalizedMetaId];
+        if (!iv || normalizedMetaPlan.interval === iv) return normalizedMetaId;
     }
     return null;
 }
 
-function isAllowedSubscriptionUpgrade(currentPlanId, newPlanId) {
-    if (!currentPlanId || !newPlanId || currentPlanId === newPlanId) return false;
-    const curTier = PLAN_TIER_RANK[currentPlanId] ?? 0;
-    const newTier = PLAN_TIER_RANK[newPlanId] ?? 0;
+function isAllowedSubscriptionUpgrade({
+    currentPlanId,
+    newPlanId,
+    currentAmount,
+    currentInterval,
+}) {
+    const normalizedCurrentPlanId = normalizePlanId(currentPlanId, currentInterval) || currentPlanId;
+    const normalizedNewPlanId = normalizePlanId(newPlanId, PLAN_PRICES[newPlanId]?.interval) || newPlanId;
+    if (!normalizedCurrentPlanId || !normalizedNewPlanId || normalizedCurrentPlanId === normalizedNewPlanId) return false;
+
+    const curTier = resolveTierRank({
+        planId: normalizedCurrentPlanId,
+        amount: currentAmount,
+        interval: currentInterval || PLAN_PRICES[normalizedCurrentPlanId]?.interval || null,
+    });
+    const newTier = resolveTierRank({
+        planId: normalizedNewPlanId,
+        amount: PLAN_PRICES[normalizedNewPlanId]?.amount ?? null,
+        interval: PLAN_PRICES[normalizedNewPlanId]?.interval ?? null,
+    });
     if (!curTier || !newTier) return false;
 
-    if (currentPlanId.includes("_event")) {
-        return newPlanId.includes("_event") && newTier > curTier;
+    if (normalizedCurrentPlanId.includes("_event")) {
+        return normalizedNewPlanId.includes("_event") && newTier > curTier;
     }
-    if (currentPlanId.includes("_job")) {
-        return newPlanId.includes("_job") && newTier > curTier;
+    if (normalizedCurrentPlanId.includes("_job")) {
+        return normalizedNewPlanId.includes("_job") && newTier > curTier;
     }
-    if (newPlanId.includes("_event") || newPlanId.includes("_job")) return false;
+    if (normalizedNewPlanId.includes("_event") || normalizedNewPlanId.includes("_job")) return false;
 
-    const curMo = currentPlanId.includes("_mo");
-    const curYr = currentPlanId.includes("_yr");
-    const newMo = newPlanId.includes("_mo");
-    const newYr = newPlanId.includes("_yr");
+    const normalizedCurrentInterval = currentInterval || PLAN_PRICES[normalizedCurrentPlanId]?.interval || null;
+    const normalizedNewInterval = PLAN_PRICES[normalizedNewPlanId]?.interval || null;
+
+    const curMo = normalizedCurrentInterval === "month" || (!normalizedCurrentInterval && normalizedCurrentPlanId.includes("_mo"));
+    const curYr = normalizedCurrentInterval === "year" || (!normalizedCurrentInterval && normalizedCurrentPlanId.includes("_yr"));
+    const newMo = normalizedNewInterval === "month" || (!normalizedNewInterval && normalizedNewPlanId.includes("_mo"));
+    const newYr = normalizedNewInterval === "year" || (!normalizedNewInterval && normalizedNewPlanId.includes("_yr"));
     if (curMo && newMo) return newTier > curTier;
     if (curMo && newYr) return newTier >= curTier;
     if (curYr && newYr) return newTier > curTier;
@@ -1167,6 +1228,14 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             const currentAmount = subscriptionItem.price?.unit_amount || 0;
             const currentInterval = subscriptionItem.price?.recurring?.interval || null;
             const currentPlanId = inferCurrentPlanIdFromSubscription(subscription, subscriptionItem);
+            console.log("   Upgrade validation input:", {
+                effectiveSubscriptionId,
+                currentPlanId,
+                currentAmount,
+                currentInterval,
+                newPlanId,
+                newPlanInterval: newPlan.interval || null,
+            });
 
             if (!currentPlanId) {
                 return res.status(400).json({
@@ -1175,7 +1244,12 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 });
             }
 
-            if (!isAllowedSubscriptionUpgrade(currentPlanId, newPlanId)) {
+            if (!isAllowedSubscriptionUpgrade({
+                currentPlanId,
+                newPlanId,
+                currentAmount,
+                currentInterval,
+            })) {
                 return res.status(400).json({
                     error:
                         "That plan change is not allowed. Choose a higher tier on the same billing cycle, or an annual plan at the same tier or higher.",
