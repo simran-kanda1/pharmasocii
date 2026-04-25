@@ -1311,11 +1311,17 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 }
 
                 const planCollectionRef = db.collection("partnersCollection").doc(partnerId).collection("planCollection");
-                const planByListingSnap = await planCollectionRef
+                let planByListingSnap = await planCollectionRef
                     .where("listingId", "==", listingId)
                     .where("collectionName", "==", collectionName)
                     .limit(5)
                     .get();
+                if (planByListingSnap.empty) {
+                    planByListingSnap = await planCollectionRef
+                        .where("listingId", "==", listingId)
+                        .limit(8)
+                        .get();
+                }
                 const mismatchedPlanDoc = planByListingSnap.docs.find((doc) => {
                     const d = doc.data() || {};
                     return d.stripeSubscriptionId === effectiveSubscriptionId || d.planId === expectedCurrentPlanId;
@@ -1332,10 +1338,15 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                         updatedAt: new Date(),
                     }, { merge: true });
                 }
+            }
 
-                return res.status(409).json({
-                    error: `Your billing record was out of sync. We've refreshed this listing to ${currentPlanId.replace(/_/g, " ")} from Stripe. Please retry upgrade.`,
-                    syncedPlanId: currentPlanId,
+            if (currentPlanId === newPlanId) {
+                return res.json({
+                    success: true,
+                    subscriptionId: effectiveSubscriptionId,
+                    proratedAmount: 0,
+                    alreadyOnPlan: true,
+                    message: `This listing is already on ${newPlanId.replace(/_/g, " ")}.`,
                 });
             }
 
