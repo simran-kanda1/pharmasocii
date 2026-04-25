@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { db } from "@/firebase";
 import { doc, getDoc, collectionGroup, query, where, getDocs, limit } from "firebase/firestore";
-import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin } from "lucide-react";
+import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -140,7 +140,19 @@ export default function ListingDetail() {
         );
     }
 
-    const listingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? item.eventName : item.jobTitle;
+    const listingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? item.eventName : type === "jobs" ? item.jobTitle : item.businessName;
+
+    // Format a date string (YYYY-MM-DD) to a human-readable form.
+    const formatDate = (dateStr: string | undefined) => {
+        if (!dateStr) return null;
+        try {
+            return new Date(dateStr + "T00:00:00").toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
+        } catch {
+            return dateStr;
+        }
+    };
+    const eventStart = type === "events" ? formatDate(item.startDate) : null;
+    const eventEnd = type === "events" ? formatDate(item.endDate) : null;
     const normalizeToken = (value: any) => (typeof value === "string" ? value.trim().toLowerCase() : "");
     const explicitCategoryTokens = new Set(
         (Array.isArray(item.selectedCategories) ? item.selectedCategories : []).map(normalizeToken).filter(Boolean)
@@ -235,10 +247,14 @@ export default function ListingDetail() {
                 <Card className="rounded-3xl border-foreground/10 shadow-xl overflow-hidden mb-12">
                     <div className="bg-muted/30 p-8 md:p-12">
                         <div className="flex flex-col md:flex-row gap-8 items-start">
-                            {/* Company Logo or Icon */}
+                            {/* Icon */}
                             <div className="w-24 h-24 rounded-2xl bg-background border border-foreground/10 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
                                 {partner?.logoUrl || item.logoUrl ? (
                                     <img src={partner?.logoUrl || item.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                                ) : type === "events" ? (
+                                    <Calendar className="w-12 h-12 text-primary/40" />
+                                ) : type === "jobs" ? (
+                                    <Briefcase className="w-12 h-12 text-primary/40" />
                                 ) : (
                                     <Building2 className="w-12 h-12 text-primary/40" />
                                 )}
@@ -252,15 +268,54 @@ export default function ListingDetail() {
                                             <ShieldCheck className="w-3 h-3" /> Featured
                                         </Badge>
                                     )}
+                                    {type === "events" && (
+                                        <Badge className="bg-primary/10 text-primary border-primary/20 font-bold uppercase tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
+                                            <Calendar className="w-3 h-3" /> Event
+                                        </Badge>
+                                    )}
+                                    {type === "jobs" && (
+                                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold uppercase tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
+                                            <Briefcase className="w-3 h-3" /> Job Opening
+                                        </Badge>
+                                    )}
                                 </div>
 
-                                <p className="text-muted-foreground text-lg leading-relaxed max-w-4xl">
-                                    {item.companyProfileText || partner?.companyProfileText || "No company profile available."}
-                                </p>
+                                {/* ── Event: organizer name + description ── */}
+                                {type === "events" ? (
+                                    <>
+                                        {item.businessName && (
+                                            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
+                                                Organized by {item.businessName}
+                                            </p>
+                                        )}
+                                        {item.eventProfile && (
+                                            <p className="text-foreground/80 text-base leading-relaxed max-w-4xl whitespace-pre-line">
+                                                {item.eventProfile}
+                                            </p>
+                                        )}
+                                    </>
+                                ) : type === "jobs" ? (
+                                    <>
+                                        {(item.businessName || partner?.businessName) && (
+                                            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
+                                                {item.businessName || partner?.businessName}
+                                            </p>
+                                        )}
+                                        {item.jobSummary && (
+                                            <p className="text-foreground/80 text-base leading-relaxed max-w-4xl whitespace-pre-line">
+                                                {item.jobSummary}
+                                            </p>
+                                        )}
+                                    </>
+                                ) : (
+                                    <p className="text-muted-foreground text-lg leading-relaxed max-w-4xl">
+                                        {item.companyProfileText || partner?.companyProfileText || "No company profile available."}
+                                    </p>
+                                )}
 
+                                {/* ── Business-only: certifications & BSL ── */}
                                 {type === "business" && (
                                     <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pt-2">
-                                        {/* Certifications & BSL are business-only fields */}
                                         <div className="flex flex-col gap-1">
                                             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Certifications</span>
                                             <p className="text-sm font-semibold capitalize text-foreground">
@@ -276,35 +331,266 @@ export default function ListingDetail() {
                                     </div>
                                 )}
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pt-6 text-sm text-muted-foreground">
-                                    <div className="flex flex-col gap-3">
-                                        <div className="flex items-start gap-3">
-                                            <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                                            <span>{item.businessCountry || item.eventCountry || item.jobCountry || partner?.businessCountry || "N/A"}</span>
-                                        </div>
-                                        <div className="flex items-center gap-3">
-                                            <Phone className="w-4 h-4 text-primary shrink-0" />
-                                            <span>{item.businessPhoneNumber || item.phoneNumber || partner?.businessPhoneNumber || partner?.phoneNumber || "N/A"}</span>
+                                {/* ── Event: key details row ── */}
+                                {type === "events" && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                                        {(eventStart || eventEnd) && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <CalendarRange className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Date</p>
+                                                    <p className="text-sm font-semibold text-foreground">
+                                                        {eventStart}{eventEnd && eventEnd !== eventStart ? ` – ${eventEnd}` : ""}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {(item.location || item.eventCountry) && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
+                                                    <p className="text-sm font-semibold text-foreground">
+                                                        {[item.location, item.eventCountry].filter(Boolean).join(", ")}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0 && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
+                                                    <p className="text-sm font-semibold text-foreground">
+                                                        {item.selectedCategories.join(", ")}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {/* Fallback: old-style categories array */}
+                                        {!Array.isArray(item.selectedCategories) && Array.isArray(item.categories) && item.categories.length > 0 && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
+                                                    <p className="text-sm font-semibold text-foreground">
+                                                        {item.categories.join(", ")}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* ── Job: key details row ── */}
+                                {type === "jobs" && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                                        {item.industry && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <Briefcase className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Industry</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.industry}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {item.positionType && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Position Type</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.positionType}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {item.experienceLevel && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Experience Level</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.experienceLevel}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {(item.location || item.jobCountry) && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
+                                                    <p className="text-sm font-semibold text-foreground">
+                                                        {[item.location, item.jobCountry].filter(Boolean).join(", ")}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {(item.businessName || partner?.businessName) && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <Building2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Company</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.businessName || partner?.businessName}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* ── Business & Consulting: location + phone ── */}
+                                {(type === "business" || type === "consulting") && (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 pt-6 text-sm text-muted-foreground">
+                                        <div className="flex flex-col gap-3">
+                                            <div className="flex items-start gap-3">
+                                                <MapPin className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                                                <span>{item.businessCountry || partner?.businessCountry || "N/A"}</span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <Phone className="w-4 h-4 text-primary shrink-0" />
+                                                <span>{item.businessPhoneNumber || item.phoneNumber || partner?.businessPhoneNumber || partner?.phoneNumber || "N/A"}</span>
+                                            </div>
                                         </div>
                                     </div>
-                                    
-                                </div>
+                                )}
+
+                                {/* ── CTA buttons ── */}
                                 <div className="flex flex-wrap justify-start items-center gap-4 pt-4 border-t border-foreground/10">
-                                    <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
-                                        <a href={item.companyWebsite || partner?.companyWebsite || "#"} target="_blank" rel="noopener noreferrer">
-                                            Visit Website <ExternalLink className="ml-2 w-4 h-4" />
-                                        </a>
-                                    </Button>
-                                    <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
-                                        <a href={item.linkedInProfileLink || partner?.linkedInProfileLink || "#"} target="_blank" rel="noopener noreferrer">
-                                            <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
-                                        </a>
-                                    </Button>
+                                    {type === "events" ? (
+                                        item.eventLink && item.eventLink !== "" && (
+                                            <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
+                                                <a href={item.eventLink} target="_blank" rel="noopener noreferrer">
+                                                    <Ticket className="mr-2 w-5 h-5" /> Register / Visit Event
+                                                </a>
+                                            </Button>
+                                        )
+                                    ) : type === "jobs" ? (
+                                        item.positionLink && item.positionLink !== "" && (
+                                            <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
+                                                <a href={item.positionLink} target="_blank" rel="noopener noreferrer">
+                                                    <ExternalLink className="mr-2 w-5 h-5" /> Apply Now
+                                                </a>
+                                            </Button>
+                                        )
+                                    ) : (
+                                        <>
+                                            <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
+                                                <a href={item.companyWebsite || partner?.companyWebsite || "#"} target="_blank" rel="noopener noreferrer">
+                                                    Visit Website <ExternalLink className="ml-2 w-4 h-4" />
+                                                </a>
+                                            </Button>
+                                            <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
+                                                <a href={item.linkedInProfileLink || partner?.linkedInProfileLink || "#"} target="_blank" rel="noopener noreferrer">
+                                                    <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
+                                                </a>
+                                            </Button>
+                                        </>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </div>
                 </Card>
+
+                {/* ── Job Summary card ── */}
+                {type === "jobs" && item.jobSummary && (
+                    <div className="mb-12">
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
+                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
+                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <Briefcase className="w-5 h-5 text-primary" /> Role Description
+                                </h3>
+                            </div>
+                            <div className="p-8">
+                                <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{item.jobSummary}</p>
+                            </div>
+                        </Card>
+                    </div>
+                )}
+
+                {/* ── Job Categories / Specializations card ── */}
+                {type === "jobs" && (
+                    () => {
+                        const cats: string[] = Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
+                            ? item.selectedCategoriesDisplay
+                            : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
+                                ? item.selectedCategories
+                                : Array.isArray(item.categories) && item.categories.length > 0
+                                    ? item.categories
+                                    : [];
+                        const subs: string[] = Array.isArray(item.selectedSubcategoriesDisplay) && item.selectedSubcategoriesDisplay.length > 0
+                            ? item.selectedSubcategoriesDisplay
+                            : Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0
+                                ? item.selectedSubcategories
+                                : [];
+                        const subSubs: string[] = Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : [];
+                        if (cats.length === 0 && subs.length === 0 && subSubs.length === 0) return null;
+                        return (
+                            <div className="mb-12">
+                                <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
+                                    <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
+                                        <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                            <Globe className="w-5 h-5 text-primary" /> Job Categories & Specializations
+                                        </h3>
+                                    </div>
+                                    <div className="p-8 space-y-4">
+                                        {cats.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-2">Categories</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {cats.map((c: string, i: number) => (
+                                                        <Badge key={i} className="text-sm py-1.5 px-4 rounded-xl bg-emerald-500/10 text-emerald-700 border-emerald-500/20 font-semibold">{c}</Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {subs.length > 0 && (
+                                            <div>
+                                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-2">Specializations</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {subs.map((s: string, i: number) => (
+                                                        <Badge key={i} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-primary/5 text-primary border-primary/10 font-medium">{s}</Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {subSubs.length > 0 && (
+                                            <div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {subSubs.map((ss: string, i: number) => (
+                                                        <Badge key={i} variant="outline" className="text-sm py-1.5 px-4 rounded-xl font-medium">{ss}</Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                </Card>
+                            </div>
+                        );
+                    }
+                )()}
+
+                {/* Subcategories detail for events */}
+                {type === "events" && (Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0) && (
+                    <div className="mb-12">
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
+                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
+                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <Globe className="w-5 h-5 text-primary" /> Event Specializations
+                                </h3>
+                            </div>
+                            <div className="p-8 flex flex-wrap gap-2">
+                                {item.selectedSubcategories.map((sub: string, idx: number) => (
+                                    <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-primary/5 text-primary border-primary/10 font-medium">
+                                        {sub}
+                                    </Badge>
+                                ))}
+                                {Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.map((ss: string, idx: number) => (
+                                    <Badge key={`ss-${idx}`} variant="outline" className="text-sm py-1.5 px-4 rounded-xl font-medium">
+                                        {ss}
+                                    </Badge>
+                                ))}
+                            </div>
+                        </Card>
+                    </div>
+                )}
 
                 {/* Tier 1 & 2: Categories & Subcategories Table */}
                 {(type === "business" || type === "consulting") && groupedCategories.length > 0 && (
