@@ -1165,6 +1165,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
         const {
             subscriptionId,
             newPlanId,
+            currentPlanId: expectedCurrentPlanId,
             partnerId,
             listingId,
             collectionName,
@@ -1219,7 +1220,54 @@ app.post("/api/upgrade-subscription", async (req, res) => {
         }
 
         {
-            const subscription = await stripe.subscriptions.retrieve(effectiveSubscriptionId);
+            let subscription = await stripe.subscriptions.retrieve(effectiveSubscriptionId);
+            const customerIdForLookup = typeof subscription.customer === "string" ? subscription.customer : null;
+            const expectedCurrentPlan = PLAN_PRICES[expectedCurrentPlanId] || null;
+
+            if (customerIdForLookup) {
+                const allCustomerSubscriptions = await stripe.subscriptions.list({
+                    customer: customerIdForLookup,
+                    status: "all",
+                    limit: 100,
+                });
+
+                const liveStatuses = new Set(["active", "trialing", "past_due", "unpaid"]);
+                const list = allCustomerSubscriptions.data || [];
+                const hasExpectedListingContext = Boolean(listingId);
+                const collectionMatchRequired = Boolean(collectionName);
+                const byListing = hasExpectedListingContext
+                    ? list.find((sub) => {
+                        if (!liveStatuses.has(sub.status)) return false;
+                        const metaListingId = sub.metadata?.listingId || "";
+                        const metaCollection = sub.metadata?.collectionName || "";
+                        if (metaListingId !== listingId) return false;
+                        if (collectionMatchRequired && metaCollection && metaCollection !== collectionName) return false;
+                        return Boolean(sub.items?.data?.[0]?.price?.recurring?.interval);
+                    })
+                    : null;
+
+                const byExpectedPlan = expectedCurrentPlan
+                    ? list.find((sub) => {
+                        if (!liveStatuses.has(sub.status)) return false;
+                        const item = sub.items?.data?.[0];
+                        const amt = item?.price?.unit_amount ?? null;
+                        const iv = item?.price?.recurring?.interval || null;
+                        return amt === expectedCurrentPlan.amount && iv === expectedCurrentPlan.interval;
+                    })
+                    : null;
+
+                const resolvedSubscription = byListing || byExpectedPlan || subscription;
+                if (resolvedSubscription.id !== subscription.id) {
+                    console.log("   Resolved upgrade subscription mismatch:", {
+                        requestedSubscriptionId: effectiveSubscriptionId,
+                        resolvedSubscriptionId: resolvedSubscription.id,
+                        strategy: byListing ? "listing-metadata" : "expected-current-plan",
+                    });
+                }
+                subscription = resolvedSubscription;
+                effectiveSubscriptionId = resolvedSubscription.id;
+            }
+
             const subscriptionItem = subscription.items?.data?.[0];
             if (!subscriptionItem) {
                 return res.status(400).json({ error: "Unable to locate active subscription item for upgrade." });
@@ -1230,6 +1278,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             const currentPlanId = inferCurrentPlanIdFromSubscription(subscription, subscriptionItem);
             console.log("   Upgrade validation input:", {
                 effectiveSubscriptionId,
+                expectedCurrentPlanId: expectedCurrentPlanId || null,
                 currentPlanId,
                 currentAmount,
                 currentInterval,

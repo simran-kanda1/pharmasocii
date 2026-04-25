@@ -664,6 +664,7 @@ export default function Dashboard() {
             body: JSON.stringify({
                 subscriptionId: selectedPlanForAction.stripeSubscriptionId || null,
                 newPlanId,
+                currentPlanId: selectedPlanForAction.planId || null,
                 partnerId: auth.currentUser.uid,
                 partnerEmail: auth.currentUser.email,
                 listingId: selectedPlanForAction.listingId,
