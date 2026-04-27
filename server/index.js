@@ -126,6 +126,60 @@ async function logAudit({ partnerId, action, details, category, metadata = {} })
     }
 }
 
+async function createUpgradeTransactionIfMissing({
+    session,
+    partnerId,
+    newPlanId,
+    listingId,
+    collectionName,
+    group,
+}) {
+    if (!session?.id || !partnerId) return { created: false, reason: "missing-context" };
+
+    const existingUpgradeTxn = await db.collection("transactionsCollection")
+        .where("sessionId", "==", session.id)
+        .limit(1)
+        .get();
+    if (!existingUpgradeTxn.empty) return { created: false, reason: "exists" };
+
+    let detailSource = null;
+    if (listingId && collectionName) {
+        const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
+        if (listingRef) {
+            const listingSnap = await listingRef.get();
+            if (listingSnap.exists) detailSource = listingSnap.data();
+        }
+    }
+    if (!detailSource && partnerId) {
+        const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
+        if (partnerSnap.exists) detailSource = partnerSnap.data();
+    }
+
+    await db.collection("transactionsCollection").add({
+        partnerId,
+        amount: (session.amount_total || 0) / 100,
+        currency: session.currency || "usd",
+        status: "succeeded",
+        type: "listing",
+        planId: newPlanId || session.metadata?.newPlanId || null,
+        featureId: null,
+        group: group || session.metadata?.group || null,
+        listingId: listingId || session.metadata?.listingId || null,
+        collectionName: collectionName || session.metadata?.collectionName || null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        sessionId: session.id,
+        customerEmail: session.customer_details?.email || "",
+        selectedCategories: detailSource?.selectedCategories || [],
+        selectedSubcategories: detailSource?.selectedSubcategories || [],
+        serviceCountries: detailSource?.serviceCountries || [],
+        serviceRegions: detailSource?.serviceRegions || [],
+        businessName: detailSource?.businessName || "",
+        companyRepresentatives: detailSource?.companyRepresentatives || [],
+    });
+
+    return { created: true, reason: "inserted" };
+}
+
 const app = express();
 app.use(cors({ origin: true }));
 
@@ -237,35 +291,18 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         planId: newPlanId,
                     },
                 });
-
-                // Record prorated upgrade checkout payment in transactions history.
-                const existingUpgradeTxn = await db.collection("transactionsCollection")
-                    .where("sessionId", "==", session.id)
-                    .limit(1)
-                    .get();
-                if (existingUpgradeTxn.empty) {
-                    await db.collection("transactionsCollection").add({
-                        partnerId,
-                        amount: (session.amount_total || 0) / 100,
-                        currency: session.currency || "usd",
-                        status: "succeeded",
-                        type: "listing",
-                        planId: newPlanId,
-                        featureId: null,
-                        group: group || null,
-                        listingId: upgradeListingId || null,
-                        collectionName: upgradeCollectionName || null,
-                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
-                        sessionId: session.id,
-                        customerEmail: session.customer_details?.email || "",
-                        selectedCategories: [],
-                        selectedSubcategories: [],
-                        serviceCountries: [],
-                        serviceRegions: [],
-                        businessName: "",
-                        companyRepresentatives: [],
-                    });
+                const upgradeTxnResult = await createUpgradeTransactionIfMissing({
+                    session,
+                    partnerId,
+                    newPlanId,
+                    listingId: upgradeListingId,
+                    collectionName: upgradeCollectionName,
+                    group: group || null,
+                });
+                if (upgradeTxnResult.created) {
                     console.log(`   ✓ Upgrade transaction record created for session ${session.id}`);
+                } else {
+                    console.log(`   ℹ Upgrade transaction skipped for session ${session.id}: ${upgradeTxnResult.reason}`);
                 }
 
                 break;
@@ -2122,6 +2159,79 @@ app.post("/api/verify-payment", async (req, res) => {
     } catch (err) {
         console.error("❌ Verify payment error:", err.message);
         res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * POST /api/backfill-upgrade-transactions
+ * Scans paid Stripe upgrade checkout sessions and inserts missing transactionsCollection records.
+ * Body: { daysBack?: number, limit?: number }
+ */
+app.post("/api/backfill-upgrade-transactions", async (req, res) => {
+    try {
+        const daysBackRaw = Number(req.body?.daysBack);
+        const limitRaw = Number(req.body?.limit);
+        const daysBack = Number.isFinite(daysBackRaw) && daysBackRaw > 0 ? Math.min(Math.floor(daysBackRaw), 3650) : 365;
+        const maxToScan = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), 5000) : 1000;
+        const createdGteSeconds = Math.floor(Date.now() / 1000) - (daysBack * 24 * 60 * 60);
+
+        let scanned = 0;
+        let matchedUpgradeSessions = 0;
+        let inserted = 0;
+        let alreadyPresent = 0;
+        let skippedMissingContext = 0;
+        let lastSessionId = null;
+
+        while (scanned < maxToScan) {
+            const pageLimit = Math.min(100, maxToScan - scanned);
+            const page = await stripe.checkout.sessions.list({
+                limit: pageLimit,
+                ...(lastSessionId ? { starting_after: lastSessionId } : {}),
+                created: { gte: createdGteSeconds },
+            });
+
+            const sessions = page.data || [];
+            if (sessions.length === 0) break;
+
+            for (const session of sessions) {
+                scanned += 1;
+                lastSessionId = session.id;
+
+                const isUpgrade = session.metadata?.upgradeFlow === "true";
+                const paid = session.payment_status === "paid" || session.status === "complete";
+                if (!isUpgrade || !paid) continue;
+
+                matchedUpgradeSessions += 1;
+                const result = await createUpgradeTransactionIfMissing({
+                    session,
+                    partnerId: session.metadata?.partnerId || null,
+                    newPlanId: session.metadata?.newPlanId || session.metadata?.planId || null,
+                    listingId: session.metadata?.listingId || null,
+                    collectionName: session.metadata?.collectionName || null,
+                    group: session.metadata?.group || null,
+                });
+
+                if (result.created) inserted += 1;
+                else if (result.reason === "exists") alreadyPresent += 1;
+                else skippedMissingContext += 1;
+            }
+
+            if (!page.has_more) break;
+        }
+
+        return res.json({
+            success: true,
+            daysBack,
+            maxToScan,
+            scanned,
+            matchedUpgradeSessions,
+            inserted,
+            alreadyPresent,
+            skippedMissingContext,
+        });
+    } catch (err) {
+        console.error("❌ Backfill upgrade transactions error:", err.message);
+        return res.status(500).json({ error: err.message || "Backfill failed." });
     }
 });
 
