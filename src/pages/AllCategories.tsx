@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { MapPin, Building2, Users, Search, ExternalLink, Calendar, Briefcase, X, ChevronLeft, ChevronRight, ChevronDown, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { db } from "@/firebase";
 import { collection, collectionGroup, query, where, getDocs } from "firebase/firestore";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select";
 
 //Types 
 export type SubcategoryEntry = string | { label: string; subSubcategories: string[] };
@@ -212,8 +219,42 @@ const CATEGORY_CONFIG = {
 };
 const CERT_FILTER_OPTIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
 
+const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"];
+const WORK_MODELS = ["Hybrid", "Remote", "On-site"];
+const SERVICE_COUNTRIES = [
+    "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
+    "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia",
+    "Bosnia", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
+    "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia",
+    "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
+    "Denmark", "Djibouti", "Dominican Republic",
+    "Ecuador", "Egypt", "El Salvador", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
+    "Fiji", "Finland", "France",
+    "Gabon", "Georgia", "Germany", "Ghana", "Greece", "Guatemala", "Guyana",
+    "Haiti", "Honduras", "Hong Kong", "Hungary",
+    "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
+    "Jamaica", "Japan", "Jordan",
+    "Kazakhstan", "Kenya", "Korea", "Kosovo", "Kuwait", "Kyrgyzstan",
+    "Laos", "Latvia", "Lebanon", "Liberia", "Libya", "Lithuania", "Luxembourg",
+    "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Mauritius",
+    "Mexico", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+    "Namibia", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "Norway",
+    "Oman",
+    "Pakistan", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
+    "Qatar",
+    "Romania", "Russia", "Rwanda",
+    "Saudi Arabia", "Senegal", "Serbia", "Sierra Leone", "Singapore", "Slovak Republic", "Slovenia",
+    "Somalia", "South Africa", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
+    "Taiwan", "Tanzania", "Thailand", "Togo", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan",
+    "UAE", "Uganda", "UK", "Ukraine", "United States", "Uruguay", "Uzbekistan",
+    "Venezuela", "Vietnam",
+    "Yemen",
+    "Zambia", "Zimbabwe",
+];
+
 export default function AllCategories() {
     const { category } = useParams<{ category: string }>();
+    const [searchParams] = useSearchParams();
     const currentTab = category || "business";
 
     const [data, setData] = useState<any[]>([]);
@@ -228,6 +269,12 @@ export default function AllCategories() {
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
     const [expandedSubcategories, setExpandedSubcategories] = useState<string[]>([]);
     const [selectedCertifications, setSelectedCertifications] = useState<string[]>([]);
+    
+    // Job specific filters
+    const [selectedJobTypes, setSelectedJobTypes] = useState<string[]>([]);
+    const [selectedWorkModels, setSelectedWorkModels] = useState<string[]>([]);
+    const [jobLocationSearch, setJobLocationSearch] = useState("");
+    const [sortBy, setSortBy] = useState<"recent" | "default">("recent");
 
     const [healthAuthSearch, setHealthAuthSearch] = useState("");
     const [showAllCategories, setShowAllCategories] = useState(true);
@@ -262,10 +309,17 @@ export default function AllCategories() {
         setIsRestored(false);
         const prefix = `pharmasocii_${currentTab}_`;
         
-        setSearchQuery("");
+        const initialSearch = searchParams.get("search") || "";
+        setSearchQuery(initialSearch);
 
-        // Avoid hidden/stale filters when reopening the page.
-        setSelectedCategories([]);
+        // Handle initial category from URL if present
+        const initialCat = searchParams.get("cat");
+        if (initialCat) {
+            setSelectedCategories([initialCat]);
+        } else {
+            setSelectedCategories([]);
+        }
+
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
         setSelectedCertifications([]);
@@ -277,7 +331,7 @@ export default function AllCategories() {
         setCurrentPage(1);
 
         setIsRestored(true);
-    }, [currentTab]);
+    }, [currentTab, searchParams]);
 
     // Save state to sessionStorage on any change
     useEffect(() => {
@@ -322,6 +376,16 @@ export default function AllCategories() {
                         }
                     });
                     const approvedDocs = Array.from(deduped.values()).filter((doc: any) => isApprovedStatus(doc.status));
+                    
+                    // Sort by most recent if requested
+                    if (sortBy === "recent") {
+                        approvedDocs.sort((a, b) => {
+                            const dateA = a.createdAt?.toDate?.() || a.createdAt?.seconds || 0;
+                            const dateB = b.createdAt?.toDate?.() || b.createdAt?.seconds || 0;
+                            return dateB - dateA;
+                        });
+                    }
+                    
                     setData(approvedDocs);
                 } else {
                     setData([]);
@@ -333,7 +397,7 @@ export default function AllCategories() {
             }
         };
         fetchAllCategoriesData();
-    }, [currentTab]);
+    }, [currentTab, sortBy]);
 
     const handleCloseModal = () => setSelectedProfile(null);
 
@@ -392,6 +456,9 @@ export default function AllCategories() {
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
         setSelectedCertifications([]);
+        setSelectedJobTypes([]);
+        setSelectedWorkModels([]);
+        setJobLocationSearch("");
         setCurrentPage(1);
     };
 
@@ -552,6 +619,25 @@ export default function AllCategories() {
             );
             if (!hasMatchingCert) return false;
         }
+        
+        // ── Job specific filters ──
+        if (currentTab === "jobs") {
+            if (selectedJobTypes.length > 0) {
+                const itemJobType = item.jobtype || item.positionType;
+                if (!itemJobType || !selectedJobTypes.includes(itemJobType)) return false;
+            }
+            if (selectedWorkModels.length > 0) {
+                if (!item.workModel || !selectedWorkModels.includes(item.workModel)) return false;
+            }
+            if (jobLocationSearch.trim()) {
+                const q = jobLocationSearch.toLowerCase();
+                const matches = (item.city || "").toLowerCase().includes(q) || 
+                                (item.stateRegion || "").toLowerCase().includes(q) || 
+                                (item.location || "").toLowerCase().includes(q) ||
+                                (item.state || "").toLowerCase().includes(q);
+                if (!matches) return false;
+            }
+        }
 
         return true;
     });
@@ -700,6 +786,16 @@ export default function AllCategories() {
         });
     };
 
+    const toggleJobType = (type: string) => {
+        setSelectedJobTypes(prev => prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]);
+        setCurrentPage(1);
+    };
+
+    const toggleWorkModel = (model: string) => {
+        setSelectedWorkModels(prev => prev.includes(model) ? prev.filter(m => m !== model) : [...prev, model]);
+        setCurrentPage(1);
+    };
+
     return (
         <div className="min-h-screen bg-background flex flex-col">
             <div className="bg-muted/40 border-b border-foreground/10 py-12">
@@ -773,6 +869,21 @@ export default function AllCategories() {
                             </DropdownMenuItem>
                         </DropdownMenuContent>
                     </DropdownMenu>
+                    
+                    {currentTab === "jobs" && (
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Sort by:</span>
+                            <Select value={sortBy} onValueChange={(val: any) => setSortBy(val)}>
+                                <SelectTrigger className="w-[140px] h-[52px] rounded-2xl border-foreground/10 bg-background shadow-sm">
+                                    <SelectValue placeholder="Sort by" />
+                                </SelectTrigger>
+                                <SelectContent className="bg-background border-foreground/10 shadow-xl">
+                                    <SelectItem value="recent">Most recent</SelectItem>
+                                    <SelectItem value="default">Default</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+                    )}
                 </div>
                 {/* Certification filter pills — Business Offerings only */}
                 {currentTab === "business" && (
@@ -799,6 +910,22 @@ export default function AllCategories() {
                                 Clear
                             </button>
                         )}
+                    </div>
+                )}
+
+                {/* Job filter pills */}
+                {currentTab === "jobs" && (
+                    <div className="flex flex-wrap items-center gap-2 mb-4 max-w-7xl mx-auto">
+                        {selectedJobTypes.length > 0 && selectedJobTypes.map(type => (
+                            <button key={type} onClick={() => toggleJobType(type)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-primary text-primary-foreground shadow-sm">
+                                <X className="w-3 h-3" /> {type}
+                            </button>
+                        ))}
+                        {selectedWorkModels.length > 0 && selectedWorkModels.map(model => (
+                            <button key={model} onClick={() => toggleWorkModel(model)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-secondary/10 text-secondary-foreground border border-foreground/10 shadow-sm">
+                                <X className="w-3 h-3" /> {model}
+                            </button>
+                        ))}
                     </div>
                 )}
 
@@ -861,6 +988,53 @@ export default function AllCategories() {
                                 <div className="space-y-2 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                                     {renderSidebarCategories()}
                                 </div>
+
+                                {currentTab === "jobs" && (
+                                    <div className="pt-6 border-t border-foreground/10 space-y-6">
+                                        <div className="space-y-3">
+                                            <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Job Type</h4>
+                                            <div className="space-y-2">
+                                                {JOB_TYPES.map(type => (
+                                                    <div key={type} className="flex items-center gap-2">
+                                                        <Checkbox 
+                                                            id={`job-type-${type}`} 
+                                                            checked={selectedJobTypes.includes(type)}
+                                                            onCheckedChange={() => toggleJobType(type)}
+                                                        />
+                                                        <label htmlFor={`job-type-${type}`} className="text-sm font-medium cursor-pointer">{type}</label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Work Model</h4>
+                                            <div className="space-y-2">
+                                                {WORK_MODELS.map(model => (
+                                                    <div key={model} className="flex items-center gap-2">
+                                                        <Checkbox 
+                                                            id={`work-model-${model}`} 
+                                                            checked={selectedWorkModels.includes(model)}
+                                                            onCheckedChange={() => toggleWorkModel(model)}
+                                                        />
+                                                        <label htmlFor={`work-model-${model}`} className="text-sm font-medium cursor-pointer">{model}</label>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-3">
+                                            <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Location (City/State)</h4>
+                                            <Input 
+                                                placeholder="Enter city or state..." 
+                                                value={jobLocationSearch}
+                                                onChange={(e) => setJobLocationSearch(e.target.value)}
+                                                className="bg-muted/30 border-foreground/10 h-9 text-sm"
+                                            />
+                                        </div>
+
+                                    </div>
+                                )}
                             </div>
                         </div>
 

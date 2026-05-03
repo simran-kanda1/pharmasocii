@@ -140,7 +140,7 @@ export default function ListingDetail() {
         );
     }
 
-    const listingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? item.eventName : type === "jobs" ? item.jobTitle : item.businessName;
+    const listingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? `${item.businessName ? item.businessName + " : " : ""}${item.eventName}` : type === "jobs" ? item.jobTitle : item.businessName;
 
     // Format a date string (YYYY-MM-DD) to a human-readable form.
     const formatDate = (dateStr: string | undefined) => {
@@ -299,9 +299,22 @@ export default function ListingDetail() {
                                             </p>
                                         )}
                                         {item.eventProfile && (
-                                            <p className="text-foreground/80 text-base leading-relaxed max-w-4xl whitespace-pre-line">
-                                                {item.eventProfile}
-                                            </p>
+                                            <div className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Event Overview</p>
+                                                    <p className="text-foreground/80 text-base leading-relaxed max-w-4xl whitespace-pre-line">
+                                                        {item.eventProfile}
+                                                    </p>
+                                                </div>
+                                                {(item.companyProfileText || partner?.companyProfileText) && (
+                                                    <div className="space-y-2 pt-2 border-t border-foreground/5">
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Organizer Profile</p>
+                                                        <p className="text-foreground/80 text-base leading-relaxed max-w-4xl whitespace-pre-line">
+                                                            {item.companyProfileText || partner?.companyProfileText}
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
                                         )}
                                     </>
                                 ) : type === "jobs" ? (
@@ -641,6 +654,22 @@ export default function ListingDetail() {
                     }
                 )()}
 
+                {/* Event agenda - moved up for prominence */}
+                {type === "events" && item.agenda && String(item.agenda).trim() !== "" && (
+                    <div className="mb-12">
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
+                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
+                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <CalendarRange className="w-5 h-5 text-primary" /> Agenda
+                                </h3>
+                            </div>
+                            <div className="p-8">
+                                <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{item.agenda}</p>
+                            </div>
+                        </Card>
+                    </div>
+                )}
+
                 {/* Subcategories detail for events */}
                 {type === "events" && (Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0) && (
                     <div className="mb-12">
@@ -661,22 +690,6 @@ export default function ListingDetail() {
                                         {ss}
                                     </Badge>
                                 ))}
-                            </div>
-                        </Card>
-                    </div>
-                )}
-
-                {/* Event agenda */}
-                {type === "events" && item.agenda && String(item.agenda).trim() !== "" && (
-                    <div className="mb-12">
-                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
-                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                                    <CalendarRange className="w-5 h-5 text-primary" /> Agenda
-                                </h3>
-                            </div>
-                            <div className="p-8">
-                                <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{item.agenda}</p>
                             </div>
                         </Card>
                     </div>

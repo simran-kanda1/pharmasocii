@@ -24,7 +24,6 @@ function spotlightDisplayActive(item: Record<string, any>): boolean {
     if (item.featureSpotlightCancelPending && endMs != null && Date.now() > endMs) return false;
     return true;
 }
-
 export default function Home() {
     const [featuredBusinesses, setFeaturedBusinesses] = useState<any[]>([]);
     const [featuredJobs, setFeaturedJobs] = useState<any[]>([]);
@@ -124,6 +123,7 @@ export default function Home() {
                     <p className="text-lg md:text-2xl text-muted-foreground max-w-3xl mb-12 font-light leading-relaxed">
                         Bridging disciplines, sectors, and borders across the industry.
                     </p>
+
 
                     <div className="flex flex-col sm:flex-row items-center gap-6">
                         <Button size="lg" className="h-14 px-8 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/50 transition-all rounded-full" asChild>

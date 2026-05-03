@@ -565,13 +565,13 @@ export default function Dashboard() {
                 }
 
                 const docRef = doc(db, "partnersCollection", auth.currentUser.uid);
-                        await updateDoc(docRef, {
+                await updateDoc(docRef, {
                     primaryName: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
                     primaryEmail: nextEmail, phoneNumber: profileForm.phone,
                     secondaryName: profileForm.altName, secondaryEmail: profileForm.altEmail,
                     businessName: profileForm.companyName, companyWebsite: profileForm.companyWebsite,
                     businessPhoneNumber: profileForm.businessPhone, linkedInProfileLink: profileForm.linkedin,
-                    companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), 
+                    companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                     businessAddress: profileForm.businessAddress,
                     businessCountry: profileForm.businessCountry || "",
                 });
@@ -605,7 +605,7 @@ export default function Dashboard() {
                         secondaryName: profileForm.altName, secondaryEmail: profileForm.altEmail,
                         businessName: profileForm.companyName, companyWebsite: profileForm.companyWebsite,
                         businessPhoneNumber: profileForm.businessPhone, linkedInProfileLink: profileForm.linkedin,
-                        companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), 
+                        companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                         businessAddress: profileForm.businessAddress,
                         businessCountry: profileForm.businessCountry || "",
                     }
@@ -1838,31 +1838,31 @@ export default function Dashboard() {
                                                 {pendingPaymentListings.map(offering => {
                                                     const listingGroup = inferListingGroup(offering);
                                                     return (
-                                                    <Card key={offering.id} className="bg-yellow-500/5 border-yellow-500/20">
-                                                        <CardHeader className="pb-3 border-b border-yellow-500/10 bg-yellow-500/5">
-                                                            <div className="flex justify-between items-start">
-                                                                <div>
-                                                                    <CardTitle className="text-base text-foreground">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || 'Listing'}</CardTitle>
-                                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{listingGroup.replace(/_/g, ' ')}</p>
+                                                        <Card key={offering.id} className="bg-yellow-500/5 border-yellow-500/20">
+                                                            <CardHeader className="pb-3 border-b border-yellow-500/10 bg-yellow-500/5">
+                                                                <div className="flex justify-between items-start">
+                                                                    <div>
+                                                                        <CardTitle className="text-base text-foreground">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || 'Listing'}</CardTitle>
+                                                                        <p className="text-xs text-muted-foreground mt-1 capitalize">{listingGroup.replace(/_/g, ' ')}</p>
+                                                                    </div>
+                                                                    <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">Pending Payment</Badge>
                                                                 </div>
-                                                                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">Pending Payment</Badge>
-                                                            </div>
-                                                        </CardHeader>
-                                                        <CardContent className="pt-4">
-                                                            <p className="text-sm text-muted-foreground mb-3">Complete payment to activate this listing.</p>
-                                                            <Button
-                                                                size="sm"
-                                                                className="w-full"
-                                                                onClick={() => {
-                                                                    // Re-initiate checkout for this listing
-                                                                    navigate(`/partner/add-listing/${listingGroup === "business_offerings" ? "offerings" : listingGroup}`);
-                                                                }}
-                                                            >
-                                                                <CreditCard className="w-4 h-4 mr-2" /> Complete Payment
-                                                            </Button>
-                                                        </CardContent>
-                                                    </Card>
-                                                );
+                                                            </CardHeader>
+                                                            <CardContent className="pt-4">
+                                                                <p className="text-sm text-muted-foreground mb-3">Complete payment to activate this listing.</p>
+                                                                <Button
+                                                                    size="sm"
+                                                                    className="w-full"
+                                                                    onClick={() => {
+                                                                        // Re-initiate checkout for this listing
+                                                                        navigate(`/partner/add-listing/${listingGroup === "business_offerings" ? "offerings" : listingGroup}`);
+                                                                    }}
+                                                                >
+                                                                    <CreditCard className="w-4 h-4 mr-2" /> Complete Payment
+                                                                </Button>
+                                                            </CardContent>
+                                                        </Card>
+                                                    );
                                                 })}
                                             </div>
                                         </div>
@@ -1994,11 +1994,11 @@ export default function Dashboard() {
                         </div>
                         <div className="space-y-2">
                             <Label className="text-foreground/80">Full business address <span className="text-red-400">*</span></Label>
-                            <Textarea 
-                                value={profileForm.businessAddress} 
-                                onChange={e => setProfileForm({ ...profileForm, businessAddress: e.target.value })} 
-                                className="h-[104px] bg-foreground/5 border-foreground/10 resize-none text-sm font-normal" 
-                                placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} 
+                            <Textarea
+                                value={profileForm.businessAddress}
+                                onChange={e => setProfileForm({ ...profileForm, businessAddress: e.target.value })}
+                                className="h-[104px] bg-foreground/5 border-foreground/10 resize-none text-sm font-normal"
+                                placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"}
                             />
                         </div>
                     </div>
@@ -2923,72 +2923,72 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
 
                     {/* Service Countries - Multi-select dropdown with search */}
                     {showServiceLocations && (
-                    <div>
-                        <Label className="text-foreground/80 flex items-center gap-2 mb-3">
-                            <MapPin className="w-4 h-4" /> Service Countries
-                            {maxCountries !== -1 && <span className="text-xs text-muted-foreground">({countries.length}/{maxCountries} max)</span>}
-                        </Label>
-                        <div className="relative">
-                            <button
-                                type="button"
-                                onClick={() => setCountriesOpen(!countriesOpen)}
-                                className="w-full h-11 px-3 text-left text-sm bg-foreground/5 border border-foreground/10 rounded-lg flex items-center justify-between hover:border-primary/50 transition-colors"
-                            >
-                                <span className="text-muted-foreground">
-                                    {countries.length > 0 ? `${countries.length} countries selected` : "Select countries (multi-select enabled)"}
-                                </span>
-                                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${countriesOpen ? "rotate-180" : ""}`} />
-                            </button>
-                            {countriesOpen && (
-                                <div className="absolute z-50 w-full mt-1 bg-background border border-foreground/10 rounded-lg shadow-xl max-h-64 overflow-hidden">
-                                    <div className="p-2 border-b border-foreground/10 sticky top-0 bg-background">
-                                        <Input
-                                            placeholder="Search countries..."
-                                            value={countrySearch}
-                                            onChange={e => setCountrySearch(e.target.value)}
-                                            className="h-9 text-sm bg-foreground/5 border-foreground/10"
-                                            autoFocus
-                                        />
+                        <div>
+                            <Label className="text-foreground/80 flex items-center gap-2 mb-3">
+                                <MapPin className="w-4 h-4" /> Service Countries
+                                {maxCountries !== -1 && <span className="text-xs text-muted-foreground">({countries.length}/{maxCountries} max)</span>}
+                            </Label>
+                            <div className="relative">
+                                <button
+                                    type="button"
+                                    onClick={() => setCountriesOpen(!countriesOpen)}
+                                    className="w-full h-11 px-3 text-left text-sm bg-foreground/5 border border-foreground/10 rounded-lg flex items-center justify-between hover:border-primary/50 transition-colors"
+                                >
+                                    <span className="text-muted-foreground">
+                                        {countries.length > 0 ? `${countries.length} countries selected` : "Select countries (multi-select enabled)"}
+                                    </span>
+                                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${countriesOpen ? "rotate-180" : ""}`} />
+                                </button>
+                                {countriesOpen && (
+                                    <div className="absolute z-50 w-full mt-1 bg-background border border-foreground/10 rounded-lg shadow-xl max-h-64 overflow-hidden">
+                                        <div className="p-2 border-b border-foreground/10 sticky top-0 bg-background">
+                                            <Input
+                                                placeholder="Search countries..."
+                                                value={countrySearch}
+                                                onChange={e => setCountrySearch(e.target.value)}
+                                                className="h-9 text-sm bg-foreground/5 border-foreground/10"
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <div className="max-h-48 overflow-y-auto">
+                                            {filteredCountries.map(country => {
+                                                const isSelected = countries.includes(country);
+                                                const isDisabled = !isSelected && maxCountries !== -1 && countries.length >= maxCountries;
+                                                return (
+                                                    <button
+                                                        key={country}
+                                                        type="button"
+                                                        onClick={() => !isDisabled && toggleCountry(country)}
+                                                        disabled={isDisabled}
+                                                        className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-primary/10 cursor-pointer"
+                                                            }`}
+                                                    >
+                                                        <div className={`w-4 h-4 rounded border flex items-center justify-center text-xs transition-colors ${isSelected ? "bg-primary border-primary text-primary-foreground" : "border-foreground/20"
+                                                            }`}>
+                                                            {isSelected && <Check className="w-3 h-3" />}
+                                                        </div>
+                                                        {country}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
-                                    <div className="max-h-48 overflow-y-auto">
-                                        {filteredCountries.map(country => {
-                                            const isSelected = countries.includes(country);
-                                            const isDisabled = !isSelected && maxCountries !== -1 && countries.length >= maxCountries;
-                                            return (
-                                                <button
-                                                    key={country}
-                                                    type="button"
-                                                    onClick={() => !isDisabled && toggleCountry(country)}
-                                                    disabled={isDisabled}
-                                                    className={`w-full px-3 py-2 text-left text-sm flex items-center gap-2 transition-colors ${isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-primary/10 cursor-pointer"
-                                                        }`}
-                                                >
-                                                    <div className={`w-4 h-4 rounded border flex items-center justify-center text-xs transition-colors ${isSelected ? "bg-primary border-primary text-primary-foreground" : "border-foreground/20"
-                                                        }`}>
-                                                        {isSelected && <Check className="w-3 h-3" />}
-                                                    </div>
-                                                    {country}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
+                                )}
+                            </div>
+                            {countries.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {countries.map(country => (
+                                        <span
+                                            key={country}
+                                            onClick={() => toggleCountry(country)}
+                                            className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded-full cursor-pointer hover:bg-primary/20 transition-colors"
+                                        >
+                                            {country} <X className="w-3 h-3" />
+                                        </span>
+                                    ))}
                                 </div>
                             )}
                         </div>
-                        {countries.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                                {countries.map(country => (
-                                    <span
-                                        key={country}
-                                        onClick={() => toggleCountry(country)}
-                                        className="inline-flex items-center gap-1 px-2 py-1 bg-primary/10 text-primary text-xs rounded-full cursor-pointer hover:bg-primary/20 transition-colors"
-                                    >
-                                        {country} <X className="w-3 h-3" />
-                                    </span>
-                                ))}
-                            </div>
-                        )}
-                    </div>
                     )}
 
                     {/* Bio Safety Levels - Only for business offerings */}
@@ -3195,9 +3195,9 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                 ...categoryDisplayFields,
                                 ...(showServiceLocations
                                     ? {
-                                          serviceCountries: countries,
-                                          serviceRegions: canUseRegionHelper ? regions : [],
-                                      }
+                                        serviceCountries: countries,
+                                        serviceRegions: canUseRegionHelper ? regions : [],
+                                    }
                                     : {}),
                                 bioSafetyLevel: bslLevels,
                                 certifications: Array.from(
@@ -3218,38 +3218,38 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                     .filter((rep) => rep.firstName || rep.lastName || rep.email),
                                 ...(listingGroup === "events"
                                     ? {
-                                          eventName,
-                                          eventLink,
-                                          startDate,
-                                          endDate,
-                                          eventCountry,
-                                          location: eventLocation,
-                                          eventProfile,
-                                          agenda,
-                                          stateRegion: eventStateRegion,
-                                          city: eventCity,
-                                      }
+                                        eventName,
+                                        eventLink,
+                                        startDate,
+                                        endDate,
+                                        eventCountry,
+                                        location: eventLocation,
+                                        eventProfile,
+                                        agenda,
+                                        stateRegion: eventStateRegion,
+                                        city: eventCity,
+                                    }
                                     : {}),
                                 ...(listingGroup === "jobs"
                                     ? {
-                                          jobTitle,
-                                          jobSummary,
-                                          industry,
-                                          jobtype: jobType,
-                                          positionType: jobType,
-                                          experienceLevel,
-                                          workModel,
-                                          positionLink,
-                                          jobCountry,
-                                          stateRegion: jobStateRegion,
-                                          city: jobCity,
-                                          location: jobLocationLine,
-                                          education,
-                                          applicationDeadline,
-                                          jobDescriptionPdfUrl: jobPdfUrlOut,
-                                          companyWebsiteLink,
-                                          linkedInJob,
-                                      }
+                                        jobTitle,
+                                        jobSummary,
+                                        industry,
+                                        jobtype: jobType,
+                                        positionType: jobType,
+                                        experienceLevel,
+                                        workModel,
+                                        positionLink,
+                                        jobCountry,
+                                        stateRegion: jobStateRegion,
+                                        city: jobCity,
+                                        location: jobLocationLine,
+                                        education,
+                                        applicationDeadline,
+                                        jobDescriptionPdfUrl: jobPdfUrlOut,
+                                        companyWebsiteLink,
+                                        linkedInJob,
+                                    }
                                     : {}),
                             });
                         }}
