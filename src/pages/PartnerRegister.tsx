@@ -8,15 +8,9 @@ import { auth, db } from "@/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
+import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import PhoneInput from 'react-phone-number-input';
 import 'react-phone-number-input/style.css';
-
-const passwordRequirements = {
-    minLength: (password: string) => password.length >= 8,
-    uppercase: (password: string) => /[A-Z]/.test(password),
-    lowercase: (password: string) => /[a-z]/.test(password),
-    special: (password: string) => /[^A-Za-z0-9]/.test(password),
-};
 
 export default function PartnerRegister() {
     const navigate = useNavigate();
@@ -45,20 +39,15 @@ export default function PartnerRegister() {
     };
     const passwordsMismatch =
         formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword;
-    const passwordChecks = {
-        minLength: passwordRequirements.minLength(formData.password),
-        uppercase: passwordRequirements.uppercase(formData.password),
-        lowercase: passwordRequirements.lowercase(formData.password),
-        special: passwordRequirements.special(formData.password),
-    };
-    const isPasswordValid = Object.values(passwordChecks).every(Boolean);
+    const passwordChecks = getPasswordPolicyChecks(formData.password);
+    const isPasswordValid = isPasswordPolicyValid(formData.password);
 
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
 
         if (!isPasswordValid) {
-            setError("Password must include at least 8 characters, uppercase, lowercase, and a special character.");
+            setError(PASSWORD_POLICY_ERROR_MESSAGE);
             return;
         }
 

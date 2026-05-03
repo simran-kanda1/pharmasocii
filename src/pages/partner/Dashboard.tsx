@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, query, onSnapshot, where, writeBatch, getDocs } from "firebase/firestore";
@@ -7,11 +7,18 @@ import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthe
 import { API_BASE_URL } from "@/apiConfig";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
 import { isValidBusinessAddress } from "@/lib/addressValidation";
+import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
+import { formatPartnerTransaction, sortPartnerTransactionsNewestFirst, type PartnerTransactionRow } from "@/lib/partnerTransactions";
+import {
+    downloadPartnerTransactionsCsv,
+    downloadPartnerTransactionsExcel,
+    downloadPartnerTransactionsPdf,
+} from "@/lib/transactionExport";
 import { normalizeServiceCountriesToArray } from "@/lib/utils";
 import { uploadJobDescriptionPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
-    LayoutDashboard, User, KeyRound, Receipt, LogOut,
+    LayoutDashboard, User, KeyRound, Receipt, LogOut, Download, FileSpreadsheet, FileText, Info,
     Building, Mail, Phone, MapPin,
     PlusCircle, LayoutList, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
@@ -251,6 +258,7 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<TabType>("dashboard");
     const [transactions, setTransactions] = useState<any[]>([]);
+    const [transactionDetailRow, setTransactionDetailRow] = useState<PartnerTransactionRow | null>(null);
     const [activePlans, setActivePlans] = useState<any[]>([]);
 
 
@@ -456,6 +464,24 @@ export default function Dashboard() {
         };
     }, [navigate]);
 
+    const formattedTransactions = useMemo(
+        () =>
+            transactions
+                .map((t) => formatPartnerTransaction({ id: t.id, ...t }))
+                .sort(sortPartnerTransactionsNewestFirst),
+        [transactions]
+    );
+
+    const handleExportTransactions = useCallback(
+        (format: "csv" | "xlsx" | "pdf") => {
+            if (formattedTransactions.length === 0) return;
+            if (format === "csv") downloadPartnerTransactionsCsv(formattedTransactions);
+            else if (format === "xlsx") downloadPartnerTransactionsExcel(formattedTransactions);
+            else downloadPartnerTransactionsPdf(formattedTransactions);
+        },
+        [formattedTransactions]
+    );
+
     const handleAddPlan = (type: string = "offerings") => {
         if (type === "offerings" && businessOfferingLock.blocked) {
             const nextDate = businessOfferingLock.blockedUntil?.toLocaleDateString();
@@ -614,8 +640,8 @@ export default function Dashboard() {
         if (passwordForm.newPassword !== passwordForm.confirmPassword) {
             setPasswordMsg({ type: "error", text: "New passwords do not match." }); setPasswordSaving(false); return;
         }
-        if (passwordForm.newPassword.length < 8) {
-            setPasswordMsg({ type: "error", text: "New password must be at least 8 characters." }); setPasswordSaving(false); return;
+        if (!isPasswordPolicyValid(passwordForm.newPassword)) {
+            setPasswordMsg({ type: "error", text: PASSWORD_POLICY_ERROR_MESSAGE }); setPasswordSaving(false); return;
         }
         try {
             const user = auth.currentUser;
@@ -1009,11 +1035,7 @@ export default function Dashboard() {
     const displayName = partnerData.primaryName || "Partner";
     const currentPlan = PLAN_CONFIGS[partnerData.selectedPlan] || null;
     const currentGroup = partnerData.selectedGroup || "";
-    const listingAddon = offerings.find((o) => o.selectedAddon && o.selectedAddon !== "none" && o.selectedAddon !== "")?.selectedAddon || "";
-    const resolvedAddon = listingAddon || partnerData.selectedAddon || "";
-    const hasFeaturePlan = resolvedAddon !== "none" && resolvedAddon !== "";
     const includedFeature = currentPlan?.featurePlan || null;
-    const hasActivePaidPlan = livePlans.some(isFeatureEligiblePlan);
     const businessOfferingLock = getGroupPlanLock(activePlans, "business_offerings");
     const consultingLock = getGroupPlanLock(activePlans, "consulting");
 
@@ -1027,21 +1049,6 @@ export default function Dashboard() {
         : null;
     const globalModalAddonTier = getSpotlightAddonTierId(listingForGlobalFeatureModal);
     const globalModalUpgradeTargets = getFeatureUpgradeTargets(globalModalAddonTier);
-
-    const planForSpotlightUpgrade = livePlans.find((p) => {
-        const l =
-            offerings.find((o) => o.id === p.listingId && (!p.collectionName || o.__col === p.collectionName)) ||
-            offerings.find((o) => o.id === p.listingId);
-        if (!l || !hasStandaloneFeatureForPlan(p)) return false;
-        return getFeatureUpgradeTargets(getSpotlightAddonTierId(l)).length > 0;
-    });
-    const listingForSpotlightUpgrade = planForSpotlightUpgrade
-        ? offerings.find(
-            (o) =>
-                o.id === planForSpotlightUpgrade.listingId &&
-                (!planForSpotlightUpgrade.collectionName || o.__col === planForSpotlightUpgrade.collectionName)
-        ) || offerings.find((o) => o.id === planForSpotlightUpgrade.listingId)
-        : null;
 
     const representativeOptions = (() => {
         const [altFName, ...altLNames] = ((partnerData?.secondaryName || "") as string).split(" ");
@@ -1074,22 +1081,6 @@ export default function Dashboard() {
         { id: "transactions", label: "Transactions", icon: Receipt },
         { id: "logout", label: "Logout", icon: LogOut },
     ];
-
-    const formattedTransactions = transactions.map(t => ({
-        id: t.id,
-        date: t.createdAt ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "N/A",
-        description: t.type === "feature" ? `Feature: ${t.featureId?.replace(/_/g, ' ')}` : `Plan: ${t.planId?.replace(/_/g, ' ').toUpperCase() || 'N/A'}`,
-        amount: `$${t.amount?.toFixed(2) || "0.00"}`,
-        status: t.status === "succeeded" ? "Completed" : t.status,
-        method: "Stripe Checkout",
-        group: t.group?.replace(/_/g, ' ') || null,
-        businessName: t.businessName || null,
-        selectedCategories: t.selectedCategories || [],
-        serviceCountries: t.serviceCountries || [],
-        serviceRegions: t.serviceRegions || [],
-        planId: t.planId,
-        currency: t.currency?.toUpperCase() || "USD",
-    }));
 
     return (
         <div className="min-h-screen w-full bg-background flex">
@@ -1440,8 +1431,7 @@ export default function Dashboard() {
                                 {spotlightUpgradeTargets.length > 0 && linkedListing && (
                                     <Button
                                         size="sm"
-                                        variant="secondary"
-                                        className="border border-violet-500/40 bg-violet-500/10 text-violet-900 dark:text-violet-100 hover:bg-violet-500/15 font-semibold disabled:opacity-50"
+                                        className="bg-violet-700 text-white border border-violet-800 hover:bg-violet-800 hover:text-white shadow-sm font-semibold disabled:opacity-50"
                                         disabled={actionsLocked}
                                         onClick={() => {
                                             setSelectedPlanForAction(plan);
@@ -1590,68 +1580,6 @@ export default function Dashboard() {
                         </CardContent>
                     </Card>
                 </div>
-
-                {/* Spotlight summary (replaces repetitive “plan details” card) */}
-                {(hasActivePaidPlan || includedFeature || hasFeaturePlan || planForSpotlightUpgrade) && (
-                    <Card className="border-primary/25 bg-gradient-to-br from-primary/[0.07] via-background to-background shadow-xl overflow-hidden">
-                        <CardHeader className="pb-2">
-                            <CardTitle className="text-lg flex items-center gap-2">
-                                <Sparkles className="w-5 h-5 text-primary" /> Spotlight visibility
-                            </CardTitle>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                Optional placement on category landing or home — only for eligible paid listings.
-                            </p>
-                        </CardHeader>
-                        <CardContent className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-0">
-                            <div className="text-sm text-foreground/90 space-y-1.5 min-w-0">
-                                {includedFeature ? (
-                                    <p className="flex items-start gap-2">
-                                        <Check className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
-                                        <span>
-                                            Your <strong>{currentPlan?.label || "current"}</strong> plan includes{" "}
-                                            {includedFeature === "home_page" ? "home page" : "landing page"} spotlight.
-                                        </span>
-                                    </p>
-                                ) : hasFeaturePlan ? (
-                                    <p className="flex items-start gap-2">
-                                        <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
-                                        <span>
-                                            Purchased spotlight:{" "}
-                                            <strong>{FEATURE_PLANS.find((f) => f.id === resolvedAddon)?.label || resolvedAddon.replace(/_/g, " ")}</strong>
-                                        </span>
-                                    </p>
-                                ) : hasActivePaidPlan ? (
-                                    <p>You do not have a spotlight add-on yet. Add one for stronger visibility in feeds.</p>
-                                ) : (
-                                    <p>Complete checkout on a listing plan to unlock spotlight add-ons.</p>
-                                )}
-                            </div>
-                            <div className="flex flex-wrap gap-2 shrink-0">
-                                {planForSpotlightUpgrade && listingForSpotlightUpgrade && !planForSpotlightUpgrade.cancelAtPeriodEnd && (
-                                    <Button
-                                        variant="secondary"
-                                        className="border border-violet-500/40 bg-violet-500/10 text-violet-900 dark:text-violet-100 hover:bg-violet-500/15 font-semibold"
-                                        onClick={() => {
-                                            setSelectedPlanForAction(planForSpotlightUpgrade);
-                                            setSelectedListingForEdit(listingForSpotlightUpgrade);
-                                            setShowUpgradeFeatureModal(true);
-                                        }}
-                                    >
-                                        <ArrowUpCircle className="w-4 h-4 mr-2" /> Upgrade spotlight
-                                    </Button>
-                                )}
-                                {!includedFeature && !hasFeaturePlan && hasActivePaidPlan && (
-                                    <Button
-                                        className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-sm"
-                                        onClick={() => setShowFeatureModal(true)}
-                                    >
-                                        <Sparkles className="w-4 h-4 mr-2" /> Explore spotlight add-ons
-                                    </Button>
-                                )}
-                            </div>
-                        </CardContent>
-                    </Card>
-                )}
 
                 {/* Plans & billing */}
                 {(livePlansActive.length > 0 || livePlansEnding.length > 0 || expiredPlans.length > 0) && (
@@ -2081,6 +2009,7 @@ export default function Dashboard() {
 
     // ─── CHANGE PASSWORD TAB ───
     function renderChangePassword() {
+        const newPwChecks = getPasswordPolicyChecks(passwordForm.newPassword);
         return (
             <div className="max-w-lg space-y-8">
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">Change Password</h1>
@@ -2102,12 +2031,18 @@ export default function Dashboard() {
                             <Input type={showNewPw ? "text" : "password"} value={passwordForm.newPassword} onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11 pr-10" />
                             <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">{showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                         </div>
+                        <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                            <li className={newPwChecks.minLength ? "text-green-500" : ""}>At least 8 characters</li>
+                            <li className={newPwChecks.uppercase ? "text-green-500" : ""}>At least 1 uppercase letter</li>
+                            <li className={newPwChecks.lowercase ? "text-green-500" : ""}>At least 1 lowercase letter</li>
+                            <li className={newPwChecks.special ? "text-green-500" : ""}>At least 1 special character</li>
+                        </ul>
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Confirm new password</Label>
                         <Input type="password" value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
-                    <Button onClick={handlePasswordChange} disabled={passwordSaving || !passwordForm.currentPassword || !passwordForm.newPassword} className="w-full h-11 mt-2">
+                    <Button onClick={handlePasswordChange} disabled={passwordSaving || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword} className="w-full h-11 mt-2">
                         <KeyRound className="w-4 h-4 mr-2" />{passwordSaving ? "Updating..." : "Update Password"}
                     </Button>
                 </div>
@@ -2116,112 +2051,309 @@ export default function Dashboard() {
     }
 
     // ─── TRANSACTIONS TAB ───
-    function renderTransactions(txns: any[]) {
+    function renderTransactions(txns: PartnerTransactionRow[]) {
+        const detail = transactionDetailRow;
+        const statusBadgeClass =
+            detail?.statusRaw === "succeeded"
+                ? "bg-green-500/10 text-green-400 border-green-500/30"
+                : "bg-foreground/10 text-foreground border-foreground/20";
+
         return (
-            <div className="max-w-4xl space-y-8">
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">Transactions</h1>
-                <p className="text-muted-foreground text-sm">View your payment history and billing activity.</p>
+            <div className="max-w-6xl space-y-6 pr-2">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Transactions</h1>
+                        <p className="text-muted-foreground text-sm mt-1">
+                            Payment history in a table view. Export for your records, or open a row for full plan and listing details.
+                        </p>
+                    </div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="border-foreground/20 shrink-0" disabled={txns.length === 0}>
+                                <Download className="w-4 h-4 mr-2" />
+                                Export
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-52">
+                            <DropdownMenuItem onClick={() => handleExportTransactions("csv")}>
+                                <FileText className="w-4 h-4 mr-2" />
+                                Download as CSV
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExportTransactions("xlsx")}>
+                                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                                Download as Excel
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleExportTransactions("pdf")}>
+                                <FileText className="w-4 h-4 mr-2" />
+                                Download as PDF
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+
                 {txns.length === 0 ? (
                     <div className="bg-foreground/5 border border-foreground/10 p-12 rounded-xl text-center">
                         <Receipt className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
                         <p className="text-muted-foreground">No transactions yet.</p>
                     </div>
                 ) : (
-                    <div className="space-y-4">
-                        {txns.map(txn => (
-                            <div key={txn.id} className="bg-foreground/5 border border-foreground/10 rounded-xl p-5 hover:border-foreground/20 transition-colors">
-                                <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                                    <div className="w-11 h-11 rounded-full bg-primary/10 border border-primary/30 flex items-center justify-center shrink-0">
-                                        <CreditCard className="w-5 h-5 text-primary" />
-                                    </div>
-                                    <div className="flex-1 min-w-0">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div>
-                                                <p className="text-foreground font-semibold">{txn.description}</p>
-                                                {txn.group && (
-                                                    <p className="text-xs text-muted-foreground capitalize mt-0.5">{txn.group}</p>
-                                                )}
-                                            </div>
-                                            <div className="flex items-center gap-3 shrink-0">
-                                                <span className="text-lg font-bold text-foreground">{txn.amount}</span>
-                                                <Badge className="bg-green-500/10 text-green-400 border-green-500/30">{txn.status}</Badge>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {txn.date}</span>
-                                            <span>{txn.method}</span>
-                                            <span className="text-foreground/50">{txn.currency}</span>
-                                        </div>
+                    <div className="rounded-lg border border-foreground/15 bg-foreground/[0.02] overflow-hidden shadow-sm">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm border-collapse min-w-[720px]">
+                                <thead>
+                                    <tr className="bg-muted/60 border-b border-foreground/15">
+                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                            Date
+                                        </th>
+                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                            Type
+                                        </th>
+                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10">
+                                            Description
+                                        </th>
+                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                            Group
+                                        </th>
+                                        <th className="text-right font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                            Amount
+                                        </th>
+                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                            Status
+                                        </th>
+                                        <th className="text-center font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 whitespace-nowrap w-[100px]">
+                                            Details
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {txns.map((txn, idx) => (
+                                        <tr
+                                            key={txn.id}
+                                            className={`border-b border-foreground/10 hover:bg-muted/40 transition-colors ${idx % 2 === 1 ? "bg-foreground/[0.02]" : ""}`}
+                                        >
+                                            <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 whitespace-nowrap align-top">
+                                                {txn.dateDisplay}
+                                            </td>
+                                            <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 whitespace-nowrap align-top">
+                                                {txn.typeLabel}
+                                            </td>
+                                            <td className="px-3 py-2 border-r border-foreground/10 text-foreground align-top max-w-[280px]">
+                                                <span className="line-clamp-2" title={txn.description}>
+                                                    {txn.description}
+                                                </span>
+                                            </td>
+                                            <td className="px-3 py-2 border-r border-foreground/10 text-muted-foreground capitalize align-top whitespace-nowrap">
+                                                {txn.group || "—"}
+                                            </td>
+                                            <td className="px-3 py-2 border-r border-foreground/10 text-right font-semibold tabular-nums text-foreground align-top whitespace-nowrap">
+                                                {txn.amountDisplay}
+                                            </td>
+                                            <td className="px-3 py-2 border-r border-foreground/10 align-top whitespace-nowrap">
+                                                <Badge
+                                                    className={
+                                                        txn.statusRaw === "succeeded"
+                                                            ? "bg-green-500/10 text-green-400 border-green-500/30 font-medium"
+                                                            : "bg-amber-500/10 text-amber-200 border-amber-500/30 font-medium"
+                                                    }
+                                                >
+                                                    {txn.statusLabel}
+                                                </Badge>
+                                            </td>
+                                            <td className="px-2 py-1.5 text-center align-top">
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 text-primary hover:text-primary hover:bg-primary/10"
+                                                    onClick={() => setTransactionDetailRow(txn)}
+                                                >
+                                                    <Info className="w-4 h-4 mr-1" />
+                                                    View
+                                                </Button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                )}
 
-                                        {/* Categories */}
-                                        {txn.selectedCategories?.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-foreground/10">
-                                                <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Categories</span>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {(txn.selectedCategories || []).map((cat: string, i: number) => (
-                                                        <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">{cat}</Badge>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {txn.selectedSubcategories?.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-foreground/10">
-                                                <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Subcategories</span>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {(txn.selectedSubcategories || []).map((sub: string, i: number) => (
-                                                        <Badge key={i} variant="outline" className="border-foreground/20 text-xs">{sub}</Badge>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {txn.selectedSubSubcategories?.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-foreground/10">
-                                                <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Sub-subcategories</span>
-                                                <div className="flex flex-wrap gap-1.5">
-                                                    {txn.selectedSubSubcategories.map((subSub: string, i: number) => (
-                                                        <Badge key={i} variant="outline" className="border-primary/30 text-primary text-xs">{subSub}</Badge>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Countries & Regions */}
-                                        {(txn.serviceCountries?.length > 0 || txn.serviceRegions?.length > 0) && (
-                                            <div className="mt-3 pt-3 border-t border-foreground/10 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {txn.serviceCountries?.length > 0 && (
-                                                    <div>
-                                                        <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Countries</span>
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                            {txn.serviceCountries.map((country: string, i: number) => (
-                                                                <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">{country}</Badge>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                                {txn.serviceRegions?.length > 0 && (
-                                                    <div>
-                                                        <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Regions</span>
-                                                        <p className="text-xs text-foreground/80">{txn.serviceRegions.join(', ')}</p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        {txn.companyRepresentatives?.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-foreground/10">
-                                                <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold block mb-1.5">Company Representatives</span>
-                                                <div className="space-y-1">
-                                                    {txn.companyRepresentatives.map((rep: any, i: number) => (
-                                                        <p key={i} className="text-xs text-foreground/80">
-                                                            {rep.firstName} {rep.lastName} - {rep.email}
-                                                        </p>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                {detail && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                        <div
+                            role="dialog"
+                            aria-modal="true"
+                            aria-labelledby="txn-detail-title"
+                            className="bg-background rounded-xl border border-foreground/15 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
+                        >
+                            <div className="px-5 py-4 border-b border-foreground/10 flex items-start justify-between gap-3 sticky top-0 bg-background z-10">
+                                <div>
+                                    <h2 id="txn-detail-title" className="text-lg font-bold text-foreground flex items-center gap-2">
+                                        <CreditCard className="w-5 h-5 text-primary shrink-0" />
+                                        Transaction details
+                                    </h2>
+                                    <p className="text-xs text-muted-foreground mt-1">{detail.dateDisplay} · {detail.paymentMethod}</p>
                                 </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setTransactionDetailRow(null)}
+                                    className="text-muted-foreground hover:text-foreground p-1 rounded-md shrink-0"
+                                    aria-label="Close"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
-                        ))}
+                            <div className="px-5 py-4 space-y-4 text-sm">
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <Badge variant="secondary" className="font-medium">{detail.typeLabel}</Badge>
+                                    <Badge className={statusBadgeClass}>{detail.statusLabel}</Badge>
+                                    <span className="text-lg font-bold text-foreground tabular-nums">{detail.amountDisplay}</span>
+                                    <span className="text-muted-foreground">{detail.currency}</span>
+                                </div>
+                                <dl className="space-y-3 border-t border-foreground/10 pt-4">
+                                    <div>
+                                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Description</dt>
+                                        <dd className="text-foreground mt-0.5">{detail.description}</dd>
+                                    </div>
+                                    {detail.businessName && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Business</dt>
+                                            <dd className="text-foreground mt-0.5">{detail.businessName}</dd>
+                                        </div>
+                                    )}
+                                    {detail.group && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Group</dt>
+                                            <dd className="text-foreground mt-0.5 capitalize">{detail.group}</dd>
+                                        </div>
+                                    )}
+                                    {detail.planId && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Plan ID</dt>
+                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.planId}</dd>
+                                        </div>
+                                    )}
+                                    {detail.featureId && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feature ID</dt>
+                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.featureId}</dd>
+                                        </div>
+                                    )}
+                                    {(detail.listingId || detail.collectionName) && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Listing</dt>
+                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">
+                                                {detail.collectionName && <span>{detail.collectionName}</span>}
+                                                {detail.collectionName && detail.listingId && " / "}
+                                                {detail.listingId && <span>{detail.listingId}</span>}
+                                                {!detail.listingId && !detail.collectionName && "—"}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {detail.sessionId && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Session ID</dt>
+                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.sessionId}</dd>
+                                        </div>
+                                    )}
+                                    {detail.invoiceId && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoice ID</dt>
+                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.invoiceId}</dd>
+                                        </div>
+                                    )}
+                                    {detail.stripeSubscriptionId && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subscription ID</dt>
+                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.stripeSubscriptionId}</dd>
+                                        </div>
+                                    )}
+                                    {detail.customerEmail && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer email</dt>
+                                            <dd className="text-foreground mt-0.5 break-all">{detail.customerEmail}</dd>
+                                        </div>
+                                    )}
+                                    {detail.selectedCategories.length > 0 && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Categories</dt>
+                                            <dd className="flex flex-wrap gap-1.5">
+                                                {detail.selectedCategories.map((cat, i) => (
+                                                    <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">
+                                                        {cat}
+                                                    </Badge>
+                                                ))}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {detail.selectedSubcategories.length > 0 && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Subcategories</dt>
+                                            <dd className="flex flex-wrap gap-1.5">
+                                                {detail.selectedSubcategories.map((sub, i) => (
+                                                    <Badge key={i} variant="outline" className="border-foreground/20 text-xs">
+                                                        {sub}
+                                                    </Badge>
+                                                ))}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {detail.selectedSubSubcategories.length > 0 && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Sub-subcategories</dt>
+                                            <dd className="flex flex-wrap gap-1.5">
+                                                {detail.selectedSubSubcategories.map((subSub, i) => (
+                                                    <Badge key={i} variant="outline" className="border-primary/30 text-primary text-xs">
+                                                        {subSub}
+                                                    </Badge>
+                                                ))}
+                                            </dd>
+                                        </div>
+                                    )}
+                                    {(detail.serviceCountries.length > 0 || detail.serviceRegions.length > 0) && (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            {detail.serviceCountries.length > 0 && (
+                                                <div>
+                                                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Countries</dt>
+                                                    <dd className="flex flex-wrap gap-1.5">
+                                                        {detail.serviceCountries.map((c, i) => (
+                                                            <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">
+                                                                {c}
+                                                            </Badge>
+                                                        ))}
+                                                    </dd>
+                                                </div>
+                                            )}
+                                            {detail.serviceRegions.length > 0 && (
+                                                <div>
+                                                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Regions</dt>
+                                                    <dd className="text-xs text-foreground/90">{detail.serviceRegions.join(", ")}</dd>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    {detail.companyRepresentatives.length > 0 && (
+                                        <div>
+                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Company representatives</dt>
+                                            <dd className="space-y-1">
+                                                {detail.companyRepresentatives.map((rep, i) => (
+                                                    <p key={i} className="text-xs text-foreground/90">
+                                                        {[rep.firstName, rep.lastName].filter(Boolean).join(" ")}
+                                                        {rep.email ? ` · ${rep.email}` : ""}
+                                                    </p>
+                                                ))}
+                                            </dd>
+                                        </div>
+                                    )}
+                                </dl>
+                            </div>
+                            <div className="px-5 py-3 border-t border-foreground/10 flex justify-end bg-muted/30">
+                                <Button type="button" variant="secondary" onClick={() => setTransactionDetailRow(null)}>
+                                    Close
+                                </Button>
+                            </div>
+                        </div>
                     </div>
                 )}
             </div>
