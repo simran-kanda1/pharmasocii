@@ -11,7 +11,19 @@ import { collection, collectionGroup, query, where, limit, getDocs } from "fireb
 
 const FEATURE_FETCH_LIMIT = 5000;
 
+function spotlightAccessEndMs(item: Record<string, any>): number | null {
+    const raw = item.featureSpotlightAccessEnd;
+    if (raw?.toDate) return raw.toDate().getTime();
+    if (typeof raw?.seconds === "number") return raw.seconds * 1000;
+    return null;
+}
 
+/** Spotlight stays visible until scheduled removal when user cancels mid-cycle. */
+function spotlightDisplayActive(item: Record<string, any>): boolean {
+    const endMs = spotlightAccessEndMs(item);
+    if (item.featureSpotlightCancelPending && endMs != null && Date.now() > endMs) return false;
+    return true;
+}
 
 export default function Home() {
     const [featuredBusinesses, setFeaturedBusinesses] = useState<any[]>([]);
@@ -23,6 +35,7 @@ export default function Home() {
         const fetchFeaturedData = async () => {
             try {
                 const isHomeSpotlight = (item: Record<string, any>) => {
+                    if (!spotlightDisplayActive(item)) return false;
                     const addon = String(item.selectedAddon || item.featuredPlacement || "").trim().toLowerCase();
                     return addon === "home_page" || addon === "both" || (item.isFeatured && !addon);
                 };

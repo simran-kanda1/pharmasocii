@@ -5,6 +5,7 @@ import { readFileSync, existsSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
+import { cleanupExpiredSpotlights } from "./cleanupExpiredSpotlights.js";
 
 //Load .env if present
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -337,6 +338,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         if (listingSnap.exists) {
                             listingData = listingSnap.data();
                             detailSource = listingData;
+                            const spotlightPaidThrough = addDays(new Date(), 30);
                             await listingRef.set({
                                 selectedAddon: featureId,
                                 featuredPlacement: featureId,
@@ -344,6 +346,10 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                                 active: true,
                                 status: "Approved",
                                 lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                                featureSpotlightPaidThrough: spotlightPaidThrough,
+                                featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
+                                featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
                             }, { merge: true });
                             console.log(`   ✓ Listing ${listingId} spotlight set to ${featureId}`);
                             await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
@@ -386,16 +392,6 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         console.log(`   ✓ Found listing data: categories=${listingData.selectedCategories?.length || 0}, countries=${listingData.serviceCountries?.length || 0}`);
                     }
 
-                    await listingRef.update({
-                        status: "Approved",
-                        active: true,
-                        lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        stripeSubscriptionId: session.subscription || null,
-                        stripeCustomerId: session.customer || null
-                    });
-                    console.log(`   ✓ Listing ${listingId} updated to status: Approved`);
-
-                    // Calculate billing period end date
                     const startDate = new Date();
                     const isYearly = planId?.includes('_yr');
                     const billingPeriodEnd = new Date(startDate);
@@ -404,6 +400,24 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     } else {
                         billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
                     }
+
+                    const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[planId] || null;
+                    const listingPaymentUpdate = {
+                        status: "Approved",
+                        active: true,
+                        lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        stripeSubscriptionId: session.subscription || null,
+                        stripeCustomerId: session.customer || null,
+                    };
+                    if (includedSpotlight) {
+                        listingPaymentUpdate.selectedAddon = includedSpotlight;
+                        listingPaymentUpdate.featuredPlacement = includedSpotlight;
+                        listingPaymentUpdate.isFeatured = true;
+                        listingPaymentUpdate.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
+                        listingPaymentUpdate.featureSpotlightPaidThrough = billingPeriodEnd;
+                    }
+                    await listingRef.update(listingPaymentUpdate);
+                    console.log(`   ✓ Listing ${listingId} updated to status: Approved`);
 
                     // Also add to partner's plans with more details (idempotent by session)
                     const existingPlan = await db.collection("partnersCollection").doc(partnerId)
@@ -679,14 +693,33 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
         case "customer.subscription.deleted": {
             const subscription = event.data.object;
             console.log(`❌ Subscription deleted: ${subscription.id}`);
-            // Find listing with this subscription ID and deactivate
+            const listingUpdateOnEnd = {
+                active: false,
+                status: "Cancelled",
+                selectedAddon: admin.firestore.FieldValue.delete(),
+                featuredPlacement: admin.firestore.FieldValue.delete(),
+                isFeatured: false,
+                featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
+                featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
+                featureSpotlightPaidThrough: admin.firestore.FieldValue.delete(),
+                lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.delete(),
+            };
+
+            const topLevelCollections = ["eventsCollection", "jobsCollection", "consultingServicesCollection", "consultingCollection"];
+            for (const col of topLevelCollections) {
+                const snap = await db.collection(col).where("stripeSubscriptionId", "==", subscription.id).get();
+                for (const lDoc of snap.docs) {
+                    await lDoc.ref.set(listingUpdateOnEnd, { merge: true });
+                }
+            }
+
             const partners = await db.collection("partnersCollection").get();
             for (const pDoc of partners.docs) {
-                const collections = ["businessOfferingsCollection", "consultingServicesCollection", "eventsCollection", "jobsCollection"];
-                for (const col of collections) {
+                const embeddedCols = ["businessOfferingsCollection", "consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"];
+                for (const col of embeddedCols) {
                     const snap = await pDoc.ref.collection(col).where("stripeSubscriptionId", "==", subscription.id).get();
                     for (const lDoc of snap.docs) {
-                        await lDoc.ref.update({ active: false, status: "Cancelled" });
+                        await lDoc.ref.set(listingUpdateOnEnd, { merge: true });
                     }
                 }
                 const pSnap = await pDoc.ref.collection("planCollection").where("stripeSubscriptionId", "==", subscription.id).get();
@@ -910,7 +943,21 @@ const FEATURE_SPOTLIGHT_TIER = {
     both: 3,
 };
 
-function resolveFeatureCheckoutAmount(targetFeatureId, listingAddonRaw, featuredPlacementRaw) {
+/** Plans that include a spotlight tier on the listing (set at payment time). */
+const PLANS_WITH_INCLUDED_SPOTLIGHT = {
+    premium_event: "landing_page",
+    premium_job: "landing_page",
+    premium_plus_event: "home_page",
+    premium_plus_job: "home_page",
+};
+
+function addDays(date, days) {
+    const d = new Date(date.getTime());
+    d.setDate(d.getDate() + days);
+    return d;
+}
+
+function resolveFeatureCheckoutAmount(targetFeatureId, listingAddonRaw, featuredPlacementRaw, listingData = null) {
     const target = FEATURE_PRICES[targetFeatureId];
     if (!target) {
         return { error: `Unknown feature: ${targetFeatureId}` };
@@ -931,7 +978,20 @@ function resolveFeatureCheckoutAmount(targetFeatureId, listingAddonRaw, featured
     if (diff <= 0) {
         return { error: "Invalid upgrade pricing." };
     }
-    return { unitAmount: diff, previousFeatureId: cur, isUpgrade: true };
+    // Time-prorate upgrade within the current 30-day spotlight window (from last feature payment if known).
+    let unitAmount = diff;
+    if (listingData) {
+        const paidAt = toDateValue(listingData.lastFeaturePaymentReceivedAt) || toDateValue(listingData.lastPaymentReceivedAt);
+        if (paidAt) {
+            const windowEnd = addDays(paidAt, 30);
+            const now = new Date();
+            const totalMs = Math.max(windowEnd.getTime() - paidAt.getTime(), 1);
+            const remainingMs = Math.max(windowEnd.getTime() - now.getTime(), 0);
+            const ratio = Math.min(Math.max(remainingMs / totalMs, 0), 1);
+            unitAmount = Math.max(Math.round(diff * ratio), 50); // Stripe minimum sensible charge
+        }
+    }
+    return { unitAmount, previousFeatureId: cur, isUpgrade: true };
 }
 
 async function deactivateSupersededPartnerFeatures(partnerRef, listingId, newFeatureId) {
@@ -1164,7 +1224,8 @@ app.post("/api/create-feature-checkout", async (req, res) => {
         const pricing = resolveFeatureCheckoutAmount(
             featureId,
             listingData.selectedAddon,
-            listingData.featuredPlacement
+            listingData.featuredPlacement,
+            listingData
         );
         if (pricing.error) {
             return res.status(400).json({ error: pricing.error });
@@ -1220,6 +1281,28 @@ app.post("/api/create-feature-checkout", async (req, res) => {
 // Health check
 app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", stripe: "connected" });
+});
+
+/**
+ * POST /api/cron/cleanup-expired-spotlights
+ * Clears spotlight addon after featureSpotlightAccessEnd when cancel was pending.
+ * Header: x-cron-secret: process.env.CRON_SECRET (or Cloud Scheduler OIDC to your gateway).
+ */
+app.post("/api/cron/cleanup-expired-spotlights", async (req, res) => {
+    const expected = process.env.CRON_SECRET;
+    if (!expected || req.headers["x-cron-secret"] !== expected) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (!admin.apps?.length) {
+        return res.status(503).json({ error: "Firebase Admin not initialized" });
+    }
+    try {
+        const result = await cleanupExpiredSpotlights();
+        return res.json({ ok: true, ...result });
+    } catch (err) {
+        console.error("cleanup-expired-spotlights:", err);
+        return res.status(500).json({ error: err.message || "Cleanup failed" });
+    }
 });
 
 /**
@@ -1645,63 +1728,74 @@ app.post("/api/cancel-plan", async (req, res) => {
 
         const cancelFeatureOnly = cancelScope === "feature";
         const cancelPlan = cancelScope === "plan" || cancelScope === "plan_and_feature";
-        const shouldClearListingAddon = cancelFeatureOnly || cancelPlan;
 
-        if (shouldClearListingAddon) {
+        const resolveAccessEndDate = async () => {
+            let end = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
+            if (!end && plan.stripeSubscriptionId) {
+                try {
+                    const sub = await stripe.subscriptions.retrieve(plan.stripeSubscriptionId);
+                    if (sub?.current_period_end) {
+                        end = new Date(sub.current_period_end * 1000);
+                    }
+                } catch (e) {
+                    console.warn("   ⚠ Could not read Stripe subscription for access end:", e.message);
+                }
+            }
+            if (!end) {
+                end = addDays(new Date(), 30);
+            }
+            return end;
+        };
+
+        // Standalone spotlight: schedule removal at billing-period end; do not strip visibility immediately.
+        if (cancelFeatureOnly) {
             if (!plan.listingId || !plan.collectionName) {
-                if (cancelFeatureOnly) {
-                    return res.status(400).json({ error: "Feature cancellation requires a listing-backed plan." });
-                }
-            } else {
-                const listingRef = await resolveListingDocRef(partnerId, plan.collectionName, plan.listingId);
-                if (!listingRef) {
-                    if (cancelFeatureOnly) {
-                        return res.status(400).json({ error: "Unable to resolve listing for feature cancellation." });
-                    }
-                } else {
-                    const listingSnap = await listingRef.get();
-                    const listingData = listingSnap.exists ? listingSnap.data() || {} : {};
-                    linkedFeatureId = listingData.selectedAddon || listingData.featuredPlacement || null;
+                return res.status(400).json({ error: "Feature cancellation requires a listing-backed plan." });
+            }
+            const listingRef = await resolveListingDocRef(partnerId, plan.collectionName, plan.listingId);
+            if (!listingRef) {
+                return res.status(400).json({ error: "Unable to resolve listing for feature cancellation." });
+            }
+            const listingSnap = await listingRef.get();
+            if (!listingSnap.exists) {
+                return res.status(400).json({ error: "Listing not found for feature cancellation." });
+            }
+            const listingData = listingSnap.data() || {};
+            linkedFeatureId = listingData.selectedAddon || listingData.featuredPlacement || null;
+            const accessEnd = await resolveAccessEndDate();
 
-                    if (listingSnap.exists) {
-                        await listingRef.set({
-                            selectedAddon: admin.firestore.FieldValue.delete(),
-                            featuredPlacement: admin.firestore.FieldValue.delete(),
-                            isFeatured: false,
-                            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        }, { merge: true });
-                        cancelledFeature = true;
-                    }
+            await listingRef.set(
+                {
+                    featureSpotlightCancelPending: true,
+                    featureSpotlightAccessEnd: accessEnd,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                },
+                { merge: true }
+            );
 
-                    const featuresRef = partnerRef.collection("featuresCollection");
-                    let featureDocs = [];
-                    if (plan.listingId) {
-                        const byListing = await featuresRef
-                            .where("listingId", "==", plan.listingId)
-                            .where("active", "==", true)
-                            .get();
-                        featureDocs = byListing.docs;
-                    }
-                    if (featureDocs.length === 0 && linkedFeatureId) {
-                        const byFeatureId = await featuresRef
-                            .where("featureId", "==", linkedFeatureId)
-                            .where("active", "==", true)
-                            .get();
-                        featureDocs = byFeatureId.docs;
-                    }
-                    for (const fDoc of featureDocs) {
-                        await fDoc.ref.set({
-                            active: false,
-                            cancelledAt: new Date(),
-                            cancelScope: cancelFeatureOnly ? "feature" : "plan",
-                        }, { merge: true });
-                        cancelledFeature = true;
-                    }
-
-                    await partnerRef.set({
-                        selectedAddon: admin.firestore.FieldValue.delete(),
-                    }, { merge: true });
-                }
+            const featuresRef = partnerRef.collection("featuresCollection");
+            let featureDocs = [];
+            if (plan.listingId) {
+                const byListing = await featuresRef.where("listingId", "==", plan.listingId).where("active", "==", true).get();
+                featureDocs = byListing.docs;
+            }
+            if (featureDocs.length === 0 && linkedFeatureId) {
+                const byFeatureId = await featuresRef
+                    .where("featureId", "==", linkedFeatureId)
+                    .where("active", "==", true)
+                    .get();
+                featureDocs = byFeatureId.docs;
+            }
+            for (const fDoc of featureDocs) {
+                await fDoc.ref.set(
+                    {
+                        cancelPending: true,
+                        accessThrough: accessEnd,
+                        cancelScope: "feature",
+                    },
+                    { merge: true }
+                );
+                cancelledFeature = true;
             }
         }
 

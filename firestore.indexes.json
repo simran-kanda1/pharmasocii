@@ -1,0 +1,45 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "eventsCollection",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "featureSpotlightCancelPending", "order": "ASCENDING" },
+        { "fieldPath": "featureSpotlightAccessEnd", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "jobsCollection",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "featureSpotlightCancelPending", "order": "ASCENDING" },
+        { "fieldPath": "featureSpotlightAccessEnd", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "consultingServicesCollection",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "featureSpotlightCancelPending", "order": "ASCENDING" },
+        { "fieldPath": "featureSpotlightAccessEnd", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "consultingCollection",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "featureSpotlightCancelPending", "order": "ASCENDING" },
+        { "fieldPath": "featureSpotlightAccessEnd", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "businessOfferingsCollection",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "featureSpotlightCancelPending", "order": "ASCENDING" },
+        { "fieldPath": "featureSpotlightAccessEnd", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

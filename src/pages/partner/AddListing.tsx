@@ -15,6 +15,7 @@ import { doc, getDoc, collection, addDoc, serverTimestamp, getDocs, query, where
 import { logActivity } from "@/lib/auditLogger";
 import { API_BASE_URL } from "@/apiConfig";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
+import { uploadJobDescriptionPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 
 
 import {
@@ -267,13 +268,15 @@ export default function AddListing() {
     // ─── Event fields ───
     const [eventData, setEventData] = useState({
         eventName: "", eventLink: "", startDate: "", endDate: "",
-        eventCountry: "", location: "", eventProfile: "",
+        eventCountry: "", stateRegion: "", city: "", location: "", eventProfile: "", agenda: "",
     });
 
     // ─── Job fields ───
     const [jobData, setJobData] = useState({
         jobTitle: "", industry: "", positionType: "", experienceLevel: "",
-        positionLink: "", jobCountry: "", location: "", jobSummary: "",
+        positionLink: "", jobCountry: "", stateRegion: "", city: "", location: "", jobSummary: "",
+        education: "", workModel: "", applicationDeadline: "", jobDescriptionPdfUrl: "",
+        companyWebsiteLink: "", linkedInJob: "",
     });
 
     // ─── Category tree state ───
@@ -289,6 +292,7 @@ export default function AddListing() {
     const [showRegionsDropdown, setShowRegionsDropdown] = useState(false);
     const [showCountriesDropdown, setShowCountriesDropdown] = useState(false);
     const [countrySearch, setCountrySearch] = useState("");
+    const [jobPdfFile, setJobPdfFile] = useState<File | null>(null);
 
     // Load partner data
     useEffect(() => {
@@ -361,6 +365,11 @@ export default function AddListing() {
         };
         fetchPartner();
     }, [dbGroup]);
+
+    useEffect(() => {
+        if (plan !== "basic_event" || !eventData.startDate) return;
+        setEventData((prev) => (prev.endDate === prev.startDate ? prev : { ...prev, endDate: prev.startDate }));
+    }, [plan, eventData.startDate]);
 
     // ─── Plan limits ───
     const currentLimits = PLAN_LIMITS[plan] || { maxCategories: 0, maxCountries: 0 };
@@ -571,6 +580,71 @@ export default function AddListing() {
             return;
         }
 
+        if (dbGroup === "business_offerings" || dbGroup === "consulting") {
+            if (categoryCount === 0) {
+                setError("Select at least one category.");
+                return;
+            }
+            if (selectedCountries.length === 0) {
+                setError("Select at least one service country.");
+                return;
+            }
+            if (currentLimits.maxCountries !== -1 && selectedCountries.length > currentLimits.maxCountries) {
+                setError(`Your plan allows at most ${currentLimits.maxCountries} service countr${currentLimits.maxCountries === 1 ? "y" : "ies"}.`);
+                return;
+            }
+            if (currentLimits.maxCategories !== -1 && categoryCount > currentLimits.maxCategories) {
+                setError(`Your plan allows at most ${currentLimits.maxCategories} categor${currentLimits.maxCategories === 1 ? "y" : "ies"}.`);
+                return;
+            }
+            if (!companyProfile.trim()) {
+                setError("Please enter your company profile.");
+                return;
+            }
+        }
+
+        if (dbGroup === "events") {
+            const { eventName, eventLink, startDate, endDate, eventCountry, stateRegion, city, eventProfile, agenda } = eventData;
+            if (!eventName.trim() || !eventLink.trim() || !startDate || !endDate || !eventCountry || !stateRegion.trim() || !city.trim() || !eventProfile.trim() || !agenda.trim()) {
+                setError("Please complete all required event fields (including agenda).");
+                return;
+            }
+            if (endDate < startDate) {
+                setError("End date cannot be before the start date.");
+                return;
+            }
+            if (plan === "basic_event" && endDate !== startDate) {
+                setError("Basic events are single-day: end date must match the start date.");
+                return;
+            }
+        }
+
+        if (dbGroup === "jobs") {
+            const j = jobData;
+            const hasPdf = !!jobPdfFile || j.jobDescriptionPdfUrl.trim().length > 0;
+            if (
+                !j.jobTitle.trim() ||
+                !j.jobSummary.trim() ||
+                !hasPdf ||
+                !j.positionType.trim() ||
+                !j.jobCountry.trim() ||
+                !j.stateRegion?.trim() ||
+                !j.city?.trim() ||
+                !j.workModel.trim() ||
+                !j.positionLink.trim()
+            ) {
+                setError("Please complete all required job fields (summary, PDF upload or hosted PDF URL, job type, country, region, city, work model, and apply link).");
+                return;
+            }
+            if (jobPdfFile) {
+                const pdfErr = validateJobDescriptionPdf(jobPdfFile);
+                if (pdfErr) {
+                    setError(pdfErr);
+                    return;
+                }
+            }
+        }
+
         try {
             if (!auth.currentUser) throw new Error("No authenticated user found. Please login.");
             setIsLoading(true);
@@ -595,6 +669,11 @@ export default function AddListing() {
                 sanitizedSelections.selectedSubcategories,
                 sanitizedSelections.selectedSubSubcategories
             );
+            let jobDescriptionPdfResolved = jobData.jobDescriptionPdfUrl.trim();
+            if (dbGroup === "jobs" && jobPdfFile && auth.currentUser) {
+                jobDescriptionPdfResolved = await uploadJobDescriptionPdf(auth.currentUser.uid, jobPdfFile, null);
+            }
+
             const listingData: Record<string, any> = {
                 partnerId: auth.currentUser.uid,
                 businessName: companyName,
@@ -626,7 +705,11 @@ export default function AddListing() {
             } else if (dbGroup === "events") {
                 Object.assign(listingData, { ...eventData });
             } else if (dbGroup === "jobs") {
-                Object.assign(listingData, { ...jobData });
+                Object.assign(listingData, {
+                    ...jobData,
+                    jobDescriptionPdfUrl: jobDescriptionPdfResolved,
+                    jobtype: jobData.positionType,
+                });
             }
 
             // Persist listings where the app expects to read them:
@@ -1012,8 +1095,18 @@ export default function AddListing() {
                                             <Input type="date" value={eventData.startDate} onChange={e => setEventData(prev => ({ ...prev, startDate: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>End date <span className="text-red-400">*</span></Label>
-                                            <Input type="date" value={eventData.endDate} onChange={e => setEventData(prev => ({ ...prev, endDate: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                            <Label>{plan === "basic_event" ? "Event date" : "End date"} <span className="text-red-400">*</span></Label>
+                                            <Input
+                                                type="date"
+                                                value={eventData.endDate}
+                                                onChange={e => setEventData(prev => ({ ...prev, endDate: e.target.value }))}
+                                                required
+                                                disabled={plan === "basic_event"}
+                                                className="bg-muted/40 border-foreground/10"
+                                            />
+                                            {plan === "basic_event" && (
+                                                <p className="text-xs text-muted-foreground">Basic plan covers a single day; end date matches start date.</p>
+                                            )}
                                         </div>
                                         <div className="space-y-2">
                                             <Label>Country <span className="text-red-400">*</span></Label>
@@ -1025,12 +1118,24 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Location <span className="text-red-400">*</span></Label>
-                                            <Input placeholder="State/Province/County, City" value={eventData.location} onChange={e => setEventData(prev => ({ ...prev, location: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                            <Label>State/Province/Region <span className="text-red-400">*</span></Label>
+                                            <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>City/Town <span className="text-red-400">*</span></Label>
+                                            <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                        </div>
+                                        <div className="space-y-2 md:col-span-2">
+                                            <Label>Venue / location notes</Label>
+                                            <Input placeholder="Venue name or online details" value={eventData.location} onChange={e => setEventData(prev => ({ ...prev, location: e.target.value }))} className="bg-muted/40 border-foreground/10" />
+                                        </div>
+                                        <div className="space-y-2 md:col-span-2">
+                                            <Label>Agenda <span className="text-red-400">*</span></Label>
+                                            <Textarea value={eventData.agenda} onChange={e => setEventData(prev => ({ ...prev, agenda: e.target.value }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Session topics, times, speakers…" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
                                             <Label>Event profile <span className="text-red-400">*</span></Label>
-                                            <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value }))} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event, agenda, speakers..." />
+                                            <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value }))} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
                                         </div>
                                     </div>
                                 )}
@@ -1038,12 +1143,41 @@ export default function AddListing() {
                                 {/* JOBS */}
                                 {dbGroup === "jobs" && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        <div className="space-y-2">
+                                        <div className="space-y-2 md:col-span-2">
                                             <Label>Job title <span className="text-red-400">*</span></Label>
                                             <Input value={jobData.jobTitle} onChange={e => setJobData(prev => ({ ...prev, jobTitle: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
+                                        <div className="space-y-2 md:col-span-2">
+                                            <Label>Job summary <span className="text-red-400">*</span></Label>
+                                            <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" />
+                                        </div>
+                                        <div className="space-y-2 md:col-span-2">
+                                            <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
+                                            <Input
+                                                type="file"
+                                                accept=".pdf,application/pdf"
+                                                className="bg-muted/40 border-foreground/10 cursor-pointer"
+                                                onChange={(e) => {
+                                                    const f = e.target.files?.[0] || null;
+                                                    setJobPdfFile(f);
+                                                    if (f) setJobData((prev) => ({ ...prev, jobDescriptionPdfUrl: "" }));
+                                                }}
+                                            />
+                                            {jobPdfFile && (
+                                                <p className="text-xs text-muted-foreground">Selected: {jobPdfFile.name}</p>
+                                            )}
+                                            <p className="text-xs text-muted-foreground">Or paste a hosted PDF link (not required if you upload a file).</p>
+                                            <Input
+                                                type="url"
+                                                placeholder="https://…"
+                                                value={jobData.jobDescriptionPdfUrl}
+                                                onChange={(e) => setJobData((prev) => ({ ...prev, jobDescriptionPdfUrl: e.target.value }))}
+                                                disabled={!!jobPdfFile}
+                                                className="bg-muted/40 border-foreground/10"
+                                            />
+                                        </div>
                                         <div className="space-y-2">
-                                            <Label>Industry <span className="text-red-400">*</span></Label>
+                                            <Label>Industry</Label>
                                             <Select value={jobData.industry} onValueChange={val => setJobData(prev => ({ ...prev, industry: val }))}>
                                                 <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select industry" /></SelectTrigger>
                                                 <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
@@ -1054,9 +1188,9 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Position type <span className="text-red-400">*</span></Label>
+                                            <Label>Job type <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
-                                                <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select position type" /></SelectTrigger>
+                                                <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select job type" /></SelectTrigger>
                                                 <SelectContent className="bg-background/90 border-foreground/10">
                                                     {["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"].map(t => (
                                                         <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -1065,18 +1199,44 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Experience level <span className="text-red-400">*</span></Label>
+                                            <Label>Experience level</Label>
                                             <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
                                                 <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select experience level" /></SelectTrigger>
                                                 <SelectContent className="bg-background/90 border-foreground/10">
-                                                    {["Entry Level", "Junior", "Mid-Level", "Senior", "Lead", "Director", "Executive"].map(l => (
+                                                    {["Entry level", "Associate level", "Mid-level", "Lead/Principal", "Director", "VP/executive"].map(l => (
                                                         <SelectItem key={l} value={l}>{l}</SelectItem>
                                                     ))}
                                                 </SelectContent>
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Position link <span className="text-red-400">*</span></Label>
+                                            <Label>Work model <span className="text-red-400">*</span></Label>
+                                            <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
+                                                <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select work model" /></SelectTrigger>
+                                                <SelectContent className="bg-background/90 border-foreground/10">
+                                                    {["Hybrid", "Remote", "On-site"].map(t => (
+                                                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Education</Label>
+                                            <Select value={jobData.education} onValueChange={val => setJobData(prev => ({ ...prev, education: val }))}>
+                                                <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select education" /></SelectTrigger>
+                                                <SelectContent className="bg-background/90 border-foreground/10">
+                                                    {["High school or equivalent", "Associate degree", "Bachelors degree", "Masters degree", "Doctorate/PhD/MD", "Other"].map(t => (
+                                                        <SelectItem key={t} value={t}>{t}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>Application deadline</Label>
+                                            <Input type="date" value={jobData.applicationDeadline} onChange={e => setJobData(prev => ({ ...prev, applicationDeadline: e.target.value }))} className="bg-muted/40 border-foreground/10" />
+                                        </div>
+                                        <div className="space-y-2 md:col-span-2">
+                                            <Label>Position link (Apply) <span className="text-red-400">*</span></Label>
                                             <Input type="url" placeholder="https://" value={jobData.positionLink} onChange={e => setJobData(prev => ({ ...prev, positionLink: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
@@ -1089,12 +1249,24 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Location <span className="text-red-400">*</span></Label>
-                                            <Input placeholder="State/Province/County, City" value={jobData.location} onChange={e => setJobData(prev => ({ ...prev, location: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                            <Label>State/Province/Region <span className="text-red-400">*</span></Label>
+                                            <Input value={jobData.stateRegion} onChange={e => setJobData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <Label>City/Town <span className="text-red-400">*</span></Label>
+                                            <Input value={jobData.city} onChange={e => setJobData(prev => ({ ...prev, city: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Job summary</Label>
-                                            <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value }))} className="h-32 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the role and responsibilities..." />
+                                            <Label>Location (display line)</Label>
+                                            <Input placeholder="Optional combined location text" value={jobData.location} onChange={e => setJobData(prev => ({ ...prev, location: e.target.value }))} className="bg-muted/40 border-foreground/10" />
+                                        </div>
+                                        <div className="space-y-2 md:col-span-2">
+                                            <Label>Company website link</Label>
+                                            <Input type="url" value={jobData.companyWebsiteLink} onChange={e => setJobData(prev => ({ ...prev, companyWebsiteLink: e.target.value }))} className="bg-muted/40 border-foreground/10" />
+                                        </div>
+                                        <div className="space-y-2 md:col-span-2">
+                                            <Label>LinkedIn</Label>
+                                            <Input value={jobData.linkedInJob} onChange={e => setJobData(prev => ({ ...prev, linkedInJob: e.target.value }))} className="bg-muted/40 border-foreground/10" />
                                         </div>
                                     </div>
                                 )}

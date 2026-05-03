@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { db } from "@/firebase";
 import { doc, getDoc, collectionGroup, query, where, getDocs, limit } from "firebase/firestore";
-import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock } from "lucide-react";
+import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -153,6 +153,16 @@ export default function ListingDetail() {
     };
     const eventStart = type === "events" ? formatDate(item.startDate) : null;
     const eventEnd = type === "events" ? formatDate(item.endDate) : null;
+    const eventLocationLine =
+        type === "events"
+            ? [item.city, item.stateRegion, item.location, item.eventCountry].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
+            : "";
+    const jobLocationLine =
+        type === "jobs"
+            ? [item.city, item.stateRegion, item.location, item.jobCountry].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
+            : "";
+    const jobTypeLabel = type === "jobs" ? (item.jobtype || item.positionType || "") : "";
+    const jobDeadlineFormatted = type === "jobs" && item.applicationDeadline ? formatDate(item.applicationDeadline) : null;
     const normalizeToken = (value: any) => (typeof value === "string" ? value.trim().toLowerCase() : "");
     const explicitCategoryTokens = new Set(
         (Array.isArray(item.selectedCategories) ? item.selectedCategories : []).map(normalizeToken).filter(Boolean)
@@ -345,14 +355,12 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {(item.location || item.eventCountry) && (
+                                        {eventLocationLine && (
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
                                                     <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
-                                                    <p className="text-sm font-semibold text-foreground">
-                                                        {[item.location, item.eventCountry].filter(Boolean).join(", ")}
-                                                    </p>
+                                                    <p className="text-sm font-semibold text-foreground">{eventLocationLine}</p>
                                                 </div>
                                             </div>
                                         )}
@@ -394,12 +402,39 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {item.positionType && (
+                                        {jobTypeLabel && (
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Position Type</p>
-                                                    <p className="text-sm font-semibold text-foreground">{item.positionType}</p>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Job type</p>
+                                                    <p className="text-sm font-semibold text-foreground">{jobTypeLabel}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {item.workModel && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Work model</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.workModel}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {item.education && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Education</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.education}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {jobDeadlineFormatted && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <Calendar className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Application deadline</p>
+                                                    <p className="text-sm font-semibold text-foreground">{jobDeadlineFormatted}</p>
                                                 </div>
                                             </div>
                                         )}
@@ -412,14 +447,12 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {(item.location || item.jobCountry) && (
+                                        {jobLocationLine && (
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
                                                     <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
-                                                    <p className="text-sm font-semibold text-foreground">
-                                                        {[item.location, item.jobCountry].filter(Boolean).join(", ")}
-                                                    </p>
+                                                    <p className="text-sm font-semibold text-foreground">{jobLocationLine}</p>
                                                 </div>
                                             </div>
                                         )}
@@ -462,13 +495,29 @@ export default function ListingDetail() {
                                             </Button>
                                         )
                                     ) : type === "jobs" ? (
-                                        item.positionLink && item.positionLink !== "" && (
-                                            <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
-                                                <a href={item.positionLink} target="_blank" rel="noopener noreferrer">
-                                                    <ExternalLink className="mr-2 w-5 h-5" /> Apply Now
-                                                </a>
-                                            </Button>
-                                        )
+                                        <div className="flex flex-wrap gap-3">
+                                            {item.positionLink && item.positionLink !== "" && (
+                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
+                                                    <a href={item.positionLink} target="_blank" rel="noopener noreferrer">
+                                                        <ExternalLink className="mr-2 w-5 h-5" /> Apply
+                                                    </a>
+                                                </Button>
+                                            )}
+                                            {item.companyWebsiteLink && String(item.companyWebsiteLink).trim() !== "" && (
+                                                <Button asChild variant="outline" size="lg" className="rounded-xl px-6 font-bold">
+                                                    <a href={item.companyWebsiteLink} target="_blank" rel="noopener noreferrer">
+                                                        Company site <ExternalLink className="ml-2 w-4 h-4" />
+                                                    </a>
+                                                </Button>
+                                            )}
+                                            {item.linkedInJob && String(item.linkedInJob).trim() !== "" && (
+                                                <Button asChild size="lg" className="rounded-xl px-6 font-bold bg-[#0077b5] hover:bg-[#005a8c] text-white border-none">
+                                                    <a href={item.linkedInJob} target="_blank" rel="noopener noreferrer">
+                                                        <Linkedin className="mr-2 w-5 h-5" /> LinkedIn
+                                                    </a>
+                                                </Button>
+                                            )}
+                                        </div>
                                     ) : (
                                         <>
                                             <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
@@ -500,6 +549,31 @@ export default function ListingDetail() {
                             </div>
                             <div className="p-8">
                                 <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{item.jobSummary}</p>
+                            </div>
+                        </Card>
+                    </div>
+                )}
+
+                {/* ── Full job description (PDF) ── */}
+                {type === "jobs" && item.jobDescriptionPdfUrl && String(item.jobDescriptionPdfUrl).trim() !== "" && (
+                    <div className="mb-12">
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
+                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10 flex flex-wrap items-center justify-between gap-4">
+                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <FileText className="w-5 h-5 text-primary" /> Full job description
+                                </h3>
+                                <Button asChild variant="outline" size="sm" className="rounded-full">
+                                    <a href={item.jobDescriptionPdfUrl} target="_blank" rel="noopener noreferrer">
+                                        Open PDF <ExternalLink className="ml-2 w-4 h-4" />
+                                    </a>
+                                </Button>
+                            </div>
+                            <div className="p-4 bg-muted/20 border-t border-foreground/5">
+                                <iframe
+                                    title="Job description PDF"
+                                    src={`${item.jobDescriptionPdfUrl}#toolbar=1`}
+                                    className="w-full min-h-[480px] rounded-xl border border-foreground/10 bg-background"
+                                />
                             </div>
                         </Card>
                     </div>
@@ -587,6 +661,22 @@ export default function ListingDetail() {
                                         {ss}
                                     </Badge>
                                 ))}
+                            </div>
+                        </Card>
+                    </div>
+                )}
+
+                {/* Event agenda */}
+                {type === "events" && item.agenda && String(item.agenda).trim() !== "" && (
+                    <div className="mb-12">
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
+                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
+                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <CalendarRange className="w-5 h-5 text-primary" /> Agenda
+                                </h3>
+                            </div>
+                            <div className="p-8">
+                                <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{item.agenda}</p>
                             </div>
                         </Card>
                     </div>

@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "@/firebase";
-import { doc, getDoc, updateDoc, collection, query, onSnapshot, where } from "firebase/firestore";
+import { doc, getDoc, updateDoc, collection, query, onSnapshot, where, writeBatch, getDocs } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
-import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, updateEmail } from "firebase/auth";
+import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, updateEmail, reload } from "firebase/auth";
 import { API_BASE_URL } from "@/apiConfig";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
 import { isValidBusinessAddress } from "@/lib/addressValidation";
+import { normalizeServiceCountriesToArray } from "@/lib/utils";
+import { uploadJobDescriptionPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut,
@@ -71,11 +73,11 @@ const PLAN_CONFIGS: Record<string, PlanConfig> = {
     basic_event: { label: "Basic", subtitle: "Single day conference/event", price: "$500.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Event agenda", "Event date", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
     standard_event: { label: "Standard", subtitle: "Multi day conference/event", price: "$850.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Event agenda", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
     premium_event: { label: "Premium", subtitle: "Event listing + landing page spotlight", price: "$1,250.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page spotlight for increased visibility", "Event profile", "Event agenda", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
-    premium_plus_event: { label: "Premium Plus", subtitle: "Comprehensive event listing", price: "$1,450.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Event agenda", "Event dates", "Event Location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    premium_plus_event: { label: "Premium Plus", subtitle: "Event listing + home page spotlight", price: "$1,450.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page spotlight for maximum visibility", "Event profile", "Event agenda", "Event dates", "Event Location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
     // Jobs
     standard_job: { label: "Standard", subtitle: "Job posting", price: "$400.00", period: "", maxCategories: -1, maxCountries: -1, features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
     premium_job: { label: "Premium", subtitle: "Job posting & landing page spotlight", price: "$800.00", period: "", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication", "Extra feature for landing page spotlight"] },
-    premium_plus_job: { label: "Premium Plus", subtitle: "Advanced job posting", price: "$1,000.00", period: "", maxCategories: -1, maxCountries: -1, features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
+    premium_plus_job: { label: "Premium Plus", subtitle: "Job posting + home page spotlight", price: "$1,000.00", period: "", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page spotlight for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
 };
 
 const SERVICE_COUNTRIES = [
@@ -265,6 +267,8 @@ export default function Dashboard() {
     });
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState("");
+    /** Required when changing sign-in email (Firebase recent-auth / re-auth). */
+    const [profileEmailReauthPassword, setProfileEmailReauthPassword] = useState("");
 
     // Password form state
     const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -297,8 +301,8 @@ export default function Dashboard() {
         return hasFeature && !hasIncludedFeature;
     };
     const isFeatureEligiblePlan = (plan: any) => {
-        if (!isPlanBillingLive(plan) || !plan.listingId || !plan.collectionName) return false;
-        const linkedListing = offerings.find((o) => o.id === plan.listingId);
+        if (!isPlanBillingLive(plan) || plan.cancelAtPeriodEnd || !plan.listingId || !plan.collectionName) return false;
+        const linkedListing = getLinkedListingForPlan(plan);
         if (!linkedListing) return false;
         return linkedListing.status !== "pending_payment" && linkedListing.active !== false;
     };
@@ -504,15 +508,30 @@ export default function Dashboard() {
                 const nextEmail = (profileForm.email || "").trim();
                 const currentEmail = auth.currentUser.email || "";
                 if (nextEmail && nextEmail !== currentEmail) {
+                    if (!profileEmailReauthPassword.trim()) {
+                        setProfileMsg("Enter your current account password below to change your email.");
+                        setProfileSaving(false);
+                        return;
+                    }
                     try {
+                        const cred = EmailAuthProvider.credential(currentEmail, profileEmailReauthPassword);
+                        await reauthenticateWithCredential(auth.currentUser, cred);
                         await updateEmail(auth.currentUser, nextEmail);
+                        setProfileEmailReauthPassword("");
                     } catch (emailError: any) {
                         if (emailError?.code === "auth/requires-recent-login") {
                             setProfileMsg("Please sign out and sign back in before changing your email.");
+                            setProfileSaving(false);
+                            return;
+                        }
+                        if (emailError?.code === "auth/wrong-password" || emailError?.code === "auth/invalid-credential") {
+                            setProfileMsg("Current password is incorrect. Email was not changed.");
+                            setProfileSaving(false);
                             return;
                         }
                         if (emailError?.code === "auth/email-already-in-use") {
                             setProfileMsg("This email is already in use by another account.");
+                            setProfileSaving(false);
                             return;
                         }
                         throw emailError;
@@ -520,7 +539,7 @@ export default function Dashboard() {
                 }
 
                 const docRef = doc(db, "partnersCollection", auth.currentUser.uid);
-                await updateDoc(docRef, {
+                        await updateDoc(docRef, {
                     primaryName: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
                     primaryEmail: nextEmail, phoneNumber: profileForm.phone,
                     secondaryName: profileForm.altName, secondaryEmail: profileForm.altEmail,
@@ -530,6 +549,29 @@ export default function Dashboard() {
                     businessAddress: profileForm.businessAddress,
                     businessCountry: profileForm.businessCountry || "",
                 });
+
+                const newBusinessName = (profileForm.companyName || "").trim();
+                const prevBusinessName = (partnerData?.businessName || "").trim();
+                if (newBusinessName && newBusinessName !== prevBusinessName && auth.currentUser) {
+                    const uid = auth.currentUser.uid;
+                    const batch = writeBatch(db);
+                    const partnerRefPath = doc(db, "partnersCollection", uid);
+                    const embeddedSnap = await getDocs(collection(partnerRefPath, "businessOfferingsCollection"));
+                    embeddedSnap.docs.forEach((d) => {
+                        batch.update(d.ref, { businessName: newBusinessName, updatedAt: new Date() });
+                    });
+                    const topCols = ["consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"] as const;
+                    for (const col of topCols) {
+                        const qSnap = await getDocs(query(collection(db, col), where("partnerId", "==", uid)));
+                        qSnap.docs.forEach((d) => {
+                            batch.update(d.ref, { businessName: newBusinessName, updatedAt: new Date() });
+                        });
+                    }
+                    await batch.commit();
+                }
+
+                if (auth.currentUser) await reload(auth.currentUser);
+
                 setPartnerData({
                     ...partnerData, ...{
                         primaryName: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
@@ -572,8 +614,8 @@ export default function Dashboard() {
         if (passwordForm.newPassword !== passwordForm.confirmPassword) {
             setPasswordMsg({ type: "error", text: "New passwords do not match." }); setPasswordSaving(false); return;
         }
-        if (passwordForm.newPassword.length < 6) {
-            setPasswordMsg({ type: "error", text: "New password must be at least 6 characters." }); setPasswordSaving(false); return;
+        if (passwordForm.newPassword.length < 8) {
+            setPasswordMsg({ type: "error", text: "New password must be at least 8 characters." }); setPasswordSaving(false); return;
         }
         try {
             const user = auth.currentUser;
@@ -722,14 +764,68 @@ export default function Dashboard() {
                     )
                     : doc(db, selectedListingForEdit.__col, selectedListingForEdit.id);
 
-                // Build update object with only changed/provided fields
+                const listingGroup =
+                    selectedListingForEdit.selectedGroup ||
+                    inferListingGroup(selectedListingForEdit);
+
                 const updateObj: Record<string, any> = {
-                    serviceCountries: updatedData.serviceCountries,
                     updatedAt: new Date(),
                 };
-                if (updatedData.serviceRegions !== undefined) {
-                    updateObj.serviceRegions = updatedData.serviceRegions;
+
+                if (listingGroup === "business_offerings" || listingGroup === "consulting") {
+                    if (updatedData.serviceCountries !== undefined) {
+                        updateObj.serviceCountries = updatedData.serviceCountries;
+                    }
+                    if (updatedData.serviceRegions !== undefined) {
+                        updateObj.serviceRegions = updatedData.serviceRegions;
+                    }
+                    if (updatedData.bioSafetyLevel !== undefined) {
+                        updateObj.bioSafetyLevel = updatedData.bioSafetyLevel;
+                    }
+                    if (updatedData.certifications !== undefined) {
+                        updateObj.certifications = updatedData.certifications;
+                    }
+                    if (updatedData.companyProfileText !== undefined) {
+                        updateObj.companyProfileText = updatedData.companyProfileText;
+                    }
+                    if (updatedData.businessAddress !== undefined) {
+                        updateObj.businessAddress = updatedData.businessAddress;
+                    }
                 }
+
+                if (listingGroup === "events") {
+                    if (updatedData.eventName !== undefined) updateObj.eventName = updatedData.eventName;
+                    if (updatedData.eventLink !== undefined) updateObj.eventLink = updatedData.eventLink;
+                    if (updatedData.startDate !== undefined) updateObj.startDate = updatedData.startDate;
+                    if (updatedData.endDate !== undefined) updateObj.endDate = updatedData.endDate;
+                    if (updatedData.eventCountry !== undefined) updateObj.eventCountry = updatedData.eventCountry;
+                    if (updatedData.location !== undefined) updateObj.location = updatedData.location;
+                    if (updatedData.eventProfile !== undefined) updateObj.eventProfile = updatedData.eventProfile;
+                    if (updatedData.agenda !== undefined) updateObj.agenda = updatedData.agenda;
+                    if (updatedData.stateRegion !== undefined) updateObj.stateRegion = updatedData.stateRegion;
+                    if (updatedData.city !== undefined) updateObj.city = updatedData.city;
+                }
+
+                if (listingGroup === "jobs") {
+                    if (updatedData.jobTitle !== undefined) updateObj.jobTitle = updatedData.jobTitle;
+                    if (updatedData.jobSummary !== undefined) updateObj.jobSummary = updatedData.jobSummary;
+                    if (updatedData.industry !== undefined) updateObj.industry = updatedData.industry;
+                    if (updatedData.jobtype !== undefined) updateObj.jobtype = updatedData.jobtype;
+                    if (updatedData.positionType !== undefined) updateObj.positionType = updatedData.positionType;
+                    if (updatedData.experienceLevel !== undefined) updateObj.experienceLevel = updatedData.experienceLevel;
+                    if (updatedData.workModel !== undefined) updateObj.workModel = updatedData.workModel;
+                    if (updatedData.positionLink !== undefined) updateObj.positionLink = updatedData.positionLink;
+                    if (updatedData.jobCountry !== undefined) updateObj.jobCountry = updatedData.jobCountry;
+                    if (updatedData.stateRegion !== undefined) updateObj.stateRegion = updatedData.stateRegion;
+                    if (updatedData.city !== undefined) updateObj.city = updatedData.city;
+                    if (updatedData.location !== undefined) updateObj.location = updatedData.location;
+                    if (updatedData.education !== undefined) updateObj.education = updatedData.education;
+                    if (updatedData.applicationDeadline !== undefined) updateObj.applicationDeadline = updatedData.applicationDeadline;
+                    if (updatedData.jobDescriptionPdfUrl !== undefined) updateObj.jobDescriptionPdfUrl = updatedData.jobDescriptionPdfUrl;
+                    if (updatedData.companyWebsiteLink !== undefined) updateObj.companyWebsiteLink = updatedData.companyWebsiteLink;
+                    if (updatedData.linkedInJob !== undefined) updateObj.linkedInJob = updatedData.linkedInJob;
+                }
+
                 if (updatedData.selectedCategories !== undefined) {
                     updateObj.selectedCategories = updatedData.selectedCategories;
                 }
@@ -746,19 +842,6 @@ export default function Dashboard() {
                     updateObj.selectedSubcategoriesDisplay = updatedData.selectedSubcategoriesDisplay;
                 }
 
-                // Add business offering specific fields if present
-                if (updatedData.bioSafetyLevel !== undefined) {
-                    updateObj.bioSafetyLevel = updatedData.bioSafetyLevel;
-                }
-                if (updatedData.certifications !== undefined) {
-                    updateObj.certifications = updatedData.certifications;
-                }
-                if (updatedData.companyProfileText !== undefined) {
-                    updateObj.companyProfileText = updatedData.companyProfileText;
-                }
-                if (updatedData.businessAddress !== undefined) {
-                    updateObj.businessAddress = updatedData.businessAddress;
-                }
                 if (updatedData.companyRepresentatives !== undefined) {
                     updateObj.companyRepresentatives = updatedData.companyRepresentatives;
                 }
@@ -918,6 +1001,8 @@ export default function Dashboard() {
     if (!partnerData) return null;
 
     const livePlans = activePlans.filter(isPlanBillingLive);
+    const livePlansEnding = livePlans.filter((p) => p.cancelAtPeriodEnd);
+    const livePlansActive = livePlans.filter((p) => !p.cancelAtPeriodEnd);
     const expiredPlans = activePlans.filter((p) => !isPlanBillingLive(p) && (p.planId || p.planName));
 
     const isApproved = partnerData.partnerStatus !== "Disabled";
@@ -929,16 +1014,6 @@ export default function Dashboard() {
     const hasFeaturePlan = resolvedAddon !== "none" && resolvedAddon !== "";
     const includedFeature = currentPlan?.featurePlan || null;
     const hasActivePaidPlan = livePlans.some(isFeatureEligiblePlan);
-    const groupPlanDetails = (["business_offerings", "consulting"] as const)
-        .map((group) => {
-            const activeGroupPlan = livePlans.find((plan) => inferPlanGroup(plan) === group);
-            if (!activeGroupPlan) return null;
-            const config = PLAN_CONFIGS[activeGroupPlan.planId] || null;
-            const isYearly = activeGroupPlan.billingInterval === "year" || activeGroupPlan.planId?.includes("_yr");
-            return { group, plan: activeGroupPlan, config, isYearly };
-        })
-        .filter(Boolean) as Array<{ group: "business_offerings" | "consulting"; plan: any; config: PlanConfig | null; isYearly: boolean }>;
-    const planForDetails = currentPlan || groupPlanDetails[0]?.config || null;
     const businessOfferingLock = getGroupPlanLock(activePlans, "business_offerings");
     const consultingLock = getGroupPlanLock(activePlans, "consulting");
 
@@ -1156,7 +1231,7 @@ export default function Dashboard() {
                     <EditListingModal
                         listing={selectedListingForEdit}
                         plan={selectedPlanForAction}
-                        planConfig={PLAN_CONFIGS[pendingUpgradePlanId || selectedPlanForAction?.planId]}
+                        planConfig={PLAN_CONFIGS[(pendingUpgradePlanId || selectedListingForEdit?.selectedPlan || selectedPlanForAction?.planId) as string]}
                         isUpgradeFlow={Boolean(pendingUpgradePlanId)}
                         representativeOptions={representativeOptions}
                         onClose={() => {
@@ -1246,6 +1321,190 @@ export default function Dashboard() {
 
     // ─── DASHBOARD TAB ───
     function renderDashboard() {
+        const renderPlanSubscriptionCard = (plan: any, mode: "ending" | "active") => {
+            const planConfig = PLAN_CONFIGS[plan.planId];
+            const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : plan.startDate ? new Date(plan.startDate) : null;
+            const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null;
+            const isYearly = plan.billingInterval === "year" || plan.planId?.includes("_yr");
+            const linkedListing =
+                offerings.find((o) => o.id === plan.listingId && (!plan.collectionName || o.__col === plan.collectionName)) ||
+                offerings.find((o) => o.id === plan.listingId);
+            const planRepresentatives = linkedListing?.companyRepresentatives || plan.companyRepresentatives || [];
+            const hasFeature = linkedListing?.selectedAddon && linkedListing.selectedAddon !== "" && linkedListing.selectedAddon !== "none";
+            const includedPlanFeature = planConfig?.featurePlan;
+            const canAddFeature = !includedPlanFeature && !hasFeature && isFeatureEligiblePlan(plan);
+            const spotlightTier = hasStandaloneFeatureForPlan(plan) ? getSpotlightAddonTierId(linkedListing) : null;
+            const spotlightUpgradeTargets = spotlightTier ? getFeatureUpgradeTargets(spotlightTier) : [];
+            const isEnding = mode === "ending";
+            const actionsLocked = isEnding || Boolean(plan.cancelAtPeriodEnd);
+            const cardShell = isEnding
+                ? "rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-5"
+                : "rounded-xl border border-foreground/10 bg-muted/40 p-5";
+
+            return (
+                <div key={plan.id} className={cardShell}>
+                    <div className="flex flex-col gap-4">
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                            <div className="flex-1">
+                                <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                    <h4 className="text-lg font-bold text-foreground">
+                                        {planConfig?.label || plan.planName || plan.planId?.replace(/_/g, " ").toUpperCase()}
+                                    </h4>
+                                    {isEnding ? (
+                                        <>
+                                            <Badge className="bg-amber-500/15 text-amber-900 dark:text-amber-100 border-amber-500/50">Scheduled to end</Badge>
+                                            <Badge variant="outline" className="border-foreground/20">{isYearly ? "Annual" : "Monthly"}</Badge>
+                                            {billingEnd && (
+                                                <span className="text-xs font-medium text-amber-900/85 dark:text-amber-100/85">
+                                                    Access through {billingEnd.toLocaleDateString()}
+                                                </span>
+                                            )}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>
+                                            <Badge variant="outline" className="border-foreground/20">{isYearly ? "Annual" : "Monthly"}</Badge>
+                                        </>
+                                    )}
+                                </div>
+                                {isEnding && (
+                                    <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
+                                        This plan will not renew. Listing edits, upgrades, and new spotlight purchases are disabled until the period ends.
+                                    </p>
+                                )}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
+                                    <div>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Start date</p>
+                                        <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">{isEnding ? "Ends on" : "Renewal date"}</p>
+                                        <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Billing cycle</p>
+                                        <p className="text-sm text-foreground font-medium capitalize">{isYearly ? "Yearly" : "Monthly"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Price</p>
+                                        <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2 shrink-0">
+                                {linkedListing && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-foreground/20 text-foreground/80 hover:bg-foreground/5"
+                                        disabled={actionsLocked}
+                                        onClick={() => {
+                                            setSelectedListingForEdit(linkedListing);
+                                            setSelectedPlanForAction(plan);
+                                            setPendingUpgradePlanId(null);
+                                            setShowEditListingModal(true);
+                                        }}
+                                    >
+                                        <Edit3 className="w-3.5 h-3.5 mr-1.5" /> Edit listing
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="border-primary/40 text-primary hover:bg-primary/10"
+                                    disabled={actionsLocked}
+                                    onClick={() => {
+                                        setSelectedPlanForAction(plan);
+                                        setPendingUpgradePlanId(null);
+                                        setShowUpgradeModal(true);
+                                    }}
+                                >
+                                    <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade plan
+                                </Button>
+                                {canAddFeature && (
+                                    <Button
+                                        size="sm"
+                                        className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-semibold disabled:opacity-50"
+                                        disabled={actionsLocked}
+                                        onClick={() => {
+                                            setSelectedPlanForAction(plan);
+                                            setSelectedListingForEdit(linkedListing);
+                                            setPendingUpgradePlanId(null);
+                                            setShowUpgradeFeatureModal(false);
+                                            setShowAddFeatureModal(true);
+                                        }}
+                                    >
+                                        <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Add spotlight
+                                    </Button>
+                                )}
+                                {spotlightUpgradeTargets.length > 0 && linkedListing && (
+                                    <Button
+                                        size="sm"
+                                        variant="secondary"
+                                        className="border border-violet-500/40 bg-violet-500/10 text-violet-900 dark:text-violet-100 hover:bg-violet-500/15 font-semibold disabled:opacity-50"
+                                        disabled={actionsLocked}
+                                        onClick={() => {
+                                            setSelectedPlanForAction(plan);
+                                            setSelectedListingForEdit(linkedListing);
+                                            setPendingUpgradePlanId(null);
+                                            setShowAddFeatureModal(false);
+                                            setShowUpgradeFeatureModal(true);
+                                        }}
+                                    >
+                                        <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade spotlight
+                                    </Button>
+                                )}
+                                {!isEnding && !plan.cancelAtPeriodEnd && (
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                                        onClick={() => {
+                                            setSelectedPlanForAction(plan);
+                                            setPendingUpgradePlanId(null);
+                                            setShowCancelModal(true);
+                                        }}
+                                    >
+                                        <XCircle className="w-3.5 h-3.5 mr-1.5" /> Cancel
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                        {(includedPlanFeature || hasFeature) && (
+                            <div className="pt-3 border-t border-foreground/10">
+                                <p className="text-sm text-foreground flex items-center gap-2">
+                                    <Sparkles className="w-4 h-4 text-primary" />
+                                    {includedPlanFeature
+                                        ? `Included: ${includedPlanFeature === "home_page" ? "Home page" : "Landing page"} spotlight`
+                                        : `Active spotlight: ${FEATURE_PLANS.find((f) => f.id === linkedListing?.selectedAddon)?.label}`}
+                                </p>
+                                {linkedListing?.featureSpotlightPaidThrough && (
+                                    <p className="text-xs text-muted-foreground mt-1">
+                                        Spotlight paid-through:{" "}
+                                        {linkedListing.featureSpotlightPaidThrough?.seconds
+                                            ? new Date(linkedListing.featureSpotlightPaidThrough.seconds * 1000).toLocaleDateString()
+                                            : new Date(linkedListing.featureSpotlightPaidThrough).toLocaleDateString()}
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                        {planRepresentatives?.length > 0 && (
+                            <div className="pt-3 border-t border-foreground/10">
+                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1.5">Company representatives</p>
+                                <div className="space-y-1.5">
+                                    {planRepresentatives.map((rep: any, i: number) => (
+                                        <p key={i} className="text-sm text-foreground/90">
+                                            {rep.firstName} {rep.lastName} — {rep.email}
+                                        </p>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
         return (
             <div className="max-w-5xl space-y-8">
                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">Company Dashboard</h1>
@@ -1332,278 +1591,103 @@ export default function Dashboard() {
                     </Card>
                 </div>
 
-                {/* Current Plan Details */}
-                {planForDetails && (
-                    <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
-                        <CardHeader className="pb-4 border-b border-foreground/10">
-                            <div className="flex items-center justify-between">
-                                <CardTitle className="text-xl flex items-center gap-2"><Crown className="w-5 h-5 text-primary" /> Your Plan Details</CardTitle>
-                                <div className="flex items-center gap-3">
-                                    <Badge className="bg-primary/20 text-primary border-primary/50 px-3 py-1">
-                                            {groupPlanDetails.length > 1 ? `${groupPlanDetails.length} Active Plans` : (planForDetails?.label || "Active Plan")}
-                                    </Badge>
-                                    {groupPlanDetails.length <= 1 && planForDetails?.price && (
-                                        <span className="text-2xl font-bold text-foreground">{planForDetails.price}<span className="text-sm font-normal text-muted-foreground">{planForDetails.period}</span></span>
-                                    )}
-                                </div>
-                            </div>
+                {/* Spotlight summary (replaces repetitive “plan details” card) */}
+                {(hasActivePaidPlan || includedFeature || hasFeaturePlan || planForSpotlightUpgrade) && (
+                    <Card className="border-primary/25 bg-gradient-to-br from-primary/[0.07] via-background to-background shadow-xl overflow-hidden">
+                        <CardHeader className="pb-2">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                                <Sparkles className="w-5 h-5 text-primary" /> Spotlight visibility
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Optional placement on category landing or home — only for eligible paid listings.
+                            </p>
                         </CardHeader>
-                        <CardContent className="pt-6">
-                            {groupPlanDetails.length > 0 && (
-                                <div className="mb-6 pb-6 border-b border-foreground/10">
-                                    <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-3">Active Business & Consulting Plans</h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {groupPlanDetails.map(({ group, config, isYearly }) => (
-                                            <div key={group} className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
-                                                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1">
-                                                    {group === "business_offerings" ? "Business Offerings" : "Consulting Services"}
-                                                </p>
-                                                <p className="text-base font-semibold text-foreground">{config?.label || "Active Plan"}</p>
-                                                <p className="text-sm text-foreground/80 mt-1">
-                                                    {config?.price || "N/A"}{config?.period || ""} • {isYearly ? "Yearly" : "Monthly"}
-                                                </p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* Limits */}
-                                <div className="space-y-3">
-                                    <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Plan Limits</h4>
-                                    <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10 space-y-3">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-foreground/80">Max Categories</span>
-                                            <span className="font-bold text-foreground">{planForDetails.maxCategories === -1 ? "Unlimited" : planForDetails.maxCategories}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-foreground/80">Max Countries</span>
-                                            <span className="font-bold text-foreground">{planForDetails.maxCountries === -1 ? "Unlimited" : planForDetails.maxCountries}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                                {/* Features */}
-                                <div className="space-y-3">
-                                    <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider">Included Features</h4>
-                                    <ul className="space-y-1.5">
-                                        {planForDetails.features.map((f, i) => (
-                                            <li key={i} className="flex items-start gap-2 text-sm text-foreground/80">
-                                                <Check className={`w-4 h-4 shrink-0 mt-0.5 ${f.toLowerCase().includes("extra feature") ? "text-primary" : "text-green-500"}`} />
-                                                <span className={f.toLowerCase().includes("extra feature") ? "text-primary font-medium" : ""}>{f}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
+                        <CardContent className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pt-0">
+                            <div className="text-sm text-foreground/90 space-y-1.5 min-w-0">
+                                {includedFeature ? (
+                                    <p className="flex items-start gap-2">
+                                        <Check className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
+                                        <span>
+                                            Your <strong>{currentPlan?.label || "current"}</strong> plan includes{" "}
+                                            {includedFeature === "home_page" ? "home page" : "landing page"} spotlight.
+                                        </span>
+                                    </p>
+                                ) : hasFeaturePlan ? (
+                                    <p className="flex items-start gap-2">
+                                        <Sparkles className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                                        <span>
+                                            Purchased spotlight:{" "}
+                                            <strong>{FEATURE_PLANS.find((f) => f.id === resolvedAddon)?.label || resolvedAddon.replace(/_/g, " ")}</strong>
+                                        </span>
+                                    </p>
+                                ) : hasActivePaidPlan ? (
+                                    <p>You do not have a spotlight add-on yet. Add one for stronger visibility in feeds.</p>
+                                ) : (
+                                    <p>Complete checkout on a listing plan to unlock spotlight add-ons.</p>
+                                )}
                             </div>
-
-                            {/* Feature plan status */}
-                            <div className="mt-6 pt-6 border-t border-foreground/10">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h4 className="text-sm font-bold text-muted-foreground uppercase tracking-wider mb-1">Feature Spotlight</h4>
-                                        {includedFeature ? (
-                                            <p className="text-foreground text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Included with your {planForDetails.label} plan — {includedFeature === "home_page" ? "Home Page" : "Landing Page"} spotlight</p>
-                                        ) : hasFeaturePlan ? (
-                                            <p className="text-foreground text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" /> Active — {FEATURE_PLANS.find(f => f.id === resolvedAddon)?.label || resolvedAddon.replace(/_/g, " ")}</p>
-                                        ) : (
-                                            <p className="text-muted-foreground text-sm">No feature spotlight active. Add one to boost your visibility.</p>
-                                        )}
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 justify-end">
-                                        {planForSpotlightUpgrade && listingForSpotlightUpgrade && (
-                                            <Button
-                                                onClick={() => {
-                                                    setSelectedPlanForAction(planForSpotlightUpgrade);
-                                                    setSelectedListingForEdit(listingForSpotlightUpgrade);
-                                                    setShowUpgradeFeatureModal(true);
-                                                }}
-                                                variant="outline"
-                                                className="border-primary/50 text-primary hover:bg-primary/10"
-                                            >
-                                                <ArrowUpCircle className="w-4 h-4 mr-2" /> Upgrade spotlight
-                                            </Button>
-                                        )}
-                                        {!includedFeature && !hasFeaturePlan && hasActivePaidPlan && (
-                                            <Button onClick={() => setShowFeatureModal(true)} variant="outline" className="border-primary/50 text-primary hover:bg-primary/10">
-                                                <Star className="w-4 h-4 mr-2" /> Add Feature Plan
-                                            </Button>
-                                        )}
-                                    </div>
-                                </div>
+                            <div className="flex flex-wrap gap-2 shrink-0">
+                                {planForSpotlightUpgrade && listingForSpotlightUpgrade && !planForSpotlightUpgrade.cancelAtPeriodEnd && (
+                                    <Button
+                                        variant="secondary"
+                                        className="border border-violet-500/40 bg-violet-500/10 text-violet-900 dark:text-violet-100 hover:bg-violet-500/15 font-semibold"
+                                        onClick={() => {
+                                            setSelectedPlanForAction(planForSpotlightUpgrade);
+                                            setSelectedListingForEdit(listingForSpotlightUpgrade);
+                                            setShowUpgradeFeatureModal(true);
+                                        }}
+                                    >
+                                        <ArrowUpCircle className="w-4 h-4 mr-2" /> Upgrade spotlight
+                                    </Button>
+                                )}
+                                {!includedFeature && !hasFeaturePlan && hasActivePaidPlan && (
+                                    <Button
+                                        className="bg-primary text-primary-foreground hover:bg-primary/90 font-semibold shadow-sm"
+                                        onClick={() => setShowFeatureModal(true)}
+                                    >
+                                        <Sparkles className="w-4 h-4 mr-2" /> Explore spotlight add-ons
+                                    </Button>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
                 )}
 
-                {/* Active & past subscriptions */}
-                {(livePlans.length > 0 || expiredPlans.length > 0) && (
+                {/* Plans & billing */}
+                {(livePlansActive.length > 0 || livePlansEnding.length > 0 || expiredPlans.length > 0) && (
                     <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
                         <CardHeader className="pb-4 border-b border-foreground/10">
-                            <CardTitle className="text-xl flex items-center gap-2"><CreditCard className="w-5 h-5 text-primary" /> Subscriptions</CardTitle>
+                            <CardTitle className="text-xl flex items-center gap-2">
+                                <CreditCard className="w-5 h-5 text-primary" /> Plans &amp; billing
+                            </CardTitle>
+                            <p className="text-sm text-muted-foreground mt-1">
+                                Active subscriptions, plans you have set to cancel at period end, and past plans that are no longer billing.
+                            </p>
                         </CardHeader>
-                        <CardContent className="pt-6 space-y-8">
-                            {livePlans.length > 0 && (
-                            <div className="space-y-3">
-                                <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active</h3>
-                                <div className="space-y-4">
-                                {livePlans.map(plan => {
-                                    const planConfig = PLAN_CONFIGS[plan.planId];
-                                    const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : (plan.startDate ? new Date(plan.startDate) : null);
-                                    const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : (plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null);
-                                    const isYearly = plan.billingInterval === "year" || plan.planId?.includes('_yr');
-                                    const linkedListing = offerings.find((o) =>
-                                        o.id === plan.listingId && (!plan.collectionName || o.__col === plan.collectionName)
-                                    ) || offerings.find((o) => o.id === plan.listingId);
-                                    const planRepresentatives = linkedListing?.companyRepresentatives || plan.companyRepresentatives || [];
-                                    const hasFeature = linkedListing?.selectedAddon && linkedListing.selectedAddon !== "" && linkedListing.selectedAddon !== "none";
-                                    const includedFeature = planConfig?.featurePlan;
-                                    const canAddFeature = !includedFeature && !hasFeature && isFeatureEligiblePlan(plan);
-                                    const spotlightTier = hasStandaloneFeatureForPlan(plan) ? getSpotlightAddonTierId(linkedListing) : null;
-                                    const spotlightUpgradeTargets = spotlightTier ? getFeatureUpgradeTargets(spotlightTier) : [];
-
-                                    return (
-                                        <div key={plan.id} className="bg-muted/40 border border-foreground/10 rounded-xl p-5">
-                                            <div className="flex flex-col gap-4">
-                                                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                                                    <div className="flex-1">
-                                                        <div className="flex items-center gap-3 mb-2 flex-wrap">
-                                                            <h4 className="text-lg font-bold text-foreground">{planConfig?.label || plan.planName || plan.planId?.replace(/_/g, ' ').toUpperCase()}</h4>
-                                                            <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>
-                                                            <Badge variant="outline" className="border-foreground/20">{isYearly ? "Annual" : "Monthly"}</Badge>
-                                                            {plan.cancelAtPeriodEnd && (
-                                                                <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">Cancels {billingEnd?.toLocaleDateString()}</Badge>
-                                                            )}
-                                                        </div>
-                                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-                                                            <div>
-                                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Start Date</p>
-                                                                <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Renewal Date</p>
-                                                                <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Billing Cycle</p>
-                                                                <p className="text-sm text-foreground font-medium capitalize">{isYearly ? "Yearly" : "Monthly"}</p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Price</p>
-                                                                <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2 shrink-0">
-                                                        {linkedListing && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="border-foreground/20 text-foreground/80 hover:bg-foreground/5"
-                                                                onClick={() => {
-                                                                    setSelectedListingForEdit(linkedListing);
-                                                                    setSelectedPlanForAction(plan);
-                                                                    setPendingUpgradePlanId(null);
-                                                                    setShowEditListingModal(true);
-                                                                }}
-                                                            >
-                                                                <Edit3 className="w-3.5 h-3.5 mr-1.5" /> Edit Listing
-                                                            </Button>
-                                                        )}
-                                                        <Button
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="border-primary/50 text-primary hover:bg-primary/10"
-                                                            onClick={() => {
-                                                                setSelectedPlanForAction(plan);
-                                                                setPendingUpgradePlanId(null);
-                                                                setShowUpgradeModal(true);
-                                                            }}
-                                                        >
-                                                            <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade
-                                                        </Button>
-                                                        {canAddFeature && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="border-secondary/50 text-secondary hover:bg-secondary/10"
-                                                                onClick={() => {
-                                                                    setSelectedPlanForAction(plan);
-                                                                    setSelectedListingForEdit(linkedListing);
-                                                                    setPendingUpgradePlanId(null);
-                                                                    setShowUpgradeFeatureModal(false);
-                                                                    setShowAddFeatureModal(true);
-                                                                }}
-                                                            >
-                                                                <Star className="w-3.5 h-3.5 mr-1.5" /> Add Feature
-                                                            </Button>
-                                                        )}
-                                                        {spotlightUpgradeTargets.length > 0 && linkedListing && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="border-primary/50 text-primary hover:bg-primary/10"
-                                                                onClick={() => {
-                                                                    setSelectedPlanForAction(plan);
-                                                                    setSelectedListingForEdit(linkedListing);
-                                                                    setPendingUpgradePlanId(null);
-                                                                    setShowAddFeatureModal(false);
-                                                                    setShowUpgradeFeatureModal(true);
-                                                                }}
-                                                            >
-                                                                <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade spotlight
-                                                            </Button>
-                                                        )}
-                                                        {!plan.cancelAtPeriodEnd && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="border-red-500/50 text-red-400 hover:bg-red-500/10"
-                                                                onClick={() => {
-                                                                    setSelectedPlanForAction(plan);
-                                                                    setPendingUpgradePlanId(null);
-                                                                    setShowCancelModal(true);
-                                                                }}
-                                                            >
-                                                                <XCircle className="w-3.5 h-3.5 mr-1.5" /> Cancel
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                                {/* Feature status */}
-                                                {(includedFeature || hasFeature) && (
-                                                    <div className="pt-3 border-t border-foreground/10">
-                                                        <p className="text-sm text-foreground flex items-center gap-2">
-                                                            <Sparkles className="w-4 h-4 text-primary" />
-                                                            {includedFeature
-                                                                ? `Included: ${includedFeature === "home_page" ? "Home Page" : "Landing Page"} Spotlight`
-                                                                : `Active Feature: ${FEATURE_PLANS.find(f => f.id === linkedListing?.selectedAddon)?.label}`
-                                                            }
-                                                        </p>
-                                                    </div>
-                                                )}
-                                                {planRepresentatives?.length > 0 && (
-                                                    <div className="pt-3 border-t border-foreground/10">
-                                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1.5">Company Representatives</p>
-                                                        <div className="space-y-1.5">
-                                                            {planRepresentatives.map((rep: any, i: number) => (
-                                                                <p key={i} className="text-sm text-foreground/90">
-                                                                    {rep.firstName} {rep.lastName} - {rep.email}
-                                                                </p>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    );
-                                })}
+                        <CardContent className="pt-6 space-y-10">
+                            {livePlansEnding.length > 0 && (
+                                <div className="space-y-3">
+                                    <div>
+                                        <h3 className="text-sm font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200">Scheduled to end</h3>
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Still in access until the end date below; will not renew. Repurchase anytime after it lapses.
+                                        </p>
+                                    </div>
+                                    <div className="space-y-4">{livePlansEnding.map((plan) => renderPlanSubscriptionCard(plan, "ending"))}</div>
                                 </div>
-                            </div>
+                            )}
+                            {livePlansActive.length > 0 && (
+                                <div className="space-y-3">
+                                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active</h3>
+                                    <div className="space-y-4">{livePlansActive.map((plan) => renderPlanSubscriptionCard(plan, "active"))}</div>
+                                </div>
                             )}
                             {expiredPlans.length > 0 && (
                                 <div className="space-y-3">
-                                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Expired</h3>
-                                    <p className="text-xs text-muted-foreground">These plans are no longer billing. You can purchase a new plan when you are ready.</p>
+                                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Past plans</h3>
+                                    <p className="text-xs text-muted-foreground">
+                                        Cancelled, expired, or replaced — no longer billing. Labels reflect subscription state in Stripe and your account.
+                                    </p>
                                     <div className="space-y-4">
                                         {expiredPlans.map((plan) => {
                                             const planConfig = PLAN_CONFIGS[plan.planId];
@@ -1611,16 +1695,17 @@ export default function Dashboard() {
                                                 getPlanPeriodEndDate(plan) ||
                                                 (plan.expiredAt?.seconds ? new Date(plan.expiredAt.seconds * 1000) : null);
                                             const addType = addListingRouteTypeForPlan(plan);
+                                            const pastLabel = plan.active === false ? "Expired" : "Ended";
                                             return (
                                                 <div key={plan.id} className="bg-muted/20 border border-foreground/10 rounded-xl p-5 opacity-90">
                                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                                         <div>
                                                             <div className="flex items-center gap-2 flex-wrap mb-1">
                                                                 <h4 className="text-lg font-bold text-foreground">{planConfig?.label || plan.planName || plan.planId}</h4>
-                                                                <Badge className="bg-foreground/20 text-muted-foreground border-foreground/30">Expired</Badge>
+                                                                <Badge className="bg-foreground/15 text-muted-foreground border-foreground/25">{pastLabel}</Badge>
                                                             </div>
                                                             {endedAt && (
-                                                                <p className="text-sm text-muted-foreground">Ended {endedAt.toLocaleDateString()}</p>
+                                                                <p className="text-sm text-muted-foreground">Billing ended {endedAt.toLocaleDateString()}</p>
                                                             )}
                                                         </div>
                                                         {addType && (
@@ -1886,11 +1971,25 @@ export default function Dashboard() {
                         <Label className="text-foreground/80">Last name <span className="text-red-400">*</span></Label>
                         <Input value={profileForm.lastName} onChange={e => setProfileForm({ ...profileForm, lastName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                         <Label className="text-foreground/80">Email <span className="text-red-400">*</span></Label>
                         <Input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
+                        {(profileForm.email || "").trim() !== (auth.currentUser?.email || "") && (
+                            <div className="mt-3 space-y-2 rounded-lg border border-foreground/10 bg-muted/30 p-3">
+                                <Label className="text-foreground/80 text-sm">Current password (required to change email)</Label>
+                                <Input
+                                    type="password"
+                                    autoComplete="current-password"
+                                    value={profileEmailReauthPassword}
+                                    onChange={(e) => setProfileEmailReauthPassword(e.target.value)}
+                                    className="bg-foreground/5 border-foreground/10 h-11"
+                                    placeholder="Enter your login password"
+                                />
+                                <p className="text-xs text-muted-foreground">Firebase requires re-authentication before updating your sign-in email.</p>
+                            </div>
+                        )}
                     </div>
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                         <Label className="text-foreground/80">Phone <span className="text-red-400">*</span></Label>
                         <PhoneInput defaultCountry="US" value={profileForm.phone} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, phone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
                     </div>
@@ -2178,7 +2277,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
     const [expandedSubcategories, setExpandedSubcategories] = useState<string[]>(listing.selectedSubcategories || []);
     const existingCertifications = Array.isArray(listing.certifications) ? listing.certifications : [];
     const parsedOtherCert = (existingCertifications.find((cert: string) => cert.toLowerCase().startsWith("other:")) || "").replace(/^other:\s*/i, "");
-    const [countries, setCountries] = useState<string[]>(listing.serviceCountries || []);
+    const [countries, setCountries] = useState<string[]>(() => normalizeServiceCountriesToArray(listing.serviceCountries));
     const [regions, setRegions] = useState<string[]>(listing.serviceRegions || []);
     const [bslLevels, setBslLevels] = useState<string[]>(listing.bioSafetyLevel || []);
     const [certifications, setCertifications] = useState<string[]>([
@@ -2217,8 +2316,8 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
     const [countriesOpen, setCountriesOpen] = useState(false);
     const [countrySearch, setCountrySearch] = useState("");
 
-    const maxCategories = planConfig?.maxCategories || -1;
-    const maxCountries = planConfig?.maxCountries || -1;
+    const maxCategories = typeof planConfig?.maxCategories === "number" ? planConfig.maxCategories : -1;
+    const maxCountries = typeof planConfig?.maxCountries === "number" ? planConfig.maxCountries : -1;
     const canUseRegionHelper = maxCountries === -1;
     const canSelectAllCategories = maxCategories === -1;
 
@@ -2489,6 +2588,47 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
     };
 
     const isBusinessOffering = listing.__col === "businessOfferingsCollection" || listing.selectedGroup === "business_offerings";
+    const showServiceLocations = listingGroup === "business_offerings" || listingGroup === "consulting";
+
+    const [eventName, setEventName] = useState(listing.eventName || "");
+    const [eventLink, setEventLink] = useState(listing.eventLink || "");
+    const [startDate, setStartDate] = useState(listing.startDate || "");
+    const [endDate, setEndDate] = useState(listing.endDate || "");
+    const [eventCountry, setEventCountry] = useState(listing.eventCountry || "");
+    const [eventLocation, setEventLocation] = useState(listing.location || "");
+    const [eventProfile, setEventProfile] = useState(listing.eventProfile || "");
+    const [agenda, setAgenda] = useState(listing.agenda || "");
+    const [eventStateRegion, setEventStateRegion] = useState(listing.stateRegion || "");
+    const [eventCity, setEventCity] = useState(listing.city || "");
+    const eventListingPlanId = listing.selectedPlan || "";
+    const isBasicEventPlan = eventListingPlanId === "basic_event";
+
+    useEffect(() => {
+        if (listingGroup !== "events" || !isBasicEventPlan || !startDate) return;
+        setEndDate((prev: string) => (prev === startDate ? prev : startDate));
+    }, [listingGroup, isBasicEventPlan, startDate]);
+
+    const [jobTitle, setJobTitle] = useState(listing.jobTitle || "");
+    const [jobSummary, setJobSummary] = useState(listing.jobSummary || "");
+    const [industry, setIndustry] = useState(listing.industry || "");
+    const [jobType, setJobType] = useState(listing.jobtype || listing.positionType || "");
+    const [experienceLevel, setExperienceLevel] = useState(listing.experienceLevel || "");
+    const [workModel, setWorkModel] = useState(listing.workModel || "");
+    const [positionLink, setPositionLink] = useState(listing.positionLink || "");
+    const [jobCountry, setJobCountry] = useState(listing.jobCountry || "");
+    const [jobStateRegion, setJobStateRegion] = useState(listing.stateRegion || "");
+    const [jobCity, setJobCity] = useState(listing.city || "");
+    const [jobLocationLine, setJobLocationLine] = useState(listing.location || "");
+    const [education, setEducation] = useState(listing.education || "");
+    const [applicationDeadline, setApplicationDeadline] = useState(
+        typeof listing.applicationDeadline === "string" ? listing.applicationDeadline : ""
+    );
+    const [jobDescriptionPdfUrl, setJobDescriptionPdfUrl] = useState(listing.jobDescriptionPdfUrl || "");
+    const [jobPdfFile, setJobPdfFile] = useState<File | null>(null);
+    const [jobPdfUploadError, setJobPdfUploadError] = useState("");
+    const [jobPdfUploading, setJobPdfUploading] = useState(false);
+    const [companyWebsiteLink, setCompanyWebsiteLink] = useState(listing.companyWebsiteLink || "");
+    const [linkedInJob, setLinkedInJob] = useState(listing.linkedInJob || "");
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -2502,6 +2642,109 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                     </button>
                 </div>
                 <div className="p-6 space-y-6 overflow-y-auto flex-1">
+                    {listingGroup === "events" && (
+                        <div className="space-y-4 border border-foreground/10 rounded-lg p-4 bg-foreground/5">
+                            <h3 className="text-sm font-bold text-foreground">Event details</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div><Label>Event name <span className="text-red-400">*</span></Label><Input value={eventName} onChange={(e) => setEventName(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>Event link <span className="text-red-400">*</span></Label><Input value={eventLink} onChange={(e) => setEventLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>Start date <span className="text-red-400">*</span></Label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div>
+                                    <Label>End date <span className="text-red-400">*</span></Label>
+                                    <Input
+                                        type="date"
+                                        value={endDate}
+                                        onChange={(e) => setEndDate(e.target.value)}
+                                        disabled={isBasicEventPlan}
+                                        className="bg-foreground/5 border-foreground/10 mt-1"
+                                    />
+                                    {isBasicEventPlan && (
+                                        <p className="text-xs text-muted-foreground mt-1">Basic events are single day; end date matches the start date.</p>
+                                    )}
+                                </div>
+                                <div><Label>Country <span className="text-red-400">*</span></Label><Input value={eventCountry} onChange={(e) => setEventCountry(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>State/Province/Region <span className="text-red-400">*</span></Label><Input value={eventStateRegion} onChange={(e) => setEventStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>City/Town <span className="text-red-400">*</span></Label><Input value={eventCity} onChange={(e) => setEventCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div className="md:col-span-2"><Label>Venue / location notes</Label><Input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div className="md:col-span-2"><Label>Agenda <span className="text-red-400">*</span></Label><Textarea value={agenda} onChange={(e) => setAgenda(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[100px]" /></div>
+                                <div className="md:col-span-2"><Label>Event profile <span className="text-red-400">*</span></Label><Textarea value={eventProfile} onChange={(e) => setEventProfile(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" /></div>
+                            </div>
+                        </div>
+                    )}
+                    {listingGroup === "jobs" && (
+                        <div className="space-y-4 border border-foreground/10 rounded-lg p-4 bg-foreground/5">
+                            <h3 className="text-sm font-bold text-foreground">Job details</h3>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="md:col-span-2"><Label>Job title <span className="text-red-400">*</span></Label><Input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div className="md:col-span-2"><Label>Job summary <span className="text-red-400">*</span></Label><Textarea value={jobSummary} onChange={(e) => setJobSummary(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" /></div>
+                                <div className="md:col-span-2 space-y-2">
+                                    <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
+                                    <Input
+                                        type="file"
+                                        accept=".pdf,application/pdf"
+                                        className="bg-foreground/5 border-foreground/10 mt-1 cursor-pointer"
+                                        onChange={(e) => {
+                                            const f = e.target.files?.[0] || null;
+                                            setJobPdfFile(f);
+                                            setJobPdfUploadError("");
+                                            if (f) setJobDescriptionPdfUrl("");
+                                        }}
+                                    />
+                                    {jobPdfFile && <p className="text-xs text-muted-foreground">Selected: {jobPdfFile.name}</p>}
+                                    <p className="text-xs text-muted-foreground">Or paste a hosted PDF link if you are not uploading a file.</p>
+                                    <Input
+                                        type="url"
+                                        placeholder="https://…"
+                                        value={jobDescriptionPdfUrl}
+                                        onChange={(e) => setJobDescriptionPdfUrl(e.target.value)}
+                                        disabled={!!jobPdfFile}
+                                        className="bg-foreground/5 border-foreground/10 mt-1"
+                                    />
+                                    {jobPdfUploadError && <p className="text-xs text-red-500">{jobPdfUploadError}</p>}
+                                </div>
+                                <div><Label>Industry</Label><Input value={industry} onChange={(e) => setIndustry(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>Job type <span className="text-red-400">*</span></Label><Input value={jobType} onChange={(e) => setJobType(e.target.value)} placeholder="e.g. Full-time" className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>Country <span className="text-red-400">*</span></Label><Input value={jobCountry} onChange={(e) => setJobCountry(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>State/Province/Region <span className="text-red-400">*</span></Label><Input value={jobStateRegion} onChange={(e) => setJobStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>City/Town <span className="text-red-400">*</span></Label><Input value={jobCity} onChange={(e) => setJobCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>Education</Label>
+                                    <Select value={education} onValueChange={setEducation}>
+                                        <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                                        <SelectContent>
+                                            {["High school or equivalent", "Associate degree", "Bachelors degree", "Masters degree", "Doctorate/PhD/MD", "Other"].map((o) => (
+                                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div><Label>Experience level</Label>
+                                    <Select value={experienceLevel} onValueChange={setExperienceLevel}>
+                                        <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                                        <SelectContent>
+                                            {["Entry level", "Associate level", "Mid-level", "Lead/Principal", "Director", "VP/executive"].map((o) => (
+                                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div><Label>Work model <span className="text-red-400">*</span></Label>
+                                    <Select value={workModel} onValueChange={setWorkModel}>
+                                        <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
+                                        <SelectContent>
+                                            {["Hybrid", "Remote", "On-site"].map((o) => (
+                                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div className="md:col-span-2"><Label>Position link (Apply URL) <span className="text-red-400">*</span></Label><Input type="url" value={positionLink} onChange={(e) => setPositionLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>Application deadline</Label><Input type="date" value={applicationDeadline} onChange={(e) => setApplicationDeadline(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div className="md:col-span-2"><Label>Company website link</Label><Input type="url" value={companyWebsiteLink} onChange={(e) => setCompanyWebsiteLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div className="md:col-span-2"><Label>LinkedIn</Label><Input value={linkedInJob} onChange={(e) => setLinkedInJob(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div className="md:col-span-2"><Label>Location (combined display)</Label><Input value={jobLocationLine} onChange={(e) => setJobLocationLine(e.target.value)} placeholder="Optional extra location text" className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                            </div>
+                        </div>
+                    )}
                     {/* Categories */}
                     <div>
                         <div className="flex items-center justify-between mb-2">
@@ -2522,7 +2765,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                     </div>
 
                     {/* Service Regions - Premium Plus only */}
-                    {canUseRegionHelper && (
+                    {showServiceLocations && canUseRegionHelper && (
                         <div>
                             <Label className="text-foreground/80 flex items-center gap-2 mb-3">
                                 <Globe className="w-4 h-4" /> Service Regions
@@ -2547,6 +2790,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                     )}
 
                     {/* Service Countries - Multi-select dropdown with search */}
+                    {showServiceLocations && (
                     <div>
                         <Label className="text-foreground/80 flex items-center gap-2 mb-3">
                             <MapPin className="w-4 h-4" /> Service Countries
@@ -2613,6 +2857,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                             </div>
                         )}
                     </div>
+                    )}
 
                     {/* Bio Safety Levels - Only for business offerings */}
                     {isBusinessOffering && (
@@ -2769,7 +3014,36 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3 shrink-0">
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
                     <Button
-                        onClick={() => {
+                        onClick={async () => {
+                            let jobPdfUrlOut = jobDescriptionPdfUrl.trim();
+                            if (listingGroup === "jobs") {
+                                if (jobPdfFile) {
+                                    if (!auth.currentUser) {
+                                        setJobPdfUploadError("You must be signed in to upload.");
+                                        return;
+                                    }
+                                    const v = validateJobDescriptionPdf(jobPdfFile);
+                                    if (v) {
+                                        setJobPdfUploadError(v);
+                                        return;
+                                    }
+                                    setJobPdfUploadError("");
+                                    try {
+                                        setJobPdfUploading(true);
+                                        jobPdfUrlOut = await uploadJobDescriptionPdf(auth.currentUser.uid, jobPdfFile, listing.id);
+                                    } catch (err: any) {
+                                        setJobPdfUploadError(err?.message || "PDF upload failed.");
+                                        return;
+                                    } finally {
+                                        setJobPdfUploading(false);
+                                    }
+                                } else if (!jobPdfUrlOut) {
+                                    setJobPdfUploadError("Add a PDF file or a hosted PDF URL.");
+                                    return;
+                                }
+                                setJobPdfUploadError("");
+                            }
+
                             const sanitizedSelections = sanitizeLowestLevelSelections(
                                 getCategoriesForGroup(listingGroup) as any,
                                 selectedCategories,
@@ -2782,13 +3056,17 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                 sanitizedSelections.selectedSubcategories,
                                 sanitizedSelections.selectedSubSubcategories
                             );
-                            onSave({
+                            await onSave({
                                 selectedCategories: sanitizedSelections.selectedCategories,
                                 selectedSubcategories: sanitizedSelections.selectedSubcategories,
                                 selectedSubSubcategories: sanitizedSelections.selectedSubSubcategories,
                                 ...categoryDisplayFields,
-                                serviceCountries: countries,
-                                serviceRegions: canUseRegionHelper ? regions : [],
+                                ...(showServiceLocations
+                                    ? {
+                                          serviceCountries: countries,
+                                          serviceRegions: canUseRegionHelper ? regions : [],
+                                      }
+                                    : {}),
                                 bioSafetyLevel: bslLevels,
                                 certifications: Array.from(
                                     new Set(
@@ -2806,10 +3084,46 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                         email: rep.email.trim(),
                                     }))
                                     .filter((rep) => rep.firstName || rep.lastName || rep.email),
+                                ...(listingGroup === "events"
+                                    ? {
+                                          eventName,
+                                          eventLink,
+                                          startDate,
+                                          endDate,
+                                          eventCountry,
+                                          location: eventLocation,
+                                          eventProfile,
+                                          agenda,
+                                          stateRegion: eventStateRegion,
+                                          city: eventCity,
+                                      }
+                                    : {}),
+                                ...(listingGroup === "jobs"
+                                    ? {
+                                          jobTitle,
+                                          jobSummary,
+                                          industry,
+                                          jobtype: jobType,
+                                          positionType: jobType,
+                                          experienceLevel,
+                                          workModel,
+                                          positionLink,
+                                          jobCountry,
+                                          stateRegion: jobStateRegion,
+                                          city: jobCity,
+                                          location: jobLocationLine,
+                                          education,
+                                          applicationDeadline,
+                                          jobDescriptionPdfUrl: jobPdfUrlOut,
+                                          companyWebsiteLink,
+                                          linkedInJob,
+                                      }
+                                    : {}),
                             });
                         }}
                         disabled={
                             processing ||
+                            jobPdfUploading ||
                             companyProfileTooLong ||
                             (showOtherCertInput && !otherCertText.trim()) ||
                             representatives
@@ -2818,10 +3132,33 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                     lastName: rep.lastName.trim(),
                                     email: rep.email.trim(),
                                 }))
-                                .some((rep) => (rep.firstName || rep.lastName || rep.email) && (!rep.firstName || !rep.lastName || !rep.email))
+                                .some((rep) => (rep.firstName || rep.lastName || rep.email) && (!rep.firstName || !rep.lastName || !rep.email)) ||
+                            (listingGroup === "events" &&
+                                (!eventName.trim() ||
+                                    !eventLink.trim() ||
+                                    !startDate ||
+                                    !endDate ||
+                                    !eventCountry.trim() ||
+                                    !eventStateRegion.trim() ||
+                                    !eventCity.trim() ||
+                                    !agenda.trim() ||
+                                    !eventProfile.trim() ||
+                                    (startDate && endDate && endDate < startDate) ||
+                                    (isBasicEventPlan && startDate && endDate !== startDate))) ||
+                            (listingGroup === "jobs" &&
+                                (!jobTitle.trim() ||
+                                    !jobSummary.trim() ||
+                                    (!jobDescriptionPdfUrl.trim() && !jobPdfFile) ||
+                                    !jobType.trim() ||
+                                    !jobCountry.trim() ||
+                                    !jobStateRegion.trim() ||
+                                    !jobCity.trim() ||
+                                    !workModel.trim() ||
+                                    !positionLink.trim())) ||
+                            (showServiceLocations && countries.length === 0)
                         }
                     >
-                        {processing ? "Saving..." : isUpgradeFlow ? "Save & Continue to Stripe" : "Save Changes"}
+                        {jobPdfUploading ? "Uploading PDF…" : processing ? "Saving..." : isUpgradeFlow ? "Save & Continue to Stripe" : "Save Changes"}
                     </Button>
                 </div>
             </div>

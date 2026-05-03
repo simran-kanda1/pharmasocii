@@ -244,6 +244,19 @@ export default function AllCategories() {
         return normalized === "approved" || normalized === "active";
     };
 
+    const spotlightAccessEndMs = (item: any): number | null => {
+        const raw = item.featureSpotlightAccessEnd;
+        if (raw?.toDate) return raw.toDate().getTime();
+        if (typeof raw?.seconds === "number") return raw.seconds * 1000;
+        return null;
+    };
+
+    const spotlightDisplayActive = (item: any): boolean => {
+        const endMs = spotlightAccessEndMs(item);
+        if (item.featureSpotlightCancelPending && endMs != null && Date.now() > endMs) return false;
+        return true;
+    };
+
     // Load state from sessionStorage on mount or tab change
     useEffect(() => {
         setIsRestored(false);
@@ -550,6 +563,7 @@ export default function AllCategories() {
     );
 
     const featuredBusinesses = data.filter(item => {
+        if (!spotlightDisplayActive(item)) return false;
         const addon = String(item.selectedAddon || item.featuredPlacement || "").trim().toLowerCase();
         const hasLegacyFeatureFlag = item.isFeatured && !addon;
         const isLandingSpotlight = addon === "landing_page" || addon === "both";
