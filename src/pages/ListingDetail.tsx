@@ -18,6 +18,7 @@ export default function ListingDetail() {
     const [item, setItem] = useState<any>(null);
     const [partner, setPartner] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [showAllCategories, setShowAllCategories] = useState(false);
     const [activeRegion, setActiveRegion] = useState<string | null>(null);
 
     useEffect(() => {
@@ -140,7 +141,7 @@ export default function ListingDetail() {
         );
     }
 
-    const listingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? `${item.businessName ? item.businessName + " : " : ""}${item.eventName}` : type === "jobs" ? item.jobTitle : item.businessName;
+    const listingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? item.eventName : type === "jobs" ? item.jobTitle : item.businessName;
 
     // Format a date string (YYYY-MM-DD) to a human-readable form.
     const formatDate = (dateStr: string | undefined) => {
@@ -298,35 +299,33 @@ export default function ListingDetail() {
                                                 Organized by {item.businessName}
                                             </p>
                                         )}
-                                        {item.eventProfile && (
-                                            <div className="space-y-4">
-                                                <div className="space-y-2">
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Event Overview</p>
-                                                    <p className="text-foreground/80 text-base leading-relaxed max-w-4xl whitespace-pre-line">
-                                                        {item.eventProfile}
-                                                    </p>
-                                                </div>
-                                                {(item.companyProfileText || partner?.companyProfileText) && (
-                                                    <div className="space-y-2 pt-2 border-t border-foreground/5">
-                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Organizer Profile</p>
-                                                        <p className="text-foreground/80 text-base leading-relaxed max-w-4xl whitespace-pre-line">
-                                                            {item.companyProfileText || partner?.companyProfileText}
-                                                        </p>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
+                                        {item.eventProfile && (() => {
+                                            const rawText = String(item.eventProfile).trim();
+                                            // Split by double newlines or single newlines followed by a repeating pattern
+                                            const paragraphs = rawText.split(/\n+/);
+                                            const uniqueParagraphs: string[] = [];
+                                            const seen = new Set<string>();
+
+                                            paragraphs.forEach(p => {
+                                                const trimmed = p.trim();
+                                                if (trimmed && !seen.has(trimmed)) {
+                                                    uniqueParagraphs.push(trimmed);
+                                                    seen.add(trimmed);
+                                                }
+                                            });
+
+                                            return uniqueParagraphs.map((para, idx) => (
+                                                <p key={idx} className="text-foreground/80 text-base leading-relaxed max-w-4xl whitespace-pre-line mb-4 last:mb-0">
+                                                    {para}
+                                                </p>
+                                            ));
+                                        })()}
                                     </>
                                 ) : type === "jobs" ? (
                                     <>
                                         {(item.businessName || partner?.businessName) && (
                                             <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
                                                 {item.businessName || partner?.businessName}
-                                            </p>
-                                        )}
-                                        {item.jobSummary && (
-                                            <p className="text-foreground/80 text-base leading-relaxed max-w-4xl whitespace-pre-line">
-                                                {item.jobSummary}
                                             </p>
                                         )}
                                     </>
@@ -377,29 +376,34 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0 && (
-                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
-                                                    <p className="text-sm font-semibold text-foreground">
-                                                        {item.selectedCategories.join(", ")}
-                                                    </p>
+                                        {(() => {
+                                            const cats = Array.isArray(item.selectedCategories) ? item.selectedCategories : 
+                                                         (Array.isArray(item.categories) ? item.categories : []);
+                                            if (cats.length === 0) return null;
+                                            
+                                            const initialLimit = 3;
+                                            const hasMore = cats.length > initialLimit;
+                                            
+                                            return (
+                                                <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10 h-full">
+                                                    <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
+                                                        <div className="text-sm font-semibold text-foreground">
+                                                            {showAllCategories ? cats.join(", ") : cats.slice(0, initialLimit).join(", ") + (hasMore ? "..." : "")}
+                                                            {hasMore && (
+                                                                <button 
+                                                                    onClick={() => setShowAllCategories(!showAllCategories)}
+                                                                    className="ml-2 text-[10px] text-primary hover:underline uppercase font-bold tracking-tighter"
+                                                                >
+                                                                    {showAllCategories ? "Show less" : `+${cats.length - initialLimit} more`}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
-                                        {/* Fallback: old-style categories array */}
-                                        {!Array.isArray(item.selectedCategories) && Array.isArray(item.categories) && item.categories.length > 0 && (
-                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
-                                                    <p className="text-sm font-semibold text-foreground">
-                                                        {item.categories.join(", ")}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
                                 )}
 
@@ -500,13 +504,29 @@ export default function ListingDetail() {
                                 {/* ── CTA buttons ── */}
                                 <div className="flex flex-wrap justify-start items-center gap-4 pt-4 border-t border-foreground/10">
                                     {type === "events" ? (
-                                        item.eventLink && item.eventLink !== "" && (
-                                            <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
-                                                <a href={item.eventLink} target="_blank" rel="noopener noreferrer">
-                                                    <Ticket className="mr-2 w-5 h-5" /> Register / Visit Event
-                                                </a>
-                                            </Button>
-                                        )
+                                        <div className="flex flex-wrap gap-4">
+                                            {item.eventLink && item.eventLink !== "" && (
+                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
+                                                    <a href={item.eventLink} target="_blank" rel="noopener noreferrer">
+                                                        <Ticket className="mr-2 w-5 h-5" /> Register / Visit Event
+                                                    </a>
+                                                </Button>
+                                            )}
+                                            {(item.companyWebsite || partner?.companyWebsite) && (
+                                                <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
+                                                    <a href={item.companyWebsite || partner?.companyWebsite} target="_blank" rel="noopener noreferrer">
+                                                        Visit Website <ExternalLink className="ml-2 w-4 h-4" />
+                                                    </a>
+                                                </Button>
+                                            )}
+                                            {(item.linkedInProfileLink || partner?.linkedInProfileLink) && (
+                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
+                                                    <a href={item.linkedInProfileLink || partner?.linkedInProfileLink} target="_blank" rel="noopener noreferrer">
+                                                        <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
+                                                    </a>
+                                                </Button>
+                                            )}
+                                        </div>
                                     ) : type === "jobs" ? (
                                         <div className="flex flex-wrap gap-3">
                                             {item.positionLink && item.positionLink !== "" && (
@@ -655,16 +675,40 @@ export default function ListingDetail() {
                 )()}
 
                 {/* Event agenda - moved up for prominence */}
-                {type === "events" && item.agenda && String(item.agenda).trim() !== "" && (
+                {type === "events" && ((item.agenda && String(item.agenda).trim() !== "") || (item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "")) && (
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
-                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
+                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10 flex flex-wrap items-center justify-between gap-4">
                                 <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
                                     <CalendarRange className="w-5 h-5 text-primary" /> Agenda
                                 </h3>
+                                {item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "" && (
+                                    <Button asChild variant="outline" size="sm" className="rounded-full shadow-sm border-primary/20 hover:bg-primary/5">
+                                        <a href={item.agendaPdfUrl} target="_blank" rel="noopener noreferrer">
+                                            <FileText className="mr-2 w-4 h-4 text-primary" /> Open Full PDF Agenda
+                                        </a>
+                                    </Button>
+                                )}
                             </div>
-                            <div className="p-8">
-                                <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{item.agenda}</p>
+                            <div className="p-8 space-y-6">
+                                {item.agenda && String(item.agenda).trim() !== "" && (
+                                    <div className="space-y-3">
+                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Agenda Highlights</p>
+                                        <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{item.agenda}</p>
+                                    </div>
+                                )}
+                                
+                                {item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "" && (
+                                    <div className="pt-4 border-t border-foreground/5">
+                                        <div className="aspect-[16/9] md:aspect-[21/9] w-full rounded-2xl border border-foreground/10 overflow-hidden bg-muted/20">
+                                            <iframe
+                                                title="Event Agenda PDF"
+                                                src={`${item.agendaPdfUrl}#toolbar=0`}
+                                                className="w-full h-full"
+                                            />
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </Card>
                     </div>
