@@ -675,7 +675,11 @@ export default function ListingDetail() {
                 )()}
 
                 {/* Event agenda - moved up for prominence */}
-                {type === "events" && ((item.agenda && String(item.agenda).trim() !== "") || (item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "")) && (
+                {type === "events" && (() => {
+                    const highlights = String(item.agendaHighlights || item.agenda || "").trim();
+                    const pdf = String(item.agendaPdfUrl || "").trim();
+                    return highlights !== "" || pdf !== "";
+                })() && (
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10 flex flex-wrap items-center justify-between gap-4">
@@ -691,12 +695,16 @@ export default function ListingDetail() {
                                 )}
                             </div>
                             <div className="p-8 space-y-6">
-                                {item.agenda && String(item.agenda).trim() !== "" && (
+                                {(() => {
+                                    const text = String(item.agendaHighlights || item.agenda || "").trim();
+                                    if (!text) return null;
+                                    return (
                                     <div className="space-y-3">
                                         <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Agenda Highlights</p>
-                                        <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{item.agenda}</p>
+                                        <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{text}</p>
                                     </div>
-                                )}
+                                    );
+                                })()}
                                 
                                 {item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "" && (
                                     <div className="pt-4 border-t border-foreground/5">

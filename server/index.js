@@ -251,12 +251,25 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 if (upgradeListingId && upgradeCollectionName) {
                     const listingRef = await resolveListingDocRef(partnerId, upgradeCollectionName, upgradeListingId);
                     if (listingRef) {
-                        await listingRef.set({
+                        const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[newPlanId] || null;
+                        const listingUpgradePatch = {
                             selectedPlan: newPlanId,
                             stripeSubscriptionId: upgradedSubscription.id,
                             stripeCustomerId: upgradedSubscription.customer || null,
                             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        }, { merge: true });
+                        };
+                        if (includedSpotlight) {
+                            listingUpgradePatch.selectedAddon = includedSpotlight;
+                            listingUpgradePatch.featuredPlacement = includedSpotlight;
+                            listingUpgradePatch.isFeatured = true;
+                            listingUpgradePatch.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
+                            if (upgradedSubscription.current_period_end) {
+                                listingUpgradePatch.featureSpotlightPaidThrough = new Date(
+                                    upgradedSubscription.current_period_end * 1000
+                                );
+                            }
+                        }
+                        await listingRef.set(listingUpgradePatch, { merge: true });
                     }
                 }
 

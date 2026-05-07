@@ -30,3 +30,18 @@ export async function uploadJobDescriptionPdf(partnerId: string, file: File, lis
     await uploadBytes(storageRef, file, { contentType: "application/pdf" });
     return getDownloadURL(storageRef);
 }
+
+/** Full event agenda PDF (separate from short highlights text). */
+export async function uploadEventAgendaPdf(partnerId: string, file: File, listingId?: string | null): Promise<string> {
+    const err = validateJobDescriptionPdf(file);
+    if (err) throw new Error(err);
+    const unique =
+        typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+            ? crypto.randomUUID()
+            : `${Date.now()}-${Math.random().toString(36).slice(2, 11)}`;
+    const folder = listingId && String(listingId).trim() ? String(listingId).trim() : "draft";
+    const path = `partners/${partnerId}/eventAgendas/${folder}/${unique}.pdf`;
+    const storageRef = ref(storage, path);
+    await uploadBytes(storageRef, file, { contentType: "application/pdf" });
+    return getDownloadURL(storageRef);
+}

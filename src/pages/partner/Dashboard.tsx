@@ -15,7 +15,7 @@ import {
     downloadPartnerTransactionsPdf,
 } from "@/lib/transactionExport";
 import { normalizeServiceCountriesToArray } from "@/lib/utils";
-import { uploadJobDescriptionPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
+import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut, Download, FileSpreadsheet, FileText, Info,
@@ -77,15 +77,46 @@ const PLAN_CONFIGS: Record<string, PlanConfig> = {
     premium_yr: { label: "Premium Annual", subtitle: "Broad scope & presence", price: "$4,320.00", period: "/year", maxCategories: 15, maxCountries: 15, features: ["Access to specialized categories — list up to 15", "List primary service countries — up to 15", "Company profile to highlight your key offerings", "Display your logo for branding", "Direct website link", "Add representative(s) for direct communication", "Option to highlight certifications", "Optional BSL (Biosafety Level) disclosure"] },
     premium_plus_yr: { label: "Premium Plus Annual", subtitle: "Global scale", price: "$10,800.00", period: "/year", maxCategories: -1, maxCountries: -1, features: ["Access to specialized categories — Unlimited", "List primary service countries — Unlimited", "Company profile to highlight your key offerings", "Display your logo for branding", "Direct website link", "Add representative(s) for direct communication", "Option to highlight certifications", "Optional BSL (Biosafety Level) disclosure"] },
     // Events
-    basic_event: { label: "Basic", subtitle: "Single day conference/event", price: "$500.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Event agenda", "Event date", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
-    standard_event: { label: "Standard", subtitle: "Multi day conference/event", price: "$850.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Event agenda", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
-    premium_event: { label: "Premium", subtitle: "Event listing + landing page spotlight", price: "$1,250.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page spotlight for increased visibility", "Event profile", "Event agenda", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
-    premium_plus_event: { label: "Premium Plus", subtitle: "Event listing + home page spotlight", price: "$1,450.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page spotlight for maximum visibility", "Event profile", "Event agenda", "Event dates", "Event Location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    basic_event: { label: "Basic", subtitle: "Single day conference/event", price: "$500.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Agenda highlights + full agenda PDF", "Event date", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    standard_event: { label: "Standard", subtitle: "Multi day conference/event", price: "$850.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    premium_event: { label: "Premium", subtitle: "Event listing + landing page spotlight", price: "$1,250.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page spotlight for increased visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    premium_plus_event: { label: "Premium Plus", subtitle: "Event listing + home page spotlight", price: "$1,450.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page spotlight for maximum visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
     // Jobs
     standard_job: { label: "Standard", subtitle: "Job posting", price: "$400.00", period: "", maxCategories: -1, maxCountries: -1, features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
-    premium_job: { label: "Premium", subtitle: "Job posting & landing page spotlight", price: "$800.00", period: "", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication", "Extra feature for landing page spotlight"] },
+    premium_job: { label: "Premium", subtitle: "Job posting & landing page spotlight", price: "$800.00", period: "", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page spotlight for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
     premium_plus_job: { label: "Premium Plus", subtitle: "Job posting + home page spotlight", price: "$1,000.00", period: "", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page spotlight for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
 };
+
+const PLAN_UPGRADE_TIER_ORDER: Record<string, number> = {
+    basic_mo: 1, standard_mo: 2, premium_mo: 3, premium_plus_mo: 4,
+    basic_yr: 1, standard_yr: 2, premium_yr: 3, premium_plus_yr: 4,
+    basic_event: 1, standard_event: 2, premium_event: 3, premium_plus_event: 4,
+    standard_job: 1, premium_job: 2, premium_plus_job: 3,
+};
+
+function getAvailablePlanUpgradeIds(currentPlanId: string | undefined): string[] {
+    if (!currentPlanId) return [];
+    const currentTier = PLAN_UPGRADE_TIER_ORDER[currentPlanId] || 0;
+    const isBusinessMonthly = currentPlanId.includes("_mo");
+    const isBusinessYearly = currentPlanId.includes("_yr");
+    const isEvent = currentPlanId.includes("_event");
+    const isJob = currentPlanId.includes("_job");
+    return Object.keys(PLAN_CONFIGS).filter((id) => {
+        const targetTier = PLAN_UPGRADE_TIER_ORDER[id] || 0;
+        if (isEvent) return id.includes("_event") && targetTier > currentTier;
+        if (isJob) return id.includes("_job") && targetTier > currentTier;
+        const targetMo = id.includes("_mo");
+        const targetYr = id.includes("_yr");
+        if (!targetMo && !targetYr) return false;
+        if (isBusinessMonthly) {
+            if (targetMo) return targetTier > currentTier;
+            if (targetYr) return targetTier >= currentTier;
+            return false;
+        }
+        if (isBusinessYearly) return targetYr && targetTier > currentTier;
+        return false;
+    });
+}
 
 const SERVICE_COUNTRIES = [
     "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
@@ -151,6 +182,7 @@ const formatFeatureUpgradeDelta = (fromId: string, toId: string): string => {
 };
 
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
+const AGENDA_HIGHLIGHTS_MAX = 500;
 
 const toDateValue = (value: any): Date | null => {
     if (!value) return null;
@@ -827,7 +859,14 @@ export default function Dashboard() {
                     if (updatedData.eventCountry !== undefined) updateObj.eventCountry = updatedData.eventCountry;
                     if (updatedData.location !== undefined) updateObj.location = updatedData.location;
                     if (updatedData.eventProfile !== undefined) updateObj.eventProfile = updatedData.eventProfile;
-                    if (updatedData.agenda !== undefined) updateObj.agenda = updatedData.agenda;
+                    if (updatedData.agendaHighlights !== undefined) {
+                        updateObj.agendaHighlights = updatedData.agendaHighlights;
+                        updateObj.agenda = updatedData.agendaHighlights;
+                    }
+                    if (updatedData.agendaPdfUrl !== undefined) updateObj.agendaPdfUrl = updatedData.agendaPdfUrl;
+                    if (updatedData.agenda !== undefined && updatedData.agendaHighlights === undefined) {
+                        updateObj.agenda = updatedData.agenda;
+                    }
                     if (updatedData.stateRegion !== undefined) updateObj.stateRegion = updatedData.stateRegion;
                     if (updatedData.city !== undefined) updateObj.city = updatedData.city;
                 }
@@ -1328,6 +1367,7 @@ export default function Dashboard() {
             const spotlightUpgradeTargets = spotlightTier ? getFeatureUpgradeTargets(spotlightTier) : [];
             const isEnding = mode === "ending";
             const actionsLocked = isEnding || Boolean(plan.cancelAtPeriodEnd);
+            const canListingPlanUpgradeAction = getAvailablePlanUpgradeIds(plan.planId).length > 0;
             const cardShell = isEnding
                 ? "rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-5"
                 : "rounded-xl border border-foreground/10 bg-muted/40 p-5";
@@ -1402,8 +1442,8 @@ export default function Dashboard() {
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="border-primary/40 text-primary hover:bg-primary/10"
-                                    disabled={actionsLocked}
+                                    className={`border-primary/40 ${canListingPlanUpgradeAction ? "text-primary hover:bg-primary/10" : "text-muted-foreground border-foreground/15 opacity-60 cursor-not-allowed"}`}
+                                    disabled={actionsLocked || !canListingPlanUpgradeAction}
                                     onClick={() => {
                                         setSelectedPlanForAction(plan);
                                         setPendingUpgradePlanId(null);
@@ -2729,7 +2769,13 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
     const [eventCountry, setEventCountry] = useState(listing.eventCountry || "");
     const [eventLocation, setEventLocation] = useState(listing.location || "");
     const [eventProfile, setEventProfile] = useState(listing.eventProfile || "");
-    const [agenda, setAgenda] = useState(listing.agenda || "");
+    const [agendaHighlights, setAgendaHighlights] = useState(
+        (listing.agendaHighlights || listing.agenda || "") as string
+    );
+    const [agendaPdfUrl, setAgendaPdfUrl] = useState(listing.agendaPdfUrl || "");
+    const [eventAgendaPdfFile, setEventAgendaPdfFile] = useState<File | null>(null);
+    const [eventAgendaPdfUploadError, setEventAgendaPdfUploadError] = useState("");
+    const [eventAgendaPdfUploading, setEventAgendaPdfUploading] = useState(false);
     const [eventStateRegion, setEventStateRegion] = useState(listing.stateRegion || "");
     const [eventCity, setEventCity] = useState(listing.city || "");
     const eventListingPlanId = listing.selectedPlan || "";
@@ -2778,28 +2824,113 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                         <div className="space-y-4 border border-foreground/10 rounded-lg p-4 bg-foreground/5">
                             <h3 className="text-sm font-bold text-foreground">Event details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div><Label>Event name <span className="text-red-400">*</span></Label><Input value={eventName} onChange={(e) => setEventName(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div><Label>Event link <span className="text-red-400">*</span></Label><Input value={eventLink} onChange={(e) => setEventLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div><Label>Start date <span className="text-red-400">*</span></Label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div className="md:col-span-2">
+                                    <Label>Event name <span className="text-red-400">*</span></Label>
+                                    <Input value={eventName} onChange={(e) => setEventName(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <Label>Event link <span className="text-red-400">*</span></Label>
+                                    <Input type="url" value={eventLink} onChange={(e) => setEventLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
+                                </div>
+                                <div>
+                                    <Label>Start date <span className="text-red-400">*</span></Label>
+                                    <Input
+                                        type="date"
+                                        value={startDate}
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            if (isBasicEventPlan) {
+                                                setStartDate(v);
+                                                setEndDate(v);
+                                            } else {
+                                                setStartDate(v);
+                                                setEndDate((prev) => (prev && v && prev < v ? v : prev));
+                                            }
+                                        }}
+                                        className="bg-foreground/5 border-foreground/10 mt-1 h-11"
+                                    />
+                                </div>
                                 <div>
                                     <Label>End date <span className="text-red-400">*</span></Label>
                                     <Input
                                         type="date"
                                         value={endDate}
-                                        onChange={(e) => setEndDate(e.target.value)}
+                                        min={startDate || undefined}
+                                        onChange={(e) => {
+                                            const v = e.target.value;
+                                            if (startDate && v < startDate) setEndDate(startDate);
+                                            else setEndDate(v);
+                                        }}
                                         disabled={isBasicEventPlan}
-                                        className="bg-foreground/5 border-foreground/10 mt-1"
+                                        className="bg-foreground/5 border-foreground/10 mt-1 h-11"
                                     />
                                     {isBasicEventPlan && (
                                         <p className="text-xs text-muted-foreground mt-1">Basic events are single day; end date matches the start date.</p>
                                     )}
                                 </div>
-                                <div><Label>Country <span className="text-red-400">*</span></Label><Input value={eventCountry} onChange={(e) => setEventCountry(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div><Label>State/Province/Region <span className="text-red-400">*</span></Label><Input value={eventStateRegion} onChange={(e) => setEventStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div><Label>City/Town <span className="text-red-400">*</span></Label><Input value={eventCity} onChange={(e) => setEventCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div className="md:col-span-2"><Label>Venue / location notes</Label><Input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div className="md:col-span-2"><Label>Agenda <span className="text-red-400">*</span></Label><Textarea value={agenda} onChange={(e) => setAgenda(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[100px]" /></div>
-                                <div className="md:col-span-2"><Label>Event profile <span className="text-red-400">*</span></Label><Textarea value={eventProfile} onChange={(e) => setEventProfile(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" /></div>
+                                <div>
+                                    <Label>Country <span className="text-red-400">*</span></Label>
+                                    <Select value={eventCountry} onValueChange={setEventCountry}>
+                                        <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1 h-11"><SelectValue placeholder="Select country" /></SelectTrigger>
+                                        <SelectContent className="max-h-60">
+                                            {SERVICE_COUNTRIES.map((c) => (
+                                                <SelectItem key={c} value={c}>{c}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div>
+                                    <Label>State/Province/Region <span className="text-red-400">*</span></Label>
+                                    <Input value={eventStateRegion} onChange={(e) => setEventStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
+                                </div>
+                                <div>
+                                    <Label>City/Town <span className="text-red-400">*</span></Label>
+                                    <Input value={eventCity} onChange={(e) => setEventCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
+                                </div>
+                                <div className="md:col-span-2">
+                                    <Label>Venue / location <span className="text-red-400">*</span></Label>
+                                    <Input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
+                                </div>
+                                <div className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                    <div>
+                                        <Label>Agenda highlights <span className="text-red-400">*</span> <span className="text-muted-foreground font-normal">(max {AGENDA_HIGHLIGHTS_MAX})</span></Label>
+                                        <Textarea
+                                            value={agendaHighlights}
+                                            onChange={(e) => setAgendaHighlights(e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX))}
+                                            className="bg-foreground/5 border-foreground/10 mt-1 min-h-[100px]"
+                                        />
+                                        <p className="text-xs text-muted-foreground mt-1">{agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
+                                    </div>
+                                    <div>
+                                        <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>
+                                        <Input
+                                            type="file"
+                                            accept=".pdf,application/pdf"
+                                            className="bg-foreground/5 border-foreground/10 mt-1 cursor-pointer"
+                                            onChange={(e) => {
+                                                const f = e.target.files?.[0] || null;
+                                                setEventAgendaPdfFile(f);
+                                                setEventAgendaPdfUploadError("");
+                                                if (f) setAgendaPdfUrl("");
+                                            }}
+                                        />
+                                        {eventAgendaPdfFile && <p className="text-xs text-muted-foreground mt-1">Selected: {eventAgendaPdfFile.name}</p>}
+                                        <p className="text-xs text-muted-foreground mt-1">Or paste a hosted PDF link.</p>
+                                        <Input
+                                            type="url"
+                                            placeholder="https://…"
+                                            value={agendaPdfUrl}
+                                            onChange={(e) => setAgendaPdfUrl(e.target.value)}
+                                            disabled={!!eventAgendaPdfFile}
+                                            className="bg-foreground/5 border-foreground/10 mt-1"
+                                        />
+                                        {eventAgendaPdfUploadError && <p className="text-xs text-red-500 mt-1">{eventAgendaPdfUploadError}</p>}
+                                    </div>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <Label>Event profile <span className="text-red-400">*</span></Label>
+                                    <Textarea value={eventProfile} onChange={(e) => setEventProfile(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
+                                </div>
                             </div>
                         </div>
                     )}
@@ -3148,6 +3279,34 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                     <Button
                         onClick={async () => {
                             let jobPdfUrlOut = jobDescriptionPdfUrl.trim();
+                            let eventAgendaPdfOut = agendaPdfUrl.trim();
+                            if (listingGroup === "events") {
+                                if (eventAgendaPdfFile) {
+                                    if (!auth.currentUser) {
+                                        setEventAgendaPdfUploadError("You must be signed in to upload.");
+                                        return;
+                                    }
+                                    const v = validateJobDescriptionPdf(eventAgendaPdfFile);
+                                    if (v) {
+                                        setEventAgendaPdfUploadError(v);
+                                        return;
+                                    }
+                                    setEventAgendaPdfUploadError("");
+                                    try {
+                                        setEventAgendaPdfUploading(true);
+                                        eventAgendaPdfOut = await uploadEventAgendaPdf(auth.currentUser.uid, eventAgendaPdfFile, listing.id);
+                                    } catch (err: any) {
+                                        setEventAgendaPdfUploadError(err?.message || "PDF upload failed.");
+                                        return;
+                                    } finally {
+                                        setEventAgendaPdfUploading(false);
+                                    }
+                                } else if (!eventAgendaPdfOut) {
+                                    setEventAgendaPdfUploadError("Add an agenda PDF file or a hosted PDF URL.");
+                                    return;
+                                }
+                                setEventAgendaPdfUploadError("");
+                            }
                             if (listingGroup === "jobs") {
                                 if (jobPdfFile) {
                                     if (!auth.currentUser) {
@@ -3225,7 +3384,9 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                         eventCountry,
                                         location: eventLocation,
                                         eventProfile,
-                                        agenda,
+                                        agendaHighlights: agendaHighlights.trim(),
+                                        agenda: agendaHighlights.trim(),
+                                        agendaPdfUrl: eventAgendaPdfOut,
                                         stateRegion: eventStateRegion,
                                         city: eventCity,
                                     }
@@ -3256,6 +3417,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                         disabled={
                             processing ||
                             jobPdfUploading ||
+                            eventAgendaPdfUploading ||
                             companyProfileTooLong ||
                             (showOtherCertInput && !otherCertText.trim()) ||
                             representatives
@@ -3273,8 +3435,11 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                     !eventCountry.trim() ||
                                     !eventStateRegion.trim() ||
                                     !eventCity.trim() ||
-                                    !agenda.trim() ||
+                                    !eventLocation.trim() ||
+                                    !agendaHighlights.trim() ||
+                                    (!agendaPdfUrl.trim() && !eventAgendaPdfFile) ||
                                     !eventProfile.trim() ||
+                                    categoryCount === 0 ||
                                     (startDate && endDate && endDate < startDate) ||
                                     (isBasicEventPlan && startDate && endDate !== startDate))) ||
                             (listingGroup === "jobs" &&
@@ -3282,15 +3447,19 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                     !jobSummary.trim() ||
                                     (!jobDescriptionPdfUrl.trim() && !jobPdfFile) ||
                                     !jobType.trim() ||
+                                    !industry.trim() ||
+                                    !experienceLevel.trim() ||
+                                    !education.trim() ||
                                     !jobCountry.trim() ||
                                     !jobStateRegion.trim() ||
                                     !jobCity.trim() ||
                                     !workModel.trim() ||
-                                    !positionLink.trim())) ||
+                                    !positionLink.trim() ||
+                                    categoryCount === 0)) ||
                             (showServiceLocations && countries.length === 0)
                         }
                     >
-                        {jobPdfUploading ? "Uploading PDF…" : processing ? "Saving..." : isUpgradeFlow ? "Save & Continue to Stripe" : "Save Changes"}
+                        {jobPdfUploading || eventAgendaPdfUploading ? "Uploading PDF…" : processing ? "Saving..." : isUpgradeFlow ? "Save & Continue to Stripe" : "Save Changes"}
                     </Button>
                 </div>
             </div>
@@ -3310,61 +3479,26 @@ interface UpgradePlanModalProps {
 function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, onUpgrade, processing }: UpgradePlanModalProps) {
     const [selectedPlan, setSelectedPlan] = useState<string>("");
 
-    // Plan tier order for comparison (higher index = higher tier)
-    const planTierOrder: Record<string, number> = {
-        // Monthly business/consulting
-        basic_mo: 1, standard_mo: 2, premium_mo: 3, premium_plus_mo: 4,
-        // Yearly business/consulting
-        basic_yr: 1, standard_yr: 2, premium_yr: 3, premium_plus_yr: 4,
-        // Events
-        basic_event: 1, standard_event: 2, premium_event: 3, premium_plus_event: 4,
-        // Jobs
-        standard_job: 1, premium_job: 2, premium_plus_job: 3,
-    };
+    const isBusinessMonthly = currentPlan.planId?.includes("_mo");
 
-    const currentTier = planTierOrder[currentPlan.planId] || 0;
-
-    // Determine plan type and billing cycle
-    const isBusinessMonthly = currentPlan.planId?.includes('_mo');
-    const isBusinessYearly = currentPlan.planId?.includes('_yr');
-    const isEvent = currentPlan.planId?.includes('event');
-    const isJob = currentPlan.planId?.includes('job');
-
-    // Parse price from string like "$100.00" to number
     const parsePrice = (priceStr: string) => {
         return parseFloat(priceStr.replace(/[$,]/g, '')) || 0;
     };
 
     const currentPrice = parsePrice(currentPlanConfig?.price || "0");
 
-    // Filter upgrade options: events/jobs = higher tier only; business monthly = higher monthly OR annual at same/higher tier; business yearly = higher annual only
-    const upgradePlans = Object.entries(allPlans).filter(([id]) => {
-        const targetTier = planTierOrder[id] || 0;
-
-        if (isEvent) return id.includes('event') && targetTier > currentTier;
-        if (isJob) return id.includes('job') && targetTier > currentTier;
-
-        const targetMo = id.includes('_mo');
-        const targetYr = id.includes('_yr');
-        if (!targetMo && !targetYr) return false;
-
-        if (isBusinessMonthly) {
-            if (targetMo) return targetTier > currentTier;
-            if (targetYr) return targetTier >= currentTier;
-            return false;
-        }
-        if (isBusinessYearly) {
-            return targetYr && targetTier > currentTier;
-        }
-        return false;
-    }).sort((a, b) => {
-        const ta = planTierOrder[a[0]] || 0;
-        const tb = planTierOrder[b[0]] || 0;
-        if (ta !== tb) return ta - tb;
-        if (a[0].includes("_mo") && b[0].includes("_yr")) return -1;
-        if (a[0].includes("_yr") && b[0].includes("_mo")) return 1;
-        return 0;
-    });
+    const upgradePlanIds = getAvailablePlanUpgradeIds(currentPlan.planId);
+    const upgradePlans = upgradePlanIds
+        .map((id) => [id, allPlans[id]] as const)
+        .filter(([, config]) => Boolean(config))
+        .sort((a, b) => {
+            const ta = PLAN_UPGRADE_TIER_ORDER[a[0]] || 0;
+            const tb = PLAN_UPGRADE_TIER_ORDER[b[0]] || 0;
+            if (ta !== tb) return ta - tb;
+            if (a[0].includes("_mo") && b[0].includes("_yr")) return -1;
+            if (a[0].includes("_yr") && b[0].includes("_mo")) return 1;
+            return 0;
+        });
 
     const selectedPlanConfig = selectedPlan ? allPlans[selectedPlan] : null;
     const selectedPrice = selectedPlanConfig ? parsePrice(selectedPlanConfig.price) : 0;

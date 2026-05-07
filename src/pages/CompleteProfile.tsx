@@ -18,7 +18,7 @@ import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, getDocs, q
 import { logActivity } from "@/lib/auditLogger";
 import { API_BASE_URL } from "@/apiConfig";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
-import { uploadJobDescriptionPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
+import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 import { isValidBusinessAddress } from "@/lib/addressValidation";
 import PhoneInput from 'react-phone-number-input'
 import 'react-phone-number-input/style.css'
@@ -73,6 +73,18 @@ const PLAN_LIMITS: Record<string, PlanLimits> = {
     premium_job: { maxCategories: -1, maxCountries: -1 },
     premium_plus_job: { maxCategories: -1, maxCountries: -1 },
 };
+
+const EVENT_JOB_PLAN_DETAILS: Record<string, string[]> = {
+    basic_event: ["Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Event date (single day)", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
+    standard_event: ["Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
+    premium_event: ["Extra Feature: Landing page spotlight for increased visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
+    premium_plus_event: ["Extra Feature: Home page spotlight for maximum visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
+    standard_job: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
+    premium_job: ["Extra Feature: Landing page spotlight for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
+    premium_plus_job: ["Extra Feature: Home page spotlight for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
+};
+
+const AGENDA_HIGHLIGHTS_MAX = 500;
 
 // ─── Service Regions ───
 const SERVICE_REGIONS = [
@@ -168,7 +180,7 @@ export default function CompleteProfile() {
     // ─── Event details state ───
     const [eventData, setEventData] = useState({
         eventName: "", eventLink: "", startDate: "", endDate: "",
-        eventCountry: "", stateRegion: "", city: "", location: "", eventProfile: "", agenda: "",
+        eventCountry: "", stateRegion: "", city: "", location: "", eventProfile: "", agendaHighlights: "", agendaPdfUrl: "",
     });
 
     // ─── Job details state ───
@@ -193,6 +205,7 @@ export default function CompleteProfile() {
     const [showCountriesDropdown, setShowCountriesDropdown] = useState(false);
     const [countrySearch, setCountrySearch] = useState("");
     const [jobPdfFile, setJobPdfFile] = useState<File | null>(null);
+    const [eventAgendaPdfFile, setEventAgendaPdfFile] = useState<File | null>(null);
 
     // Load existing data
     useEffect(() => {
@@ -266,6 +279,7 @@ export default function CompleteProfile() {
             setExpandedCategories([]); setExpandedSubcategories([]);
         } else if (field === "plan") {
             setFormData(prev => ({ ...prev, plan: value }));
+            setEventAgendaPdfFile(null);
             // Reset categories/countries when plan changes (limits might differ)
             setSelectedCategories([]); setSelectedSubcategories([]); setSelectedSubSubcategories([]);
             setSelectedCountries([]); setSelectedRegions([]);
@@ -470,6 +484,9 @@ export default function CompleteProfile() {
 
     // ─── Plan details text ───
     const getPlanDetailsText = (planId: string): string[] => {
+        if (formData.group === "events" || formData.group === "jobs") {
+            return EVENT_JOB_PLAN_DETAILS[planId] || [];
+        }
         const limits = PLAN_LIMITS[planId];
         if (!limits) return [];
         const cats = limits.maxCategories === -1 ? "Unlimited" : `up to ${limits.maxCategories}`;
@@ -481,8 +498,7 @@ export default function CompleteProfile() {
             "Display your logo for branding",
             "Direct website link",
             "Add representative(s) for direct communication",
-            "Certifications (optional)",
-            "Biosafety level (optional) — BSL disclosure",
+            ...(formData.group === "business_offerings" ? ["Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] : []),
         ];
     };
 
@@ -551,8 +567,30 @@ export default function CompleteProfile() {
 
         if (formData.group === "events") {
             const ev = eventData;
-            if (!ev.eventName.trim() || !ev.eventLink.trim() || !ev.startDate || !ev.endDate || !ev.eventCountry || !ev.stateRegion.trim() || !ev.city.trim() || !ev.eventProfile.trim() || !ev.agenda.trim()) {
-                setError("Please complete all required event fields (including agenda).");
+            const highlights = ev.agendaHighlights.trim();
+            const hasAgendaPdf = !!eventAgendaPdfFile || ev.agendaPdfUrl.trim().length > 0;
+            if (
+                !ev.eventName.trim() ||
+                !ev.eventLink.trim() ||
+                !ev.startDate ||
+                !ev.endDate ||
+                !ev.eventCountry ||
+                !ev.stateRegion.trim() ||
+                !ev.city.trim() ||
+                !ev.location.trim() ||
+                !ev.eventProfile.trim() ||
+                !highlights ||
+                !hasAgendaPdf
+            ) {
+                setError("Please complete all required event fields (venue, highlights, agenda PDF, categories).");
+                return;
+            }
+            if (highlights.length > AGENDA_HIGHLIGHTS_MAX) {
+                setError(`Agenda highlights must be ${AGENDA_HIGHLIGHTS_MAX} characters or fewer.`);
+                return;
+            }
+            if (categoryCount === 0) {
+                setError("Select at least one event category.");
                 return;
             }
             if (ev.endDate < ev.startDate) {
@@ -562,6 +600,13 @@ export default function CompleteProfile() {
             if (formData.plan === "basic_event" && ev.endDate !== ev.startDate) {
                 setError("Basic events are single-day: end date must match the start date.");
                 return;
+            }
+            if (eventAgendaPdfFile) {
+                const pdfErr = validateJobDescriptionPdf(eventAgendaPdfFile);
+                if (pdfErr) {
+                    setError(pdfErr);
+                    return;
+                }
             }
         }
 
@@ -573,13 +618,20 @@ export default function CompleteProfile() {
                 !j.jobSummary.trim() ||
                 !hasPdf ||
                 !j.positionType.trim() ||
+                !j.industry.trim() ||
+                !j.experienceLevel.trim() ||
+                !j.education.trim() ||
                 !j.jobCountry.trim() ||
                 !j.stateRegion?.trim() ||
                 !j.city?.trim() ||
                 !j.workModel.trim() ||
                 !j.positionLink.trim()
             ) {
-                setError("Please complete all required job fields (summary, PDF upload or hosted PDF URL, job type, country, region, city, work model, and apply link).");
+                setError("Please complete all required job fields (including industry, experience, education, categories).");
+                return;
+            }
+            if (categoryCount === 0) {
+                setError("Select at least one job category.");
                 return;
             }
             if (jobPdfFile) {
@@ -605,6 +657,10 @@ export default function CompleteProfile() {
             let jobDescriptionPdfResolved = jobData.jobDescriptionPdfUrl.trim();
             if (formData.group === "jobs" && jobPdfFile && auth.currentUser) {
                 jobDescriptionPdfResolved = await uploadJobDescriptionPdf(auth.currentUser.uid, jobPdfFile, null);
+            }
+            let eventAgendaPdfResolved = eventData.agendaPdfUrl.trim();
+            if (formData.group === "events" && eventAgendaPdfFile && auth.currentUser) {
+                eventAgendaPdfResolved = await uploadEventAgendaPdf(auth.currentUser.uid, eventAgendaPdfFile, null);
             }
 
             // Save profile + business details to Firestore
@@ -694,8 +750,23 @@ export default function CompleteProfile() {
                     companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: formData.businessAddress.trim(),
                 });
             } else if (formData.group === "events") {
-                Object.assign(updateData, { ...eventData });
-                Object.assign(listingData, { ...eventData });
+                const highlights = eventData.agendaHighlights.trim();
+                const eventPayload = {
+                    eventName: eventData.eventName,
+                    eventLink: eventData.eventLink,
+                    startDate: eventData.startDate,
+                    endDate: eventData.endDate,
+                    eventCountry: eventData.eventCountry,
+                    stateRegion: eventData.stateRegion,
+                    city: eventData.city,
+                    location: eventData.location,
+                    eventProfile: eventData.eventProfile,
+                    agendaHighlights: highlights,
+                    agendaPdfUrl: eventAgendaPdfResolved,
+                    agenda: highlights,
+                };
+                Object.assign(updateData, eventPayload);
+                Object.assign(listingData, eventPayload);
             } else if (formData.group === "jobs") {
                 const jobPayload = {
                     ...jobData,
@@ -1297,21 +1368,51 @@ export default function CompleteProfile() {
                                     {/* ═══ EVENTS: Event fields ═══ */}
                                     {formData.group === "events" && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div className="space-y-2">
+                                            <div className="space-y-2 md:col-span-2">
                                                 <Label>Event name <span className="text-red-400">*</span></Label>
-                                                <Input value={eventData.eventName} onChange={e => setEventData(prev => ({ ...prev, eventName: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                                <Input value={eventData.eventName} onChange={e => setEventData(prev => ({ ...prev, eventName: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
-                                            <div className="space-y-2">
+                                            <div className="space-y-2 md:col-span-2">
                                                 <Label>Event link <span className="text-red-400">*</span></Label>
-                                                <Input type="url" placeholder="https://" value={eventData.eventLink} onChange={e => setEventData(prev => ({ ...prev, eventLink: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                                <Input type="url" placeholder="https://" value={eventData.eventLink} onChange={e => setEventData(prev => ({ ...prev, eventLink: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
                                                 <Label>Start date <span className="text-red-400">*</span></Label>
-                                                <Input type="date" value={eventData.startDate} onChange={e => setEventData(prev => ({ ...prev, startDate: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                                <Input
+                                                    type="date"
+                                                    value={eventData.startDate}
+                                                    onChange={e => {
+                                                        const v = e.target.value;
+                                                        setEventData(prev => {
+                                                            let end = prev.endDate;
+                                                            if (formData.plan === "basic_event") end = v;
+                                                            else if (end && v && end < v) end = v;
+                                                            return { ...prev, startDate: v, endDate: end };
+                                                        });
+                                                    }}
+                                                    required
+                                                    className="h-12 bg-muted/40 border-foreground/10"
+                                                />
                                             </div>
                                             <div className="space-y-2">
                                                 <Label>{formData.plan === "basic_event" ? "Event date" : "End date"} <span className="text-red-400">*</span></Label>
-                                                <Input type="date" value={eventData.endDate} onChange={e => setEventData(prev => ({ ...prev, endDate: e.target.value }))} required disabled={formData.plan === "basic_event"} className="bg-muted/40 border-foreground/10" />
+                                                <Input
+                                                    type="date"
+                                                    value={eventData.endDate}
+                                                    min={formData.plan === "basic_event" ? eventData.startDate : (eventData.startDate || undefined)}
+                                                    onChange={e => {
+                                                        const v = e.target.value;
+                                                        setEventData(prev => {
+                                                            if (prev.startDate && v && v < prev.startDate) {
+                                                                return { ...prev, endDate: prev.startDate };
+                                                            }
+                                                            return { ...prev, endDate: v };
+                                                        });
+                                                    }}
+                                                    required
+                                                    disabled={formData.plan === "basic_event"}
+                                                    className="h-12 bg-muted/40 border-foreground/10"
+                                                />
                                                 {formData.plan === "basic_event" && (
                                                     <p className="text-xs text-muted-foreground">Basic plan is single-day; end date matches start date.</p>
                                                 )}
@@ -1319,7 +1420,7 @@ export default function CompleteProfile() {
                                             <div className="space-y-2">
                                                 <Label>Country <span className="text-red-400">*</span></Label>
                                                 <Select value={eventData.eventCountry} onValueChange={val => setEventData(prev => ({ ...prev, eventCountry: val }))}>
-                                                    <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
+                                                    <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
                                                     <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
                                                         {SERVICE_COUNTRIES.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                                                     </SelectContent>
@@ -1327,23 +1428,57 @@ export default function CompleteProfile() {
                                             </div>
                                             <div className="space-y-2">
                                                 <Label>State/Province/Region <span className="text-red-400">*</span></Label>
-                                                <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                                <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
                                                 <Label>City/Town <span className="text-red-400">*</span></Label>
-                                                <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
+                                                <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Venue / location notes</Label>
-                                                <Input placeholder="Venue name or online details" value={eventData.location} onChange={e => setEventData(prev => ({ ...prev, location: e.target.value }))} className="bg-muted/40 border-foreground/10" />
+                                                <Label>Venue / location <span className="text-red-400">*</span></Label>
+                                                <Input placeholder="Venue name or online details" value={eventData.location} onChange={e => setEventData(prev => ({ ...prev, location: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Agenda <span className="text-red-400">*</span></Label>
-                                                <Textarea value={eventData.agenda} onChange={e => setEventData(prev => ({ ...prev, agenda: e.target.value }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Session topics, times, speakers…" />
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                    <div className="space-y-2">
+                                                        <Label>Agenda highlights <span className="text-red-400">*</span> <span className="text-muted-foreground font-normal">(max {AGENDA_HIGHLIGHTS_MAX})</span></Label>
+                                                        <Textarea
+                                                            value={eventData.agendaHighlights}
+                                                            onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX) }))}
+                                                            required
+                                                            className="min-h-[120px] bg-muted/40 border-foreground/10 resize-none text-sm"
+                                                            placeholder="Short summary of sessions, themes, and speakers…"
+                                                        />
+                                                        <p className="text-xs text-muted-foreground">{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>
+                                                        <Input
+                                                            type="file"
+                                                            accept=".pdf,application/pdf"
+                                                            className="h-12 bg-muted/40 border-foreground/10 cursor-pointer"
+                                                            onChange={(e) => {
+                                                                const f = e.target.files?.[0] || null;
+                                                                setEventAgendaPdfFile(f);
+                                                                if (f) setEventData(prev => ({ ...prev, agendaPdfUrl: "" }));
+                                                            }}
+                                                        />
+                                                        {eventAgendaPdfFile && <p className="text-xs text-muted-foreground">Selected: {eventAgendaPdfFile.name}</p>}
+                                                        <p className="text-xs text-muted-foreground">Or paste a hosted PDF link.</p>
+                                                        <Input
+                                                            type="url"
+                                                            placeholder="https://…"
+                                                            value={eventData.agendaPdfUrl}
+                                                            onChange={e => setEventData(prev => ({ ...prev, agendaPdfUrl: e.target.value }))}
+                                                            disabled={!!eventAgendaPdfFile}
+                                                            className="h-12 bg-muted/40 border-foreground/10"
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Event profile <span className="text-red-400">*</span></Label>
-                                                <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value }))} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
+                                                <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
                                             </div>
                                         </div>
                                     )}
@@ -1383,9 +1518,9 @@ export default function CompleteProfile() {
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Industry</Label>
+                                                <Label>Industry <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.industry} onValueChange={val => setJobData(prev => ({ ...prev, industry: val }))}>
-                                                    <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select industry" /></SelectTrigger>
+                                                    <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select industry" /></SelectTrigger>
                                                     <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
                                                         {["Biotechnology", "Pharmaceutical", "Medical Devices", "Clinical Research", "Diagnostics", "Digital Health", "Life Sciences", "Healthcare", "Other"].map(i => (
                                                             <SelectItem key={i} value={i}>{i}</SelectItem>
@@ -1396,7 +1531,7 @@ export default function CompleteProfile() {
                                             <div className="space-y-2">
                                                 <Label>Job type <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
-                                                    <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select job type" /></SelectTrigger>
+                                                    <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select job type" /></SelectTrigger>
                                                     <SelectContent className="bg-background/90 border-foreground/10">
                                                         {["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"].map(t => (
                                                             <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -1405,9 +1540,9 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Experience level</Label>
+                                                <Label>Experience level <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
-                                                    <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select experience level" /></SelectTrigger>
+                                                    <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select experience level" /></SelectTrigger>
                                                     <SelectContent className="bg-background/90 border-foreground/10">
                                                         {["Entry level", "Associate level", "Mid-level", "Lead/Principal", "Director", "VP/executive"].map(l => (
                                                             <SelectItem key={l} value={l}>{l}</SelectItem>
@@ -1418,7 +1553,7 @@ export default function CompleteProfile() {
                                             <div className="space-y-2">
                                                 <Label>Work model <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
-                                                    <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select work model" /></SelectTrigger>
+                                                    <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select work model" /></SelectTrigger>
                                                     <SelectContent className="bg-background/90 border-foreground/10">
                                                         {["Hybrid", "Remote", "On-site"].map(t => (
                                                             <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -1427,9 +1562,9 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Education</Label>
+                                                <Label>Education <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.education} onValueChange={val => setJobData(prev => ({ ...prev, education: val }))}>
-                                                    <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select education" /></SelectTrigger>
+                                                    <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select education" /></SelectTrigger>
                                                     <SelectContent className="bg-background/90 border-foreground/10">
                                                         {["High school or equivalent", "Associate degree", "Bachelors degree", "Masters degree", "Doctorate/PhD/MD", "Other"].map(t => (
                                                             <SelectItem key={t} value={t}>{t}</SelectItem>
@@ -1448,7 +1583,7 @@ export default function CompleteProfile() {
                                             <div className="space-y-2">
                                                 <Label>Country <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.jobCountry} onValueChange={val => setJobData(prev => ({ ...prev, jobCountry: val }))}>
-                                                    <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
+                                                    <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
                                                     <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
                                                         {SERVICE_COUNTRIES.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                                                     </SelectContent>
