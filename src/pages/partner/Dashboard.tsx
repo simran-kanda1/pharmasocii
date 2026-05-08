@@ -1066,8 +1066,10 @@ export default function Dashboard() {
     if (!partnerData) return null;
 
     const livePlans = activePlans.filter(isPlanBillingLive);
-    const livePlansEnding = livePlans.filter((p) => p.cancelAtPeriodEnd);
-    const livePlansActive = livePlans.filter((p) => !p.cancelAtPeriodEnd);
+    const livePlansSorted = [...livePlans].sort((a, b) => {
+        if (Boolean(a.cancelAtPeriodEnd) === Boolean(b.cancelAtPeriodEnd)) return 0;
+        return a.cancelAtPeriodEnd ? 1 : -1;
+    });
     const expiredPlans = activePlans.filter((p) => !isPlanBillingLive(p) && (p.planId || p.planName));
 
     const isApproved = partnerData.partnerStatus !== "Disabled";
@@ -1365,8 +1367,8 @@ export default function Dashboard() {
             const canAddFeature = !includedPlanFeature && !hasFeature && isFeatureEligiblePlan(plan);
             const spotlightTier = hasStandaloneFeatureForPlan(plan) ? getSpotlightAddonTierId(linkedListing) : null;
             const spotlightUpgradeTargets = spotlightTier ? getFeatureUpgradeTargets(spotlightTier) : [];
-            const isEnding = mode === "ending";
-            const actionsLocked = isEnding || Boolean(plan.cancelAtPeriodEnd);
+            const isEnding = Boolean(plan.cancelAtPeriodEnd);
+            const actionsLocked = false;
             const canListingPlanUpgradeAction = getAvailablePlanUpgradeIds(plan.planId).length > 0;
             const cardShell = isEnding
                 ? "rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-5"
@@ -1400,7 +1402,7 @@ export default function Dashboard() {
                                 </div>
                                 {isEnding && (
                                     <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
-                                        This plan will not renew. Listing edits, upgrades, and new spotlight purchases are disabled until the period ends.
+                                        This plan is still active and accessible until the end date below. It is scheduled not to renew after that date.
                                     </p>
                                 )}
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
@@ -1622,7 +1624,7 @@ export default function Dashboard() {
                 </div>
 
                 {/* Plans & billing */}
-                {(livePlansActive.length > 0 || livePlansEnding.length > 0 || expiredPlans.length > 0) && (
+                {(livePlans.length > 0 || expiredPlans.length > 0) && (
                     <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
                         <CardHeader className="pb-4 border-b border-foreground/10">
                             <CardTitle className="text-xl flex items-center gap-2">
@@ -1633,21 +1635,13 @@ export default function Dashboard() {
                             </p>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-10">
-                            {livePlansEnding.length > 0 && (
-                                <div className="space-y-3">
-                                    <div>
-                                        <h3 className="text-sm font-bold uppercase tracking-wider text-amber-800 dark:text-amber-200">Scheduled to end</h3>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            Still in access until the end date below; will not renew. Repurchase anytime after it lapses.
-                                        </p>
-                                    </div>
-                                    <div className="space-y-4">{livePlansEnding.map((plan) => renderPlanSubscriptionCard(plan, "ending"))}</div>
-                                </div>
-                            )}
-                            {livePlansActive.length > 0 && (
+                            {livePlansSorted.length > 0 && (
                                 <div className="space-y-3">
                                     <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active</h3>
-                                    <div className="space-y-4">{livePlansActive.map((plan) => renderPlanSubscriptionCard(plan, "active"))}</div>
+                                    <p className="text-xs text-muted-foreground">
+                                        Plans marked "Scheduled to end" remain active until the listed end date.
+                                    </p>
+                                    <div className="space-y-4">{livePlansSorted.map((plan) => renderPlanSubscriptionCard(plan, "active"))}</div>
                                 </div>
                             )}
                             {expiredPlans.length > 0 && (
