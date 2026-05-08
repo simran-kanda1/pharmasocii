@@ -1066,15 +1066,18 @@ async function upsertIncludedPlanFeature(partnerRef, {
 }) {
     if (!partnerRef || !featureId || !listingId || !collectionName) return;
     const featuresRef = partnerRef.collection("featuresCollection");
-    const existing = await featuresRef
+    // Keep this query index-light to avoid blocking webhook flow.
+    const byListing = await featuresRef
         .where("listingId", "==", listingId)
-        .where("collectionName", "==", collectionName)
-        .where("featureId", "==", featureId)
-        .where("source", "==", "included_plan")
-        .limit(1)
         .get();
+    const existingDoc = byListing.docs.find((doc) => {
+        const d = doc.data() || {};
+        return d.collectionName === collectionName &&
+            d.featureId === featureId &&
+            d.source === "included_plan";
+    }) || null;
 
-    const payload = {
+    const basePayload = {
         featureId,
         featureName: featureId.replace(/_/g, " "),
         listingId,
@@ -1083,31 +1086,37 @@ async function upsertIncludedPlanFeature(partnerRef, {
         planId: planId || "",
         active: true,
         cancelPending: false,
-        cancelScope: admin.firestore.FieldValue.delete(),
-        deactivatedAt: admin.firestore.FieldValue.delete(),
-        accessThrough: accessThrough || admin.firestore.FieldValue.delete(),
         lastPaymentReceived: new Date(),
         sessionId: sessionId || "",
     };
 
-    if (existing.empty) {
-        await featuresRef.add(payload);
+    if (!existingDoc) {
+        const createPayload = {
+            ...basePayload,
+            ...(accessThrough ? { accessThrough } : {}),
+        };
+        await featuresRef.add(createPayload);
     } else {
-        await existing.docs[0].ref.set(payload, { merge: true });
+        const updatePayload = {
+            ...basePayload,
+            cancelScope: admin.firestore.FieldValue.delete(),
+            deactivatedAt: admin.firestore.FieldValue.delete(),
+            accessThrough: accessThrough || admin.firestore.FieldValue.delete(),
+        };
+        await existingDoc.ref.set(updatePayload, { merge: true });
     }
 }
 
 async function deactivateIncludedPlanFeaturesForListing(partnerId, listingId, collectionName) {
     if (!partnerId || !listingId || !collectionName) return;
-    const snap = await db.collection("partnersCollection")
+    const byListing = await db.collection("partnersCollection")
         .doc(partnerId)
         .collection("featuresCollection")
         .where("listingId", "==", listingId)
-        .where("collectionName", "==", collectionName)
-        .where("source", "==", "included_plan")
-        .where("active", "==", true)
         .get();
-    for (const doc of snap.docs) {
+    for (const doc of byListing.docs) {
+        const d = doc.data() || {};
+        if (d.collectionName !== collectionName || d.source !== "included_plan" || d.active !== true) continue;
         await doc.ref.set({
             active: false,
             cancelPending: false,
