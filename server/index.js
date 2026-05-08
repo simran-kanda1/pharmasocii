@@ -1833,6 +1833,33 @@ app.post("/api/cancel-plan", async (req, res) => {
                         cancelAt: new Date(),
                     }),
             }, { merge: true });
+
+            // Remove included spotlight visibility immediately when listing plan is cancelled.
+            const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[plan.planId] || null;
+            if (includedSpotlight && plan.listingId && plan.collectionName) {
+                const listingRef = await resolveListingDocRef(partnerId, plan.collectionName, plan.listingId);
+                if (listingRef) {
+                    const listingSnap = await listingRef.get();
+                    if (listingSnap.exists) {
+                        const listingData = listingSnap.data() || {};
+                        const currentSpotlight = String(
+                            listingData.selectedAddon || listingData.featuredPlacement || ""
+                        ).trim();
+                        if (!currentSpotlight || currentSpotlight === includedSpotlight) {
+                            await listingRef.set({
+                                selectedAddon: admin.firestore.FieldValue.delete(),
+                                featuredPlacement: admin.firestore.FieldValue.delete(),
+                                isFeatured: false,
+                                featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
+                                featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
+                                featureSpotlightPaidThrough: admin.firestore.FieldValue.delete(),
+                                lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.delete(),
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            }, { merge: true });
+                        }
+                    }
+                }
+            }
             cancelledPlan = true;
         }
 

@@ -274,6 +274,13 @@ export default function AllCategories() {
         return true;
     };
 
+    const inferIncludedSpotlightFromPlan = (item: any): string => {
+        const planId = String(item?.selectedPlan || "").trim().toLowerCase();
+        if (planId === "premium_event" || planId === "premium_job") return "landing_page";
+        if (planId === "premium_plus_event" || planId === "premium_plus_job") return "home_page";
+        return "";
+    };
+
     // Load state from sessionStorage on mount or tab change
     useEffect(() => {
         setIsRestored(false);
@@ -620,7 +627,9 @@ export default function AllCategories() {
 
     const featuredBusinesses = data.filter(item => {
         if (!spotlightDisplayActive(item)) return false;
-        const addon = String(item.selectedAddon || item.featuredPlacement || "").trim().toLowerCase();
+        const addon = String(
+            item.selectedAddon || item.featuredPlacement || inferIncludedSpotlightFromPlan(item)
+        ).trim().toLowerCase();
         const hasLegacyFeatureFlag = item.isFeatured && !addon;
         const isLandingSpotlight = addon === "landing_page" || addon === "both";
         if (!isLandingSpotlight && !hasLegacyFeatureFlag) return false;
