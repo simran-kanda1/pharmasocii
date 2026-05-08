@@ -270,6 +270,19 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             }
                         }
                         await listingRef.set(listingUpgradePatch, { merge: true });
+                        if (includedSpotlight) {
+                            await upsertIncludedPlanFeature(partnerRef, {
+                                featureId: includedSpotlight,
+                                listingId: upgradeListingId,
+                                collectionName: upgradeCollectionName,
+                                planId: newPlanId,
+                                sessionId: session.id,
+                                accessThrough: upgradedSubscription.current_period_end
+                                    ? new Date(upgradedSubscription.current_period_end * 1000)
+                                    : null,
+                            });
+                            await deactivateSupersededPartnerFeatures(partnerRef, upgradeListingId, includedSpotlight);
+                        }
                     }
                 }
 
@@ -430,6 +443,17 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         listingPaymentUpdate.featureSpotlightPaidThrough = billingPeriodEnd;
                     }
                     await listingRef.update(listingPaymentUpdate);
+                    if (includedSpotlight) {
+                        await upsertIncludedPlanFeature(partnerRef, {
+                            featureId: includedSpotlight,
+                            listingId,
+                            collectionName: resolvedCollectionName,
+                            planId,
+                            sessionId: session.id,
+                            accessThrough: billingPeriodEnd,
+                        });
+                        await deactivateSupersededPartnerFeatures(partnerRef, listingId, includedSpotlight);
+                    }
                     console.log(`   ✓ Listing ${listingId} updated to status: Approved`);
 
                     // Also add to partner's plans with more details (idempotent by session)
@@ -723,6 +747,12 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 const snap = await db.collection(col).where("stripeSubscriptionId", "==", subscription.id).get();
                 for (const lDoc of snap.docs) {
                     await lDoc.ref.set(listingUpdateOnEnd, { merge: true });
+                    const listingData = lDoc.data() || {};
+                    await deactivateIncludedPlanFeaturesForListing(
+                        listingData.partnerId || null,
+                        lDoc.id,
+                        col
+                    );
                 }
             }
 
@@ -733,6 +763,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     const snap = await pDoc.ref.collection(col).where("stripeSubscriptionId", "==", subscription.id).get();
                     for (const lDoc of snap.docs) {
                         await lDoc.ref.set(listingUpdateOnEnd, { merge: true });
+                        await deactivateIncludedPlanFeaturesForListing(pDoc.id, lDoc.id, col);
                     }
                 }
                 const pSnap = await pDoc.ref.collection("planCollection").where("stripeSubscriptionId", "==", subscription.id).get();
@@ -1022,6 +1053,66 @@ async function deactivateSupersededPartnerFeatures(partnerRef, listingId, newFea
                 { merge: true }
             );
         }
+    }
+}
+
+async function upsertIncludedPlanFeature(partnerRef, {
+    featureId,
+    listingId,
+    collectionName,
+    planId,
+    sessionId,
+    accessThrough = null,
+}) {
+    if (!partnerRef || !featureId || !listingId || !collectionName) return;
+    const featuresRef = partnerRef.collection("featuresCollection");
+    const existing = await featuresRef
+        .where("listingId", "==", listingId)
+        .where("collectionName", "==", collectionName)
+        .where("featureId", "==", featureId)
+        .where("source", "==", "included_plan")
+        .limit(1)
+        .get();
+
+    const payload = {
+        featureId,
+        featureName: featureId.replace(/_/g, " "),
+        listingId,
+        collectionName,
+        source: "included_plan",
+        planId: planId || "",
+        active: true,
+        cancelPending: false,
+        cancelScope: admin.firestore.FieldValue.delete(),
+        deactivatedAt: admin.firestore.FieldValue.delete(),
+        accessThrough: accessThrough || admin.firestore.FieldValue.delete(),
+        lastPaymentReceived: new Date(),
+        sessionId: sessionId || "",
+    };
+
+    if (existing.empty) {
+        await featuresRef.add(payload);
+    } else {
+        await existing.docs[0].ref.set(payload, { merge: true });
+    }
+}
+
+async function deactivateIncludedPlanFeaturesForListing(partnerId, listingId, collectionName) {
+    if (!partnerId || !listingId || !collectionName) return;
+    const snap = await db.collection("partnersCollection")
+        .doc(partnerId)
+        .collection("featuresCollection")
+        .where("listingId", "==", listingId)
+        .where("collectionName", "==", collectionName)
+        .where("source", "==", "included_plan")
+        .where("active", "==", true)
+        .get();
+    for (const doc of snap.docs) {
+        await doc.ref.set({
+            active: false,
+            cancelPending: false,
+            deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
     }
 }
 
@@ -1859,6 +1950,19 @@ app.post("/api/cancel-plan", async (req, res) => {
                         }
                     }
                 }
+                const includedFeatureDocs = await partnerRef.collection("featuresCollection")
+                    .where("listingId", "==", plan.listingId)
+                    .where("collectionName", "==", plan.collectionName)
+                    .where("source", "==", "included_plan")
+                    .where("active", "==", true)
+                    .get();
+                for (const fDoc of includedFeatureDocs.docs) {
+                    await fDoc.ref.set({
+                        active: false,
+                        cancelPending: false,
+                        deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    }, { merge: true });
+                }
             }
             cancelledPlan = true;
         }
@@ -2011,12 +2115,38 @@ app.post("/api/verify-payment", async (req, res) => {
             if (upgradeListingId && upgradeCollectionName) {
                 const listingRef = await resolveListingDocRef(partnerId, upgradeCollectionName, upgradeListingId);
                 if (listingRef) {
-                    await listingRef.set({
+                    const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[newPlanId] || null;
+                    const listingUpgradePatch = {
                         selectedPlan: newPlanId,
                         stripeSubscriptionId: upgradedSubscription.id,
                         stripeCustomerId: upgradedSubscription.customer || null,
                         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    }, { merge: true });
+                    };
+                    if (includedSpotlight) {
+                        listingUpgradePatch.selectedAddon = includedSpotlight;
+                        listingUpgradePatch.featuredPlacement = includedSpotlight;
+                        listingUpgradePatch.isFeatured = true;
+                        listingUpgradePatch.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
+                        if (upgradedSubscription.current_period_end) {
+                            listingUpgradePatch.featureSpotlightPaidThrough = new Date(
+                                upgradedSubscription.current_period_end * 1000
+                            );
+                        }
+                    }
+                    await listingRef.set(listingUpgradePatch, { merge: true });
+                    if (includedSpotlight) {
+                        await upsertIncludedPlanFeature(partnerRef, {
+                            featureId: includedSpotlight,
+                            listingId: upgradeListingId,
+                            collectionName: upgradeCollectionName,
+                            planId: newPlanId,
+                            sessionId: session.id,
+                            accessThrough: upgradedSubscription.current_period_end
+                                ? new Date(upgradedSubscription.current_period_end * 1000)
+                                : null,
+                        });
+                        await deactivateSupersededPartnerFeatures(partnerRef, upgradeListingId, includedSpotlight);
+                    }
                     updated = true;
                 }
             }
@@ -2154,6 +2284,27 @@ app.post("/api/verify-payment", async (req, res) => {
                     billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
                 } else {
                     billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                }
+
+                const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[planId] || null;
+                if (includedSpotlight) {
+                    await listingRef.set({
+                        selectedAddon: includedSpotlight,
+                        featuredPlacement: includedSpotlight,
+                        isFeatured: true,
+                        lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        featureSpotlightPaidThrough: billingPeriodEnd,
+                    }, { merge: true });
+                    await upsertIncludedPlanFeature(partnerRef, {
+                        featureId: includedSpotlight,
+                        listingId,
+                        collectionName: resolvedCollectionName,
+                        planId,
+                        sessionId: session.id,
+                        accessThrough: billingPeriodEnd,
+                    });
+                    await deactivateSupersededPartnerFeatures(partnerRef, listingId, includedSpotlight);
+                    updated = true;
                 }
 
                 // Check if plan record already exists
