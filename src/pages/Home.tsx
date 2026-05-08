@@ -25,6 +25,29 @@ function spotlightDisplayActive(item: Record<string, any>): boolean {
     return true;
 }
 
+function toMillis(value: any): number {
+    if (!value) return 0;
+    if (typeof value?.toDate === "function") {
+        const d = value.toDate();
+        return d instanceof Date ? d.getTime() : 0;
+    }
+    if (typeof value?.seconds === "number") return value.seconds * 1000;
+    if (typeof value === "number") return value > 1e12 ? value : value * 1000;
+    if (typeof value === "string") {
+        const ms = new Date(value).getTime();
+        return Number.isNaN(ms) ? 0 : ms;
+    }
+    return 0;
+}
+
+function featuredRecencyMs(item: Record<string, any>): number {
+    return Math.max(
+        toMillis(item.lastFeaturePaymentReceivedAt),
+        toMillis(item.lastPaymentReceivedAt),
+        toMillis(item.createdAt)
+    );
+}
+
 function inferIncludedSpotlightFromPlan(item: Record<string, any>): string {
     const planId = String(item.selectedPlan || "").trim().toLowerCase();
     if (planId === "premium_event" || planId === "premium_job") return "landing_page";
@@ -55,7 +78,7 @@ export default function Home() {
                     businessDocs.docs
                         .map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
                         .filter(isHomeSpotlight)
-                        .slice(0, 24)
+                        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a))
                 );
 
                 // Fetch featured jobs
@@ -65,7 +88,7 @@ export default function Home() {
                     jobDocs.docs
                         .map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
                         .filter(isHomeSpotlight)
-                        .slice(0, 12)
+                        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a))
                 );
 
                 // Fetch featured events
@@ -75,7 +98,7 @@ export default function Home() {
                     evtDocs.docs
                         .map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
                         .filter(isHomeSpotlight)
-                        .slice(0, 12)
+                        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a))
                 );
 
                 // Fetch featured consulting
@@ -87,7 +110,11 @@ export default function Home() {
                     ...consultingServicesDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
                     ...consultingLegacyDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
                 ];
-                setFeaturedConsulting(mergedConsulting.filter(isHomeSpotlight).slice(0, 12));
+                setFeaturedConsulting(
+                    mergedConsulting
+                        .filter(isHomeSpotlight)
+                        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a))
+                );
             } catch (err) {
                 console.error("Failed to load featured data:", err);
             }
