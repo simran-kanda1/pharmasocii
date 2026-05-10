@@ -14,6 +14,12 @@ import ListingDetail from "./pages/ListingDetail";
 import AddListing from "./pages/partner/AddListing";
 import AboutUs from "./pages/AboutUs";
 import FAQ from "./pages/FAQ";
+import CommunityFeed from "./pages/community/CommunityFeed";
+import CommunityPostDetail from "./pages/community/CommunityPostDetail";
+import NewCommunityPost from "./pages/community/NewCommunityPost";
+import MemberRegister from "./pages/MemberRegister";
+import MemberDashboard from "./pages/member/MemberDashboard";
+import MemberCommunitySetup from "./pages/member/MemberCommunitySetup";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -44,6 +50,13 @@ function App() {
       <Route path="/about-us" element={<AppLayout><AboutUs /></AppLayout>} />
       <Route path="/faq" element={<AppLayout><FAQ /></AppLayout>} />
       <Route path="/all-categories/:category?" element={<AppLayout><AllCategories /></AppLayout>} />
+
+      <Route path="/community" element={<AppLayout><CommunityFeed /></AppLayout>} />
+      <Route path="/community/post/:postId" element={<AppLayout><CommunityPostDetail /></AppLayout>} />
+      <Route path="/community/new" element={<AppLayout><NewCommunityPost /></AppLayout>} />
+      <Route path="/member/register" element={<AppLayout><MemberRegister /></AppLayout>} />
+      <Route path="/member/setup" element={<AppLayout><MemberCommunitySetup /></AppLayout>} />
+      <Route path="/member/dashboard" element={<AppLayout><MemberDashboard /></AppLayout>} />
 
       {/* Auth flows */}
       <Route path="/login" element={<AppLayout><Login /></AppLayout>} />

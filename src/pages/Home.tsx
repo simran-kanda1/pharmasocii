@@ -4,10 +4,11 @@ import { ArrowRight, PlayCircle, ShieldCheck, Building2, Users, Calendar, Briefc
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 import { db } from "@/firebase";
-import { collection, collectionGroup, query, where, limit, getDocs } from "firebase/firestore";
+import { collection, collectionGroup, query, where, limit, getDocs, orderBy } from "firebase/firestore";
+import { PostCard } from "@/components/community/PostCard";
+import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 
 const FEATURE_FETCH_LIMIT = 5000;
 
@@ -55,10 +56,12 @@ function inferIncludedSpotlightFromPlan(item: Record<string, any>): string {
     return "";
 }
 export default function Home() {
+    const { categoryDoc } = useCommunityCategories();
     const [featuredBusinesses, setFeaturedBusinesses] = useState<any[]>([]);
     const [featuredJobs, setFeaturedJobs] = useState<any[]>([]);
     const [featuredEvents, setFeaturedEvents] = useState<any[]>([]);
     const [featuredConsulting, setFeaturedConsulting] = useState<any[]>([]);
+    const [communityHighlights, setCommunityHighlights] = useState<any[]>([]);
 
     useEffect(() => {
         const fetchFeaturedData = async () => {
@@ -115,6 +118,15 @@ export default function Home() {
                         .filter(isHomeSpotlight)
                         .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a))
                 );
+
+                const postsQ = query(
+                    collection(db, "postsCollection"),
+                    where("archived", "==", false),
+                    orderBy("createdAt", "desc"),
+                    limit(5),
+                );
+                const postsSnap = await getDocs(postsQ);
+                setCommunityHighlights(postsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
             } catch (err) {
                 console.error("Failed to load featured data:", err);
             }
@@ -164,12 +176,12 @@ export default function Home() {
                     <div className="flex flex-col sm:flex-row items-center gap-6">
                         <Button size="lg" className="h-14 px-8 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/50 transition-all rounded-full" asChild>
                             <Link to="/signup">
-                                Become a Partner <ArrowRight className="ml-2 w-5 h-5" />
+                                Join the marketplace <ArrowRight className="ml-2 w-5 h-5" />
                             </Link>
                         </Button>
                         <Button size="lg" variant="outline" className="h-14 px-8 text-base font-semibold border-foreground/20 bg-foreground/5 hover:bg-foreground/10 backdrop-blur-md rounded-full" asChild>
                             <Link to="/community">
-                                <PlayCircle className="mr-2 w-5 h-5 text-primary" /> Explore Community
+                                <PlayCircle className="mr-2 w-5 h-5 text-primary" /> Explore community
                             </Link>
                         </Button>
                     </div>
@@ -379,42 +391,60 @@ export default function Home() {
                 </div>
             </section>
 
+            {/* FAQ */}
+            <section className="py-20 bg-background border-y border-foreground/10">
+                <div className="container mx-auto px-6 max-w-3xl">
+                    <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center">FAQ</h2>
+                    <ul className="space-y-6 text-left">
+                        {[
+                            ["How does the marketplace work?", "Partners list businesses, experts, events, and jobs. Visitors browse by category and open listings for full detail."],
+                            ["How do I list my business?", "Create a partner account, complete your profile, then add listings from your partner dashboard."],
+                            ["How do I post a job?", "From the partner dashboard, add a job listing and upload a description PDF when prompted."],
+                            ["How do I become a partner?", "Use Join the marketplace / partner registration to create an account and choose a plan."],
+                            ["What industries are supported?", "The marketplace covers life sciences categories from manufacturing and CRO services to regulatory and jobs—see All Categories for the full tree."],
+                        ].map(([q, a]) => (
+                            <li key={String(q)} className="border-b border-foreground/10 pb-6">
+                                <p className="font-semibold text-foreground mb-2">{q}</p>
+                                <p className="text-sm text-muted-foreground leading-relaxed">{a}</p>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            </section>
+
             {/* COMMUNITY HIGHLIGHTS */}
             <section className="py-24 bg-muted/40 border-y border-foreground/10 relative">
                 <div className="container mx-auto px-6 md:px-12 max-w-7xl">
                     <SectionHeader
                         title="Community Highlights"
-                        subtitle="Trending discussions directly from the network."
-                        action={<Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md font-semibold px-8 h-12 rounded-full border-none"><Link to="/member/login">Become a member <ArrowRight className="ml-2 w-4 h-4" /></Link></Button>}
+                        subtitle="Latest posts from the community."
+                        action={
+                            <div className="flex flex-wrap gap-3">
+                                <Button asChild size="lg" variant="outline" className="rounded-full">
+                                    <Link to="/member/register">Join community</Link>
+                                </Button>
+                                <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md font-semibold px-8 h-12 rounded-full border-none">
+                                    <Link to="/community">View community <ArrowRight className="ml-2 w-4 h-4" /></Link>
+                                </Button>
+                            </div>
+                        }
                     />
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12">
-                        {[1, 2, 3].map((i) => (
-                            <Card key={i} className="bg-background/50 border-foreground/10 backdrop-blur-sm hover:border-primary/50 transition-colors">
-                                <CardContent className="p-6">
-                                    <div className="flex items-center gap-4 mb-4">
-                                        <Avatar>
-                                            <AvatarImage src={`https://i.pravatar.cc/150?u=${i}`} />
-                                            <AvatarFallback>U{i}</AvatarFallback>
-                                        </Avatar>
-                                        <div>
-                                            <p className="text-sm font-semibold">Alex Mercer</p>
-                                            <p className="text-xs text-muted-foreground">2 hours ago</p>
-                                        </div>
-                                    </div>
-                                    <p className="text-sm leading-relaxed text-muted-foreground line-clamp-3 mb-4">
-                                        Just published our latest findings on CRISPR applications in agricultural science. The implications for drought resistance are monumental. Let's discuss the ethical frameworks needed for commercialization!
-                                    </p>
-                                    <div className="flex items-center gap-4 pt-4 border-t border-foreground/10 text-xs text-muted-foreground">
-                                        <span className="flex items-center gap-1.5 hover:text-primary cursor-pointer"><ArrowRight className="w-3 h-3 rotate-45" /> 24 upvotes</span>
-                                        <span className="flex items-center gap-1.5 hover:text-primary cursor-pointer"><MessageSquare className="w-3 h-3" /> 12 comments</span>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        ))}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
+                        {communityHighlights.length === 0 ? (
+                            <p className="text-muted-foreground col-span-full">No community posts yet.</p>
+                        ) : (
+                            communityHighlights.map((p) => (
+                                <PostCard
+                                    key={p.id}
+                                    post={p}
+                                    categoryDoc={categoryDoc}
+                                />
+                            ))
+                        )}
                     </div>
                 </div>
-            </section >
+            </section>
 
         </div>
     );

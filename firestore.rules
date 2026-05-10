@@ -1,0 +1,268 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/adminCollection/$(request.auth.uid));
+    }
+
+    function memberExists() {
+      return isSignedIn()
+        && exists(/databases/$(database)/documents/membersCollection/$(request.auth.uid));
+    }
+
+    function memberData() {
+      return get(/databases/$(database)/documents/membersCollection/$(request.auth.uid)).data;
+    }
+
+    function emailVerifiedToken() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function memberNotSpamBlocked() {
+      return memberExists()
+        && (!('accountStatus' in memberData()) || memberData().accountStatus != 'spam_blocked');
+    }
+
+    function canUseCommunityWrites() {
+      return emailVerifiedToken() && memberNotSpamBlocked();
+    }
+
+    function stringListMax(list, max) {
+      return list is list && list.size() <= max;
+    }
+
+    // --- Admin & config ---
+    match /adminCollection/{uid} {
+      allow read: if isSignedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    match /config/communityCategories {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /adminSettingsCollection/{docId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Reserved community usernames (doc id = normalized lower key)
+    match /userNames/{nameKey} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.userId == request.auth.uid
+        && nameKey == request.resource.data.key;
+      allow update, delete: if isAdmin();
+    }
+
+    // --- Members (community) ---
+    match /membersCollection/{userId} {
+      allow read: if true;
+
+      allow create: if isSignedIn()
+        && request.auth.uid == userId
+        && request.resource.data.userId == userId
+        && request.resource.data.name is string
+        && request.resource.data.userName is string
+        && request.resource.data.email is string
+        && request.resource.data.emailVerified == request.auth.token.email_verified
+        && request.resource.data.userName.size() >= 2
+        && request.resource.data.userName.size() <= 40;
+
+      allow update: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.name == resource.data.name
+          && request.resource.data.userName == resource.data.userName
+          && request.resource.data.userId == resource.data.userId
+          && request.resource.data.email == resource.data.email
+        );
+
+      allow delete: if isAdmin();
+
+      match /savedPostsCollection/{postId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create, delete: if canUseCommunityWrites() && request.auth.uid == userId;
+        allow update: if false;
+      }
+
+      match /notificationsCollection/{notificationId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow update: if isSignedIn()
+          && request.auth.uid == userId
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
+        allow create, delete: if false;
+      }
+    }
+
+    // --- Community posts ---
+    match /postsCollection/{postId} {
+      allow read: if resource.data.archived != true || isAdmin();
+
+      allow create: if canUseCommunityWrites()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() > 0
+        && request.resource.data.title.size() <= 100
+        && request.resource.data.text is string
+        && request.resource.data.text.size() <= 800
+        && request.resource.data.mainCategories is list
+        && request.resource.data.mainCategories.size() >= 1
+        && request.resource.data.mainCategories.size() <= 3
+        && (!('subCategories' in request.resource.data)
+          || (request.resource.data.subCategories is list && request.resource.data.subCategories.size() <= 6))
+        && (!('subSubCategories' in request.resource.data)
+          || (request.resource.data.subSubCategories is list && request.resource.data.subSubCategories.size() <= 6))
+        && (!('countries' in request.resource.data)
+          || (request.resource.data.countries is list && request.resource.data.countries.size() <= 5))
+        && (!('externalLinks' in request.resource.data)
+          || (request.resource.data.externalLinks is list && request.resource.data.externalLinks.size() <= 15))
+        && request.resource.data.archived == false
+        && request.resource.data.keys().hasAll([
+          'authorId', 'authorUserName', 'title', 'text', 'mainCategories',
+          'createdAt', 'archived', 'spamReportCount', 'commentCount', 'likeCount'
+        ])
+        && request.resource.data.spamReportCount == 0
+        && request.resource.data.commentCount == 0
+        && request.resource.data.likeCount == 0;
+
+      allow update: if isAdmin()
+        || (
+          resource.data.authorId == request.auth.uid
+          && request.resource.data.authorId == resource.data.authorId
+          && request.resource.data.archived == resource.data.archived
+          && request.resource.data.spamReportCount == resource.data.spamReportCount
+          && request.resource.data.commentCount == resource.data.commentCount
+          && request.resource.data.likeCount == resource.data.likeCount
+          && !resource.data.archived
+        );
+
+      match /commentsCollection/{commentId} {
+        allow read: if resource.data.archived != true || isAdmin();
+
+        allow create: if canUseCommunityWrites()
+          && request.resource.data.authorId == request.auth.uid
+          && request.resource.data.postId == postId
+          && request.resource.data.text is string
+          && request.resource.data.archived == false
+          && request.resource.data.spamReportCount == 0
+          && (
+            (!('parentCommentId' in request.resource.data) && request.resource.data.text.size() <= 500)
+            || (
+              'parentCommentId' in request.resource.data
+              && request.resource.data.parentCommentId is string
+              && request.resource.data.text.size() <= 300
+            )
+          )
+          && request.resource.data.keys().hasAll([
+            'authorId', 'userName', 'postId', 'text', 'createdAt', 'archived', 'spamReportCount'
+          ]);
+
+        allow update: if isAdmin()
+          || (
+            resource.data.authorId == request.auth.uid
+            && request.resource.data.authorId == resource.data.authorId
+            && request.resource.data.postId == resource.data.postId
+            && request.resource.data.archived == resource.data.archived
+            && request.resource.data.spamReportCount == resource.data.spamReportCount
+            && !resource.data.archived
+          );
+      }
+    }
+
+    // Spam reports: id = reporterId_targetType_targetKey (targetKey is postId or postId__commentId)
+    match /spamReportsCollection/{reportId} {
+      allow read: if isAdmin();
+      allow create: if canUseCommunityWrites()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.targetAuthorId != request.auth.uid
+        && request.resource.data.targetType in ['post', 'comment']
+        && request.resource.data.status == 'open'
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() > 0
+        && request.resource.data.reason.size() <= 500
+        && reportId == request.auth.uid + '_' + request.resource.data.targetType + '_' + request.resource.data.targetKey;
+      allow update, delete: if false;
+    }
+
+    // --- Marketplace / partners (existing app) ---
+    match /partnersCollection/{partnerId} {
+      allow read: if true;
+      allow create: if isSignedIn() && request.auth.uid == partnerId;
+      allow update, delete: if isSignedIn()
+        && (request.auth.uid == partnerId || isAdmin());
+
+      match /businessOfferingsCollection/{offeringId} {
+        allow read: if true;
+        allow write: if isSignedIn()
+          && (request.auth.uid == partnerId || isAdmin());
+      }
+
+      match /planCollection/{planId} {
+        allow read: if isSignedIn()
+          && (request.auth.uid == partnerId || isAdmin());
+        allow write: if isSignedIn()
+          && (request.auth.uid == partnerId || isAdmin());
+      }
+
+      match /featuresCollection/{featureId} {
+        allow read: if isSignedIn()
+          && (request.auth.uid == partnerId || isAdmin());
+        allow write: if isSignedIn()
+          && (request.auth.uid == partnerId || isAdmin());
+      }
+    }
+
+    match /jobsCollection/{jobId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.partnerId == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && (resource.data.partnerId == request.auth.uid || isAdmin());
+    }
+
+    match /eventsCollection/{eventId} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.partnerId == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && (resource.data.partnerId == request.auth.uid || isAdmin());
+    }
+
+    match /consultingServicesCollection/{id} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.partnerId == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && (resource.data.partnerId == request.auth.uid || isAdmin());
+    }
+
+    match /consultingCollection/{id} {
+      allow read: if true;
+      allow create: if isSignedIn()
+        && request.resource.data.partnerId == request.auth.uid;
+      allow update, delete: if isSignedIn()
+        && (resource.data.partnerId == request.auth.uid || isAdmin());
+    }
+
+    match /transactionsCollection/{id} {
+      allow read: if isSignedIn()
+        && (resource.data.partnerId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    match /auditLogs/{id} {
+      allow read: if isAdmin();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+  }
+}

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -26,8 +26,9 @@ export default function Login() {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             const user = userCredential.user;
 
-            // Check profile completion status to route appropriately
             const partnerDoc = await getDoc(doc(db, "partnersCollection", user.uid));
+            const memberDoc = await getDoc(doc(db, "membersCollection", user.uid));
+
             if (partnerDoc.exists()) {
                 const partnerData = partnerDoc.data();
                 if (partnerData.selectedGroup && partnerData.selectedPlan) {
@@ -35,9 +36,13 @@ export default function Login() {
                 } else {
                     navigate("/partner/complete-profile");
                 }
+            } else if (memberDoc.exists()) {
+                navigate("/community");
             } else {
-                // If they possess a regular account (like membersCollection), send them to main dashboard
-                navigate("/partner/dashboard");
+                setError(
+                    "No partner or member profile found for this account. Create a member account or complete partner registration.",
+                );
+                await signOut(auth);
             }
         } catch (err: any) {
             console.error("Login error:", err);

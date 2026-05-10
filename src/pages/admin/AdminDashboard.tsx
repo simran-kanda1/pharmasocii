@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   Loader2,
   LogOut,
+  MessageSquare,
   MoreVertical,
   Receipt,
   Search,
@@ -41,6 +42,7 @@ import {
   query,
   setDoc,
   updateDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,6 +67,14 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES } from "../AllCategories";
+import { DEFAULT_COMMUNITY_CATEGORIES } from "@/lib/defaultCommunityCategories";
+import type { CommunityCategoryDoc } from "@/lib/communityTypes";
+import {
+  ensureCommunityCategoryDoc,
+  normalizeForFirestore,
+  validateCommunityCategoryDoc,
+} from "@/lib/communityCategoryEditorUtils";
+import { CommunityCategoryTreeEditor } from "@/components/admin/CommunityCategoryTreeEditor";
 
 type AdminTab =
   | "overview"
@@ -73,6 +83,7 @@ type AdminTab =
   | "plans"
   | "featuredPlans"
   | "categories"
+  | "communityCategories"
   | "settings"
   | "transactions"
   | "audit";
@@ -257,6 +268,10 @@ export default function AdminDashboard() {
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
   const [categorySearch, setCategorySearch] = useState("");
+  const [communityCategoriesDraft, setCommunityCategoriesDraft] = useState<CommunityCategoryDoc | null>(null);
+  const [communityCategoriesLoading, setCommunityCategoriesLoading] = useState(false);
+  const [communityCategoriesSaving, setCommunityCategoriesSaving] = useState(false);
+  const [communityCategoriesError, setCommunityCategoriesError] = useState("");
 
   const [selectedPartner, setSelectedPartner] = useState<PartnerRecord | null>(null);
   const [partnerEditor, setPartnerEditor] = useState<Record<string, string>>({});
@@ -379,6 +394,56 @@ export default function AdminDashboard() {
       clearInterval(listingsInterval);
     };
   }, [isAuthorized]);
+
+  useEffect(() => {
+    if (!isAuthorized || activeTab !== "communityCategories") return;
+    let cancelled = false;
+    (async () => {
+      setCommunityCategoriesError("");
+      setCommunityCategoriesLoading(true);
+      try {
+        const ref = doc(db, "config", "communityCategories");
+        const snap = await getDoc(ref);
+        if (cancelled) return;
+        if (snap.exists()) {
+          setCommunityCategoriesDraft(ensureCommunityCategoryDoc(snap.data()));
+        } else {
+          setCommunityCategoriesDraft(
+            ensureCommunityCategoryDoc(JSON.parse(JSON.stringify(DEFAULT_COMMUNITY_CATEGORIES))),
+          );
+        }
+      } catch (e: unknown) {
+        if (!cancelled) setCommunityCategoriesError(String(e));
+      } finally {
+        if (!cancelled) setCommunityCategoriesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthorized, activeTab]);
+
+  const saveCommunityCategories = async () => {
+    if (!communityCategoriesDraft) return;
+    setCommunityCategoriesSaving(true);
+    setCommunityCategoriesError("");
+    try {
+      const err = validateCommunityCategoryDoc(communityCategoriesDraft);
+      if (err) throw new Error(err);
+      const normalized = normalizeForFirestore(communityCategoriesDraft);
+      await setDoc(doc(db, "config", "communityCategories"), {
+        mains: normalized.mains,
+        updatedAt: serverTimestamp(),
+      });
+      setCommunityCategoriesDraft(normalized);
+      setSaveNotice("Community categories saved.");
+      setTimeout(() => setSaveNotice(""), 3000);
+    } catch (e: unknown) {
+      setCommunityCategoriesError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCommunityCategoriesSaving(false);
+    }
+  };
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -759,6 +824,7 @@ export default function AdminDashboard() {
     plans: "Plans",
     featuredPlans: "Featured Plans",
     categories: "Categories",
+    communityCategories: "Community categories",
     settings: "Settings",
     transactions: "Transactions",
     audit: "Audit Trail",
@@ -793,6 +859,7 @@ export default function AdminDashboard() {
             <SidebarItem label="Plans" icon={Tags} active={activeTab === "plans"} onClick={() => setActiveTab("plans")} />
             <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
+            <SidebarItem label="Community categories" icon={MessageSquare} active={activeTab === "communityCategories"} onClick={() => setActiveTab("communityCategories")} />
             <SidebarItem label="Settings" icon={Settings} active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
             <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
             <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
@@ -928,6 +995,63 @@ export default function AdminDashboard() {
               </div>
               <CategoryBreakdownTable rows={filteredCategoryRows} />
             </div>
+          )}
+
+          {activeTab === "communityCategories" && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Community category tree</CardTitle>
+                <CardDescription>
+                  Edit the three-level tree below; changes are stored at{" "}
+                  <code className="text-xs">config/communityCategories</code> and used on the community feed, post
+                  composer, and filters. <strong className="text-foreground">Labels</strong> are shown to members;{" "}
+                  <strong className="text-foreground">ids</strong> are internal keys.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {communityCategoriesError && (
+                  <div className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                    {communityCategoriesError}
+                  </div>
+                )}
+                {communityCategoriesLoading || !communityCategoriesDraft ? (
+                  <p className="text-sm text-muted-foreground py-8">Loading category tree…</p>
+                ) : (
+                  <CommunityCategoryTreeEditor
+                    value={communityCategoriesDraft}
+                    onChange={setCommunityCategoriesDraft}
+                    disabled={communityCategoriesSaving}
+                  />
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={saveCommunityCategories}
+                    disabled={communityCategoriesSaving || communityCategoriesLoading || !communityCategoriesDraft}
+                  >
+                    {communityCategoriesSaving ? "Saving…" : "Save to Firestore"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={communityCategoriesSaving}
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          "Replace the editor with the default sample tree? Unsaved changes will be lost.",
+                        )
+                      ) {
+                        setCommunityCategoriesDraft(
+                          ensureCommunityCategoryDoc(JSON.parse(JSON.stringify(DEFAULT_COMMUNITY_CATEGORIES))),
+                        );
+                        setCommunityCategoriesError("");
+                      }
+                    }}
+                  >
+                    Reset to default template
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
           {activeTab === "settings" && (

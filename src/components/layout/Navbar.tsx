@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, Menu, LogOut, LayoutDashboard, User } from "lucide-react";
+import { ChevronDown, Menu, LogOut, LayoutDashboard, User, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { auth, db } from "@/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -17,6 +19,9 @@ export default function Navbar() {
     const navigate = useNavigate();
     const [user, setUser] = useState<any>(null);
     const [userName, setUserName] = useState("");
+    const [isPartner, setIsPartner] = useState(false);
+    const [hasMemberProfile, setHasMemberProfile] = useState(false);
+    const [navSearch, setNavSearch] = useState("");
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -24,16 +29,14 @@ export default function Navbar() {
             if (currentUser) {
                 let nameToSet = "";
                 try {
-                    // Check membersCollection first
                     const memberSnap = await getDoc(doc(db, "membersCollection", currentUser.uid));
+                    const partnerSnap = await getDoc(doc(db, "partnersCollection", currentUser.uid));
+                    setIsPartner(partnerSnap.exists());
+                    setHasMemberProfile(memberSnap.exists());
                     if (memberSnap.exists() && memberSnap.data().name) {
                         nameToSet = memberSnap.data().name.split(" ")[0];
-                    } else {
-                        // Check partnersCollection
-                        const partnerSnap = await getDoc(doc(db, "partnersCollection", currentUser.uid));
-                        if (partnerSnap.exists() && partnerSnap.data().primaryName) {
-                            nameToSet = partnerSnap.data().primaryName.split(" ")[0];
-                        }
+                    } else if (partnerSnap.exists() && partnerSnap.data().primaryName) {
+                        nameToSet = partnerSnap.data().primaryName.split(" ")[0];
                     }
                 } catch (error) {
                     console.error("Error fetching user data", error);
@@ -47,11 +50,23 @@ export default function Navbar() {
                 setUserName(nameToSet);
             } else {
                 setUserName("");
+                setIsPartner(false);
+                setHasMemberProfile(false);
             }
         });
 
         return () => unsubscribe();
     }, []);
+
+    const submitNavSearch = (e: FormEvent) => {
+        e.preventDefault();
+        const q = navSearch.trim();
+        if (!q) {
+            navigate("/community");
+            return;
+        }
+        navigate(`/community?search=${encodeURIComponent(q)}`);
+    };
 
     const handleSignOut = async () => {
         await signOut(auth);
@@ -80,14 +95,14 @@ export default function Navbar() {
                         </Link>
                         <DropdownMenu>
                             <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors text-muted-foreground outline-none">
-                                All Categories <ChevronDown className="h-4 w-4" />
+                                Marketplace <ChevronDown className="h-4 w-4" />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-48 bg-background border-foreground/10 shadow-2xl">
+                            <DropdownMenuContent align="start" className="w-52 bg-background border-foreground/10 shadow-2xl">
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/business">Business Offerings</Link>
+                                    <Link to="/all-categories/business">Business</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/consulting">Consulting Services</Link>
+                                    <Link to="/all-categories/experts">Experts</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
                                     <Link to="/all-categories/events">Events</Link>
@@ -95,13 +110,25 @@ export default function Navbar() {
                                 <DropdownMenuItem asChild className="cursor-pointer">
                                     <Link to="/all-categories/jobs">Jobs</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/compliance">Global Health Authority Sites</Link>
-                                </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+                        <Link to="/community" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
+                            Community
+                        </Link>
                     </div>
                 </div>
+
+                <form onSubmit={submitNavSearch} className="hidden md:flex flex-1 max-w-xs mx-4 items-center gap-2">
+                    <div className="relative flex-1">
+                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                            value={navSearch}
+                            onChange={(e) => setNavSearch(e.target.value)}
+                            placeholder="Search community…"
+                            className="h-9 pl-8 bg-foreground/5 border-foreground/10 text-sm"
+                        />
+                    </div>
+                </form>
 
                 <div className="flex items-center gap-4">
 
@@ -116,10 +143,24 @@ export default function Navbar() {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-56 bg-background/90 border-foreground/10 shadow-2xl backdrop-blur-xl">
-                                    <DropdownMenuItem className="p-3 focus:bg-foreground/5 cursor-pointer" onClick={() => navigate("/partner/dashboard")}>
-                                        <LayoutDashboard className="w-4 h-4 mr-2 text-primary" />
-                                        <span>My Dashboard</span>
-                                    </DropdownMenuItem>
+                                    {hasMemberProfile && (
+                                        <DropdownMenuItem className="p-3 focus:bg-foreground/5 cursor-pointer" onClick={() => navigate("/member/dashboard")}>
+                                            <User className="w-4 h-4 mr-2 text-primary" />
+                                            <span>Member dashboard</span>
+                                        </DropdownMenuItem>
+                                    )}
+                                    {!hasMemberProfile && (
+                                        <DropdownMenuItem className="p-3 focus:bg-foreground/5 cursor-pointer" onClick={() => navigate("/member/setup")}>
+                                            <User className="w-4 h-4 mr-2 text-primary" />
+                                            <span>Create community profile</span>
+                                        </DropdownMenuItem>
+                                    )}
+                                    {isPartner && (
+                                        <DropdownMenuItem className="p-3 focus:bg-foreground/5 cursor-pointer" onClick={() => navigate("/partner/dashboard")}>
+                                            <LayoutDashboard className="w-4 h-4 mr-2 text-primary" />
+                                            <span>Partner dashboard</span>
+                                        </DropdownMenuItem>
+                                    )}
                                     <DropdownMenuSeparator className="bg-foreground/10" />
                                     <DropdownMenuItem className="p-3 focus:bg-destructive/20 focus:text-destructive cursor-pointer" onClick={handleSignOut}>
                                         <LogOut className="w-4 h-4 mr-2" />
@@ -144,8 +185,11 @@ export default function Navbar() {
                                         </div>
                                     </div>
                                 </div>
+                                <Button asChild variant="outline" className="hidden lg:inline-flex">
+                                    <Link to="/member/register">Join community</Link>
+                                </Button>
                                 <Button asChild className="shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow">
-                                    <Link to="/signup">Get Started</Link>
+                                    <Link to="/signup">Partner</Link>
                                 </Button>
                             </>
                         )}

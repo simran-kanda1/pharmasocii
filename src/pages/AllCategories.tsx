@@ -225,7 +225,17 @@ const WORK_MODELS = ["Hybrid", "Remote", "On-site"];
 export default function AllCategories() {
     const { category } = useParams<{ category: string }>();
     const [searchParams] = useSearchParams();
-    const currentTab = category || "business";
+    const rawTab = (category || "business").toLowerCase();
+    const currentTab =
+        rawTab === "experts"
+            ? "consulting"
+            : rawTab === "business" ||
+                rawTab === "consulting" ||
+                rawTab === "events" ||
+                rawTab === "jobs" ||
+                rawTab === "compliance"
+              ? rawTab
+              : "business";
 
     const [data, setData] = useState<any[]>([]);
     const [loading, setLoading] = useState(false);

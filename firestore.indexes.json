@@ -39,6 +39,38 @@
         { "fieldPath": "featureSpotlightCancelPending", "order": "ASCENDING" },
         { "fieldPath": "featureSpotlightAccessEnd", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "postsCollection",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "archived", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "postsCollection",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "authorId", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "commentsCollection",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "archived", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "membersCollection",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "accountStatus", "order": "ASCENDING" },
+        { "fieldPath": "spamBlockUntil", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

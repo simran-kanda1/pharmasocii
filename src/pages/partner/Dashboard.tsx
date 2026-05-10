@@ -1353,7 +1353,7 @@ export default function Dashboard() {
 
     // ─── DASHBOARD TAB ───
     function renderDashboard() {
-        const renderPlanSubscriptionCard = (plan: any, mode: "ending" | "active") => {
+        const renderPlanSubscriptionCard = (plan: any, _mode: "ending" | "active") => {
             const planConfig = PLAN_CONFIGS[plan.planId];
             const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : plan.startDate ? new Date(plan.startDate) : null;
             const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null;
@@ -2838,7 +2838,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                                 setEndDate(v);
                                             } else {
                                                 setStartDate(v);
-                                                setEndDate((prev) => (prev && v && prev < v ? v : prev));
+                                                setEndDate((prev: string) => (prev && v && prev < v ? v : prev));
                                             }
                                         }}
                                         className="bg-foreground/5 border-foreground/10 mt-1 h-11"

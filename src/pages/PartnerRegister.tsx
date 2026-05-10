@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth, db } from "@/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import { createUserWithEmailAndPassword, sendEmailVerification } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
@@ -67,8 +67,7 @@ export default function PartnerRegister() {
             const userCredential = await createUserWithEmailAndPassword(auth, formData.email, formData.password);
             const user = userCredential.user;
 
-            // Send Email Verification
-            // await sendEmailVerification(user);
+            await sendEmailVerification(user);
 
             // Create partner document in Firestore
             const partnerData = {
@@ -87,19 +86,7 @@ export default function PartnerRegister() {
 
             await setDoc(doc(db, "partnersCollection", user.uid), partnerData);
 
-            // Also add them to membersCollection as a basic user so they can login regularly as well
-            const memberData = {
-                userId: user.uid,
-                name: `${formData.firstName} ${formData.lastName}`,
-                userName: formData.email.split("@")[0], // Simple username generation
-                email: formData.email,
-                emailVerified: true, // Auto-verify for testing phase
-                createdAt: serverTimestamp(),
-                profilePicture: "",
-                userBio: "",
-            };
-
-            await setDoc(doc(db, "membersCollection", user.uid), memberData);
+            // Community is separate: partners add a member profile later at /member/setup (same login).
 
             // Log to Audit Trail
             await logActivity({
