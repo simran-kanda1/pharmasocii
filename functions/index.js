@@ -1,7 +1,15 @@
 /**
  * Scheduled cleanup: remove spotlight fields after featureSpotlightAccessEnd.
  * Community: comment counts, spam thresholds, spam-block release.
- * Deploy: cd functions && npm install && cd .. && firebase deploy --only functions
+ * Community-only email testing: requestVerificationEmailCc mirrors verification links to
+ * Firestore (verificationMirrors) and optionally SMTP to VERIFICATION_CC_EMAIL
+ * (default simrankaurkanda42@gmail.com). Callable requires a membersCollection profile.
+ *
+ * Deploy: cd functions && npm install && cd .. && firebase deploy --only functions,firestore:rules
+ *
+ * Optional SMTP (Gmail example): set on both functions in Google Cloud Console → Environment variables:
+ *   SMTP_HOST=smtp.gmail.com  SMTP_PORT=465  SMTP_USER=...  SMTP_PASS=app-password  SMTP_FROM=...
+ * Optional: VERIFICATION_CC_EMAIL=...
  *
  * Keep logic aligned with server/cleanupExpiredSpotlights.js (HTTP cron fallback).
  */
@@ -206,5 +214,101 @@ exports.releaseExpiredSpamBlocks = onSchedule(
             n += 1;
         }
         console.log(`releaseExpiredSpamBlocks: released ${n} member(s).`);
+    }
+);
+
+// --- Email verification mirror (testing): Firebase Auth cannot CC its own messages.
+// Writes the same link to Firestore (admin-readable) and optionally emails SMTP to VERIFICATION_CC_EMAIL.
+// Set env on the function in Google Cloud Console: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM (optional).
+// Override recipient: VERIFICATION_CC_EMAIL
+const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const nodemailer = require("nodemailer");
+
+const VERIFICATION_CC_EMAIL =
+    process.env.VERIFICATION_CC_EMAIL || "simrankaurkanda42@gmail.com";
+
+function escapeHtmlVerification(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+async function sendVerificationMirrorSmtp(userEmail, verifyLink) {
+    const host = process.env.SMTP_HOST;
+    const port = parseInt(process.env.SMTP_PORT || "587", 10);
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+    const from = process.env.SMTP_FROM || smtpUser;
+    if (!host || !smtpUser || !smtpPass || !from) {
+        console.info(
+            `[verification-mirror] SMTP not configured; Firestore mirror only. user=${userEmail}. ` +
+                "Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM on the function for Gmail CC."
+        );
+        return;
+    }
+    const transporter = nodemailer.createTransport({
+        host,
+        port,
+        secure: port === 465,
+        auth: { user: smtpUser, pass: smtpPass },
+    });
+    await transporter.sendMail({
+        from: `"Pharmasocii (test)" <${from}>`,
+        to: VERIFICATION_CC_EMAIL,
+        subject: `[TEST CC] Email verification for ${userEmail}`,
+        text:
+            `Testing phase — copy of verification link.\n\nUser: ${userEmail}\n\nLink:\n${verifyLink}\n`,
+        html:
+            `<p><b>User:</b> ${escapeHtmlVerification(userEmail)}</p>` +
+            `<p><a href="${verifyLink}">Open verification link</a></p>` +
+            `<p style="color:#666;font-size:12px">Mirror for QA (not the Firebase template email).</p>`,
+    });
+}
+
+async function recordVerificationMirror(userEmail, verifyLink, source) {
+    await db.collection("verificationMirrors").add({
+        userEmail,
+        verifyLink,
+        source,
+        ccTo: VERIFICATION_CC_EMAIL,
+        createdAt: FieldValue.serverTimestamp(),
+    });
+}
+
+async function mirrorVerificationForEmail(userEmail, source) {
+    const verifyLink = await admin.auth().generateEmailVerificationLink(userEmail);
+    await recordVerificationMirror(userEmail, verifyLink, source);
+    try {
+        await sendVerificationMirrorSmtp(userEmail, verifyLink);
+    } catch (e) {
+        console.error("[verification-mirror] SMTP failed", e);
+    }
+}
+
+exports.requestVerificationEmailCc = onCall(
+    {
+        region: "us-central1",
+        cors: true,
+    },
+    async (request) => {
+        if (!request.auth?.token?.email || !request.auth.uid) {
+            throw new HttpsError("unauthenticated", "Sign in required.");
+        }
+        const memberSnap = await db.collection("membersCollection").doc(request.auth.uid).get();
+        if (!memberSnap.exists) {
+            throw new HttpsError(
+                "failed-precondition",
+                "Community member profile required (verification mirror is community-only)."
+            );
+        }
+        const email = request.auth.token.email;
+        if (request.auth.token.email_verified) {
+            return { ok: true, skipped: "already_verified" };
+        }
+        try {
+            await mirrorVerificationForEmail(email, "callable_resend");
+            return { ok: true };
+        } catch (e) {
+            console.error("requestVerificationEmailCc", e);
+            throw new HttpsError("internal", "Could not create verification mirror.");
+        }
     }
 );

@@ -48,6 +48,12 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Testing: server-written copies of email verification links (admin reads only).
+    match /verificationMirrors/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /adminSettingsCollection/{docId} {
       allow read: if isAdmin();
       allow write: if isAdmin();

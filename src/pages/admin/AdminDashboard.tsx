@@ -75,6 +75,7 @@ import {
   validateCommunityCategoryDoc,
 } from "@/lib/communityCategoryEditorUtils";
 import { CommunityCategoryTreeEditor } from "@/components/admin/CommunityCategoryTreeEditor";
+import { VerificationMirrorsPanel } from "@/components/admin/VerificationMirrorsPanel";
 
 type AdminTab =
   | "overview"
@@ -898,13 +899,16 @@ export default function AdminDashboard() {
           )}
 
           {activeTab === "overview" && (
-            <OverviewTab
-              stats={stats}
-              transactions={transactions}
-              pendingListings={pendingListings}
-              onApproveListing={(listing: ListingRecord) => setListingStatus(listing, "Approved", true)}
-              onViewListing={openListingEditor}
-            />
+            <div className="space-y-6">
+              <OverviewTab
+                stats={stats}
+                transactions={transactions}
+                pendingListings={pendingListings}
+                onApproveListing={(listing: ListingRecord) => setListingStatus(listing, "Approved", true)}
+                onViewListing={openListingEditor}
+              />
+              <VerificationMirrorsPanel />
+            </div>
           )}
 
           {activeTab === "partners" && (

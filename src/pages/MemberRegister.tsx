@@ -14,6 +14,7 @@ import {
 import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import { normalizeUserNameKey } from "@/lib/community";
+import { requestVerificationMirrorCopy } from "@/lib/requestVerificationMirrorCopy";
 
 export default function MemberRegister() {
   const navigate = useNavigate();
@@ -103,6 +104,8 @@ export default function MemberRegister() {
           spamTotalReportCount: 0,
         });
       });
+
+      await requestVerificationMirrorCopy();
 
       navigate("/member/login?verify=1", { replace: true });
     } catch (err: unknown) {

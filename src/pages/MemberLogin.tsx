@@ -11,6 +11,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { requestVerificationMirrorCopy } from "@/lib/requestVerificationMirrorCopy";
 
 export default function MemberLogin() {
   const navigate = useNavigate();
@@ -97,6 +98,7 @@ export default function MemberLogin() {
         return;
       }
       await sendEmailVerification(auth.currentUser);
+      await requestVerificationMirrorCopy();
       setResendMsg("Verification email sent.");
     } catch {
       setError("Could not send email. Try again later.");

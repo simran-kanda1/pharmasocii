@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth, db } from "@/firebase";
 import { onAuthStateChanged, sendEmailVerification } from "firebase/auth";
+import { requestVerificationMirrorCopy } from "@/lib/requestVerificationMirrorCopy";
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { normalizeUserNameKey } from "@/lib/community";
 
@@ -108,6 +109,7 @@ export default function MemberCommunitySetup() {
 
       if (!user.emailVerified) {
         await sendEmailVerification(user);
+        await requestVerificationMirrorCopy();
       }
       navigate("/member/login?verify=1", { replace: true });
     } catch (err: unknown) {
