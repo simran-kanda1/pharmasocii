@@ -1,16 +1,22 @@
 import { httpsCallable } from "firebase/functions";
 import { functions } from "@/firebase";
 
+export type VerificationMirrorResult = { ok: true } | { ok: false; message: string };
+
 /**
- * Asks the backend to send a testing copy of the email verification link to the
- * configured CC address and to store it in Firestore for admins.
- * Safe to ignore failures (Firebase still sent the real verification email).
+ * Callable mirror for “resend verification” (signup mirror uses Firestore trigger).
  */
-export async function requestVerificationMirrorCopy(): Promise<void> {
+export async function requestVerificationMirrorCopy(): Promise<VerificationMirrorResult> {
   const fn = httpsCallable(functions, "requestVerificationEmailCc");
   try {
     await fn();
-  } catch (e) {
-    console.warn("requestVerificationEmailCc:", e);
+    return { ok: true };
+  } catch (e: unknown) {
+    const fe = e as { code?: string; message?: string };
+    const code = fe?.code != null ? String(fe.code) : "";
+    const message = fe?.message != null ? String(fe.message) : String(e);
+    const full = code && !message.includes(code) ? `${code}: ${message}` : message;
+    console.warn("requestVerificationEmailCc:", full, e);
+    return { ok: false, message: full };
   }
 }

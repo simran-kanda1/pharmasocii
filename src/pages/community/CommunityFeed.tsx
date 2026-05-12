@@ -133,7 +133,7 @@ export default function CommunityFeed() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100/90 text-foreground dark:bg-background">
+    <div className="flex min-h-0 flex-1 flex-col bg-slate-100/90 text-foreground dark:bg-background">
       <div className="max-w-[1440px] mx-auto px-3 sm:px-4 lg:px-6 py-6 lg:py-8">
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
           {/* Left — profile summary */}

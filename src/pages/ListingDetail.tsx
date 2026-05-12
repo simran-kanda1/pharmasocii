@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { db } from "@/firebase";
-import { doc, getDoc, collectionGroup, query, where, getDocs, limit } from "firebase/firestore";
+import { doc, getDoc, collectionGroup, query, getDocs, limit } from "firebase/firestore";
 import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,9 +43,11 @@ export default function ListingDetail() {
                     let docSnap: any = null;
                     for (const collectionName of collectionNames) {
                         if (type === "business") {
-                            const q = query(collectionGroup(db, collectionName), where("active", "==", true), limit(BUSINESS_LOOKUP_LIMIT));
+                            const q = query(collectionGroup(db, collectionName), limit(BUSINESS_LOOKUP_LIMIT));
                             const querySnap = await getDocs(q);
-                            const found = querySnap.docs.find((d) => d.id === id);
+                            const found = querySnap.docs.find(
+                                (d) => d.id === id && d.data()?.active !== false,
+                            );
                             if (found) {
                                 docSnap = found;
                                 break;
@@ -246,7 +248,7 @@ export default function ListingDetail() {
     const groupedCategories = getGroupedCategories();
 
     return (
-        <div className="min-h-screen bg-background">
+        <div className="min-h-0 w-full flex-1 bg-background">
             <div className="container mx-auto px-4 py-12 max-w-7xl pt-32">
                 <Button asChild variant="ghost" className="mb-8 -ml-4 text-muted-foreground hover:text-primary transition-colors group rounded-full">
                     <Link to={`/all-categories/${type || 'business'}`}>

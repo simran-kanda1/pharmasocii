@@ -135,7 +135,11 @@ async function createUpgradeTransactionIfMissing({
     collectionName,
     group,
 }) {
-    if (!session?.id || !partnerId) return { created: false, reason: "missing-context" };
+    const partnerKey =
+        (partnerId && String(partnerId).trim()) ||
+        (session?.client_reference_id && String(session.client_reference_id).trim()) ||
+        null;
+    if (!session?.id || !partnerKey) return { created: false, reason: "missing-context" };
 
     const existingUpgradeTxn = await db.collection("transactionsCollection")
         .where("sessionId", "==", session.id)
@@ -145,19 +149,19 @@ async function createUpgradeTransactionIfMissing({
 
     let detailSource = null;
     if (listingId && collectionName) {
-        const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
+        const listingRef = await resolveListingDocRef(partnerKey, collectionName, listingId);
         if (listingRef) {
             const listingSnap = await listingRef.get();
             if (listingSnap.exists) detailSource = listingSnap.data();
         }
     }
-    if (!detailSource && partnerId) {
-        const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
+    if (!detailSource && partnerKey) {
+        const partnerSnap = await db.collection("partnersCollection").doc(partnerKey).get();
         if (partnerSnap.exists) detailSource = partnerSnap.data();
     }
 
     await db.collection("transactionsCollection").add({
-        partnerId,
+        partnerId: partnerKey,
         amount: (session.amount_total || 0) / 100,
         currency: session.currency || "usd",
         status: "succeeded",
@@ -170,6 +174,79 @@ async function createUpgradeTransactionIfMissing({
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         sessionId: session.id,
         customerEmail: session.customer_details?.email || "",
+        selectedCategories: detailSource?.selectedCategories || [],
+        selectedSubcategories: detailSource?.selectedSubcategories || [],
+        serviceCountries: detailSource?.serviceCountries || [],
+        serviceRegions: detailSource?.serviceRegions || [],
+        businessName: detailSource?.businessName || "",
+        companyRepresentatives: detailSource?.companyRepresentatives || [],
+    });
+
+    return { created: true, reason: "inserted" };
+}
+
+/**
+ * When a plan upgrade is applied without Checkout (e.g. $0 proration remainder), there is no session — still record billing history.
+ */
+async function recordPlanUpgradeWithoutCheckoutIfMissing({
+    partnerId,
+    newPlanId,
+    listingId,
+    collectionName,
+    group,
+    amount,
+    stripeSubscriptionId,
+    subscriptionPeriodEndSec,
+}) {
+    const partnerKey = partnerId && String(partnerId).trim();
+    if (!partnerKey || !newPlanId) return { created: false, reason: "missing-context" };
+
+    const upgradeDedupeKey = [
+        "inline_plan_upgrade",
+        partnerKey,
+        listingId || "",
+        collectionName || "",
+        newPlanId,
+        stripeSubscriptionId || "",
+        String(subscriptionPeriodEndSec || 0),
+    ].join(":");
+
+    const existing = await db.collection("transactionsCollection")
+        .where("upgradeDedupeKey", "==", upgradeDedupeKey)
+        .limit(1)
+        .get();
+    if (!existing.empty) return { created: false, reason: "exists" };
+
+    let detailSource = null;
+    if (listingId && collectionName) {
+        const listingRef = await resolveListingDocRef(partnerKey, collectionName, listingId);
+        if (listingRef) {
+            const listingSnap = await listingRef.get();
+            if (listingSnap.exists) detailSource = listingSnap.data();
+        }
+    }
+    if (!detailSource) {
+        const partnerSnap = await db.collection("partnersCollection").doc(partnerKey).get();
+        if (partnerSnap.exists) detailSource = partnerSnap.data();
+    }
+
+    await db.collection("transactionsCollection").add({
+        partnerId: partnerKey,
+        amount: typeof amount === "number" && Number.isFinite(amount) ? amount : 0,
+        currency: "usd",
+        status: "succeeded",
+        type: "listing",
+        planId: newPlanId,
+        featureId: null,
+        group: group || null,
+        listingId: listingId || null,
+        collectionName: collectionName || null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        sessionId: null,
+        upgradeDedupeKey,
+        upgradeSource: "subscription_update_no_checkout",
+        stripeSubscriptionId: stripeSubscriptionId || null,
+        customerEmail: "",
         selectedCategories: detailSource?.selectedCategories || [],
         selectedSubcategories: detailSource?.selectedSubcategories || [],
         serviceCountries: detailSource?.serviceCountries || [],
@@ -204,7 +281,12 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
     switch (event.type) {
         case "checkout.session.completed": {
             const session = event.data.object;
-            const { partnerId, planId, group, listingId, collectionName, featureId } = session.metadata;
+            const meta = session.metadata || {};
+            const partnerId =
+                (meta.partnerId && String(meta.partnerId).trim()) ||
+                (session.client_reference_id && String(session.client_reference_id).trim()) ||
+                null;
+            const { planId, group, listingId, collectionName, featureId } = meta;
             const partnerRef = partnerId ? db.collection("partnersCollection").doc(partnerId) : null;
 
             console.log(`💰 Payment succeeded for session: ${session.id}`);
@@ -1744,6 +1826,22 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                             noProrationCharge: true,
                         },
                     });
+
+                    const inlineTxn = await recordPlanUpgradeWithoutCheckoutIfMissing({
+                        partnerId,
+                        newPlanId,
+                        listingId: listingId || null,
+                        collectionName: collectionName || null,
+                        group: req.body.group || (targetPlanDoc ? targetPlanDoc.data()?.group : null) || null,
+                        amount: 0,
+                        stripeSubscriptionId: updatedSubscription.id,
+                        subscriptionPeriodEndSec: updatedSubscription.current_period_end || 0,
+                    });
+                    if (inlineTxn.created) {
+                        console.log("   ✓ Transaction recorded for plan upgrade (no Checkout session)");
+                    } else {
+                        console.log(`   ℹ Inline upgrade transaction: ${inlineTxn.reason}`);
+                    }
                 }
 
                 return res.json({
@@ -2070,7 +2168,11 @@ app.post("/api/verify-payment", async (req, res) => {
             });
         }
 
-        const { partnerId, planId, group, listingId, collectionName, featureId } = session.metadata;
+        const { planId, group, listingId, collectionName, featureId } = session.metadata || {};
+        const partnerId =
+            (session.metadata?.partnerId && String(session.metadata.partnerId).trim()) ||
+            (session.client_reference_id && String(session.client_reference_id).trim()) ||
+            null;
         const partnerRef = partnerId ? db.collection("partnersCollection").doc(partnerId) : null;
 
         // Determine the correct collection name
@@ -2201,6 +2303,20 @@ app.post("/api/verify-payment", async (req, res) => {
                     verifyFallback: true,
                 },
             });
+
+            const upgradeTxnVerify = await createUpgradeTransactionIfMissing({
+                session,
+                partnerId,
+                newPlanId,
+                listingId: upgradeListingId,
+                collectionName: upgradeCollectionName,
+                group,
+            });
+            if (upgradeTxnVerify.created) {
+                console.log(`   ✓ Upgrade transaction recorded via verify-payment (${session.id})`);
+            } else {
+                console.log(`   ℹ verify-payment upgrade transaction: ${upgradeTxnVerify.reason}`);
+            }
 
             return res.json({
                 success: true,

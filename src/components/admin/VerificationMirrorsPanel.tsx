@@ -16,10 +16,12 @@ type MirrorRow = {
 export function VerificationMirrorsPanel() {
   const [rows, setRows] = useState<MirrorRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
+      setLoading(true);
       try {
         const q = query(collection(db, "verificationMirrors"), orderBy("createdAt", "desc"), limit(15));
         const snap = await getDocs(q);
@@ -34,17 +36,22 @@ export function VerificationMirrorsPanel() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshKey]);
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between space-y-0">
+        <div>
         <CardTitle className="text-base">Email verification mirrors (testing)</CardTitle>
         <CardDescription>
           Community sign-up / resend only: same verification links as Firebase Auth for members are mirrored here
           (and optionally emailed when SMTP env vars are set). CC default:{" "}
           <code className="text-xs">simrankaurkanda42@gmail.com</code>.
         </CardDescription>
+        </div>
+        <Button type="button" variant="outline" size="sm" className="shrink-0" onClick={() => setRefreshKey((k) => k + 1)}>
+          Refresh
+        </Button>
       </CardHeader>
       <CardContent>
         {loading ? (

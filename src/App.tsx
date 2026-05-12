@@ -23,9 +23,9 @@ import MemberCommunitySetup from "./pages/member/MemberCommunitySetup";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-primary/30 antialiased">
+    <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground font-sans selection:bg-primary/30 antialiased">
       <Navbar />
-      <main className="flex-1 w-full flex flex-col">
+      <main className="flex min-h-0 flex-1 w-full flex-col">
         {children}
       </main>
       <Footer />

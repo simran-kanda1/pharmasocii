@@ -11,6 +11,25 @@ import { PostCard } from "@/components/community/PostCard";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 
 const FEATURE_FETCH_LIMIT = 5000;
+/** When no rows match paid home spotlight, still show recent active listings so the home page is not empty. */
+const FALLBACK_CAROUSEL_CAP = 24;
+
+/** Embedded business offerings often omit `active`; Firestore `active == true` would exclude them. Only hide when explicitly false. */
+function isBusinessListingPublic(data: Record<string, any>): boolean {
+    return data.active !== false;
+}
+
+function pickSpotlightOrRecent(
+    rows: Record<string, any>[],
+    isHomeSpotlight: (item: Record<string, any>) => boolean,
+    cap: number
+): Record<string, any>[] {
+    const spotlight = rows
+        .filter(isHomeSpotlight)
+        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a));
+    if (spotlight.length > 0) return spotlight.slice(0, cap);
+    return [...rows].sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a)).slice(0, cap);
+}
 
 function spotlightAccessEndMs(item: Record<string, any>): number | null {
     const raw = item.featureSpotlightAccessEnd;
@@ -65,60 +84,68 @@ export default function Home() {
 
     useEffect(() => {
         const fetchFeaturedData = async () => {
+            const isHomeSpotlight = (item: Record<string, any>) => {
+                if (!spotlightDisplayActive(item)) return false;
+                const addon = String(
+                    item.selectedAddon || item.featuredPlacement || inferIncludedSpotlightFromPlan(item)
+                ).trim().toLowerCase();
+                return addon === "home_page" || addon === "both" || (item.isFeatured && !addon);
+            };
+
+            let businessRows: Record<string, any>[] = [];
             try {
-                const isHomeSpotlight = (item: Record<string, any>) => {
-                    if (!spotlightDisplayActive(item)) return false;
-                    const addon = String(
-                        item.selectedAddon || item.featuredPlacement || inferIncludedSpotlightFromPlan(item)
-                    ).trim().toLowerCase();
-                    return addon === "home_page" || addon === "both" || (item.isFeatured && !addon);
-                };
-
-                // Fetch business listings for homepage spotlight.
-                const businessQuery = query(collectionGroup(db, "businessOfferingsCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT));
+                const businessQuery = query(collectionGroup(db, "businessOfferingsCollection"), limit(FEATURE_FETCH_LIMIT));
                 const businessDocs = await getDocs(businessQuery);
-                setFeaturedBusinesses(
-                    businessDocs.docs
-                        .map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
-                        .filter(isHomeSpotlight)
-                        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a))
-                );
+                businessRows = businessDocs.docs
+                    .map((doc) => {
+                        const raw = doc.data() as Record<string, any>;
+                        const path = String(doc.ref.parent?.parent?.path || "");
+                        const partnerFromPath =
+                            path.includes("partnersCollection") && doc.ref.parent?.parent?.id ? doc.ref.parent.parent.id : "";
+                        return { id: doc.id, partnerId: raw.partnerId || partnerFromPath, ...raw };
+                    })
+                    .filter(isBusinessListingPublic);
+            } catch (e) {
+                console.error("Home: business offerings fetch failed:", e);
+            }
+            setFeaturedBusinesses(pickSpotlightOrRecent(businessRows, isHomeSpotlight, FALLBACK_CAROUSEL_CAP));
 
-                // Fetch featured jobs
+            let jobRows: Record<string, any>[] = [];
+            try {
                 const jobQuery = query(collection(db, "jobsCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT));
                 const jobDocs = await getDocs(jobQuery);
-                setFeaturedJobs(
-                    jobDocs.docs
-                        .map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
-                        .filter(isHomeSpotlight)
-                        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a))
-                );
+                jobRows = jobDocs.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) }));
+            } catch (e) {
+                console.error("Home: jobs fetch failed:", e);
+            }
+            setFeaturedJobs(pickSpotlightOrRecent(jobRows, isHomeSpotlight, FALLBACK_CAROUSEL_CAP));
 
-                // Fetch featured events
+            let eventRows: Record<string, any>[] = [];
+            try {
                 const evtQuery = query(collection(db, "eventsCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT));
                 const evtDocs = await getDocs(evtQuery);
-                setFeaturedEvents(
-                    evtDocs.docs
-                        .map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
-                        .filter(isHomeSpotlight)
-                        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a))
-                );
+                eventRows = evtDocs.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) }));
+            } catch (e) {
+                console.error("Home: events fetch failed:", e);
+            }
+            setFeaturedEvents(pickSpotlightOrRecent(eventRows, isHomeSpotlight, FALLBACK_CAROUSEL_CAP));
 
-                // Fetch featured consulting
+            let consultingRows: Record<string, any>[] = [];
+            try {
                 const [consultingServicesDocs, consultingLegacyDocs] = await Promise.all([
                     getDocs(query(collection(db, "consultingServicesCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT))),
                     getDocs(query(collection(db, "consultingCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT))),
                 ]);
-                const mergedConsulting = [
-                    ...consultingServicesDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
-                    ...consultingLegacyDocs.docs.map(doc => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
+                consultingRows = [
+                    ...consultingServicesDocs.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
+                    ...consultingLegacyDocs.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
                 ];
-                setFeaturedConsulting(
-                    mergedConsulting
-                        .filter(isHomeSpotlight)
-                        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a))
-                );
+            } catch (e) {
+                console.error("Home: consulting fetch failed:", e);
+            }
+            setFeaturedConsulting(pickSpotlightOrRecent(consultingRows, isHomeSpotlight, FALLBACK_CAROUSEL_CAP));
 
+            try {
                 const postsQ = query(
                     collection(db, "postsCollection"),
                     where("archived", "==", false),
@@ -127,8 +154,9 @@ export default function Home() {
                 );
                 const postsSnap = await getDocs(postsQ);
                 setCommunityHighlights(postsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-            } catch (err) {
-                console.error("Failed to load featured data:", err);
+            } catch (postsErr) {
+                console.error("Failed to load community highlights:", postsErr);
+                setCommunityHighlights([]);
             }
         };
         fetchFeaturedData();
@@ -176,12 +204,12 @@ export default function Home() {
                     <div className="flex flex-col sm:flex-row items-center gap-6">
                         <Button size="lg" className="h-14 px-8 text-base font-semibold shadow-lg shadow-primary/25 hover:shadow-primary/50 transition-all rounded-full" asChild>
                             <Link to="/signup">
-                                Join the marketplace <ArrowRight className="ml-2 w-5 h-5" />
+                                Become a partner <ArrowRight className="ml-2 w-5 h-5" />
                             </Link>
                         </Button>
                         <Button size="lg" variant="outline" className="h-14 px-8 text-base font-semibold border-foreground/20 bg-foreground/5 hover:bg-foreground/10 backdrop-blur-md rounded-full" asChild>
                             <Link to="/community">
-                                <PlayCircle className="mr-2 w-5 h-5 text-primary" /> Explore community
+                                <PlayCircle className="mr-2 w-5 h-5 text-primary" /> Explore Community
                             </Link>
                         </Button>
                     </div>
@@ -201,7 +229,7 @@ export default function Home() {
 
                         <AutoCarousel speed={40} direction="left" innerClassName="gap-6 px-3">
                             {featuredBusinesses.map((p, i) => (
-                                <Link to={`/listing/business/${p.id}`} target="_blank" rel="noopener noreferrer" key={`carousel-${p.id}-${i}`} className="flex items-center justify-center min-w-[220px] max-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0">
+                                <Link to={`/listing/business/${p.id}`} target="_blank" rel="noopener noreferrer" key={`carousel-${p.partnerId || "na"}-${p.id}-${i}`} className="flex items-center justify-center min-w-[220px] max-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0">
                                     <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{p.businessName}</span>
                                 </Link>
                             ))}
@@ -261,7 +289,7 @@ export default function Home() {
                     {featuredBusinesses.length > 0 ? (
                         <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 pb-8">
                             {featuredBusinesses.map((b, i) => (
-                                <Link to={`/listing/business/${b.id}`} target="_blank" rel="noopener noreferrer" key={`offering-${b.id}-${i}`} className="flex items-center justify-center text-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                <Link to={`/listing/business/${b.id}`} target="_blank" rel="noopener noreferrer" key={`offering-${b.partnerId || "na"}-${b.id}-${i}`} className="flex items-center justify-center text-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
                                     <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{b.businessName}</h3>
                                 </Link>
                             ))}
@@ -388,27 +416,6 @@ export default function Home() {
                             )}
                         </div>
                     </div>
-                </div>
-            </section>
-
-            {/* FAQ */}
-            <section className="py-20 bg-background border-y border-foreground/10">
-                <div className="container mx-auto px-6 max-w-3xl">
-                    <h2 className="text-2xl md:text-3xl font-bold mb-8 text-center">FAQ</h2>
-                    <ul className="space-y-6 text-left">
-                        {[
-                            ["How does the marketplace work?", "Partners list businesses, experts, events, and jobs. Visitors browse by category and open listings for full detail."],
-                            ["How do I list my business?", "Create a partner account, complete your profile, then add listings from your partner dashboard."],
-                            ["How do I post a job?", "From the partner dashboard, add a job listing and upload a description PDF when prompted."],
-                            ["How do I become a partner?", "Use Join the marketplace / partner registration to create an account and choose a plan."],
-                            ["What industries are supported?", "The marketplace covers life sciences categories from manufacturing and CRO services to regulatory and jobs—see All Categories for the full tree."],
-                        ].map(([q, a]) => (
-                            <li key={String(q)} className="border-b border-foreground/10 pb-6">
-                                <p className="font-semibold text-foreground mb-2">{q}</p>
-                                <p className="text-sm text-muted-foreground leading-relaxed">{a}</p>
-                            </li>
-                        ))}
-                    </ul>
                 </div>
             </section>
 

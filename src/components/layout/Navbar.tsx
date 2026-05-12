@@ -93,16 +93,19 @@ export default function Navbar() {
                         <Link to="/about-us" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
                             About Us
                         </Link>
+                        <Link to="/faq" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
+                            FAQ
+                        </Link>
                         <DropdownMenu>
                             <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors text-muted-foreground outline-none">
-                                Marketplace <ChevronDown className="h-4 w-4" />
+                                All Categories <ChevronDown className="h-4 w-4" />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-52 bg-background border-foreground/10 shadow-2xl">
+                            <DropdownMenuContent align="start" className="min-w-[14rem] bg-background border-foreground/10 shadow-2xl">
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/business">Business</Link>
+                                    <Link to="/all-categories/business">Business Offerings</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/experts">Experts</Link>
+                                    <Link to="/all-categories/consulting">Consulting Services</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
                                     <Link to="/all-categories/events">Events</Link>
@@ -189,7 +192,7 @@ export default function Navbar() {
                                     <Link to="/member/register">Join community</Link>
                                 </Button>
                                 <Button asChild className="shadow-lg shadow-primary/20 hover:shadow-primary/40 transition-shadow">
-                                    <Link to="/signup">Partner</Link>
+                                    <Link to="/signup">Become a partner</Link>
                                 </Button>
                             </>
                         )}

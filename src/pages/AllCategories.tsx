@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { db } from "@/firebase";
-import { collection, collectionGroup, query, where, getDocs } from "firebase/firestore";
+import { collection, collectionGroup, query, where, getDocs, limit } from "firebase/firestore";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 import {
     Select,
@@ -222,6 +222,11 @@ const CERT_FILTER_OPTIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"];
 const WORK_MODELS = ["Hybrid", "Remote", "On-site"];
 
+/** Embedded business offerings often omit `active`; do not require `active == true` in Firestore. */
+function isBusinessListingPublic(data: Record<string, any>): boolean {
+    return data.active !== false;
+}
+
 export default function AllCategories() {
     const { category } = useParams<{ category: string }>();
     const [searchParams] = useSearchParams();
@@ -264,7 +269,6 @@ export default function AllCategories() {
 
     // ── Persistence Logic ──
 
-    const [isRestored, setIsRestored] = useState(false);
     const isApprovedStatus = (value: any): boolean => {
         if (!value) return true;
         const normalized = String(value).trim().toLowerCase();
@@ -291,11 +295,8 @@ export default function AllCategories() {
         return "";
     };
 
-    // Load state from sessionStorage on mount or tab change
+    // Reset filters when switching category tab or search params (always show listing list, not category-only grid).
     useEffect(() => {
-        setIsRestored(false);
-        const prefix = `pharmasocii_${currentTab}_`;
-        
         const initialSearch = searchParams.get("search") || "";
         setSearchQuery(initialSearch);
 
@@ -311,22 +312,10 @@ export default function AllCategories() {
         setSelectedSubSubcategories([]);
         setSelectedCertifications([]);
 
-        const view = sessionStorage.getItem(`${prefix}viewMode`);
-        if (view !== null) setViewMode(view as "grid" | "list");
-        else setViewMode("list");
+        setViewMode("list");
 
         setCurrentPage(1);
-
-        setIsRestored(true);
     }, [currentTab, searchParams]);
-
-    // Save state to sessionStorage on any change
-    useEffect(() => {
-        if (!isRestored) return;
-
-        const prefix = `pharmasocii_${currentTab}_`;
-        sessionStorage.setItem(`${prefix}viewMode`, viewMode);
-    }, [currentTab, viewMode, isRestored]);
 
     useEffect(() => {
         const fetchAllCategoriesData = async () => {
@@ -334,7 +323,7 @@ export default function AllCategories() {
             try {
                 let docs: any[] = [];
                 if (currentTab === "business") {
-                    const q = query(collectionGroup(db, "businessOfferingsCollection"), where("active", "==", true));
+                    const q = query(collectionGroup(db, "businessOfferingsCollection"), limit(5000));
                     const snap = await getDocs(q);
                     docs = snap.docs;
                 } else if (currentTab === "consulting") {
@@ -357,9 +346,16 @@ export default function AllCategories() {
                     // De-duplicate and only show records that are approved/live.
                     const deduped = new Map<string, any>();
                     docs.forEach((d: any) => {
+                        const raw = d.data() as Record<string, any>;
+                        if (currentTab === "business" && !isBusinessListingPublic(raw)) return;
                         const key = d.ref?.path || d.id;
                         if (!deduped.has(key)) {
-                            deduped.set(key, { id: d.id, ...(d.data() as Record<string, any>) });
+                            const partnerFromPath =
+                                d.ref?.parent?.parent?.id && String(d.ref.parent.parent.path || "").includes("partnersCollection")
+                                    ? d.ref.parent.parent.id
+                                    : "";
+                            const partnerId = raw.partnerId || partnerFromPath || "";
+                            deduped.set(key, { id: d.id, partnerId, ...raw });
                         }
                     });
                     const approvedDocs = Array.from(deduped.values()).filter((doc: any) => isApprovedStatus(doc.status));
@@ -379,6 +375,7 @@ export default function AllCategories() {
                 }
             } catch (err) {
                 console.error("Error fetching AllCategories:", err);
+                setData([]);
             } finally {
                 setLoading(false);
             }
@@ -786,7 +783,7 @@ export default function AllCategories() {
     };
 
     return (
-        <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex min-h-0 flex-1 flex-col bg-background w-full">
             <div className="bg-muted/40 border-b border-foreground/10 py-12">
                 <div className="container mx-auto px-4">
                     <h1 className="text-4xl font-bold tracking-tight mb-4">
@@ -1064,7 +1061,7 @@ export default function AllCategories() {
                                         ];
                                         return (
                                             <Link
-                                                key={item.id}
+                                                key={currentTab === "business" ? `${item.partnerId || "na"}-${item.id}` : item.id}
                                                 to={`/listing/${currentTab}/${item.id}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
@@ -1193,7 +1190,11 @@ export default function AllCategories() {
 
                                     <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
                                         {featuredBusinesses.map((fb, i) => (
-                                            <Link to={`/listing/${currentTab}/${fb.id}`} target="_blank" rel="noopener noreferrer" key={`${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                            <Link
+                                                to={`/listing/${currentTab}/${fb.id}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                key={`${currentTab === "business" ? `${fb.partnerId || "na"}-` : ""}${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
                                                 <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName || fb.companyName || "Consulting Listing") : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
                                             </Link>
                                         ))}

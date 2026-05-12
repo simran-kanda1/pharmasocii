@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import type { FirebaseError } from "firebase/app";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Activity, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import { requestVerificationMirrorCopy } from "@/lib/requestVerificationMirrorCo
 
 export default function MemberLogin() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const verifyBanner = searchParams.get("verify") === "1";
   const emailFromUrl = searchParams.get("email") || "";
@@ -25,6 +27,10 @@ export default function MemberLogin() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [resendMsg, setResendMsg] = useState("");
+  const [verifyHint, setVerifyHint] = useState<string | null>(() => {
+    const s = location.state as { verifyEmailHint?: string } | null;
+    return s?.verifyEmailHint ?? null;
+  });
 
   useEffect(() => {
     if (emailFromUrl) setEmail(emailFromUrl);
@@ -92,16 +98,29 @@ export default function MemberLogin() {
   const handleResend = async () => {
     setResendMsg("");
     setError("");
+    setVerifyHint(null);
     try {
       if (!auth.currentUser) {
         setError("Log in first, then resend verification.");
         return;
       }
       await sendEmailVerification(auth.currentUser);
-      await requestVerificationMirrorCopy();
-      setResendMsg("Verification email sent.");
-    } catch {
-      setError("Could not send email. Try again later.");
+      const mirror = await requestVerificationMirrorCopy();
+      if (mirror.ok) {
+        setResendMsg("Verification email sent. Check spam; a test copy may appear in Admin → Overview.");
+      } else {
+        setResendMsg(
+          "Verification email sent from Firebase. Test inbox copy failed — open Admin → Overview → verification mirrors, or redeploy functions and check the browser console.",
+        );
+      }
+    } catch (err: unknown) {
+      const code =
+        typeof err === "object" && err !== null && "code" in err ? (err as FirebaseError).code : "";
+      if (code === "auth/too-many-requests") {
+        setError("Too many emails sent. Wait a while before resending.");
+      } else {
+        setError("Could not send email. Try again later.");
+      }
     }
   };
 
@@ -122,6 +141,11 @@ export default function MemberLogin() {
         {verifyBanner && (
           <div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
             Account created. Check your email and click the verification link before logging in.
+          </div>
+        )}
+        {verifyHint && (
+          <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
+            {verifyHint}
           </div>
         )}
 

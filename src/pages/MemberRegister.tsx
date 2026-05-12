@@ -14,7 +14,6 @@ import {
 import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import { normalizeUserNameKey } from "@/lib/community";
-import { requestVerificationMirrorCopy } from "@/lib/requestVerificationMirrorCopy";
 
 export default function MemberRegister() {
   const navigate = useNavigate();
@@ -74,7 +73,6 @@ export default function MemberRegister() {
 
       const userCredential = await createUserWithEmailAndPassword(auth, emailTrim, form.password);
       const user = userCredential.user;
-      await sendEmailVerification(user);
 
       const memberRef = doc(db, "membersCollection", user.uid);
       const nameKeyRef = doc(db, "userNames", key);
@@ -105,7 +103,22 @@ export default function MemberRegister() {
         });
       });
 
-      await requestVerificationMirrorCopy();
+      try {
+        await sendEmailVerification(user);
+      } catch (verifyErr: unknown) {
+        console.error(verifyErr);
+        let hint =
+          "Account created. If you don’t see the email, check spam, then use “Resend verification” after signing in. Admins can copy the verify link from Dashboard → Overview → verification mirrors.";
+        if (typeof verifyErr === "object" && verifyErr !== null && "code" in verifyErr) {
+          const code = (verifyErr as FirebaseError).code;
+          if (code === "auth/too-many-requests") {
+            hint =
+              "Account created, but verification sends are rate-limited. Wait a few minutes, sign in, and use “Resend verification”; admins can still copy the link from Overview.";
+          }
+        }
+        navigate("/member/login?verify=1", { replace: true, state: { verifyEmailHint: hint } });
+        return;
+      }
 
       navigate("/member/login?verify=1", { replace: true });
     } catch (err: unknown) {
@@ -225,7 +238,7 @@ export default function MemberRegister() {
               <p className="font-medium">You already have access with this email</p>
               <p className="text-muted-foreground leading-relaxed">
                 Pharmasocii uses one login per email for security. That still lets you use{" "}
-                <strong className="text-foreground">both</strong> the marketplace and the community: sign in, then—if
+                <strong className="text-foreground">both</strong> partner listings and the community: sign in, then—if
                 you have not yet—add your community profile (choose your community username there). Use the same
                 password you set for partner signup.
               </p>

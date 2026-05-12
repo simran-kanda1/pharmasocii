@@ -44,4 +44,12 @@
   body {
     @apply bg-background text-foreground tracking-[-0.02em];
   }
+
+  /* Let the app flex layout fill the viewport without stacking min-h-screen inside min-h-screen (extra blank scroll). */
+  #root {
+    display: flex;
+    flex-direction: column;
+    min-height: 100dvh;
+    min-height: 100vh;
+  }
 }

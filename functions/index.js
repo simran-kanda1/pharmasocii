@@ -1,9 +1,9 @@
 /**
  * Scheduled cleanup: remove spotlight fields after featureSpotlightAccessEnd.
  * Community: comment counts, spam thresholds, spam-block release.
- * Community-only email testing: requestVerificationEmailCc mirrors verification links to
- * Firestore (verificationMirrors) and optionally SMTP to VERIFICATION_CC_EMAIL
- * (default simrankaurkanda42@gmail.com). Callable requires a membersCollection profile.
+ * Community-only email testing: onMemberDocumentCreatedVerificationMirror (Firestore) +
+ * requestVerificationEmailCc (resend) mirror links to verificationMirrors and optional SMTP
+ * to VERIFICATION_CC_EMAIL (default simrankaurkanda42@gmail.com).
  *
  * Deploy: cd functions && npm install && cd .. && firebase deploy --only functions,firestore:rules
  *
@@ -282,6 +282,24 @@ async function mirrorVerificationForEmail(userEmail, source) {
         console.error("[verification-mirror] SMTP failed", e);
     }
 }
+
+/** Server-side mirror when a community member doc is created (no client callable / IAM issues). */
+exports.onMemberDocumentCreatedVerificationMirror = onDocumentCreated(
+    {
+        document: "membersCollection/{userId}",
+        region: "us-central1",
+    },
+    async (event) => {
+        const userId = event.params.userId;
+        try {
+            const userRecord = await admin.auth().getUser(userId);
+            if (!userRecord.email || userRecord.emailVerified) return;
+            await mirrorVerificationForEmail(userRecord.email, "firestore_member_created");
+        } catch (e) {
+            console.error("onMemberDocumentCreatedVerificationMirror", userId, e);
+        }
+    }
+);
 
 exports.requestVerificationEmailCc = onCall(
     {

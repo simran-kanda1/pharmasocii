@@ -199,6 +199,11 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Collection group queries (homepage, categories) read offerings under each partner.
+    match /{path=**}/businessOfferingsCollection/{offeringId} {
+      allow read: if true;
+    }
+
     // --- Marketplace / partners (existing app) ---
     match /partnersCollection/{partnerId} {
       allow read: if true;

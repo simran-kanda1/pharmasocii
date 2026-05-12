@@ -33,10 +33,10 @@ export function Footer() {
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm uppercase tracking-wider">Marketplace</h4>
+                        <h4 className="font-semibold text-sm uppercase tracking-wider">All Categories</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
-                            <li><Link to="/all-categories/business" className="hover:text-primary transition-colors">Business</Link></li>
-                            <li><Link to="/all-categories/experts" className="hover:text-primary transition-colors">Experts</Link></li>
+                            <li><Link to="/all-categories/business" className="hover:text-primary transition-colors">Business Offerings</Link></li>
+                            <li><Link to="/all-categories/consulting" className="hover:text-primary transition-colors">Consulting Services</Link></li>
                             <li><Link to="/all-categories/events" className="hover:text-primary transition-colors">Events</Link></li>
                             <li><Link to="/all-categories/jobs" className="hover:text-primary transition-colors">Jobs</Link></li>
                         </ul>
