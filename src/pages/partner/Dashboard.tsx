@@ -739,6 +739,18 @@ export default function Dashboard() {
                     throw new Error(errMessage);
                 }
                 const data = await resp.json();
+                if (data.upgraded) {
+                    setActionMessage({
+                        type: "success",
+                        text: data.message || "Spotlight tier updated on your subscription.",
+                    });
+                    setFeatureProcessing(false);
+                    window.location.reload();
+                    return;
+                }
+                if (!data.url) {
+                    throw new Error("No checkout URL returned from server.");
+                }
                 window.location.href = data.url;
             }
         } catch (err: any) {
@@ -1043,6 +1055,18 @@ export default function Dashboard() {
                     throw new Error(errMessage);
                 }
                 const data = await resp.json();
+                if (data.upgraded) {
+                    setActionMessage({
+                        type: "success",
+                        text: data.message || "Spotlight tier updated on your subscription.",
+                    });
+                    setActionProcessing(false);
+                    window.location.reload();
+                    return;
+                }
+                if (!data.url) {
+                    throw new Error("No checkout URL returned from server.");
+                }
                 window.location.href = data.url;
             }
         } catch (err: any) {
