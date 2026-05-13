@@ -222,9 +222,9 @@ const AVAILABLE_PLANS: Array<{
   { service: "Events", planId: "standard_event", label: "Standard Event", priceUsd: 850, billing: "Monthly" },
   { service: "Events", planId: "premium_event", label: "Premium Event", priceUsd: 1250, billing: "Monthly" },
   { service: "Events", planId: "premium_plus_event", label: "Premium Plus Event", priceUsd: 1450, billing: "Monthly" },
-  { service: "Jobs", planId: "standard_job", label: "Standard Job Listing", priceUsd: 400, billing: "One-time" },
-  { service: "Jobs", planId: "premium_job", label: "Premium Job Listing", priceUsd: 800, billing: "One-time" },
-  { service: "Jobs", planId: "premium_plus_job", label: "Premium Plus Job Listing", priceUsd: 1000, billing: "One-time" },
+  { service: "Jobs", planId: "standard_job", label: "Standard Job Listing", priceUsd: 400, billing: "Monthly" },
+  { service: "Jobs", planId: "premium_job", label: "Premium Job Listing", priceUsd: 800, billing: "Monthly" },
+  { service: "Jobs", planId: "premium_plus_job", label: "Premium Plus Job Listing", priceUsd: 1000, billing: "Monthly" },
 ];
 
 const FEATURED_PLAN_CATALOG = [

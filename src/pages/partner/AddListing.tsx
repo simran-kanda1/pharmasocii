@@ -531,9 +531,9 @@ export default function AddListing() {
                 ];
             case "jobs":
                 return [
-                    { value: "standard_job", label: "Standard - $400.00" },
-                    { value: "premium_job", label: "Premium - $800.00" },
-                    { value: "premium_plus_job", label: "Premium Plus - $1,000.00" },
+                    { value: "standard_job", label: "Standard - $400.00/mo" },
+                    { value: "premium_job", label: "Premium - $800.00/mo" },
+                    { value: "premium_plus_job", label: "Premium Plus - $1,000.00/mo" },
                 ];
             default: return [];
         }
