@@ -1381,7 +1381,9 @@ export default function Dashboard() {
             const planConfig = PLAN_CONFIGS[plan.planId];
             const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : plan.startDate ? new Date(plan.startDate) : null;
             const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null;
-            const isYearly = plan.billingInterval === "year" || plan.planId?.includes("_yr");
+            const isJobPlan = typeof plan.planId === "string" && plan.planId.includes("_job");
+            const isYearly = !isJobPlan && (plan.billingInterval === "year" || plan.planId?.includes("_yr"));
+            const billingCycleLabel = isJobPlan ? "One-time" : (isYearly ? "Annual" : "Monthly");
             const linkedListing =
                 offerings.find((o) => o.id === plan.listingId && (!plan.collectionName || o.__col === plan.collectionName)) ||
                 offerings.find((o) => o.id === plan.listingId);
@@ -1410,7 +1412,7 @@ export default function Dashboard() {
                                     {isEnding ? (
                                         <>
                                             <Badge className="bg-amber-500/15 text-amber-900 dark:text-amber-100 border-amber-500/50">Scheduled to end</Badge>
-                                            <Badge variant="outline" className="border-foreground/20">{isYearly ? "Annual" : "Monthly"}</Badge>
+                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
                                             {billingEnd && (
                                                 <span className="text-xs font-medium text-amber-900/85 dark:text-amber-100/85">
                                                     Access through {billingEnd.toLocaleDateString()}
@@ -1420,7 +1422,7 @@ export default function Dashboard() {
                                     ) : (
                                         <>
                                             <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>
-                                            <Badge variant="outline" className="border-foreground/20">{isYearly ? "Annual" : "Monthly"}</Badge>
+                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
                                         </>
                                     )}
                                 </div>
@@ -1435,12 +1437,12 @@ export default function Dashboard() {
                                         <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">{isEnding ? "Ends on" : "Renewal date"}</p>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">{isEnding ? "Ends on" : isJobPlan ? "Listing paid" : "Renewal date"}</p>
                                         <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Billing cycle</p>
-                                        <p className="text-sm text-foreground font-medium capitalize">{isYearly ? "Yearly" : "Monthly"}</p>
+                                        <p className="text-sm text-foreground font-medium capitalize">{billingCycleLabel}</p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Price</p>

@@ -325,6 +325,28 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
             let listingData = null;
             let detailSource = null;
 
+            if (session.metadata?.jobListingPlanUpgrade === "true") {
+                const upgradeListingId = session.metadata?.listingId || listingId;
+                const upgradeCollectionName = session.metadata?.collectionName || resolvedCollectionName;
+                const fromPlanId = session.metadata?.fromPlanId || "";
+                const toPlanId = session.metadata?.toPlanId || session.metadata?.planId || "";
+                if (!partnerRef || !partnerId || !upgradeListingId || !upgradeCollectionName || !toPlanId) {
+                    console.log("   ⚠ Job listing upgrade checkout missing metadata; skipping.");
+                    break;
+                }
+                await finalizeJobListingPlanUpgradeWrites({
+                    session,
+                    partnerId,
+                    partnerRef,
+                    listingId: upgradeListingId,
+                    collectionName: upgradeCollectionName,
+                    fromPlanId,
+                    toPlanId,
+                    group: session.metadata?.group || "jobs",
+                });
+                break;
+            }
+
             if (session.metadata?.upgradeFlow === "true") {
                 const {
                     subscriptionId,
@@ -488,15 +510,21 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     }
 
                     const startDate = new Date();
-                    const isYearly = planId?.includes('_yr');
-                    const billingPeriodEnd = new Date(startDate);
-                    if (isYearly) {
-                        billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
-                    } else {
-                        billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                    const isJobPlan = typeof planId === "string" && planId.includes("_job");
+                    const isYearly = planId?.includes("_yr");
+                    let billingPeriodEnd = null;
+                    if (!isJobPlan) {
+                        billingPeriodEnd = new Date(startDate);
+                        if (isYearly) {
+                            billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                        } else {
+                            billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                        }
                     }
 
                     const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[planId] || null;
+                    const spotlightPaidThrough =
+                        includedSpotlight && isJobPlan ? addDays(startDate, 30) : billingPeriodEnd;
                     const listingPaymentUpdate = {
                         status: "Approved",
                         active: true,
@@ -509,7 +537,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         listingPaymentUpdate.featuredPlacement = includedSpotlight;
                         listingPaymentUpdate.isFeatured = true;
                         listingPaymentUpdate.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
-                        listingPaymentUpdate.featureSpotlightPaidThrough = billingPeriodEnd;
+                        listingPaymentUpdate.featureSpotlightPaidThrough = spotlightPaidThrough;
                     }
                     await listingRef.update(listingPaymentUpdate);
                     if (includedSpotlight) {
@@ -519,7 +547,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             collectionName: resolvedCollectionName,
                             planId,
                             sessionId: session.id,
-                            accessThrough: billingPeriodEnd,
+                            accessThrough: spotlightPaidThrough,
                         });
                         await deactivateSupersededPartnerFeatures(partnerRef, listingId, includedSpotlight);
                     }
@@ -533,8 +561,8 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             planId,
                             planName: planId.replace(/_/g, " "),
                             startDate: startDate,
-                            billingPeriodEnd: billingPeriodEnd,
-                            billingInterval: isYearly ? "year" : "month",
+                            ...(billingPeriodEnd ? { billingPeriodEnd } : { billingPeriodEnd: admin.firestore.FieldValue.delete() }),
+                            billingInterval: isJobPlan ? "one_time" : (isYearly ? "year" : "month"),
                             active: true,
                             lastPaymentReceivedAt: startDate,
                             listingId,
@@ -544,7 +572,9 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             sessionId: session.id,
                             companyRepresentatives: listingData?.companyRepresentatives || []
                         });
-                        console.log(`   ✓ Plan record created with billing period end: ${billingPeriodEnd.toISOString()}`);
+                        console.log(
+                            `   ✓ Plan record created${billingPeriodEnd ? ` with billing period end: ${billingPeriodEnd.toISOString()}` : " (one-time job listing)"}`
+                        );
                     } else {
                         console.log(`   ℹ Plan record already exists for session ${session.id}`);
                     }
@@ -1538,6 +1568,140 @@ const inferPlanGroup = (plan) => {
     return "";
 };
 
+/**
+ * Job listings are paid once (Checkout payment mode) — no core Stripe subscription.
+ * Upgrades charge the list-price difference via Checkout and apply here + in verify-payment fallback.
+ */
+async function finalizeJobListingPlanUpgradeWrites({
+    session,
+    partnerId,
+    partnerRef,
+    listingId,
+    collectionName,
+    fromPlanId,
+    toPlanId,
+    group,
+}) {
+    if (!partnerRef || !listingId || !collectionName || !toPlanId) {
+        console.log("   ⚠ Job plan upgrade finalize: missing required fields");
+        return { ok: false };
+    }
+
+    const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
+    if (!listingRef) return { ok: false };
+
+    const listingSnap = await listingRef.get();
+    if (!listingSnap.exists) return { ok: false };
+    const listingData = listingSnap.data() || {};
+
+    let planSnap = await partnerRef
+        .collection("planCollection")
+        .where("listingId", "==", listingId)
+        .where("collectionName", "==", collectionName)
+        .limit(8)
+        .get();
+    let planDoc =
+        planSnap.docs.find((d) => {
+            const p = d.data() || {};
+            return p.active !== false && isFirestorePlanBillingLive(p);
+        }) || planSnap.docs[0];
+    if (!planDoc) {
+        const fallback = await partnerRef
+            .collection("planCollection")
+            .where("listingId", "==", listingId)
+            .limit(8)
+            .get();
+        planDoc = fallback.docs[0] || null;
+    }
+
+    const prevPlanData = planDoc ? planDoc.data() || {} : {};
+    const planEnd = toDateValue(prevPlanData.billingPeriodEnd);
+    const spotlightThrough =
+        planEnd ||
+        toDateValue(listingData.featureSpotlightPaidThrough) ||
+        addDays(new Date(), 30);
+
+    const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[toPlanId] || null;
+
+    const custId =
+        typeof session.customer === "string"
+            ? session.customer
+            : session.customer?.id || null;
+
+    const listingPatch = {
+        selectedPlan: toPlanId,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        ...(custId ? { stripeCustomerId: custId } : {}),
+        stripeSubscriptionId: admin.firestore.FieldValue.delete(),
+    };
+
+    if (includedSpotlight) {
+        listingPatch.selectedAddon = includedSpotlight;
+        listingPatch.featuredPlacement = includedSpotlight;
+        listingPatch.isFeatured = true;
+        listingPatch.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
+        listingPatch.featureSpotlightPaidThrough = spotlightThrough;
+    }
+
+    await listingRef.set(listingPatch, { merge: true });
+
+    if (includedSpotlight) {
+        await upsertIncludedPlanFeature(partnerRef, {
+            featureId: includedSpotlight,
+            listingId,
+            collectionName,
+            planId: toPlanId,
+            sessionId: session.id,
+            accessThrough: spotlightThrough,
+        });
+        await deactivateSupersededPartnerFeatures(partnerRef, listingId, includedSpotlight);
+    }
+
+    if (planDoc) {
+        await planDoc.ref.set(
+            {
+                planId: toPlanId,
+                planName: toPlanId.replace(/_/g, " "),
+                billingInterval: "one_time",
+                upgradedAt: new Date(),
+                stripeSubscriptionId: admin.firestore.FieldValue.delete(),
+                ...(custId ? { stripeCustomerId: custId } : { stripeCustomerId: admin.firestore.FieldValue.delete() }),
+                cancelAtPeriodEnd: false,
+                cancelAt: admin.firestore.FieldValue.delete(),
+            },
+            { merge: true }
+        );
+    }
+
+    await logAudit({
+        partnerId,
+        action: "PLAN_UPGRADED",
+        details: `Job listing upgraded from ${(fromPlanId || "").replace(/_/g, " ")} to ${toPlanId.replace(/_/g, " ")}.`,
+        category: "billing",
+        metadata: {
+            sessionId: session.id,
+            planId: toPlanId,
+            fromPlanId: fromPlanId || null,
+            listingId,
+            collectionName,
+        },
+    });
+
+    const txn = await createUpgradeTransactionIfMissing({
+        session,
+        partnerId,
+        newPlanId: toPlanId,
+        listingId,
+        collectionName,
+        group: group || "jobs",
+    });
+    if (txn.created) {
+        console.log(`   ✓ Job plan upgrade transaction recorded for session ${session.id}`);
+    }
+
+    return { ok: true, transaction: txn };
+}
+
 const isFirestorePlanBillingLive = (plan) => {
     if (plan?.active === false) return false;
     const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
@@ -2082,6 +2246,115 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             return res.status(400).json({ error: `Unknown plan: ${newPlanId}` });
         }
 
+        const fromPlanJob = typeof expectedCurrentPlanId === "string" && expectedCurrentPlanId.includes("_job");
+        const toPlanJob = typeof newPlanId === "string" && newPlanId.includes("_job");
+        if (toPlanJob || fromPlanJob) {
+            if (!fromPlanJob || !toPlanJob) {
+                return res.status(400).json({
+                    error: "Job plan changes must stay within job tiers (Standard / Premium / Premium Plus).",
+                });
+            }
+            if (!partnerId || !listingId || !collectionName) {
+                return res.status(400).json({
+                    error: "Job plan upgrades require listing context. Refresh the dashboard and try again.",
+                });
+            }
+            const oldPlan = PLAN_PRICES[expectedCurrentPlanId];
+            if (!oldPlan || oldPlan.interval != null) {
+                return res.status(400).json({ error: "Invalid current job plan on this listing." });
+            }
+            if (newPlan.interval != null) {
+                return res.status(400).json({ error: "Invalid target job plan." });
+            }
+            if (
+                !isAllowedSubscriptionUpgrade({
+                    currentPlanId: expectedCurrentPlanId,
+                    newPlanId,
+                    currentAmount: oldPlan.amount,
+                    currentInterval: null,
+                })
+            ) {
+                return res.status(400).json({
+                    error: "That job plan change is not allowed. Choose a higher tier only.",
+                });
+            }
+            const diff = newPlan.amount - oldPlan.amount;
+            if (diff <= 0) {
+                return res.status(400).json({ error: "You are already on this tier or higher." });
+            }
+
+            const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
+            if (!listingRef) {
+                return res.status(400).json({ error: "Unable to resolve listing for job plan upgrade." });
+            }
+            const ls = await listingRef.get();
+            if (!ls.exists) {
+                return res.status(404).json({ error: "Listing not found." });
+            }
+            const lsData = ls.data() || {};
+            const currentSel = String(lsData.selectedPlan || "").trim();
+            if (currentSel && currentSel !== expectedCurrentPlanId) {
+                return res.status(400).json({
+                    error: `Your listing is on ${currentSel.replace(/_/g, " ")}. Refresh the page and try upgrading again.`,
+                });
+            }
+
+            const partnerRef = db.collection("partnersCollection").doc(partnerId);
+            const partnerSnap = await partnerRef.get();
+            const partnerStripeCustomer =
+                partnerSnap.exists && typeof partnerSnap.data()?.stripeCustomerId === "string"
+                    ? partnerSnap.data().stripeCustomerId
+                    : null;
+            const listingCustomer =
+                typeof lsData.stripeCustomerId === "string" ? lsData.stripeCustomerId : null;
+            const stripeCustomerToUse = partnerStripeCustomer || listingCustomer;
+
+            const jobUpgradeSession = await stripe.checkout.sessions.create({
+                mode: "payment",
+                line_items: [
+                    {
+                        price_data: {
+                            currency: "usd",
+                            product_data: {
+                                name: `Pharma Socii — Job listing upgrade (${oldPlan.name} → ${newPlan.name})`,
+                                description: "One-time upgrade charge for your job listing tier",
+                            },
+                            unit_amount: diff,
+                        },
+                        quantity: 1,
+                    },
+                ],
+                success_url:
+                    successUrl ||
+                    "https://orange-bear-967180.hostingersite.com/partner/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}",
+                cancel_url: cancelUrl || "https://orange-bear-967180.hostingersite.com/partner/dashboard?upgrade=cancelled",
+                client_reference_id: partnerId,
+                ...(stripeCustomerToUse
+                    ? { customer: stripeCustomerToUse }
+                    : partnerEmail
+                        ? { customer_email: partnerEmail }
+                        : {}),
+                metadata: {
+                    partnerId,
+                    jobListingPlanUpgrade: "true",
+                    fromPlanId: expectedCurrentPlanId,
+                    toPlanId: newPlanId,
+                    planId: newPlanId,
+                    group: "jobs",
+                    listingId,
+                    collectionName,
+                },
+            });
+
+            console.log(`   ✓ Job plan upgrade checkout created: ${jobUpgradeSession.id} (+$${diff / 100} vs prior tier)`);
+            return res.json({
+                success: true,
+                url: jobUpgradeSession.url,
+                sessionId: jobUpgradeSession.id,
+                proratedAmount: diff / 100,
+            });
+        }
+
         let effectiveSubscriptionId = subscriptionId || null;
         if (!effectiveSubscriptionId && partnerId) {
             const partnerPlanQuery = db.collection("partnersCollection").doc(partnerId).collection("planCollection");
@@ -2099,7 +2372,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     }
                 }
             }
-            if (!effectiveSubscriptionId) {
+            if (!effectiveSubscriptionId && !listingId) {
                 const anyActivePlanSnap = await partnerPlanQuery
                     .where("active", "==", true)
                     .limit(10)
@@ -2116,7 +2389,8 @@ app.post("/api/upgrade-subscription", async (req, res) => {
 
         if (!effectiveSubscriptionId) {
             return res.status(400).json({
-                error: "Could not find an existing subscription to upgrade. Please refresh and try again."
+                error:
+                    "Could not find an existing subscription to upgrade. Job postings use one-time billing — refresh the dashboard and try again, or contact support if this persists.",
             });
         }
 
@@ -2199,7 +2473,8 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 listingId &&
                 collectionName &&
                 expectedCurrentPlanId &&
-                expectedCurrentPlanId !== currentPlanId
+                expectedCurrentPlanId !== currentPlanId &&
+                !String(expectedCurrentPlanId).includes("_job")
             ) {
                 const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
                 if (listingRef) {
@@ -2748,6 +3023,37 @@ app.post("/api/verify-payment", async (req, res) => {
         let updated = false;
         let listingData = null;
         let detailSource = null;
+
+        if (session.metadata?.jobListingPlanUpgrade === "true") {
+            if (!partnerRef || !partnerId) {
+                return res.status(400).json({ error: "Missing partner for job plan upgrade verification." });
+            }
+            const upgradeListingId = session.metadata?.listingId || listingId;
+            const upgradeCollectionName = collectionName || resolvedCollectionName;
+            const fromPlanId = session.metadata?.fromPlanId || "";
+            const toPlanId = session.metadata?.toPlanId || session.metadata?.planId || "";
+            if (!upgradeListingId || !upgradeCollectionName || !toPlanId) {
+                return res.status(400).json({ error: "Job upgrade verification metadata is incomplete." });
+            }
+            await finalizeJobListingPlanUpgradeWrites({
+                session,
+                partnerId,
+                partnerRef,
+                listingId: upgradeListingId,
+                collectionName: upgradeCollectionName,
+                fromPlanId,
+                toPlanId,
+                group: session.metadata?.group || "jobs",
+            });
+            return res.json({
+                success: true,
+                updated: true,
+                jobUpgrade: true,
+                status: session.status,
+                paymentStatus: session.payment_status,
+            });
+        }
+
         const isUpgradeFlow = session.metadata?.upgradeFlow === "true" || Boolean(session.metadata?.newPriceId && session.metadata?.subscriptionId);
 
         if (isUpgradeFlow) {
@@ -2935,15 +3241,21 @@ app.post("/api/verify-payment", async (req, res) => {
                 updated = true;
                 console.log(`   ✓ Listing ${listingId} updated to status: Approved`);
 
-                // Calculate billing period
+                // Calculate billing period (job listings are one-time, not monthly/yearly cycles)
                 const startDate = new Date();
+                const isJobPlan = typeof planId === "string" && planId.includes("_job");
                 const isYearly = planId?.includes('_yr');
-                const billingPeriodEnd = new Date(startDate);
-                if (isYearly) {
-                    billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
-                } else {
-                    billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                let billingPeriodEnd = null;
+                if (!isJobPlan) {
+                    billingPeriodEnd = new Date(startDate);
+                    if (isYearly) {
+                        billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                    } else {
+                        billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                    }
                 }
+                const spotlightPaidThrough =
+                    PLANS_WITH_INCLUDED_SPOTLIGHT[planId] && isJobPlan ? addDays(startDate, 30) : billingPeriodEnd;
 
                 const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[planId] || null;
                 if (includedSpotlight) {
@@ -2952,7 +3264,7 @@ app.post("/api/verify-payment", async (req, res) => {
                         featuredPlacement: includedSpotlight,
                         isFeatured: true,
                         lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        featureSpotlightPaidThrough: billingPeriodEnd,
+                        featureSpotlightPaidThrough: spotlightPaidThrough,
                     }, { merge: true });
                     await upsertIncludedPlanFeature(partnerRef, {
                         featureId: includedSpotlight,
@@ -2960,7 +3272,7 @@ app.post("/api/verify-payment", async (req, res) => {
                         collectionName: resolvedCollectionName,
                         planId,
                         sessionId: session.id,
-                        accessThrough: billingPeriodEnd,
+                        accessThrough: spotlightPaidThrough,
                     });
                     await deactivateSupersededPartnerFeatures(partnerRef, listingId, includedSpotlight);
                     updated = true;
@@ -2975,8 +3287,8 @@ app.post("/api/verify-payment", async (req, res) => {
                         planId,
                         planName: planId.replace(/_/g, " "),
                         startDate: startDate,
-                        billingPeriodEnd: billingPeriodEnd,
-                        billingInterval: isYearly ? "year" : "month",
+                        ...(billingPeriodEnd ? { billingPeriodEnd } : { billingPeriodEnd: admin.firestore.FieldValue.delete() }),
+                        billingInterval: isJobPlan ? "one_time" : (isYearly ? "year" : "month"),
                         active: true,
                         lastPaymentReceivedAt: startDate,
                         listingId,
