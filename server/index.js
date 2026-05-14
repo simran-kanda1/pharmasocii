@@ -92,6 +92,33 @@ function getInvoiceCustomerId(invoice) {
     return typeof invoice.customer === "string" ? invoice.customer : invoice.customer.id || null;
 }
 
+/** Checkout Session / webhooks may expose subscription or customer as an id string or an expanded object. */
+function toStripeSubscriptionId(value) {
+    if (value == null || value === "") return null;
+    if (typeof value === "string") {
+        const s = value.trim();
+        return s || null;
+    }
+    if (typeof value === "object" && value !== null && typeof value.id === "string") {
+        const s = value.id.trim();
+        return s || null;
+    }
+    return null;
+}
+
+function toStripeCustomerId(value) {
+    if (value == null || value === "") return null;
+    if (typeof value === "string") {
+        const s = value.trim();
+        return s || null;
+    }
+    if (typeof value === "object" && value !== null && typeof value.id === "string") {
+        const s = value.id.trim();
+        return s || null;
+    }
+    return null;
+}
+
 function getInvoicePeriodEndDate(invoice) {
     const firstLine = invoice?.lines?.data?.[0];
     const periodEndSeconds = firstLine?.period?.end || null;
@@ -105,9 +132,10 @@ function getInvoicePeriodEndDate(invoice) {
 async function resolveBillingPeriodEndFromStripe(stripeClient, invoice, subscriptionId) {
     const fromInvoice = getInvoicePeriodEndDate(invoice);
     if (fromInvoice) return fromInvoice;
-    if (!subscriptionId || !stripeClient) return null;
+    const subId = toStripeSubscriptionId(subscriptionId);
+    if (!subId || !stripeClient) return null;
     try {
-        const sub = await stripeClient.subscriptions.retrieve(subscriptionId);
+        const sub = await stripeClient.subscriptions.retrieve(subId);
         if (sub?.current_period_end) return new Date(sub.current_period_end * 1000);
     } catch (err) {
         console.error("resolveBillingPeriodEndFromStripe:", err?.message || err);
@@ -357,12 +385,13 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     collectionName: upgradeCollectionName,
                 } = session.metadata;
 
-                if (!subscriptionId || !subscriptionItemId || !newPriceId || !newPlanId || !partnerId) {
+                const subId = toStripeSubscriptionId(subscriptionId);
+                if (!subId || !subscriptionItemId || !newPriceId || !newPlanId || !partnerId) {
                     console.log("   ⚠ Upgrade checkout missing metadata; skipping upgrade completion.");
                     break;
                 }
 
-                const upgradedSubscription = await stripe.subscriptions.update(subscriptionId, {
+                const upgradedSubscription = await stripe.subscriptions.update(subId, {
                     items: [{ id: subscriptionItemId, price: newPriceId }],
                     proration_behavior: "none",
                     metadata: {
@@ -380,7 +409,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         const listingUpgradePatch = {
                             selectedPlan: newPlanId,
                             stripeSubscriptionId: upgradedSubscription.id,
-                            stripeCustomerId: upgradedSubscription.customer || null,
+                            stripeCustomerId: toStripeCustomerId(upgradedSubscription.customer),
                             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                         };
                         if (includedSpotlight) {
@@ -426,7 +455,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             : admin.firestore.FieldValue.delete(),
                         upgradedAt: new Date(),
                         stripeSubscriptionId: upgradedSubscription.id,
-                        stripeCustomerId: upgradedSubscription.customer || null,
+                        stripeCustomerId: toStripeCustomerId(upgradedSubscription.customer),
                         cancelAtPeriodEnd: false,
                         cancelAt: admin.firestore.FieldValue.delete(),
                     }, { merge: true });
@@ -524,8 +553,8 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         status: "Approved",
                         active: true,
                         lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                        stripeSubscriptionId: session.subscription || null,
-                        stripeCustomerId: session.customer || null,
+                        stripeSubscriptionId: toStripeSubscriptionId(session.subscription),
+                        stripeCustomerId: toStripeCustomerId(session.customer),
                     };
                     if (includedSpotlight) {
                         listingPaymentUpdate.selectedAddon = includedSpotlight;
@@ -562,8 +591,8 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             lastPaymentReceivedAt: startDate,
                             listingId,
                             collectionName: resolvedCollectionName,
-                            stripeSubscriptionId: session.subscription || null,
-                            stripeCustomerId: session.customer || null,
+                            stripeSubscriptionId: toStripeSubscriptionId(session.subscription),
+                            stripeCustomerId: toStripeCustomerId(session.customer),
                             sessionId: session.id,
                             companyRepresentatives: listingData?.companyRepresentatives || []
                         });
@@ -601,8 +630,8 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             listingId: null,
                             collectionName: null,
                             group: group || null,
-                            stripeSubscriptionId: session.subscription || null,
-                            stripeCustomerId: session.customer || null,
+                            stripeSubscriptionId: toStripeSubscriptionId(session.subscription),
+                            stripeCustomerId: toStripeCustomerId(session.customer),
                             sessionId: session.id,
                             companyRepresentatives: partnerData?.companyRepresentatives || []
                         });
@@ -614,8 +643,8 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 await partnerRef.set({
                     partnerStatus: "Approved",
                     lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    stripeSubscriptionId: session.subscription || null,
-                    stripeCustomerId: session.customer || null,
+                    stripeSubscriptionId: toStripeSubscriptionId(session.subscription),
+                    stripeCustomerId: toStripeCustomerId(session.customer),
                 }, { merge: true });
                 console.log(`   ✓ Partner ${partnerId} marked as Approved`);
             }
@@ -2181,7 +2210,7 @@ app.post("/api/cron/bill-subscription-now", async (req, res) => {
     if (!STRIPE_SECRET_KEY?.startsWith("sk_test_")) {
         return res.status(403).json({ error: "Only allowed with Stripe test secret key (sk_test_)." });
     }
-    const subscriptionId = req.body?.subscriptionId && String(req.body.subscriptionId).trim();
+    const subscriptionId = toStripeSubscriptionId(req.body?.subscriptionId);
     if (!subscriptionId) {
         return res.status(400).json({ error: "subscriptionId is required." });
     }
@@ -2249,7 +2278,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             return res.status(400).json({ error: `Unknown plan: ${newPlanId}` });
         }
 
-        let effectiveSubscriptionId = subscriptionId || null;
+        let effectiveSubscriptionId = toStripeSubscriptionId(subscriptionId);
         if (!effectiveSubscriptionId && partnerId) {
             const partnerPlanQuery = db.collection("partnersCollection").doc(partnerId).collection("planCollection");
             if (listingId) {
@@ -2259,7 +2288,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     .limit(5)
                     .get();
                 for (const planDoc of listingPlanSnap.docs) {
-                    const candidate = planDoc.data()?.stripeSubscriptionId;
+                    const candidate = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
                     if (candidate) {
                         effectiveSubscriptionId = candidate;
                         break;
@@ -2272,7 +2301,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     .limit(10)
                     .get();
                 for (const planDoc of anyActivePlanSnap.docs) {
-                    const candidate = planDoc.data()?.stripeSubscriptionId;
+                    const candidate = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
                     if (candidate) {
                         effectiveSubscriptionId = candidate;
                         break;
@@ -2394,7 +2423,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 }
                 const mismatchedPlanDoc = planByListingSnap.docs.find((doc) => {
                     const d = doc.data() || {};
-                    return d.stripeSubscriptionId === effectiveSubscriptionId || d.planId === expectedCurrentPlanId;
+                    return toStripeSubscriptionId(d.stripeSubscriptionId) === effectiveSubscriptionId || d.planId === expectedCurrentPlanId;
                 }) || planByListingSnap.docs[0];
                 if (mismatchedPlanDoc) {
                     await mismatchedPlanDoc.ref.set({
@@ -2513,7 +2542,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                         const byListingSnap = await byListingQuery.limit(5).get();
                         targetPlanDoc = byListingSnap.docs.find((doc) => {
                             const d = doc.data() || {};
-                            return d.stripeSubscriptionId === effectiveSubscriptionId;
+                            return toStripeSubscriptionId(d.stripeSubscriptionId) === effectiveSubscriptionId;
                         }) || byListingSnap.docs[0] || null;
                     }
 
@@ -2669,7 +2698,11 @@ app.post("/api/cancel-plan", async (req, res) => {
             let end = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
             if (!end && plan.stripeSubscriptionId) {
                 try {
-                    const sub = await stripe.subscriptions.retrieve(plan.stripeSubscriptionId);
+                    const planSubId = toStripeSubscriptionId(plan.stripeSubscriptionId);
+                    if (!planSubId) {
+                        return end;
+                    }
+                    const sub = await stripe.subscriptions.retrieve(planSubId);
                     if (sub?.current_period_end) {
                         end = new Date(sub.current_period_end * 1000);
                     }
@@ -2736,8 +2769,9 @@ app.post("/api/cancel-plan", async (req, res) => {
         }
 
         if (cancelPlan) {
-            if (plan.stripeSubscriptionId) {
-                const subscription = await stripe.subscriptions.update(plan.stripeSubscriptionId, {
+            const planStripeSubId = toStripeSubscriptionId(plan.stripeSubscriptionId);
+            if (planStripeSubId) {
+                const subscription = await stripe.subscriptions.update(planStripeSubId, {
                     cancel_at_period_end: true,
                 });
                 stripeCancelAt = subscription.current_period_end;
@@ -2834,14 +2868,15 @@ app.post("/api/cancel-subscription", async (req, res) => {
     try {
         const { subscriptionId } = req.body;
 
-        if (!subscriptionId) {
+        const subId = toStripeSubscriptionId(subscriptionId);
+        if (!subId) {
             return res.status(400).json({ error: "subscriptionId is required" });
         }
 
-        console.log(`🚫 Cancelling subscription: ${subscriptionId}`);
+        console.log(`🚫 Cancelling subscription: ${subId}`);
 
         // Cancel at period end (not immediately)
-        const subscription = await stripe.subscriptions.update(subscriptionId, {
+        const subscription = await stripe.subscriptions.update(subId, {
             cancel_at_period_end: true
         });
 
@@ -2960,11 +2995,12 @@ app.post("/api/verify-payment", async (req, res) => {
                 collectionName: upgradeCollectionName,
             } = session.metadata || {};
 
-            if (!upgradeSubscriptionId || !newPriceId || !newPlanId || !partnerId) {
+            const upgradeSubId = toStripeSubscriptionId(upgradeSubscriptionId);
+            if (!upgradeSubId || !newPriceId || !newPlanId || !partnerId) {
                 return res.status(400).json({ error: "Upgrade verification metadata is incomplete." });
             }
 
-            const currentSubscription = await stripe.subscriptions.retrieve(upgradeSubscriptionId);
+            const currentSubscription = await stripe.subscriptions.retrieve(upgradeSubId);
             const currentItem = currentSubscription.items?.data?.[0];
             const alreadyUpgraded = currentItem?.price?.id === newPriceId;
             const itemIdToUpdate = subscriptionItemId || currentItem?.id;
@@ -2973,7 +3009,7 @@ app.post("/api/verify-payment", async (req, res) => {
             }
             const upgradedSubscription = alreadyUpgraded
                 ? currentSubscription
-                : await stripe.subscriptions.update(upgradeSubscriptionId, {
+                : await stripe.subscriptions.update(upgradeSubId, {
                     items: [{ id: itemIdToUpdate, price: newPriceId }],
                     proration_behavior: "none",
                     metadata: {
@@ -2991,7 +3027,7 @@ app.post("/api/verify-payment", async (req, res) => {
                     const listingUpgradePatch = {
                         selectedPlan: newPlanId,
                         stripeSubscriptionId: upgradedSubscription.id,
-                        stripeCustomerId: upgradedSubscription.customer || null,
+                        stripeCustomerId: toStripeCustomerId(upgradedSubscription.customer),
                         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     };
                     if (includedSpotlight) {
@@ -3032,7 +3068,7 @@ app.post("/api/verify-payment", async (req, res) => {
             const planDocToUpdate = planByListingSnap.docs.find((doc) => {
                 const data = doc.data() || {};
                 if (data.stripeSubscriptionId) {
-                    return data.stripeSubscriptionId === upgradeSubscriptionId;
+                    return toStripeSubscriptionId(data.stripeSubscriptionId) === upgradeSubId;
                 }
                 return true;
             }) || planByListingSnap.docs[0];
@@ -3045,7 +3081,7 @@ app.post("/api/verify-payment", async (req, res) => {
                         : admin.firestore.FieldValue.delete(),
                     upgradedAt: new Date(),
                     stripeSubscriptionId: upgradedSubscription.id,
-                    stripeCustomerId: upgradedSubscription.customer || null,
+                        stripeCustomerId: toStripeCustomerId(upgradedSubscription.customer),
                     cancelAtPeriodEnd: false,
                     cancelAt: admin.firestore.FieldValue.delete(),
                 }, { merge: true });
@@ -3129,8 +3165,8 @@ app.post("/api/verify-payment", async (req, res) => {
                     status: "Approved",
                     active: true,
                     lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    stripeSubscriptionId: session.subscription || null,
-                    stripeCustomerId: session.customer || null
+                    stripeSubscriptionId: toStripeSubscriptionId(session.subscription),
+                    stripeCustomerId: toStripeCustomerId(session.customer),
                 });
                 updated = true;
                 console.log(`   ✓ Listing ${listingId} updated to status: Approved`);
@@ -3182,8 +3218,8 @@ app.post("/api/verify-payment", async (req, res) => {
                         lastPaymentReceivedAt: startDate,
                         listingId,
                         collectionName: resolvedCollectionName,
-                        stripeSubscriptionId: session.subscription || null,
-                        stripeCustomerId: session.customer || null,
+                        stripeSubscriptionId: toStripeSubscriptionId(session.subscription),
+                        stripeCustomerId: toStripeCustomerId(session.customer),
                         sessionId: session.id,
                         companyRepresentatives: listingData?.companyRepresentatives || []
                     });
@@ -3221,8 +3257,8 @@ app.post("/api/verify-payment", async (req, res) => {
                     listingId: null,
                     collectionName: null,
                     group: group || null,
-                    stripeSubscriptionId: session.subscription || null,
-                    stripeCustomerId: session.customer || null,
+                    stripeSubscriptionId: toStripeSubscriptionId(session.subscription),
+                    stripeCustomerId: toStripeCustomerId(session.customer),
                     sessionId: session.id,
                     companyRepresentatives: partnerData?.companyRepresentatives || []
                 });
