@@ -326,6 +326,7 @@ export default function Dashboard() {
     const [selectedPlanForAction, setSelectedPlanForAction] = useState<any>(null);
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<any>(null);
     const [pendingUpgradePlanId, setPendingUpgradePlanId] = useState<string | null>(null);
+    const [pendingEventUpgradeDates, setPendingEventUpgradeDates] = useState<{ startDate: string; endDate: string } | null>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
     const profileCompanyProfileTooLong = (profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH;
@@ -783,6 +784,12 @@ export default function Dashboard() {
                 collectionName: selectedPlanForAction.collectionName,
                 successUrl: `${origin}/partner/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}&upgrade=true`,
                 cancelUrl: `${origin}/partner/dashboard?upgrade=cancelled`,
+                ...(pendingEventUpgradeDates
+                    ? {
+                        pendingEventStartDate: pendingEventUpgradeDates.startDate,
+                        pendingEventEndDate: pendingEventUpgradeDates.endDate,
+                    }
+                    : {}),
             }),
         });
         if (!resp.ok) {
@@ -806,6 +813,7 @@ export default function Dashboard() {
                 text: "Upgrade completed successfully. Your next renewal uses the new plan price.",
             });
             setPendingUpgradePlanId(null);
+            setPendingEventUpgradeDates(null);
             setTimeout(() => {
                 setShowUpgradeModal(false);
                 setShowEditListingModal(false);
@@ -863,11 +871,33 @@ export default function Dashboard() {
                     }
                 }
 
+                const deferEventDatesForUpgrade =
+                    listingGroup === "events" &&
+                    pendingUpgradePlanId &&
+                    pendingUpgradePlanId !== "basic_event" &&
+                    (selectedListingForEdit.selectedPlan === "basic_event" || selectedPlanForAction?.planId === "basic_event") &&
+                    updatedData.startDate &&
+                    updatedData.endDate &&
+                    updatedData.endDate !== updatedData.startDate;
+
+                if (deferEventDatesForUpgrade) {
+                    setPendingEventUpgradeDates({
+                        startDate: updatedData.startDate,
+                        endDate: updatedData.endDate,
+                    });
+                } else {
+                    setPendingEventUpgradeDates(null);
+                }
+
                 if (listingGroup === "events") {
                     if (updatedData.eventName !== undefined) updateObj.eventName = updatedData.eventName;
                     if (updatedData.eventLink !== undefined) updateObj.eventLink = updatedData.eventLink;
-                    if (updatedData.startDate !== undefined) updateObj.startDate = updatedData.startDate;
-                    if (updatedData.endDate !== undefined) updateObj.endDate = updatedData.endDate;
+                    if (updatedData.startDate !== undefined && !deferEventDatesForUpgrade) {
+                        updateObj.startDate = updatedData.startDate;
+                    }
+                    if (updatedData.endDate !== undefined && !deferEventDatesForUpgrade) {
+                        updateObj.endDate = updatedData.endDate;
+                    }
                     if (updatedData.eventCountry !== undefined) updateObj.eventCountry = updatedData.eventCountry;
                     if (updatedData.location !== undefined) updateObj.location = updatedData.location;
                     if (updatedData.eventProfile !== undefined) updateObj.eventProfile = updatedData.eventProfile;
@@ -1289,12 +1319,14 @@ export default function Dashboard() {
                         plan={selectedPlanForAction}
                         planConfig={PLAN_CONFIGS[(pendingUpgradePlanId || selectedListingForEdit?.selectedPlan || selectedPlanForAction?.planId) as string]}
                         isUpgradeFlow={Boolean(pendingUpgradePlanId)}
+                        targetEventPlanId={pendingUpgradePlanId || undefined}
                         representativeOptions={representativeOptions}
                         onClose={() => {
                             setShowEditListingModal(false);
                             setSelectedListingForEdit(null);
                             setSelectedPlanForAction(null);
                             setPendingUpgradePlanId(null);
+                            setPendingEventUpgradeDates(null);
                         }}
                         onSave={handleSaveListingEdit}
                         processing={actionProcessing}
@@ -1311,6 +1343,7 @@ export default function Dashboard() {
                             setShowUpgradeModal(false);
                             setSelectedPlanForAction(null);
                             setPendingUpgradePlanId(null);
+                            setPendingEventUpgradeDates(null);
                         }}
                         onUpgrade={handleUpgradePlan}
                         processing={actionProcessing}
@@ -2447,13 +2480,14 @@ interface EditListingModalProps {
     plan: any;
     planConfig: any;
     isUpgradeFlow?: boolean;
+    targetEventPlanId?: string;
     representativeOptions: Array<{ firstName: string; lastName: string; email: string }>;
     onClose: () => void;
     onSave: (data: any) => void;
     processing: boolean;
 }
 
-function EditListingModal({ listing, planConfig, isUpgradeFlow = false, representativeOptions, onClose, onSave, processing }: EditListingModalProps) {
+function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEventPlanId, representativeOptions, onClose, onSave, processing }: EditListingModalProps) {
     // Form state
     const listingGroup = listing.selectedGroup
         || (listing.__col === "businessOfferingsCollection" ? "business_offerings"
@@ -2798,12 +2832,19 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
     const [eventStateRegion, setEventStateRegion] = useState(listing.stateRegion || "");
     const [eventCity, setEventCity] = useState(listing.city || "");
     const eventListingPlanId = listing.selectedPlan || "";
-    const isBasicEventPlan = eventListingPlanId === "basic_event";
+    const effectiveEventPlanId =
+        isUpgradeFlow && targetEventPlanId ? targetEventPlanId : eventListingPlanId;
+    const isSingleDayEventPlan = effectiveEventPlanId === "basic_event";
+    const isUpgradingFromBasicToMultiDay =
+        isUpgradeFlow &&
+        eventListingPlanId === "basic_event" &&
+        Boolean(targetEventPlanId) &&
+        targetEventPlanId !== "basic_event";
 
     useEffect(() => {
-        if (listingGroup !== "events" || !isBasicEventPlan || !startDate) return;
+        if (listingGroup !== "events" || !isSingleDayEventPlan || !startDate) return;
         setEndDate((prev: string) => (prev === startDate ? prev : startDate));
-    }, [listingGroup, isBasicEventPlan, startDate]);
+    }, [listingGroup, isSingleDayEventPlan, startDate]);
 
     const [jobTitle, setJobTitle] = useState(listing.jobTitle || "");
     const [jobSummary, setJobSummary] = useState(listing.jobSummary || "");
@@ -2858,7 +2899,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                         value={startDate}
                                         onChange={(e) => {
                                             const v = e.target.value;
-                                            if (isBasicEventPlan) {
+                                            if (isSingleDayEventPlan) {
                                                 setStartDate(v);
                                                 setEndDate(v);
                                             } else {
@@ -2880,11 +2921,16 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                             if (startDate && v < startDate) setEndDate(startDate);
                                             else setEndDate(v);
                                         }}
-                                        disabled={isBasicEventPlan}
+                                        disabled={isSingleDayEventPlan}
                                         className="bg-foreground/5 border-foreground/10 mt-1 h-11"
                                     />
-                                    {isBasicEventPlan && (
+                                    {isSingleDayEventPlan && (
                                         <p className="text-xs text-muted-foreground mt-1">Basic events are single day; end date matches the start date.</p>
+                                    )}
+                                    {isUpgradingFromBasicToMultiDay && (
+                                        <p className="text-xs text-muted-foreground mt-1">
+                                            Set an end date to extend your event for the upgraded plan. Dates apply after upgrade payment completes.
+                                        </p>
                                     )}
                                 </div>
                                 <div>
@@ -3460,7 +3506,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, represen
                                     !eventProfile.trim() ||
                                     categoryCount === 0 ||
                                     (startDate && endDate && endDate < startDate) ||
-                                    (isBasicEventPlan && startDate && endDate !== startDate))) ||
+                                    (isSingleDayEventPlan && startDate && endDate !== startDate))) ||
                             (listingGroup === "jobs" &&
                                 (!jobTitle.trim() ||
                                     !jobSummary.trim() ||

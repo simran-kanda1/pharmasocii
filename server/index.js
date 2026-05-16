@@ -82,6 +82,22 @@ async function resolveListingDocRef(partnerId, collectionName, listingId) {
     return canonicalRef;
 }
 
+/** Multi-day event dates from basic→standard+ upgrade; applied only after billing succeeds. */
+function buildPendingEventDatesPatch(startDate, endDate) {
+    const start = typeof startDate === "string" ? startDate.trim() : "";
+    const end = typeof endDate === "string" ? endDate.trim() : "";
+    if (!start || !end || end < start || end === start) return null;
+    return { startDate: start, endDate: end };
+}
+
+function buildPendingEventDatesFromMetadata(metadata) {
+    if (!metadata) return null;
+    return buildPendingEventDatesPatch(
+        metadata.pendingEventStartDate,
+        metadata.pendingEventEndDate
+    );
+}
+
 function getInvoiceSubscriptionId(invoice) {
     if (!invoice?.subscription) return null;
     return typeof invoice.subscription === "string" ? invoice.subscription : invoice.subscription.id || null;
@@ -406,11 +422,13 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     const listingRef = await resolveListingDocRef(partnerId, upgradeCollectionName, upgradeListingId);
                     if (listingRef) {
                         const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[newPlanId] || null;
+                        const pendingEventDates = buildPendingEventDatesFromMetadata(session.metadata);
                         const listingUpgradePatch = {
                             selectedPlan: newPlanId,
                             stripeSubscriptionId: upgradedSubscription.id,
                             stripeCustomerId: toStripeCustomerId(upgradedSubscription.customer),
                             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            ...(pendingEventDates || {}),
                         };
                         if (includedSpotlight) {
                             listingUpgradePatch.selectedAddon = includedSpotlight;
@@ -2268,8 +2286,12 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             collectionName,
             partnerEmail,
             successUrl,
-            cancelUrl
+            cancelUrl,
+            pendingEventStartDate,
+            pendingEventEndDate,
         } = req.body;
+
+        const pendingEventDates = buildPendingEventDatesPatch(pendingEventStartDate, pendingEventEndDate);
 
         console.log(`⬆️ Upgrading subscription: ${subscriptionId} to ${newPlanId}`);
 
@@ -2526,6 +2548,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                             stripeSubscriptionId: updatedSubscription.id,
                             stripeCustomerId: updatedSubscription.customer || null,
                             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            ...(pendingEventDates || {}),
                         }, { merge: true });
                     }
                 }
@@ -2643,6 +2666,12 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     collectionName: collectionName || "",
                     planId: newPlanId,
                     group: "",
+                    ...(pendingEventDates
+                        ? {
+                            pendingEventStartDate: pendingEventDates.startDate,
+                            pendingEventEndDate: pendingEventDates.endDate,
+                        }
+                        : {}),
                 },
             });
 
@@ -3024,11 +3053,13 @@ app.post("/api/verify-payment", async (req, res) => {
                 const listingRef = await resolveListingDocRef(partnerId, upgradeCollectionName, upgradeListingId);
                 if (listingRef) {
                     const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[newPlanId] || null;
+                    const pendingEventDates = buildPendingEventDatesFromMetadata(session.metadata);
                     const listingUpgradePatch = {
                         selectedPlan: newPlanId,
                         stripeSubscriptionId: upgradedSubscription.id,
                         stripeCustomerId: toStripeCustomerId(upgradedSubscription.customer),
                         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        ...(pendingEventDates || {}),
                     };
                     if (includedSpotlight) {
                         listingUpgradePatch.selectedAddon = includedSpotlight;
