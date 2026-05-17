@@ -1043,8 +1043,10 @@ export default function AllCategories() {
                                         const title = toTitleCase(rawTitle || "");
                                         const bslDisplay = Array.isArray(item.bioSafetyLevel) ? item.bioSafetyLevel.join(", ") : item.bioSafetyLevel;
                                         const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
+                                        const certsArray = Array.isArray(item.certifications) ? item.certifications : (item.certifications ? [item.certifications] : []);
+                                        const certsDisplay = certsArray.slice(0, 3).join(", ");
                                         const bottomLabel = currentTab === "business"
-                                            ? (Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || "No specific certs")
+                                            ? (certsDisplay ? certsDisplay : null)
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
                                                 : currentTab === "events" ? `${toTitleCase(item.city || "Venue")}, ${toTitleCase(item.location || "")}`
                                                     : `${toTitleCase(item.businessName || "Company")} • ${toTitleCase(item.jobtype || "Role")}`;
@@ -1080,8 +1082,8 @@ export default function AllCategories() {
                                                 </div>
                                                 <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24">
                                                     {topLabel && <div className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1">{topLabel}</div>}
-                                                    <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>
-                                                    {categoryInfo.length > 0 && (
+                                                    {bottomLabel && <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>}
+                                                    {categoryInfo.length > 0 && currentTab !== "business" && (
                                                         <div className="text-[10px] text-muted-foreground/80 line-clamp-1 mt-1 text-center">
                                                             {categoryInfo.join(" / ")}
                                                         </div>
