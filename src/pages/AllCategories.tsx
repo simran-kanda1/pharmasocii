@@ -20,6 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { toTitleCase } from "@/lib/utils";
 
 //Types 
 export type SubcategoryEntry = string | { label: string; subSubcategories: string[] };
@@ -218,6 +219,8 @@ const CATEGORY_CONFIG = {
     }
 };
 
+const BSL_FILTER_OPTIONS = ["1", "2", "3", "4"];
+
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"];
 const WORK_MODELS = ["Hybrid", "Remote", "On-site"];
 
@@ -252,6 +255,7 @@ export default function AllCategories() {
     const [selectedSubSubcategories, setSelectedSubSubcategories] = useState<string[]>([]);
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
     const [expandedSubcategories, setExpandedSubcategories] = useState<string[]>([]);
+    const [selectedBSL, setSelectedBSL] = useState<string[]>([]);
     
     // Job specific filters
     const [selectedJobTypes, setSelectedJobTypes] = useState<string[]>([]);
@@ -425,10 +429,18 @@ export default function AllCategories() {
         setCurrentPage(1);
     };
 
+    const toggleBSL = (bsl: string) => {
+        setSelectedBSL(prev =>
+            prev.includes(bsl) ? prev.filter(b => b !== bsl) : [...prev, bsl]
+        );
+        setCurrentPage(1);
+    };
+
     const clearFilters = () => {
         setSelectedCategories([]);
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
+        setSelectedBSL([]);
         setSelectedJobTypes([]);
         setSelectedWorkModels([]);
         setJobLocationSearch("");
@@ -581,6 +593,22 @@ export default function AllCategories() {
                 if (!hasMatchingSubSubcategory) return false;
             }
         }
+
+        // ── BSL filter (business tab only) ──
+        if (currentTab === "business" && selectedBSL.length > 0) {
+            const itemBSLs: string[] = Array.isArray(item.bioSafetyLevel)
+                ? item.bioSafetyLevel
+                : item.bioSafetyLevel
+                    ? [item.bioSafetyLevel]
+                    : [];
+            
+            // Allow matching if the item's BSL contains the filter string (e.g., "BSL-1" includes "1")
+            const hasMatchingBSL = selectedBSL.some(bsl =>
+                itemBSLs.some(itemBsl => String(itemBsl).includes(bsl))
+            );
+            if (!hasMatchingBSL) return false;
+        }
+
         // ── Job specific filters ──
         if (currentTab === "jobs") {
             if (selectedJobTypes.length > 0) {
@@ -848,6 +876,35 @@ export default function AllCategories() {
                         </div>
                     )}
                 </div>
+
+                {/* BSL filter pills — Business Offerings only */}
+                {currentTab === "business" && (
+                    <div className="flex flex-wrap items-center gap-2 mb-4 max-w-7xl mx-auto">
+                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mr-1 flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5" /> BSL Level:
+                        </span>
+                        {BSL_FILTER_OPTIONS.map(bsl => (
+                            <button
+                                key={bsl}
+                                onClick={() => toggleBSL(bsl)}
+                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                                    selectedBSL.includes(bsl)
+                                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                                        : "bg-background text-foreground border-foreground/15 hover:border-primary/40 hover:bg-primary/5"
+                                }`}
+                            >
+                                {selectedBSL.includes(bsl) && <X className="w-3 h-3" />}
+                                BSL-{bsl}
+                            </button>
+                        ))}
+                        {selectedBSL.length > 0 && (
+                            <button onClick={() => setSelectedBSL([])} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors ml-1">
+                                Clear
+                            </button>
+                        )}
+                    </div>
+                )}
+
                 {/* Job filter pills */}
                 {currentTab === "jobs" && (
                     <div className="flex flex-wrap items-center gap-2 mb-4 max-w-7xl mx-auto">
@@ -982,13 +1039,14 @@ export default function AllCategories() {
                                 <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                     {paginatedBusinesses.map((item) => {
-                                        const title = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
+                                        const rawTitle = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
+                                        const title = toTitleCase(rawTitle || "");
                                         const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
                                         const bottomLabel = currentTab === "business"
                                             ? (Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || "No specific certs")
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
-                                                : currentTab === "events" ? `${item.city || "Venue"}, ${item.location || ""}`
-                                                    : `${item.businessName || "Company"} • ${item.jobtype || "Role"}`;
+                                                : currentTab === "events" ? `${toTitleCase(item.city || "Venue")}, ${toTitleCase(item.location || "")}`
+                                                    : `${toTitleCase(item.businessName || "Company")} • ${toTitleCase(item.jobtype || "Role")}`;
                                         const categoryInfo = [
                                             ...(Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
                                                 ? item.selectedCategoriesDisplay

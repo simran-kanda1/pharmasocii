@@ -15,3 +15,11 @@ export function normalizeServiceCountriesToArray(serviceCountries: unknown): str
   }
   return [];
 }
+
+/** Converts a string to Title Case (e.g. "cordon pharma eu" -> "Cordon Pharma Eu") */
+export function toTitleCase(str: string): string {
+  if (!str) return "";
+  return str.toLowerCase().split(' ').map(word => {
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  }).join(' ');
+}

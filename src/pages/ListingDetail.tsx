@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES } from "./AllCategories";
 import { REGION_COUNTRY_MAP } from "@/constants/regions";
+import { toTitleCase } from "@/lib/utils";
 
 // Simple skeleton placeholder
 const Skeleton = ({ className }: { className: string }) => <div className={`animate-pulse bg-muted rounded ${className}`} />;
@@ -143,7 +144,8 @@ export default function ListingDetail() {
         );
     }
 
-    const listingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? item.eventName : type === "jobs" ? item.jobTitle : item.businessName;
+    const rawListingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? item.eventName : type === "jobs" ? item.jobTitle : item.businessName;
+    const listingTitle = toTitleCase(rawListingTitle || "");
 
     // Format a date string (YYYY-MM-DD) to a human-readable form.
     const formatDate = (dateStr: string | undefined) => {
