@@ -1041,7 +1041,8 @@ export default function AllCategories() {
                                     {paginatedBusinesses.map((item) => {
                                         const rawTitle = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
                                         const title = toTitleCase(rawTitle || "");
-                                        const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
+                                        const bslDisplay = Array.isArray(item.bioSafetyLevel) ? item.bioSafetyLevel.join(", ") : item.bioSafetyLevel;
+                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
                                         const bottomLabel = currentTab === "business"
                                             ? (Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || "No specific certs")
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
@@ -1078,7 +1079,7 @@ export default function AllCategories() {
                                                     <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
                                                 </div>
                                                 <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24">
-                                                    <div className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1">{topLabel}</div>
+                                                    {topLabel && <div className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1">{topLabel}</div>}
                                                     <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>
                                                     {categoryInfo.length > 0 && (
                                                         <div className="text-[10px] text-muted-foreground/80 line-clamp-1 mt-1 text-center">
