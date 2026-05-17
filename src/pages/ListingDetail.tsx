@@ -278,11 +278,7 @@ export default function ListingDetail() {
                             <div className="flex-1 space-y-4 w-full">
                                 <div className="flex flex-wrap items-center gap-3">
                                     <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground">{listingTitle}</h1>
-                                    {item.isFeatured && (
-                                        <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-bold uppercase tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
-                                            <ShieldCheck className="w-3 h-3" /> Featured
-                                        </Badge>
-                                    )}
+
                                     {type === "events" && (
                                         <Badge className="bg-primary/10 text-primary border-primary/20 font-bold uppercase tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
                                             <Calendar className="w-3 h-3" /> Event
