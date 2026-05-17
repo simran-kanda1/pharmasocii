@@ -798,7 +798,7 @@ export default function AllCategories() {
             <div className="bg-muted/40 border-b border-foreground/10 py-12">
                 <div className="container mx-auto px-4">
                     <h1 className="text-4xl font-bold tracking-tight mb-4">
-                        {CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Categories"}
+                        {CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Areas"}
                     </h1>
 
                     <p className="text-muted-foreground text-lg max-w-2xl">
@@ -828,7 +828,7 @@ export default function AllCategories() {
                                     {currentTab === "events" && <Calendar className="w-5 h-5 text-primary" />}
                                     {currentTab === "jobs" && <Briefcase className="w-5 h-5 text-primary" />}
                                     {currentTab === "compliance" && <ShieldCheck className="w-5 h-5 text-primary" />}
-                                    <span>{CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Categories"}</span>
+                                    <span>{CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Areas"}</span>
                                 </div>
                                 <ChevronDown className="w-5 h-5 text-muted-foreground" />
                             </Button>
@@ -973,7 +973,7 @@ export default function AllCategories() {
                                 ))}
                             {!showAllCategories && Object.keys(currentCategoriesDict).length > 11 && (
                                 <div onClick={() => setShowAllCategories(true)} className="p-6 border-2 border-dashed border-primary/30 hover:border-primary/60 text-primary hover:bg-primary/5 transition-all rounded-xl shadow-sm cursor-pointer flex flex-col justify-center items-center text-center min-h-[120px]">
-                                    <span className="font-bold text-sm md:text-base inline-flex items-center gap-2">View All {Object.keys(currentCategoriesDict).length} Categories <ChevronDown className="w-4 h-4" /></span>
+                                    <span className="font-bold text-sm md:text-base inline-flex items-center gap-2">View All {Object.keys(currentCategoriesDict).length} Areas <ChevronDown className="w-4 h-4" /></span>
                                 </div>
                             )}
                         </div>
@@ -1313,7 +1313,7 @@ export default function AllCategories() {
                                     </div>
                                     {selectedProfile.categories && (
                                         <div>
-                                            <p className="font-bold mb-2">Topics & Categories</p>
+                                            <p className="font-bold mb-2">Topics & Areas</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {selectedProfile.categories.map((c: string, j: number) => (
                                                     <span key={j} className="bg-foreground/10 px-3 py-1 rounded-full text-sm">{c}</span>
