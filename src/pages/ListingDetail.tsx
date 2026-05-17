@@ -20,6 +20,7 @@ export default function ListingDetail() {
     const [partner, setPartner] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showAllCategories, setShowAllCategories] = useState(false);
+    const [showAllCerts, setShowAllCerts] = useState(false);
     const [activeRegion, setActiveRegion] = useState<string | null>(null);
 
     useEffect(() => {
@@ -340,9 +341,27 @@ export default function ListingDetail() {
                                     <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pt-2">
                                         <div className="flex flex-col gap-1">
                                             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Certifications</span>
-                                            <p className="text-sm font-semibold capitalize text-foreground">
-                                                {Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || partner?.certifications || "N/A"}
-                                            </p>
+                                            <div className="text-sm font-semibold capitalize text-foreground flex flex-col items-start gap-0.5">
+                                                {(() => {
+                                                    const rawCerts = item.certifications || partner?.certifications;
+                                                    const certsArray = Array.isArray(rawCerts) ? rawCerts : (rawCerts ? [rawCerts] : []);
+                                                    if (certsArray.length === 0) return <span>N/A</span>;
+                                                    const displayCerts = showAllCerts ? certsArray : certsArray.slice(0, 3);
+                                                    return (
+                                                        <>
+                                                            <span>{displayCerts.join(", ")}{!showAllCerts && certsArray.length > 3 ? "..." : ""}</span>
+                                                            {certsArray.length > 3 && (
+                                                                <button
+                                                                    onClick={() => setShowAllCerts(!showAllCerts)}
+                                                                    className="text-xs text-primary hover:underline mt-0.5 font-bold"
+                                                                >
+                                                                    {showAllCerts ? "View Less" : "View More"}
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
                                         </div>
                                         <div className="flex flex-col gap-1">
                                             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">BSL Level</span>
