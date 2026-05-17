@@ -217,7 +217,6 @@ const CATEGORY_CONFIG = {
         description: "Bid farewell to endless searches and fragmented information. Our platform serves as your compass, making navigation of health authority sites effortless and efficient."
     }
 };
-const CERT_FILTER_OPTIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
 
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"];
 const WORK_MODELS = ["Hybrid", "Remote", "On-site"];
@@ -253,7 +252,6 @@ export default function AllCategories() {
     const [selectedSubSubcategories, setSelectedSubSubcategories] = useState<string[]>([]);
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
     const [expandedSubcategories, setExpandedSubcategories] = useState<string[]>([]);
-    const [selectedCertifications, setSelectedCertifications] = useState<string[]>([]);
     
     // Job specific filters
     const [selectedJobTypes, setSelectedJobTypes] = useState<string[]>([]);
@@ -310,7 +308,6 @@ export default function AllCategories() {
 
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
-        setSelectedCertifications([]);
 
         setViewMode("list");
 
@@ -428,18 +425,10 @@ export default function AllCategories() {
         setCurrentPage(1);
     };
 
-    const toggleCertification = (cert: string) => {
-        setSelectedCertifications(prev =>
-            prev.includes(cert) ? prev.filter(c => c !== cert) : [...prev, cert]
-        );
-        setCurrentPage(1);
-    };
-
     const clearFilters = () => {
         setSelectedCategories([]);
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
-        setSelectedCertifications([]);
         setSelectedJobTypes([]);
         setSelectedWorkModels([]);
         setJobLocationSearch("");
@@ -541,6 +530,9 @@ export default function AllCategories() {
                     item.categories.some((c: string) =>
                         c.toLowerCase().includes(q)
                     )) ||
+                (Array.isArray(item.certifications) ? 
+                    item.certifications.some((c: string) => c.toLowerCase().includes(q)) : 
+                    (item.certifications || "").toLowerCase().includes(q)) ||
                 item.selectedGroup?.toLowerCase().includes(q) ||
                 itemSubTokens.some((s: string) => s.includes(q)) ||
                 itemSubSubTokens.some((s: string) => s.includes(q))
@@ -589,21 +581,6 @@ export default function AllCategories() {
                 if (!hasMatchingSubSubcategory) return false;
             }
         }
-
-        // ── Certification filter (business tab only) ──
-        if (currentTab === "business" && selectedCertifications.length > 0) {
-            const itemCerts: string[] = Array.isArray(item.certifications)
-                ? item.certifications
-                : item.certifications
-                    ? [item.certifications]
-                    : [];
-            const itemCertTokens = itemCerts.map(normalizeToken);
-            const hasMatchingCert = selectedCertifications.some(cert =>
-                itemCertTokens.includes(normalizeToken(cert))
-            );
-            if (!hasMatchingCert) return false;
-        }
-        
         // ── Job specific filters ──
         if (currentTab === "jobs") {
             if (selectedJobTypes.length > 0) {
@@ -871,34 +848,6 @@ export default function AllCategories() {
                         </div>
                     )}
                 </div>
-                {/* Certification filter pills — Business Offerings only */}
-                {currentTab === "business" && (
-                    <div className="flex flex-wrap items-center gap-2 mb-4 max-w-7xl mx-auto">
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mr-1 flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5" /> Certification:
-                        </span>
-                        {CERT_FILTER_OPTIONS.map(cert => (
-                            <button
-                                key={cert}
-                                onClick={() => toggleCertification(cert)}
-                                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                                    selectedCertifications.includes(cert)
-                                        ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                                        : "bg-background text-foreground border-foreground/15 hover:border-primary/40 hover:bg-primary/5"
-                                }`}
-                            >
-                                {selectedCertifications.includes(cert) && <X className="w-3 h-3" />}
-                                {cert}
-                            </button>
-                        ))}
-                        {selectedCertifications.length > 0 && (
-                            <button onClick={() => setSelectedCertifications([])} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors ml-1">
-                                Clear
-                            </button>
-                        )}
-                    </div>
-                )}
-
                 {/* Job filter pills */}
                 {currentTab === "jobs" && (
                     <div className="flex flex-wrap items-center gap-2 mb-4 max-w-7xl mx-auto">
