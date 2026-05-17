@@ -344,8 +344,9 @@ export default function ListingDetail() {
                                             <div className="text-sm font-semibold capitalize text-foreground flex flex-col items-start gap-0.5">
                                                 {(() => {
                                                     const rawCerts = item.certifications || partner?.certifications;
-                                                    const certsArray = Array.isArray(rawCerts) ? rawCerts : (rawCerts ? [rawCerts] : []);
+                                                    const certsArray = Array.isArray(rawCerts) ? [...rawCerts] : (rawCerts ? [rawCerts] : []);
                                                     if (certsArray.length === 0) return <span>N/A</span>;
+                                                    certsArray.sort((a, b) => String(a).localeCompare(String(b)));
                                                     const displayCerts = showAllCerts ? certsArray : certsArray.slice(0, 3);
                                                     return (
                                                         <>

@@ -631,6 +631,12 @@ export default function AllCategories() {
         return true;
     });
 
+    filteredBusinesses.sort((a, b) => {
+        const titleA = currentTab === "business" ? a.businessName : currentTab === "consulting" ? (a.primaryName || a.businessName || a.companyName || "") : currentTab === "events" ? a.eventName : a.jobTitle;
+        const titleB = currentTab === "business" ? b.businessName : currentTab === "consulting" ? (b.primaryName || b.businessName || b.companyName || "") : currentTab === "events" ? b.eventName : b.jobTitle;
+        return String(titleA || "").localeCompare(String(titleB || ""));
+    });
+
     const totalPages = Math.ceil(filteredBusinesses.length / itemsPerPage);
     const paginatedBusinesses = filteredBusinesses.slice(
         (currentPage - 1) * itemsPerPage,
@@ -1043,7 +1049,8 @@ export default function AllCategories() {
                                         const title = toTitleCase(rawTitle || "");
                                         const bslDisplay = Array.isArray(item.bioSafetyLevel) ? item.bioSafetyLevel.join(", ") : item.bioSafetyLevel;
                                         const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
-                                        const certsArray = Array.isArray(item.certifications) ? item.certifications : (item.certifications ? [item.certifications] : []);
+                                        const certsArray = Array.isArray(item.certifications) ? [...item.certifications] : (item.certifications ? [item.certifications] : []);
+                                        certsArray.sort((a, b) => String(a).localeCompare(String(b)));
                                         const certsDisplay = certsArray.slice(0, 3).join(", ");
                                         const bottomLabel = currentTab === "business"
                                             ? (certsDisplay ? certsDisplay : null)
