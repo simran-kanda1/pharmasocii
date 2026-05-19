@@ -900,11 +900,10 @@ export default function Dashboard() {
 
                 const deferEventDatesForUpgrade =
                     listingGroup === "events" &&
-                    upgradePlanId &&
+                    Boolean(upgradePlanId) &&
                     upgradePlanId !== "basic_event" &&
-                    (selectedListingForEdit.selectedPlan === "basic_event" || planForUpgrade?.planId === "basic_event") &&
-                    updatedData.startDate &&
-                    updatedData.endDate &&
+                    Boolean(updatedData.startDate) &&
+                    Boolean(updatedData.endDate) &&
                     updatedData.endDate !== updatedData.startDate;
 
                 const deferredEventDates = deferEventDatesForUpgrade
@@ -916,6 +915,13 @@ export default function Dashboard() {
                     upgradeCheckoutContextRef.current = {
                         ...upgradeCheckoutContextRef.current,
                         eventDates: deferredEventDates,
+                    };
+                }
+                if (deferEventDatesForUpgrade && deferredEventDates && upgradePlanId) {
+                    updateObj.pendingUpgradeEventDates = {
+                        startDate: deferredEventDates.startDate,
+                        endDate: deferredEventDates.endDate,
+                        targetPlanId: upgradePlanId,
                     };
                 }
 
