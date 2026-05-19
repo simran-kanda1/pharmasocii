@@ -550,7 +550,7 @@ export default function AddListing() {
         const cats = limits.maxCategories === -1 ? "Unlimited" : `up to ${limits.maxCategories}`;
         const countries = limits.maxCountries === -1 ? "Unlimited" : `up to ${limits.maxCountries}`;
         return [
-            `Access to specialized categories — ${cats}`,
+            `Access to specialized areas — ${cats}`,
             `Service countries — ${countries}`,
             "Company profile to highlight your key offerings",
             "Display your logo for branding",
@@ -611,7 +611,7 @@ export default function AddListing() {
                 return;
             }
             if (currentLimits.maxCategories !== -1 && categoryCount > currentLimits.maxCategories) {
-                setError(`Your plan allows at most ${currentLimits.maxCategories} categor${currentLimits.maxCategories === 1 ? "y" : "ies"}.`);
+                setError(`Your plan allows at most ${currentLimits.maxCategories} area${currentLimits.maxCategories === 1 ? "" : "s"}.`);
                 return;
             }
             if (!companyProfile.trim()) {
@@ -1410,8 +1410,8 @@ export default function AddListing() {
                                 <div className="pt-6 border-t border-foreground/10">
                                     <div className="flex items-center justify-between mb-4">
                                         <div>
-                                            <Label className="text-base font-semibold">Category(ies) <span className="text-red-400">*</span></Label>
-                                            <p className="text-xs text-muted-foreground mt-1">Select categories from the lowest level. Parent categories with subcategories expand when clicked.</p>
+                                            <Label className="text-base font-semibold">Area(s) <span className="text-red-400">*</span></Label>
+                                            <p className="text-xs text-muted-foreground mt-1">Select areas from the lowest level. Parent areas with categories expand when clicked.</p>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             {canSelectAllCategories && (

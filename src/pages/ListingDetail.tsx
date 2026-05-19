@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES } from "./AllCategories";
 import { REGION_COUNTRY_MAP } from "@/constants/regions";
+import { toTitleCase } from "@/lib/utils";
 
 // Simple skeleton placeholder
 const Skeleton = ({ className }: { className: string }) => <div className={`animate-pulse bg-muted rounded ${className}`} />;
@@ -19,6 +20,7 @@ export default function ListingDetail() {
     const [partner, setPartner] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [showAllCategories, setShowAllCategories] = useState(false);
+    const [showAllCerts, setShowAllCerts] = useState(false);
     const [activeRegion, setActiveRegion] = useState<string | null>(null);
 
     useEffect(() => {
@@ -143,7 +145,8 @@ export default function ListingDetail() {
         );
     }
 
-    const listingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? item.eventName : type === "jobs" ? item.jobTitle : item.businessName;
+    const rawListingTitle = type === "business" ? item.businessName : type === "consulting" ? (item.primaryName || item.businessName) : type === "events" ? item.eventName : type === "jobs" ? item.jobTitle : item.businessName;
+    const listingTitle = toTitleCase(rawListingTitle || "");
 
     // Format a date string (YYYY-MM-DD) to a human-readable form.
     const formatDate = (dateStr: string | undefined) => {
@@ -276,11 +279,7 @@ export default function ListingDetail() {
                             <div className="flex-1 space-y-4 w-full">
                                 <div className="flex flex-wrap items-center gap-3">
                                     <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground">{listingTitle}</h1>
-                                    {item.isFeatured && (
-                                        <Badge className="bg-amber-500/10 text-amber-600 border-amber-500/20 font-bold uppercase tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
-                                            <ShieldCheck className="w-3 h-3" /> Featured
-                                        </Badge>
-                                    )}
+
                                     {type === "events" && (
                                         <Badge className="bg-primary/10 text-primary border-primary/20 font-bold uppercase tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
                                             <Calendar className="w-3 h-3" /> Event
@@ -342,9 +341,28 @@ export default function ListingDetail() {
                                     <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pt-2">
                                         <div className="flex flex-col gap-1">
                                             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Certifications</span>
-                                            <p className="text-sm font-semibold capitalize text-foreground">
-                                                {Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || partner?.certifications || "N/A"}
-                                            </p>
+                                            <div className="text-sm font-semibold capitalize text-foreground flex flex-col items-start gap-0.5">
+                                                {(() => {
+                                                    const rawCerts = item.certifications || partner?.certifications;
+                                                    const certsArray = Array.isArray(rawCerts) ? [...rawCerts] : (rawCerts ? [rawCerts] : []);
+                                                    if (certsArray.length === 0) return <span>N/A</span>;
+                                                    certsArray.sort((a, b) => String(a).localeCompare(String(b)));
+                                                    const displayCerts = showAllCerts ? certsArray : certsArray.slice(0, 3);
+                                                    return (
+                                                        <>
+                                                            <span>{displayCerts.join(", ")}{!showAllCerts && certsArray.length > 3 ? "..." : ""}</span>
+                                                            {certsArray.length > 3 && (
+                                                                <button
+                                                                    onClick={() => setShowAllCerts(!showAllCerts)}
+                                                                    className="text-xs text-primary hover:underline mt-0.5 font-bold"
+                                                                >
+                                                                    {showAllCerts ? "View Less" : "View More"}
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    );
+                                                })()}
+                                            </div>
                                         </div>
                                         <div className="flex flex-col gap-1">
                                             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">BSL Level</span>

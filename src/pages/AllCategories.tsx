@@ -20,6 +20,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import { toTitleCase } from "@/lib/utils";
 
 //Types 
 export type SubcategoryEntry = string | { label: string; subSubcategories: string[] };
@@ -217,7 +218,8 @@ const CATEGORY_CONFIG = {
         description: "Bid farewell to endless searches and fragmented information. Our platform serves as your compass, making navigation of health authority sites effortless and efficient."
     }
 };
-const CERT_FILTER_OPTIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+
+const BSL_FILTER_OPTIONS = ["1", "2", "3", "4"];
 
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"];
 const WORK_MODELS = ["Hybrid", "Remote", "On-site"];
@@ -253,7 +255,7 @@ export default function AllCategories() {
     const [selectedSubSubcategories, setSelectedSubSubcategories] = useState<string[]>([]);
     const [expandedCategories, setExpandedCategories] = useState<string[]>([]);
     const [expandedSubcategories, setExpandedSubcategories] = useState<string[]>([]);
-    const [selectedCertifications, setSelectedCertifications] = useState<string[]>([]);
+    const [selectedBSL, setSelectedBSL] = useState<string[]>([]);
     
     // Job specific filters
     const [selectedJobTypes, setSelectedJobTypes] = useState<string[]>([]);
@@ -310,7 +312,6 @@ export default function AllCategories() {
 
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
-        setSelectedCertifications([]);
 
         setViewMode("list");
 
@@ -428,9 +429,9 @@ export default function AllCategories() {
         setCurrentPage(1);
     };
 
-    const toggleCertification = (cert: string) => {
-        setSelectedCertifications(prev =>
-            prev.includes(cert) ? prev.filter(c => c !== cert) : [...prev, cert]
+    const toggleBSL = (bsl: string) => {
+        setSelectedBSL(prev =>
+            prev.includes(bsl) ? prev.filter(b => b !== bsl) : [...prev, bsl]
         );
         setCurrentPage(1);
     };
@@ -439,7 +440,7 @@ export default function AllCategories() {
         setSelectedCategories([]);
         setSelectedSubcategories([]);
         setSelectedSubSubcategories([]);
-        setSelectedCertifications([]);
+        setSelectedBSL([]);
         setSelectedJobTypes([]);
         setSelectedWorkModels([]);
         setJobLocationSearch("");
@@ -541,6 +542,9 @@ export default function AllCategories() {
                     item.categories.some((c: string) =>
                         c.toLowerCase().includes(q)
                     )) ||
+                (Array.isArray(item.certifications) ? 
+                    item.certifications.some((c: string) => c.toLowerCase().includes(q)) : 
+                    (item.certifications || "").toLowerCase().includes(q)) ||
                 item.selectedGroup?.toLowerCase().includes(q) ||
                 itemSubTokens.some((s: string) => s.includes(q)) ||
                 itemSubSubTokens.some((s: string) => s.includes(q))
@@ -590,20 +594,21 @@ export default function AllCategories() {
             }
         }
 
-        // ── Certification filter (business tab only) ──
-        if (currentTab === "business" && selectedCertifications.length > 0) {
-            const itemCerts: string[] = Array.isArray(item.certifications)
-                ? item.certifications
-                : item.certifications
-                    ? [item.certifications]
+        // ── BSL filter (business tab only) ──
+        if (currentTab === "business" && selectedBSL.length > 0) {
+            const itemBSLs: string[] = Array.isArray(item.bioSafetyLevel)
+                ? item.bioSafetyLevel
+                : item.bioSafetyLevel
+                    ? [item.bioSafetyLevel]
                     : [];
-            const itemCertTokens = itemCerts.map(normalizeToken);
-            const hasMatchingCert = selectedCertifications.some(cert =>
-                itemCertTokens.includes(normalizeToken(cert))
+            
+            // Allow matching if the item's BSL contains the filter string (e.g., "BSL-1" includes "1")
+            const hasMatchingBSL = selectedBSL.some(bsl =>
+                itemBSLs.some(itemBsl => String(itemBsl).includes(bsl))
             );
-            if (!hasMatchingCert) return false;
+            if (!hasMatchingBSL) return false;
         }
-        
+
         // ── Job specific filters ──
         if (currentTab === "jobs") {
             if (selectedJobTypes.length > 0) {
@@ -624,6 +629,12 @@ export default function AllCategories() {
         }
 
         return true;
+    });
+
+    filteredBusinesses.sort((a, b) => {
+        const titleA = currentTab === "business" ? a.businessName : currentTab === "consulting" ? (a.primaryName || a.businessName || a.companyName || "") : currentTab === "events" ? a.eventName : a.jobTitle;
+        const titleB = currentTab === "business" ? b.businessName : currentTab === "consulting" ? (b.primaryName || b.businessName || b.companyName || "") : currentTab === "events" ? b.eventName : b.jobTitle;
+        return String(titleA || "").localeCompare(String(titleB || ""));
     });
 
     const totalPages = Math.ceil(filteredBusinesses.length / itemsPerPage);
@@ -787,7 +798,7 @@ export default function AllCategories() {
             <div className="bg-muted/40 border-b border-foreground/10 py-12">
                 <div className="container mx-auto px-4">
                     <h1 className="text-4xl font-bold tracking-tight mb-4">
-                        {CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Categories"}
+                        {CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Areas"}
                     </h1>
 
                     <p className="text-muted-foreground text-lg max-w-2xl">
@@ -817,7 +828,7 @@ export default function AllCategories() {
                                     {currentTab === "events" && <Calendar className="w-5 h-5 text-primary" />}
                                     {currentTab === "jobs" && <Briefcase className="w-5 h-5 text-primary" />}
                                     {currentTab === "compliance" && <ShieldCheck className="w-5 h-5 text-primary" />}
-                                    <span>{CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Categories"}</span>
+                                    <span>{CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Areas"}</span>
                                 </div>
                                 <ChevronDown className="w-5 h-5 text-muted-foreground" />
                             </Button>
@@ -871,28 +882,29 @@ export default function AllCategories() {
                         </div>
                     )}
                 </div>
-                {/* Certification filter pills — Business Offerings only */}
+
+                {/* BSL filter pills — Business Offerings only */}
                 {currentTab === "business" && (
                     <div className="flex flex-wrap items-center gap-2 mb-4 max-w-7xl mx-auto">
                         <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mr-1 flex items-center gap-1">
-                            <ShieldCheck className="w-3.5 h-3.5" /> Certification:
+                            <ShieldCheck className="w-3.5 h-3.5" /> BSL Level:
                         </span>
-                        {CERT_FILTER_OPTIONS.map(cert => (
+                        {BSL_FILTER_OPTIONS.map(bsl => (
                             <button
-                                key={cert}
-                                onClick={() => toggleCertification(cert)}
+                                key={bsl}
+                                onClick={() => toggleBSL(bsl)}
                                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
-                                    selectedCertifications.includes(cert)
+                                    selectedBSL.includes(bsl)
                                         ? "bg-primary text-primary-foreground border-primary shadow-sm"
                                         : "bg-background text-foreground border-foreground/15 hover:border-primary/40 hover:bg-primary/5"
                                 }`}
                             >
-                                {selectedCertifications.includes(cert) && <X className="w-3 h-3" />}
-                                {cert}
+                                {selectedBSL.includes(bsl) && <X className="w-3 h-3" />}
+                                BSL-{bsl}
                             </button>
                         ))}
-                        {selectedCertifications.length > 0 && (
-                            <button onClick={() => setSelectedCertifications([])} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors ml-1">
+                        {selectedBSL.length > 0 && (
+                            <button onClick={() => setSelectedBSL([])} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors ml-1">
                                 Clear
                             </button>
                         )}
@@ -961,7 +973,7 @@ export default function AllCategories() {
                                 ))}
                             {!showAllCategories && Object.keys(currentCategoriesDict).length > 11 && (
                                 <div onClick={() => setShowAllCategories(true)} className="p-6 border-2 border-dashed border-primary/30 hover:border-primary/60 text-primary hover:bg-primary/5 transition-all rounded-xl shadow-sm cursor-pointer flex flex-col justify-center items-center text-center min-h-[120px]">
-                                    <span className="font-bold text-sm md:text-base inline-flex items-center gap-2">View All {Object.keys(currentCategoriesDict).length} Categories <ChevronDown className="w-4 h-4" /></span>
+                                    <span className="font-bold text-sm md:text-base inline-flex items-center gap-2">View All {Object.keys(currentCategoriesDict).length} Areas <ChevronDown className="w-4 h-4" /></span>
                                 </div>
                             )}
                         </div>
@@ -1033,13 +1045,18 @@ export default function AllCategories() {
                                 <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                     {paginatedBusinesses.map((item) => {
-                                        const title = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
-                                        const topLabel = currentTab === "business" ? `BSL : ${item.bsl || "N/A"}` : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
+                                        const rawTitle = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
+                                        const title = toTitleCase(rawTitle || "");
+                                        const bslDisplay = Array.isArray(item.bioSafetyLevel) ? item.bioSafetyLevel.join(", ") : item.bioSafetyLevel;
+                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
+                                        const certsArray = Array.isArray(item.certifications) ? [...item.certifications] : (item.certifications ? [item.certifications] : []);
+                                        certsArray.sort((a, b) => String(a).localeCompare(String(b)));
+                                        const certsDisplay = certsArray.slice(0, 3).join(", ");
                                         const bottomLabel = currentTab === "business"
-                                            ? (Array.isArray(item.certifications) ? item.certifications.join(", ") : item.certifications || "No specific certs")
+                                            ? (certsDisplay ? certsDisplay : null)
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
-                                                : currentTab === "events" ? `${item.city || "Venue"}, ${item.location || ""}`
-                                                    : `${item.businessName || "Company"} • ${item.jobtype || "Role"}`;
+                                                : currentTab === "events" ? `${toTitleCase(item.city || "Venue")}, ${toTitleCase(item.location || "")}`
+                                                    : `${toTitleCase(item.businessName || "Company")} • ${toTitleCase(item.jobtype || "Role")}`;
                                         const categoryInfo = [
                                             ...(Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
                                                 ? item.selectedCategoriesDisplay
@@ -1071,9 +1088,9 @@ export default function AllCategories() {
                                                     <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
                                                 </div>
                                                 <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24">
-                                                    <div className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1">{topLabel}</div>
-                                                    <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>
-                                                    {categoryInfo.length > 0 && (
+                                                    {topLabel && <div className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1">{topLabel}</div>}
+                                                    {bottomLabel && <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>}
+                                                    {categoryInfo.length > 0 && currentTab !== "business" && (
                                                         <div className="text-[10px] text-muted-foreground/80 line-clamp-1 mt-1 text-center">
                                                             {categoryInfo.join(" / ")}
                                                         </div>
@@ -1296,7 +1313,7 @@ export default function AllCategories() {
                                     </div>
                                     {selectedProfile.categories && (
                                         <div>
-                                            <p className="font-bold mb-2">Topics & Categories</p>
+                                            <p className="font-bold mb-2">Topics & Areas</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {selectedProfile.categories.map((c: string, j: number) => (
                                                     <span key={j} className="bg-foreground/10 px-3 py-1 rounded-full text-sm">{c}</span>

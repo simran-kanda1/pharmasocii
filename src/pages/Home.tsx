@@ -9,6 +9,7 @@ import { db } from "@/firebase";
 import { collection, collectionGroup, query, where, limit, getDocs, orderBy } from "firebase/firestore";
 import { PostCard } from "@/components/community/PostCard";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
+import { toTitleCase } from "@/lib/utils";
 
 const FEATURE_FETCH_LIMIT = 5000;
 /** When no rows match paid home spotlight, still show recent active listings so the home page is not empty. */
@@ -230,7 +231,7 @@ export default function Home() {
                         <AutoCarousel speed={40} direction="left" innerClassName="gap-6 px-3">
                             {featuredBusinesses.map((p, i) => (
                                 <Link to={`/listing/business/${p.id}`} target="_blank" rel="noopener noreferrer" key={`carousel-${p.partnerId || "na"}-${p.id}-${i}`} className="flex items-center justify-center min-w-[220px] max-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0">
-                                    <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{p.businessName}</span>
+                                    <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{toTitleCase(p.businessName || "")}</span>
                                 </Link>
                             ))}
                         </AutoCarousel>
@@ -290,7 +291,7 @@ export default function Home() {
                         <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 pb-8">
                             {featuredBusinesses.map((b, i) => (
                                 <Link to={`/listing/business/${b.id}`} target="_blank" rel="noopener noreferrer" key={`offering-${b.partnerId || "na"}-${b.id}-${i}`} className="flex items-center justify-center text-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                    <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{b.businessName}</h3>
+                                    <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{toTitleCase(b.businessName || "")}</h3>
                                 </Link>
                             ))}
                         </AutoCarousel>
@@ -317,7 +318,7 @@ export default function Home() {
                         <AutoCarousel speed={50} direction="right" innerClassName="gap-6 px-3 pb-8">
                             {featuredConsulting.map((c, i) => (
                                 <Link to={`/listing/consulting/${c.id}`} target="_blank" rel="noopener noreferrer" key={`consulting-${c.id}-${i}`} className="flex items-center justify-center text-center min-w-[360px] max-w-[360px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{c.businessName}</h3>
+                                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{toTitleCase(c.businessName || "")}</h3>
                                 </Link>
                             ))}
                         </AutoCarousel>
@@ -360,7 +361,7 @@ export default function Home() {
                                                             <MapPin className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{evt.city || evt.location || "Online"}</span>
                                                         </div>
                                                     </div>
-                                                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-4 leading-tight">{evt.eventName}</h3>
+                                                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-4 leading-tight">{toTitleCase(evt.eventName || "")}</h3>
                                                     <div className="mt-auto pt-3 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
                                                         <span>View Event</span>
                                                         <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -403,7 +404,7 @@ export default function Home() {
                                                     <MapPin className="w-3.5 h-3.5" /> {job.city || "Remote"}
                                                 </div>
                                             </div>
-                                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle}</h3>
+                                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{toTitleCase(job.jobTitle || "")}</h3>
                                             <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
                                                 <span>View Job</span>
                                                 <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
