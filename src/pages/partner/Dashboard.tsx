@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, query, onSnapshot, where, writeBatch, getDocs } from "firebase/firestore";
@@ -327,6 +327,12 @@ export default function Dashboard() {
     const [selectedListingForEdit, setSelectedListingForEdit] = useState<any>(null);
     const [pendingUpgradePlanId, setPendingUpgradePlanId] = useState<string | null>(null);
     const [pendingEventUpgradeDates, setPendingEventUpgradeDates] = useState<{ startDate: string; endDate: string } | null>(null);
+    /** Survives async save + re-renders so Stripe checkout always has plan/subscription context. */
+    const upgradeCheckoutContextRef = useRef<{
+        targetPlanId: string;
+        planForCheckout: any;
+        eventDates?: { startDate: string; endDate: string } | null;
+    } | null>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
     const profileCompanyProfileTooLong = (profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH;
@@ -766,28 +772,39 @@ export default function Dashboard() {
         navigate("/login");
     };
 
-    const startUpgradeCheckout = async (newPlanId: string) => {
-        if (!auth.currentUser || !selectedPlanForAction) {
+    const startUpgradeCheckout = async (
+        newPlanId: string,
+        eventDates?: { startDate: string; endDate: string } | null,
+        planOverride?: any
+    ) => {
+        const planForCheckout = planOverride || selectedPlanForAction || upgradeCheckoutContextRef.current?.planForCheckout;
+        if (!auth.currentUser || !planForCheckout) {
             throw new Error("Upgrade session expired. Please select upgrade again.");
         }
+        const datesForCheckout =
+            eventDates ??
+            pendingEventUpgradeDates ??
+            upgradeCheckoutContextRef.current?.eventDates ??
+            null;
         const origin = window.location.origin;
         const resp = await fetch(`${API_BASE_URL}/api/upgrade-subscription`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                subscriptionId: selectedPlanForAction.stripeSubscriptionId || null,
+                subscriptionId: planForCheckout.stripeSubscriptionId || null,
                 newPlanId,
-                currentPlanId: selectedPlanForAction.planId || null,
+                currentPlanId: planForCheckout.planId || null,
                 partnerId: auth.currentUser.uid,
                 partnerEmail: auth.currentUser.email,
-                listingId: selectedPlanForAction.listingId,
-                collectionName: selectedPlanForAction.collectionName,
+                listingId: planForCheckout.listingId,
+                collectionName: planForCheckout.collectionName,
+                group: planForCheckout.group || "",
                 successUrl: `${origin}/partner/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}&upgrade=true`,
                 cancelUrl: `${origin}/partner/dashboard?upgrade=cancelled`,
-                ...(pendingEventUpgradeDates
+                ...(datesForCheckout
                     ? {
-                        pendingEventStartDate: pendingEventUpgradeDates.startDate,
-                        pendingEventEndDate: pendingEventUpgradeDates.endDate,
+                        pendingEventStartDate: datesForCheckout.startDate,
+                        pendingEventEndDate: datesForCheckout.endDate,
                     }
                     : {}),
             }),
@@ -803,15 +820,19 @@ export default function Dashboard() {
             throw new Error(errMessage);
         }
         const data = await resp.json();
+        if (data.alreadyOnPlan) {
+            throw new Error(data.message || "This listing is already on the selected plan. Refresh the dashboard and try again.");
+        }
         if (data.url) {
             window.location.href = data.url;
-            return;
+            return { redirecting: true as const };
         }
-        if (data.success) {
+        if (data.success && data.noCheckoutRequired) {
             setActionMessage({
                 type: "success",
-                text: "Upgrade completed successfully. Your next renewal uses the new plan price.",
+                text: data.message || "Upgrade completed successfully. Your next renewal uses the new plan price.",
             });
+            upgradeCheckoutContextRef.current = null;
             setPendingUpgradePlanId(null);
             setPendingEventUpgradeDates(null);
             setTimeout(() => {
@@ -820,15 +841,21 @@ export default function Dashboard() {
                 setSelectedPlanForAction(null);
                 setSelectedListingForEdit(null);
                 setActionMessage({ type: "", text: "" });
+                window.location.reload();
             }, 1800);
-            return;
+            return { redirecting: false as const };
         }
-        throw new Error("Stripe did not return a payment page. Please try the upgrade again.");
+        throw new Error(data.error || "Stripe did not return a payment page. Please try the upgrade again.");
     };
 
     // Handle saving listing edits (all editable fields)
     const handleSaveListingEdit = async (updatedData: any) => {
         setActionProcessing(true);
+        let redirectingToStripe = false;
+        const upgradePlanId =
+            pendingUpgradePlanId ?? upgradeCheckoutContextRef.current?.targetPlanId ?? null;
+        const planForUpgrade =
+            selectedPlanForAction ?? upgradeCheckoutContextRef.current?.planForCheckout ?? null;
         try {
             if (auth.currentUser && selectedListingForEdit) {
                 const isBusinessCollection = selectedListingForEdit.__col === "businessOfferingsCollection";
@@ -873,20 +900,23 @@ export default function Dashboard() {
 
                 const deferEventDatesForUpgrade =
                     listingGroup === "events" &&
-                    pendingUpgradePlanId &&
-                    pendingUpgradePlanId !== "basic_event" &&
-                    (selectedListingForEdit.selectedPlan === "basic_event" || selectedPlanForAction?.planId === "basic_event") &&
+                    upgradePlanId &&
+                    upgradePlanId !== "basic_event" &&
+                    (selectedListingForEdit.selectedPlan === "basic_event" || planForUpgrade?.planId === "basic_event") &&
                     updatedData.startDate &&
                     updatedData.endDate &&
                     updatedData.endDate !== updatedData.startDate;
 
-                if (deferEventDatesForUpgrade) {
-                    setPendingEventUpgradeDates({
-                        startDate: updatedData.startDate,
-                        endDate: updatedData.endDate,
-                    });
-                } else {
-                    setPendingEventUpgradeDates(null);
+                const deferredEventDates = deferEventDatesForUpgrade
+                    ? { startDate: updatedData.startDate, endDate: updatedData.endDate }
+                    : null;
+
+                setPendingEventUpgradeDates(deferredEventDates);
+                if (upgradeCheckoutContextRef.current) {
+                    upgradeCheckoutContextRef.current = {
+                        ...upgradeCheckoutContextRef.current,
+                        eventDates: deferredEventDates,
+                    };
                 }
 
                 if (listingGroup === "events") {
@@ -955,9 +985,16 @@ export default function Dashboard() {
 
                 await updateDoc(listingRef, updateObj);
 
-                if (pendingUpgradePlanId) {
+                if (upgradePlanId) {
                     setActionMessage({ type: "success", text: "Details saved. Redirecting to Stripe for upgrade payment..." });
-                    await startUpgradeCheckout(pendingUpgradePlanId);
+                    const checkoutResult = await startUpgradeCheckout(
+                        upgradePlanId,
+                        deferredEventDates,
+                        planForUpgrade
+                    );
+                    if (checkoutResult?.redirecting) {
+                        redirectingToStripe = true;
+                    }
                     return;
                 }
 
@@ -973,7 +1010,9 @@ export default function Dashboard() {
             console.error("Failed to update listing:", err);
             setActionMessage({ type: "error", text: err?.message || "Failed to update listing. Please try again." });
         } finally {
-            setActionProcessing(false);
+            if (!redirectingToStripe) {
+                setActionProcessing(false);
+            }
         }
     };
 
@@ -985,6 +1024,12 @@ export default function Dashboard() {
             (!selectedPlanForAction.collectionName || o.__col === selectedPlanForAction.collectionName)
         ) || offerings.find((o) => o.id === selectedPlanForAction.listingId);
 
+        upgradeCheckoutContextRef.current = {
+            targetPlanId: newPlanId,
+            planForCheckout: selectedPlanForAction,
+            eventDates: null,
+        };
+
         if (linkedListing) {
             setPendingUpgradePlanId(newPlanId);
             setSelectedListingForEdit(linkedListing);
@@ -995,13 +1040,19 @@ export default function Dashboard() {
         }
 
         setActionProcessing(true);
+        let redirectingToStripe = false;
         try {
-            await startUpgradeCheckout(newPlanId);
+            const checkoutResult = await startUpgradeCheckout(newPlanId, null, selectedPlanForAction);
+            if (checkoutResult?.redirecting) {
+                redirectingToStripe = true;
+            }
         } catch (err: any) {
             console.error("Failed to upgrade plan:", err);
             setActionMessage({ type: "error", text: err.message || "Failed to upgrade plan." });
         } finally {
-            setActionProcessing(false);
+            if (!redirectingToStripe) {
+                setActionProcessing(false);
+            }
         }
     };
 
@@ -1327,6 +1378,7 @@ export default function Dashboard() {
                             setSelectedPlanForAction(null);
                             setPendingUpgradePlanId(null);
                             setPendingEventUpgradeDates(null);
+                            upgradeCheckoutContextRef.current = null;
                         }}
                         onSave={handleSaveListingEdit}
                         processing={actionProcessing}
@@ -1344,6 +1396,7 @@ export default function Dashboard() {
                             setSelectedPlanForAction(null);
                             setPendingUpgradePlanId(null);
                             setPendingEventUpgradeDates(null);
+                            upgradeCheckoutContextRef.current = null;
                         }}
                         onUpgrade={handleUpgradePlan}
                         processing={actionProcessing}

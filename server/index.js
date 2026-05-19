@@ -2462,12 +2462,10 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             }
 
             if (currentPlanId === newPlanId) {
-                return res.json({
-                    success: true,
-                    subscriptionId: effectiveSubscriptionId,
-                    proratedAmount: 0,
+                return res.status(409).json({
+                    error: `This listing is already on ${newPlanId.replace(/_/g, " ")}. Refresh the dashboard.`,
                     alreadyOnPlan: true,
-                    message: `This listing is already on ${newPlanId.replace(/_/g, " ")}.`,
+                    subscriptionId: effectiveSubscriptionId,
                 });
             }
 
@@ -2527,6 +2525,32 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     name: `Pharma Socii — ${newPlan.name}`,
                 },
             });
+
+            const currentTierRank = resolveTierRank({
+                planId: currentPlanId,
+                amount: currentAmount,
+                interval: currentInterval,
+            });
+            const newTierRank = resolveTierRank({
+                planId: newPlanId,
+                amount: newPlan.amount,
+                interval: newPlan.interval,
+            });
+            const isPaidTierUpgrade = newTierRank > currentTierRank && newPlan.amount > currentAmount;
+
+            // Avoid silent $0 upgrades when moving to a higher tier — always collect via Checkout when owed.
+            if (proratedDiffAmount <= 0 && isPaidTierUpgrade) {
+                const fullDiff = newPlan.amount - currentAmount;
+                proratedDiffAmount = Math.max(
+                    50,
+                    Math.round(fullDiff * Math.max(remainingRatio, 0.05))
+                );
+                console.log("   Applied minimum prorated upgrade charge:", {
+                    proratedDiffAmount,
+                    fullDiff,
+                    remainingRatio,
+                });
+            }
 
             if (proratedDiffAmount <= 0) {
                 const updatedSubscription = await stripe.subscriptions.update(effectiveSubscriptionId, {
@@ -2623,6 +2647,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
 
                 return res.json({
                     success: true,
+                    noCheckoutRequired: true,
                     subscriptionId: updatedSubscription.id,
                     proratedAmount: 0,
                     message: "Upgrade applied with no prorated charge remaining in this billing cycle.",
