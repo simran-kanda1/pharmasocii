@@ -545,6 +545,65 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 break;
             }
 
+            if (session.metadata?.featureUpgradeFlow === "true") {
+                const upgradeFeatureId = session.metadata?.featureId || featureId;
+                const upgradeListingId = session.metadata?.listingId || listingId;
+                const upgradeCollectionName = session.metadata?.collectionName || resolvedCollectionName;
+                if (!partnerId || !upgradeFeatureId || !upgradeListingId || !upgradeCollectionName) {
+                    console.log("   ⚠ Feature upgrade checkout missing metadata; skipping.");
+                    break;
+                }
+                await finalizeFeatureUpgradeAfterPayment({
+                    session,
+                    partnerId,
+                    partnerRef,
+                    featureId: upgradeFeatureId,
+                    listingId: upgradeListingId,
+                    collectionName: upgradeCollectionName,
+                    group: session.metadata?.group || group || null,
+                });
+                await logAudit({
+                    partnerId,
+                    action: "FEATURE_UPGRADED",
+                    details: `Spotlight upgraded to ${upgradeFeatureId.replace(/_/g, " ")} after Stripe payment.`,
+                    category: "listing",
+                    metadata: {
+                        featureId: upgradeFeatureId,
+                        previousFeatureId: session.metadata?.previousFeatureId || null,
+                        sessionId: session.id,
+                    },
+                });
+                const existingFeatureUpgradeTxn = await db.collection("transactionsCollection")
+                    .where("sessionId", "==", session.id)
+                    .limit(1)
+                    .get();
+                if (existingFeatureUpgradeTxn.empty) {
+                    let detailSource = null;
+                    const listingRef = await resolveListingDocRef(partnerId, upgradeCollectionName, upgradeListingId);
+                    if (listingRef) {
+                        const listingSnap = await listingRef.get();
+                        if (listingSnap.exists) detailSource = listingSnap.data();
+                    }
+                    await db.collection("transactionsCollection").add({
+                        partnerId,
+                        amount: (session.amount_total || 0) / 100,
+                        currency: session.currency || "usd",
+                        status: "succeeded",
+                        type: "feature",
+                        planId: null,
+                        featureId: upgradeFeatureId,
+                        group: session.metadata?.group || group || null,
+                        listingId: upgradeListingId,
+                        collectionName: upgradeCollectionName,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                        sessionId: session.id,
+                        customerEmail: session.customer_details?.email || "",
+                        businessName: detailSource?.businessName || detailSource?.eventName || "",
+                    });
+                }
+                break;
+            }
+
             if (featureId) {
                 await finalizeSpotlightAddonPurchaseWrites({
                     session,
@@ -1207,6 +1266,116 @@ function resolveFeatureCheckoutAmount(targetFeatureId, listingAddonRaw, featured
         }
     }
     return { unitAmount, previousFeatureId: cur, isUpgrade: true };
+}
+
+/** Apply spotlight tier after prorated upgrade Checkout payment (subscription update or listing-only). */
+async function finalizeFeatureUpgradeAfterPayment({
+    session,
+    partnerId,
+    partnerRef,
+    featureId,
+    listingId,
+    collectionName,
+    group,
+}) {
+    const meta = session?.metadata || {};
+    const upgradeSubId = toStripeSubscriptionId(meta.subscriptionId);
+    const subscriptionItemId = meta.subscriptionItemId || null;
+    const newPriceId = meta.newPriceId || null;
+    const noSeparateSub = meta.featureUpgradeNoSub === "true";
+
+    const listingRef =
+        partnerId && listingId && collectionName
+            ? await resolveListingDocRef(partnerId, collectionName, listingId)
+            : null;
+
+    let paidThrough = addDays(new Date(), 30);
+    let newItemId = subscriptionItemId;
+    let subId = upgradeSubId;
+    let custId = null;
+
+    if (!noSeparateSub && upgradeSubId && subscriptionItemId && newPriceId) {
+        const currentSub = await stripe.subscriptions.retrieve(upgradeSubId);
+        const currentPriceId = currentSub.items?.data?.[0]?.price?.id;
+        const updatedSub =
+            currentPriceId === newPriceId
+                ? currentSub
+                : await stripe.subscriptions.update(upgradeSubId, {
+                      items: [{ id: subscriptionItemId, price: newPriceId }],
+                      proration_behavior: "none",
+                      metadata: {
+                          purchaseType: "spotlight_addon",
+                          partnerId: partnerId || "",
+                          featureId: featureId || "",
+                          listingId: listingId || "",
+                          collectionName: collectionName || "",
+                          group: group || "",
+                      },
+                  });
+        paidThrough = updatedSub.current_period_end
+            ? new Date(updatedSub.current_period_end * 1000)
+            : paidThrough;
+        newItemId = updatedSub.items?.data?.[0]?.id || subscriptionItemId;
+        custId = toStripeCustomerId(updatedSub.customer);
+        subId = updatedSub.id;
+    }
+
+    if (listingRef) {
+        const listingPatch = {
+            selectedAddon: featureId,
+            featuredPlacement: featureId,
+            isFeatured: true,
+            featureSpotlightPaidThrough: paidThrough,
+            lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
+            featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
+        };
+        if (subId) {
+            listingPatch.featureSpotlightStripeSubscriptionId = subId;
+            listingPatch.featureSpotlightSubscriptionItemId = newItemId;
+        }
+        await listingRef.set(listingPatch, { merge: true });
+        if (partnerRef) {
+            await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
+        }
+    }
+
+    if (partnerRef && subId) {
+        const fcSnap = await partnerRef
+            .collection("featuresCollection")
+            .where("stripeSubscriptionId", "==", subId)
+            .limit(10)
+            .get();
+        const fcDoc = fcSnap.docs.find((d) => (d.data() || {}).source === "spotlight_addon");
+        const featPatch = {
+            featureId,
+            featureName: featureId.replace(/_/g, " "),
+            listingId: listingId || null,
+            collectionName: collectionName || null,
+            group: group || null,
+            lastPaymentReceived: new Date(),
+            active: true,
+            source: "spotlight_addon",
+            stripeSubscriptionId: subId,
+            stripeCustomerId: custId,
+            subscriptionItemId: newItemId,
+            accessThrough: paidThrough,
+            sessionId: session?.id || "",
+        };
+        if (fcDoc) {
+            await fcDoc.ref.set(featPatch, { merge: true });
+        } else {
+            await partnerRef.collection("featuresCollection").add(featPatch);
+        }
+    }
+
+    if (partnerRef) {
+        await partnerRef.set({
+            selectedAddon: featureId,
+            lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            ...(custId ? { stripeCustomerId: custId } : {}),
+        }, { merge: true });
+    }
 }
 
 async function deactivateSupersededPartnerFeatures(partnerRef, listingId, newFeatureId) {
@@ -2077,98 +2246,137 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             ? "Monthly spotlight subscription; upgrade may include a one-time proration on your next Stripe invoice."
             : "Monthly recurring spotlight add-on (renews until cancelled in Stripe).";
 
-        const existingSubId = listingData.featureSpotlightStripeSubscriptionId || null;
+        const existingSubId = toStripeSubscriptionId(listingData.featureSpotlightStripeSubscriptionId);
         const existingItemId = listingData.featureSpotlightSubscriptionItemId || null;
 
-        if (pricing.isUpgrade && existingSubId && existingItemId) {
+        if (pricing.isUpgrade && pricing.unitAmount > 0) {
             const newPrice = await stripe.prices.create({
                 currency: "usd",
                 unit_amount: feature.amount,
                 recurring: { interval: feature.interval || "month" },
-                product_data: { name: productName },
+                product_data: { name: `Pharma Socii — ${feature.name}` },
             });
-            const updatedSub = await stripe.subscriptions.update(existingSubId, {
-                items: [{ id: existingItemId, price: newPrice.id, quantity: 1 }],
-                proration_behavior: "always_invoice",
-                metadata: {
-                    purchaseType: "spotlight_addon",
-                    partnerId,
-                    featureId,
-                    listingId: listingId || "",
-                    collectionName: collectionName || "",
-                    group: group || "",
-                },
-            });
-            const openInvId = typeof updatedSub.latest_invoice === "string"
-                ? updatedSub.latest_invoice
-                : updatedSub.latest_invoice?.id;
-            if (openInvId) {
+
+            let stripeCustomerId = null;
+            if (existingSubId) {
                 try {
-                    const inv = await stripe.invoices.retrieve(openInvId);
-                    if (inv.status === "open") {
-                        await stripe.invoices.pay(openInvId);
-                    }
-                } catch (payErr) {
-                    console.warn("Spotlight upgrade invoice pay:", payErr?.message || payErr);
+                    const existingSub = await stripe.subscriptions.retrieve(existingSubId);
+                    stripeCustomerId =
+                        typeof existingSub.customer === "string" ? existingSub.customer : existingSub.customer?.id || null;
+                } catch (subErr) {
+                    console.warn("Feature upgrade: could not load existing subscription customer:", subErr?.message);
                 }
             }
-            const paidThrough = updatedSub.current_period_end
-                ? new Date(updatedSub.current_period_end * 1000)
-                : addDays(new Date(), 30);
-            const newItemId = updatedSub.items?.data?.[0]?.id || existingItemId;
-            await listingRef.set({
-                selectedAddon: featureId,
-                featuredPlacement: featureId,
-                isFeatured: true,
-                featureSpotlightPaidThrough: paidThrough,
-                featureSpotlightSubscriptionItemId: newItemId,
-                lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-            }, { merge: true });
 
-            const fcSnap = await partnerRef
-                .collection("featuresCollection")
-                .where("stripeSubscriptionId", "==", existingSubId)
-                .limit(10)
-                .get();
-            const fcDoc = fcSnap.docs.find((d) => (d.data() || {}).source === "spotlight_addon");
-            const custId = typeof updatedSub.customer === "string"
-                ? updatedSub.customer
-                : updatedSub.customer?.id || null;
-            const featPatch = {
+            const upgradeMetadata = {
+                partnerId: partnerId || "",
+                featureUpgradeFlow: "true",
                 featureId,
-                featureName: featureId.replace(/_/g, " "),
-                listingId,
-                collectionName,
-                group: group || null,
-                lastPaymentReceived: new Date(),
-                active: true,
-                source: "spotlight_addon",
-                stripeSubscriptionId: existingSubId,
-                stripeCustomerId: custId,
-                subscriptionItemId: newItemId,
-                accessThrough: paidThrough,
+                listingId: listingId || "",
+                collectionName: collectionName || "",
+                group: group || "",
+                previousFeatureId: pricing.previousFeatureId || "",
+                featureUpgrade: "true",
+                ...(existingSubId && existingItemId
+                    ? {
+                        subscriptionId: existingSubId,
+                        subscriptionItemId: existingItemId,
+                        newPriceId: newPrice.id,
+                    }
+                    : { featureUpgradeNoSub: "true" }),
             };
-            if (fcDoc) {
-                await fcDoc.ref.set(featPatch, { merge: true });
-            } else {
-                await partnerRef.collection("featuresCollection").add({
-                    ...featPatch,
-                    sessionId: "",
-                });
-            }
-            await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
-            await partnerRef.set({
-                selectedAddon: featureId,
-                lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                ...(custId ? { stripeCustomerId: custId } : {}),
-            }, { merge: true });
 
-            console.log(`✓ Spotlight subscription upgraded in-place: ${existingSubId} → ${featureId}`);
+            const upgradeSession = await stripe.checkout.sessions.create({
+                mode: "payment",
+                line_items: [
+                    {
+                        price_data: {
+                            currency: "usd",
+                            product_data: {
+                                name: productName,
+                                description: productDescription,
+                            },
+                            unit_amount: pricing.unitAmount,
+                        },
+                        quantity: 1,
+                    },
+                ],
+                success_url:
+                    successUrl ||
+                    "https://orange-bear-967180.hostingersite.com/partner/dashboard?feature=success&session_id={CHECKOUT_SESSION_ID}",
+                cancel_url: cancelUrl || "https://orange-bear-967180.hostingersite.com/partner/dashboard?feature=cancelled",
+                ...(stripeCustomerId
+                    ? { customer: stripeCustomerId }
+                    : partnerEmail
+                      ? { customer_email: partnerEmail }
+                      : {}),
+                client_reference_id: partnerId,
+                metadata: upgradeMetadata,
+            });
+
+            console.log(
+                `✓ Feature upgrade checkout created: ${upgradeSession.id} (${pricing.unitAmount} cents, ${existingSubId ? "with sub" : "listing-only"})`
+            );
+            return res.json({ url: upgradeSession.url, sessionId: upgradeSession.id, proratedAmount: pricing.unitAmount / 100 });
+        }
+
+        if (pricing.isUpgrade && pricing.unitAmount <= 0) {
+            const newPrice = await stripe.prices.create({
+                currency: "usd",
+                unit_amount: feature.amount,
+                recurring: { interval: feature.interval || "month" },
+                product_data: { name: `Pharma Socii — ${feature.name}` },
+            });
+            if (existingSubId && existingItemId) {
+                const updatedSub = await stripe.subscriptions.update(existingSubId, {
+                    items: [{ id: existingItemId, price: newPrice.id, quantity: 1 }],
+                    proration_behavior: "none",
+                    metadata: {
+                        purchaseType: "spotlight_addon",
+                        partnerId,
+                        featureId,
+                        listingId: listingId || "",
+                        collectionName: collectionName || "",
+                        group: group || "",
+                    },
+                });
+                await finalizeFeatureUpgradeAfterPayment({
+                    session: {
+                        id: "inline-feature-upgrade",
+                        metadata: {
+                            subscriptionId: updatedSub.id,
+                            subscriptionItemId: updatedSub.items?.data?.[0]?.id || existingItemId,
+                            newPriceId: newPrice.id,
+                        },
+                    },
+                    partnerId,
+                    partnerRef,
+                    featureId,
+                    listingId,
+                    collectionName,
+                    group,
+                });
+            } else {
+                await listingRef.set(
+                    {
+                        selectedAddon: featureId,
+                        featuredPlacement: featureId,
+                        isFeatured: true,
+                        lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    },
+                    { merge: true }
+                );
+                await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
+                await partnerRef.set({
+                    selectedAddon: featureId,
+                    lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }, { merge: true });
+            }
             return res.json({
-                ok: true,
+                success: true,
+                noCheckoutRequired: true,
                 upgraded: true,
-                subscriptionId: existingSubId,
-                message: "Spotlight tier updated on your existing monthly subscription.",
+                message: "Spotlight tier updated with no prorated charge remaining in this period.",
             });
         }
 
@@ -3091,6 +3299,70 @@ app.post("/api/verify-payment", async (req, res) => {
                 success: true,
                 updated: true,
                 jobUpgrade: true,
+                status: session.status,
+                paymentStatus: session.payment_status,
+            });
+        }
+
+        if (session.metadata?.featureUpgradeFlow === "true") {
+            const upgradeFeatureId = session.metadata?.featureId;
+            const upgradeListingId = session.metadata?.listingId || listingId;
+            const upgradeCollectionName = session.metadata?.collectionName || resolvedCollectionName;
+            if (!partnerRef || !partnerId || !upgradeFeatureId || !upgradeListingId || !upgradeCollectionName) {
+                return res.status(400).json({ error: "Feature upgrade verification metadata is incomplete." });
+            }
+            await finalizeFeatureUpgradeAfterPayment({
+                session,
+                partnerId,
+                partnerRef,
+                featureId: upgradeFeatureId,
+                listingId: upgradeListingId,
+                collectionName: upgradeCollectionName,
+                group: session.metadata?.group || group || null,
+            });
+            await logAudit({
+                partnerId,
+                action: "FEATURE_UPGRADED",
+                details: `Spotlight upgraded to ${upgradeFeatureId.replace(/_/g, " ")}.`,
+                category: "listing",
+                metadata: {
+                    featureId: upgradeFeatureId,
+                    previousFeatureId: session.metadata?.previousFeatureId || null,
+                    sessionId: session.id,
+                    verifyFallback: true,
+                },
+            });
+            const existingFeatureUpgradeTxn = await db.collection("transactionsCollection")
+                .where("sessionId", "==", session.id)
+                .limit(1)
+                .get();
+            if (existingFeatureUpgradeTxn.empty) {
+                let detailSource = null;
+                const listingRef = await resolveListingDocRef(partnerId, upgradeCollectionName, upgradeListingId);
+                if (listingRef) {
+                    const listingSnap = await listingRef.get();
+                    if (listingSnap.exists) detailSource = listingSnap.data();
+                }
+                await db.collection("transactionsCollection").add({
+                    partnerId,
+                    amount: (session.amount_total || 0) / 100,
+                    currency: session.currency || "usd",
+                    status: "succeeded",
+                    type: "feature",
+                    featureId: upgradeFeatureId,
+                    group: session.metadata?.group || group || null,
+                    listingId: upgradeListingId,
+                    collectionName: upgradeCollectionName,
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    sessionId: session.id,
+                    customerEmail: session.customer_details?.email || "",
+                    businessName: detailSource?.businessName || detailSource?.eventName || "",
+                });
+            }
+            return res.json({
+                success: true,
+                updated: true,
+                featureUpgradeProcessed: true,
                 status: session.status,
                 paymentStatus: session.payment_status,
             });

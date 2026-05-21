@@ -746,7 +746,10 @@ export default function Dashboard() {
                     throw new Error(errMessage);
                 }
                 const data = await resp.json();
-                if (data.upgraded) {
+                if (data.upgraded && !data.noCheckoutRequired) {
+                    throw new Error(data.message || "Unexpected upgrade response. Please refresh and try again.");
+                }
+                if (data.success && data.noCheckoutRequired) {
                     setActionMessage({
                         type: "success",
                         text: data.message || "Spotlight tier updated on your subscription.",
@@ -756,9 +759,10 @@ export default function Dashboard() {
                     return;
                 }
                 if (!data.url) {
-                    throw new Error("No checkout URL returned from server.");
+                    throw new Error(data.error || "No checkout URL returned from server.");
                 }
                 window.location.href = data.url;
+                return;
             }
         } catch (err: any) {
             console.error("Failed to add feature plan", err);
@@ -1142,7 +1146,10 @@ export default function Dashboard() {
                     throw new Error(errMessage);
                 }
                 const data = await resp.json();
-                if (data.upgraded) {
+                if (data.upgraded && !data.noCheckoutRequired) {
+                    throw new Error(data.message || "Unexpected upgrade response. Please refresh and try again.");
+                }
+                if (data.success && data.noCheckoutRequired) {
                     setActionMessage({
                         type: "success",
                         text: data.message || "Spotlight tier updated on your subscription.",
@@ -1152,9 +1159,10 @@ export default function Dashboard() {
                     return;
                 }
                 if (!data.url) {
-                    throw new Error("No checkout URL returned from server.");
+                    throw new Error(data.error || "No checkout URL returned from server.");
                 }
                 window.location.href = data.url;
+                return;
             }
         } catch (err: any) {
             console.error("Failed to purchase feature:", err);
