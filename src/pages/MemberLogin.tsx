@@ -204,6 +204,10 @@ export default function MemberLogin() {
 
         <p className="text-sm text-muted-foreground mt-6 text-center">
           New here?{" "}
+          <Link to="/member/forgot-password" className="text-primary font-medium hover:underline">
+            Forgot password?
+          </Link>
+          {" · "}
           <Link to="/member/register" className="text-primary font-medium hover:underline">
             Create an account
           </Link>

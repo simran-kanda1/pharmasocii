@@ -1,10 +1,21 @@
 import { useEffect, useState, useMemo } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { collection, query, where, orderBy, limit, getDocs, doc, getDoc } from "firebase/firestore";
+import {
+  collection,
+  query,
+  where,
+  orderBy,
+  limit,
+  getDocs,
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 import { db } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { PostCard, type PostCardPost } from "@/components/community/PostCard";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { auth } from "@/firebase";
@@ -12,6 +23,8 @@ import { onAuthStateChanged } from "firebase/auth";
 import { Search, Tag, Globe, Link2, ImageIcon, MessageSquarePlus } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { CommunityFilterSidebar } from "@/components/community/CommunityFilterSidebar";
+import { postMatchesFilterKeys } from "@/lib/communityCategoryDisplay";
 
 type TabKey = "all" | "latest";
 
@@ -28,7 +41,9 @@ export default function CommunityFeed() {
   const [memberUserName, setMemberUserName] = useState<string | null>(null);
   const [feedTab, setFeedTab] = useState<TabKey>("all");
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
-  const [selectedMainCategories, setSelectedMainCategories] = useState<Set<string>>(new Set());
+  const [selectedFilterKeys, setSelectedFilterKeys] = useState<string[]>([]);
+  const [savedPostIds, setSavedPostIds] = useState<Set<string>>(new Set());
+  const [memberRestricted, setMemberRestricted] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -39,10 +54,22 @@ export default function CommunityFeed() {
         const m = await getDoc(doc(db, "membersCollection", u.uid));
         setHasMemberProfile(m.exists());
         setMemberUserName(m.exists() ? String(m.data()?.userName ?? "") : null);
+        const st = m.data()?.accountStatus;
+        setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
+        if (m.exists()) {
+          const savedSnap = await getDocs(
+            collection(db, "membersCollection", u.uid, "savedPostsCollection"),
+          );
+          setSavedPostIds(new Set(savedSnap.docs.map((d) => d.id)));
+        } else {
+          setSavedPostIds(new Set());
+        }
       } else {
         setVerified(false);
         setHasMemberProfile(false);
         setMemberUserName(null);
+        setMemberRestricted(false);
+        setSavedPostIds(new Set());
       }
     });
     return () => unsub();
@@ -73,15 +100,6 @@ export default function CommunityFeed() {
     setQInput(q);
   }, [searchParams]);
 
-  const countryOptions = useMemo(() => {
-    const set = new Set<string>();
-    posts.forEach((p) => {
-      const c = (p.countries as string[] | undefined) || [];
-      c.forEach((x) => set.add(x));
-    });
-    return [...set].sort((a, b) => a.localeCompare(b));
-  }, [posts]);
-
   const textFiltered = useMemo(() => {
     const s = search.trim().toLowerCase();
     if (!s) return posts;
@@ -99,11 +117,18 @@ export default function CommunityFeed() {
         return c.some((cc) => selectedCountries.includes(cc));
       });
     }
-    if (selectedMainCategories.size > 0) {
-      list = list.filter((p) => {
-        const mains = (p.mainCategories as string[] | undefined) || [];
-        return mains.some((m) => selectedMainCategories.has(m));
-      });
+    if (selectedFilterKeys.length > 0) {
+      list = list.filter((p) =>
+        postMatchesFilterKeys(
+          p.filterKeys as string[] | undefined,
+          selectedFilterKeys,
+          {
+            mainCategories: p.mainCategories as string[] | undefined,
+            subCategories: p.subCategories as string[] | undefined,
+            subSubCategories: p.subSubCategories as string[] | undefined,
+          },
+        ),
+      );
     }
     if (feedTab === "latest") {
       const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
@@ -113,23 +138,31 @@ export default function CommunityFeed() {
       });
     }
     return list;
-  }, [textFiltered, selectedCountries, selectedMainCategories, feedTab]);
+  }, [textFiltered, selectedCountries, selectedFilterKeys, feedTab]);
 
-  const canCompose = user && verified && hasMemberProfile;
+  const canEngage = Boolean(user && verified && hasMemberProfile && !memberRestricted);
+  const canCompose = canEngage;
   const welcomeName = memberUserName || user?.displayName || user?.email?.split("@")[0] || "Guest";
   const profileInitials = (welcomeName || "G").slice(0, 2).toUpperCase();
 
-  const toggleCountry = (c: string) => {
-    setSelectedCountries((prev) => (prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]));
-  };
-
-  const toggleMainCategory = (label: string) => {
-    setSelectedMainCategories((prev) => {
-      const next = new Set(prev);
-      if (next.has(label)) next.delete(label);
-      else next.add(label);
-      return next;
-    });
+  const toggleSavePost = async (postId: string) => {
+    if (!canEngage || !user) return;
+    const sref = doc(db, "membersCollection", user.uid, "savedPostsCollection", postId);
+    try {
+      if (savedPostIds.has(postId)) {
+        await deleteDoc(sref);
+        setSavedPostIds((prev) => {
+          const next = new Set(prev);
+          next.delete(postId);
+          return next;
+        });
+      } else {
+        await setDoc(sref, { savedAt: serverTimestamp() });
+        setSavedPostIds((prev) => new Set(prev).add(postId));
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   return (
@@ -165,8 +198,8 @@ export default function CommunityFeed() {
                     <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-3 text-center dark:border-foreground/15 dark:bg-muted/30">
                       <p className="text-[10px] font-medium text-muted-foreground uppercase">Categories</p>
                       <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                        {selectedMainCategories.size > 0
-                          ? [...selectedMainCategories].join(", ")
+                        {selectedFilterKeys.length > 0
+                          ? `${selectedFilterKeys.length} filter(s) active`
                           : "Filter posts by category →"}
                       </p>
                     </div>
@@ -188,6 +221,11 @@ export default function CommunityFeed() {
 
           {/* Center — composer + feed */}
           <main className="xl:col-span-6 order-1 xl:order-2 space-y-5">
+            {memberRestricted && user && (
+              <p className="text-sm text-muted-foreground rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
+                Your account is view-only. You cannot post or comment until restrictions are lifted.
+              </p>
+            )}
             {canCompose ? (
               <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-foreground/15 dark:bg-card">
                 <div className="bg-slate-800 text-white px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
@@ -326,6 +364,9 @@ export default function CommunityFeed() {
                       showAuthorEmail={
                         user && (p as { authorId?: string }).authorId === user.uid ? user.email : null
                       }
+                      canSave={canEngage}
+                      saved={savedPostIds.has(p.id)}
+                      onToggleSave={() => toggleSavePost(p.id)}
                     />
                   </li>
                 ))}
@@ -335,69 +376,14 @@ export default function CommunityFeed() {
 
           {/* Right — filters */}
           <aside className="xl:col-span-3 order-3">
-            <div className="xl:sticky xl:top-20 space-y-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
-                <p className="text-sm font-semibold mb-3">Select country(ies)</p>
-                <div className="max-h-40 overflow-y-auto space-y-2 pr-1">
-                  {countryOptions.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No countries in posts yet.</p>
-                  ) : (
-                    countryOptions.map((c) => (
-                      <label
-                        key={c}
-                        className="flex items-center gap-2 text-sm cursor-pointer hover:text-foreground"
-                      >
-                        <Checkbox
-                          checked={selectedCountries.includes(c)}
-                          onCheckedChange={() => toggleCountry(c)}
-                        />
-                        <span className="leading-tight">{c}</span>
-                      </label>
-                    ))
-                  )}
-                </div>
-                {selectedCountries.length > 0 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="mt-2 h-8 px-2 text-xs"
-                    onClick={() => setSelectedCountries([])}
-                  >
-                    Clear countries
-                  </Button>
-                )}
-              </div>
-
-              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
-                <p className="text-sm font-semibold mb-3">Categories</p>
-                <div className="max-h-[min(60vh,420px)] overflow-y-auto space-y-2 pr-1">
-                  {(categoryDoc?.mains ?? []).map((main) => (
-                    <label
-                      key={main.id}
-                      className="flex items-start gap-2 text-sm cursor-pointer"
-                    >
-                      <Checkbox
-                        className="mt-0.5"
-                        checked={selectedMainCategories.has(main.label)}
-                        onCheckedChange={() => toggleMainCategory(main.label)}
-                      />
-                      <span className="leading-snug">{main.label}</span>
-                    </label>
-                  ))}
-                </div>
-                {selectedMainCategories.size > 0 && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="mt-3 h-8 px-2 text-xs"
-                    onClick={() => setSelectedMainCategories(new Set())}
-                  >
-                    Clear categories
-                  </Button>
-                )}
-              </div>
+            <div className="xl:sticky xl:top-20">
+              <CommunityFilterSidebar
+                categoryDoc={categoryDoc}
+                selectedCountries={selectedCountries}
+                selectedFilterKeys={selectedFilterKeys}
+                onCountriesChange={setSelectedCountries}
+                onFilterKeysChange={setSelectedFilterKeys}
+              />
             </div>
           </aside>
         </div>

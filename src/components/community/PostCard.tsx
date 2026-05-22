@@ -3,8 +3,11 @@ import { Link } from "react-router-dom";
 import { ref, getDownloadURL } from "firebase/storage";
 import { storage } from "@/firebase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import { formatCategoryPlain, formatRelativeTime } from "@/lib/community";
+import { Bookmark } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export type PostCardPost = {
   id: string;
@@ -46,11 +49,17 @@ export function PostCard({
   post,
   categoryDoc,
   showAuthorEmail,
+  saved,
+  canSave,
+  onToggleSave,
 }: {
   post: PostCardPost;
   categoryDoc: CommunityCategoryDoc | null;
   /** When set, shown next to username (e.g. Firebase user email on feed for signed-in context). */
   showAuthorEmail?: string | null;
+  saved?: boolean;
+  canSave?: boolean;
+  onToggleSave?: () => void;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const created = post.createdAt?.toDate?.() ?? new Date();
@@ -107,6 +116,21 @@ export function PostCard({
                 <span className="text-xs text-muted-foreground truncate max-w-[200px]">{showAuthorEmail}</span>
               ) : null}
               <span className="text-xs text-muted-foreground">{formatRelativeTime(created)}</span>
+              {canSave && onToggleSave && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 ml-auto"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    onToggleSave();
+                  }}
+                  aria-label={saved ? "Unsave" : "Save"}
+                >
+                  <Bookmark className={cn("h-4 w-4", saved && "fill-current")} />
+                </Button>
+              )}
             </div>
             {categoryLine ? (
               <p className="text-xs text-muted-foreground mt-2 leading-relaxed line-clamp-2">{categoryLine}</p>

@@ -29,6 +29,9 @@ export default function MemberDashboard() {
   const [ready, setReady] = useState(false);
   const [myPosts, setMyPosts] = useState<Array<{ id: string } & CommunityPost>>([]);
   const [savedPosts, setSavedPosts] = useState<Array<{ id: string } & CommunityPost>>([]);
+  const [savedComments, setSavedComments] = useState<
+    Array<{ commentId: string; postId: string; preview?: string; unavailable?: boolean }>
+  >([]);
   const [name, setName] = useState("");
   const [userName, setUserName] = useState("");
   const [email, setEmail] = useState("");
@@ -99,6 +102,38 @@ export default function MemberDashboard() {
           return tb - ta;
         });
         setSavedPosts(loaded);
+
+        const savedCommentsSnap = await getDocs(
+          collection(db, "membersCollection", user.uid, "savedCommentsCollection"),
+        );
+        const commentRows: Array<{
+          commentId: string;
+          postId: string;
+          preview?: string;
+          unavailable?: boolean;
+        }> = [];
+        for (const d of savedCommentsSnap.docs) {
+          const postId = String(d.data().postId || "");
+          if (!postId) continue;
+          const postRef = await getDoc(doc(db, "postsCollection", postId));
+          if (!postRef.exists() || postRef.data()?.archived === true) {
+            commentRows.push({ commentId: d.id, postId, unavailable: true });
+            continue;
+          }
+          const cref = await getDoc(
+            doc(db, "postsCollection", postId, "commentsCollection", d.id),
+          );
+          if (!cref.exists() || cref.data()?.archived === true) {
+            commentRows.push({ commentId: d.id, postId, unavailable: true });
+            continue;
+          }
+          commentRows.push({
+            commentId: d.id,
+            postId,
+            preview: String(cref.data()?.text || "").slice(0, 120),
+          });
+        }
+        setSavedComments(commentRows);
 
         const nq = query(
           collection(db, "membersCollection", user.uid, "notificationsCollection"),
@@ -187,15 +222,52 @@ export default function MemberDashboard() {
           </Button>
         </TabsContent>
 
-        <TabsContent value="saved" className="space-y-4">
+        <TabsContent value="saved" className="space-y-8">
           {loadingPosts ? (
             <p className="text-muted-foreground">Loading…</p>
-          ) : savedPosts.length === 0 ? (
-            <p className="text-muted-foreground">No saved posts.</p>
           ) : (
-            savedPosts.map((p) => (
-              <PostCard key={p.id} post={p as never} categoryDoc={categoryDoc} />
-            ))
+            <>
+              <div>
+                <h3 className="font-semibold mb-3">Saved posts</h3>
+                {savedPosts.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No saved posts.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {savedPosts.map((p) => (
+                      <PostCard key={p.id} post={p as never} categoryDoc={categoryDoc} />
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div>
+                <h3 className="font-semibold mb-3">Saved comments</h3>
+                {savedComments.length === 0 ? (
+                  <p className="text-muted-foreground text-sm">No saved comments.</p>
+                ) : (
+                  <ul className="space-y-2">
+                    {savedComments.map((c) => (
+                      <li key={c.commentId} className="border border-foreground/10 rounded-lg p-4">
+                        {c.unavailable ? (
+                          <p className="text-sm text-muted-foreground">
+                            This saved item is no longer available.
+                          </p>
+                        ) : (
+                          <>
+                            <p className="text-sm line-clamp-2">{c.preview}</p>
+                            <Link
+                              to={`/community/post/${c.postId}?highlight=${c.commentId}`}
+                              className="text-xs text-primary mt-2 inline-block underline"
+                            >
+                              Open post and highlight comment
+                            </Link>
+                          </>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </>
           )}
         </TabsContent>
 

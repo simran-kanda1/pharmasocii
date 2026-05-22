@@ -34,13 +34,21 @@ export type CommunityPost = {
   likeCount?: number;
 };
 
+export type MemberAccountStatus = "active" | "spam_blocked" | "admin_hold";
+
 export type CommunityComment = {
   authorId: string;
   userName: string;
   postId: string;
   text: string;
   parentCommentId?: string | null;
+  imageStoragePath?: string | null;
   createdAt?: Timestamp;
   archived?: boolean;
   spamReportCount?: number;
+};
+
+export type SavedCommentRef = {
+  postId: string;
+  savedAt?: Timestamp;
 };

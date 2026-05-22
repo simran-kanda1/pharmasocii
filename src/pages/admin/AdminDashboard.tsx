@@ -76,6 +76,9 @@ import {
 } from "@/lib/communityCategoryEditorUtils";
 import { CommunityCategoryTreeEditor } from "@/components/admin/CommunityCategoryTreeEditor";
 import { VerificationMirrorsPanel } from "@/components/admin/VerificationMirrorsPanel";
+import { AdminCommunityPanel } from "@/components/admin/AdminCommunityPanel";
+import { AdminEmailLogPanel } from "@/components/admin/AdminEmailLogPanel";
+import { seedCommunityCategoriesIfMissing } from "@/lib/seedCommunityCategories";
 
 type AdminTab =
   | "overview"
@@ -84,7 +87,9 @@ type AdminTab =
   | "plans"
   | "featuredPlans"
   | "categories"
+  | "community"
   | "communityCategories"
+  | "emailLog"
   | "settings"
   | "transactions"
   | "audit";
@@ -825,7 +830,9 @@ export default function AdminDashboard() {
     plans: "Plans",
     featuredPlans: "Featured Plans",
     categories: "Categories",
+    community: "Community moderation",
     communityCategories: "Community categories",
+    emailLog: "Email log",
     settings: "Settings",
     transactions: "Transactions",
     audit: "Audit Trail",
@@ -860,7 +867,9 @@ export default function AdminDashboard() {
             <SidebarItem label="Plans" icon={Tags} active={activeTab === "plans"} onClick={() => setActiveTab("plans")} />
             <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
-            <SidebarItem label="Community categories" icon={MessageSquare} active={activeTab === "communityCategories"} onClick={() => setActiveTab("communityCategories")} />
+            <SidebarItem label="Community" icon={MessageSquare} active={activeTab === "community"} onClick={() => setActiveTab("community")} />
+            <SidebarItem label="Community categories" icon={Tags} active={activeTab === "communityCategories"} onClick={() => setActiveTab("communityCategories")} />
+            <SidebarItem label="Email log" icon={History} active={activeTab === "emailLog"} onClick={() => setActiveTab("emailLog")} />
             <SidebarItem label="Settings" icon={Settings} active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
             <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
             <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
@@ -1001,6 +1010,10 @@ export default function AdminDashboard() {
             </div>
           )}
 
+          {activeTab === "community" && <AdminCommunityPanel />}
+
+          {activeTab === "emailLog" && <AdminEmailLogPanel />}
+
           {activeTab === "communityCategories" && (
             <Card>
               <CardHeader>
@@ -1038,10 +1051,30 @@ export default function AdminDashboard() {
                     type="button"
                     variant="outline"
                     disabled={communityCategoriesSaving}
+                    onClick={async () => {
+                      try {
+                        const r = await seedCommunityCategoriesIfMissing();
+                        setSaveNotice(
+                          r === "seeded"
+                            ? "Default main categories written to Firestore."
+                            : "Config already exists — use Reset to load template into editor.",
+                        );
+                      } catch (e) {
+                        console.error(e);
+                        setCommunityCategoriesError("Seed failed.");
+                      }
+                    }}
+                  >
+                    Seed defaults (if empty)
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={communityCategoriesSaving}
                     onClick={() => {
                       if (
                         window.confirm(
-                          "Replace the editor with the default sample tree? Unsaved changes will be lost.",
+                          "Replace the editor with the default main-category tree? Unsaved changes will be lost.",
                         )
                       ) {
                         setCommunityCategoriesDraft(

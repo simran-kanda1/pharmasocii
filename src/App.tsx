@@ -20,6 +20,7 @@ import NewCommunityPost from "./pages/community/NewCommunityPost";
 import MemberRegister from "./pages/MemberRegister";
 import MemberDashboard from "./pages/member/MemberDashboard";
 import MemberCommunitySetup from "./pages/member/MemberCommunitySetup";
+import MemberForgotPassword from "./pages/member/MemberForgotPassword";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -61,6 +62,8 @@ function App() {
       {/* Auth flows */}
       <Route path="/login" element={<AppLayout><Login /></AppLayout>} />
       <Route path="/member/login" element={<AppLayout><MemberLogin /></AppLayout>} />
+      <Route path="/member/forgot-password" element={<AppLayout><MemberForgotPassword /></AppLayout>} />
+      <Route path="/forgot-password" element={<AppLayout><MemberForgotPassword /></AppLayout>} />
       <Route path="/signup" element={<AppLayout><PartnerRegister /></AppLayout>} />
       <Route path="/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
       <Route path="/partner/register" element={<AppLayout><PartnerRegister /></AppLayout>} />

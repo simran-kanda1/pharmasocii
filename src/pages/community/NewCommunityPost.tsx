@@ -25,13 +25,17 @@ import {
   EXTERNAL_LINKS_MAX,
 } from "@/lib/community";
 import { ArrowLeft } from "lucide-react";
+import { CountryMultiSelect } from "@/components/community/CountryMultiSelect";
+
+const MAX_IMAGE_BYTES = 1.5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 
 export default function NewCommunityPost() {
   const navigate = useNavigate();
   const { categoryDoc, categoriesLoading } = useCommunityCategories();
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
-  const [countriesRaw, setCountriesRaw] = useState("");
+  const [countries, setCountries] = useState<string[]>([]);
   const [linksRaw, setLinksRaw] = useState("");
   const [catSel, setCatSel] = useState<CategorySelectionState>(emptyCategorySelection());
   const [file, setFile] = useState<File | null>(null);
@@ -55,6 +59,11 @@ export default function NewCommunityPost() {
         navigate("/member/setup", { replace: true });
         return;
       }
+      const st = memberSnap.data()?.accountStatus;
+      if (st === "spam_blocked" || st === "admin_hold") {
+        navigate("/community", { replace: true });
+        return;
+      }
       setReady(true);
     });
     return () => unsub();
@@ -72,11 +81,6 @@ export default function NewCommunityPost() {
     }
 
     const { mainCategories, subCategories, subSubCategories } = selectionToPostFields(categoryDoc, catSel);
-    const countries = countriesRaw
-      .split(",")
-      .map((c) => c.trim())
-      .filter(Boolean)
-      .slice(0, POST_COUNTRIES_MAX);
     const externalLinks = linksRaw
       .split(/\n/)
       .map((l) => l.trim())
@@ -111,6 +115,16 @@ export default function NewCommunityPost() {
       setSaving(true);
       let imageStoragePath: string | null = null;
       if (file) {
+        if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+          setError("Image must be JPEG, PNG, or WebP.");
+          setSaving(false);
+          return;
+        }
+        if (file.size > MAX_IMAGE_BYTES) {
+          setError("Image must be 1.5 MB or smaller.");
+          setSaving(false);
+          return;
+        }
         const path = `community/${u.uid}/${crypto.randomUUID()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
         const sref = ref(storage, path);
         await uploadBytes(sref, file);
@@ -146,6 +160,9 @@ export default function NewCommunityPost() {
       setSaving(false);
     }
   };
+
+  const { mainCategories: previewMains } = selectionToPostFields(categoryDoc, catSel);
+  const canPublish = title.trim().length > 0 && previewMains.length >= 1;
 
   if (!ready || categoriesLoading) {
     return (
@@ -191,16 +208,7 @@ export default function NewCommunityPost() {
           <p className="text-xs text-muted-foreground text-right">{text.length}/{POST_BODY_MAX}</p>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="countries">Countries (optional, comma-separated, max {POST_COUNTRIES_MAX})</Label>
-          <Input
-            id="countries"
-            value={countriesRaw}
-            onChange={(e) => setCountriesRaw(e.target.value)}
-            className="bg-foreground/5 border-foreground/10"
-            placeholder="e.g. United States, Canada"
-          />
-        </div>
+        <CountryMultiSelect value={countries} onChange={setCountries} max={POST_COUNTRIES_MAX} />
 
         <div className="space-y-2">
           <Label htmlFor="links">External links (optional, one per line, max {EXTERNAL_LINKS_MAX})</Label>
@@ -215,18 +223,21 @@ export default function NewCommunityPost() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="img">Image (optional, stored in Firebase Storage)</Label>
+          <Label htmlFor="img">Image (optional, max 1.5 MB, JPEG/PNG/WebP)</Label>
           <Input
             id="img"
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="bg-foreground/5 border-foreground/10"
           />
         </div>
 
+        {!canPublish && (
+          <p className="text-xs text-muted-foreground">Pick at least one category and enter a title to publish.</p>
+        )}
         {error && <p className="text-sm text-destructive">{error}</p>}
-        <Button type="submit" disabled={saving} className="w-full sm:w-auto">
+        <Button type="submit" disabled={saving || !canPublish} className="w-full sm:w-auto">
           {saving ? "Publishing…" : "Publish"}
         </Button>
       </form>

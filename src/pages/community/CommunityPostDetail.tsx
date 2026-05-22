@@ -1,9 +1,11 @@
-import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";
+import { Link, useParams, useSearchParams } from "react-router-dom";
+import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   collection,
   doc,
   getDoc,
+  getDocs,
   setDoc,
   deleteDoc,
   addDoc,
@@ -13,7 +15,6 @@ import {
   serverTimestamp,
   onSnapshot,
 } from "firebase/firestore";
-import { ref, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Button } from "@/components/ui/button";
@@ -33,29 +34,38 @@ import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX } from 
 import { ArrowLeft, Bookmark, Flag, Share2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+const MAX_COMMENT_IMAGE_BYTES = 1.5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+
 type CommentRow = {
   id: string;
   authorId: string;
   userName: string;
   text: string;
   parentCommentId?: string | null;
+  imageStoragePath?: string | null;
   createdAt?: { toDate: () => Date };
   archived?: boolean;
 };
 
 export default function CommunityPostDetail() {
   const { postId } = useParams<{ postId: string }>();
+  const [searchParams] = useSearchParams();
+  const highlightCommentId = searchParams.get("highlight");
   const { categoryDoc } = useCommunityCategories();
+  const commentRefs = useRef<Record<string, HTMLLIElement | null>>({});
   const [post, setPost] = useState<Record<string, unknown> | null>(null);
   const [postMissing, setPostMissing] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [user, setUser] = useState<import("firebase/auth").User | null>(null);
   const [verified, setVerified] = useState(false);
-  const [memberBlocked, setMemberBlocked] = useState(false);
+  const [memberRestricted, setMemberRestricted] = useState(false);
   const [commentText, setCommentText] = useState("");
+  const [commentFile, setCommentFile] = useState<File | null>(null);
   const [replyTo, setReplyTo] = useState<CommentRow | null>(null);
   const [saved, setSaved] = useState(false);
+  const [savedCommentIds, setSavedCommentIds] = useState<Set<string>>(new Set());
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [reportTarget, setReportTarget] = useState<"post" | "comment">("post");
@@ -73,18 +83,24 @@ export default function CommunityPostDetail() {
         const m = await getDoc(doc(db, "membersCollection", u.uid));
         setHasMemberProfile(m.exists());
         const st = m.data()?.accountStatus;
-        setMemberBlocked(st === "spam_blocked");
+        setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
         if (postId && m.exists()) {
           const sref = doc(db, "membersCollection", u.uid, "savedPostsCollection", postId);
           const ss = await getDoc(sref);
           setSaved(ss.exists());
+          const savedCommentsSnap = await getDocs(
+            collection(db, "membersCollection", u.uid, "savedCommentsCollection"),
+          );
+          setSavedCommentIds(new Set(savedCommentsSnap.docs.map((d) => d.id)));
         } else {
           setSaved(false);
+          setSavedCommentIds(new Set());
         }
       } else {
         setVerified(false);
-        setMemberBlocked(false);
+        setMemberRestricted(false);
         setSaved(false);
+        setSavedCommentIds(new Set());
         setHasMemberProfile(false);
       }
     });
@@ -120,7 +136,7 @@ export default function CommunityPostDetail() {
       setImageUrl(null);
       return;
     }
-    getDownloadURL(ref(storage, path))
+    getDownloadURL(storageRef(storage, path))
       .then(setImageUrl)
       .catch(() => setImageUrl(null));
   }, [post, postId]);
@@ -144,13 +160,23 @@ export default function CommunityPostDetail() {
     return () => unsub();
   }, [postId]);
 
-  const canEngage = Boolean(user && verified && !memberBlocked && hasMemberProfile);
+  useEffect(() => {
+    if (!highlightCommentId || comments.length === 0) return;
+    const el = commentRefs.current[highlightCommentId];
+    if (el) {
+      window.setTimeout(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+    }
+  }, [highlightCommentId, comments]);
+
+  const canEngage = Boolean(user && verified && !memberRestricted && hasMemberProfile);
   const postAuthorId = post?.authorId as string | undefined;
   const archived = post?.archived === true;
 
   const engageHint = (() => {
     if (archived) return "This post is archived.";
-    if (memberBlocked) return "Your account is temporarily restricted.";
+    if (memberRestricted) return "Your account is temporarily restricted (view only).";
     if (!user) return "Log in with a verified member account to use this.";
     if (!verified) return "Verify your email to use this.";
     if (!hasMemberProfile) return "Create your community profile to use this.";
@@ -216,21 +242,43 @@ export default function CommunityPostDetail() {
       setError(`Comment must be 1–${max} characters.`);
       return;
     }
+    if (replyTo?.parentCommentId) {
+      setError("You cannot reply to a reply.");
+      return;
+    }
+
     const member = await getDoc(doc(db, "membersCollection", user.uid));
     const userName = (member.data()?.userName as string) || user.email?.split("@")[0] || "member";
 
     try {
+      let imageStoragePath: string | null = null;
+      if (commentFile) {
+        if (!ALLOWED_IMAGE_TYPES.includes(commentFile.type)) {
+          setError("Image must be JPEG, PNG, or WebP.");
+          return;
+        }
+        if (commentFile.size > MAX_COMMENT_IMAGE_BYTES) {
+          setError("Image must be 1.5 MB or smaller.");
+          return;
+        }
+        const path = `community/${user.uid}/comments/${crypto.randomUUID()}_${commentFile.name.replace(/[^a-zA-Z0-9._-]/g, "")}`;
+        await uploadBytes(storageRef(storage, path), commentFile);
+        imageStoragePath = path;
+      }
+
       await addDoc(collection(db, "postsCollection", postId, "commentsCollection"), {
         authorId: user.uid,
         userName,
         postId,
         text: t,
         parentCommentId: replyTo?.id ?? null,
+        imageStoragePath,
         createdAt: serverTimestamp(),
         archived: false,
         spamReportCount: 0,
       });
       setCommentText("");
+      setCommentFile(null);
       setReplyTo(null);
     } catch (err) {
       console.error(err);
@@ -243,6 +291,27 @@ export default function CommunityPostDetail() {
     setReportComment(c ?? null);
     setReportReason("");
     setReportOpen(true);
+  };
+
+  const toggleSaveComment = async (commentId: string) => {
+    if (!canEngage || !user || !postId) return;
+    const sref = doc(db, "membersCollection", user.uid, "savedCommentsCollection", commentId);
+    try {
+      if (savedCommentIds.has(commentId)) {
+        await deleteDoc(sref);
+        setSavedCommentIds((prev) => {
+          const next = new Set(prev);
+          next.delete(commentId);
+          return next;
+        });
+      } else {
+        await setDoc(sref, { postId, savedAt: serverTimestamp() });
+        setSavedCommentIds((prev) => new Set(prev).add(commentId));
+      }
+    } catch (e) {
+      console.error(e);
+      setError("Could not update saved comment.");
+    }
   };
 
   const submitReport = async () => {
@@ -426,7 +495,7 @@ export default function CommunityPostDetail() {
 
       <section className="mt-10 space-y-4">
         <h2 className="text-lg font-semibold">Comments</h2>
-        {memberBlocked && (
+        {memberRestricted && (
           <p className="text-sm text-muted-foreground">
             Your account is temporarily restricted to read-only access.
           </p>
@@ -468,6 +537,19 @@ export default function CommunityPostDetail() {
               }
               className="bg-foreground/5 border-foreground/10 disabled:cursor-not-allowed"
             />
+            <div className="space-y-1">
+              <Label htmlFor="comment-img" className="text-xs text-muted-foreground">
+                Optional image (max 1.5 MB)
+              </Label>
+              <Input
+                id="comment-img"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={!canEngage}
+                onChange={(e) => setCommentFile(e.target.files?.[0] ?? null)}
+                className="text-sm"
+              />
+            </div>
             <div className="flex flex-wrap items-center gap-3">
               <Button type="submit" disabled={!canEngage}>
                 Post
@@ -499,48 +581,21 @@ export default function CommunityPostDetail() {
 
         <ul className="space-y-3">
           {comments.map((c) => (
-            <li
+            <CommentItem
               key={c.id}
-              className={`border border-foreground/10 rounded-xl p-4 bg-background/50 ${c.parentCommentId ? "ml-8" : ""}`}
-            >
-              <div className="flex justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold">{c.userName}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {c.createdAt?.toDate ? formatRelativeTime(c.createdAt.toDate()) : ""}
-                  </p>
-                </div>
-                {!archived && (
-                  <div className="flex gap-1">
-                    <span title={!canEngage ? engageHint : "Reply"} className="inline-flex">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={cn("h-8 text-xs", !canEngage && "opacity-50")}
-                        disabled={!canEngage}
-                        onClick={() => setReplyTo(c)}
-                      >
-                        Reply
-                      </Button>
-                    </span>
-                    <span title={!canEngage ? engageHint : "Report"} className="inline-flex">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className={cn("h-8 text-xs", !canEngage && "opacity-50")}
-                        disabled={!canEngage}
-                        onClick={() => openReport("comment", c)}
-                      >
-                        Report
-                      </Button>
-                    </span>
-                  </div>
-                )}
-              </div>
-              <p className="text-sm mt-2 whitespace-pre-wrap">{c.text}</p>
-            </li>
+              comment={c}
+              archived={archived}
+              canEngage={canEngage}
+              engageHint={engageHint}
+              highlight={highlightCommentId === c.id}
+              saved={savedCommentIds.has(c.id)}
+              commentRef={(el) => {
+                commentRefs.current[c.id] = el;
+              }}
+              onReply={() => setReplyTo(c)}
+              onReport={() => openReport("comment", c)}
+              onToggleSave={() => toggleSaveComment(c.id)}
+            />
           ))}
         </ul>
       </section>
@@ -570,5 +625,111 @@ export default function CommunityPostDetail() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function CommentItem({
+  comment,
+  archived,
+  canEngage,
+  engageHint,
+  highlight,
+  saved,
+  commentRef,
+  onReply,
+  onReport,
+  onToggleSave,
+}: {
+  comment: CommentRow;
+  archived: boolean;
+  canEngage: boolean;
+  engageHint: string;
+  highlight: boolean;
+  saved: boolean;
+  commentRef: (el: HTMLLIElement | null) => void;
+  onReply: () => void;
+  onReport: () => void;
+  onToggleSave: () => void;
+}) {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const isReply = Boolean(comment.parentCommentId);
+  const canReplyTo = !isReply;
+
+  useEffect(() => {
+    const path = comment.imageStoragePath;
+    if (!path) {
+      setImageUrl(null);
+      return;
+    }
+    getDownloadURL(storageRef(storage, path))
+      .then(setImageUrl)
+      .catch(() => setImageUrl(null));
+  }, [comment.imageStoragePath]);
+
+  return (
+    <li
+      ref={commentRef}
+      className={cn(
+        "border border-foreground/10 rounded-xl p-4 bg-background/50",
+        isReply && "ml-8",
+        highlight && "ring-2 ring-primary ring-offset-2 animate-pulse",
+      )}
+    >
+      <div className="flex justify-between gap-2">
+        <div>
+          <p className="text-sm font-semibold">{comment.userName}</p>
+          <p className="text-xs text-muted-foreground">
+            {comment.createdAt?.toDate ? formatRelativeTime(comment.createdAt.toDate()) : ""}
+          </p>
+        </div>
+        {!archived && (
+          <div className="flex gap-1">
+            <span title={!canEngage ? engageHint : saved ? "Unsave" : "Save comment"} className="inline-flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className={cn("h-8 w-8", !canEngage && "opacity-50")}
+                disabled={!canEngage}
+                onClick={onToggleSave}
+                aria-label={saved ? "Unsave comment" : "Save comment"}
+              >
+                <Bookmark className={cn("w-4 h-4", saved && "fill-current")} />
+              </Button>
+            </span>
+            {canReplyTo && (
+              <span title={!canEngage ? engageHint : "Reply"} className="inline-flex">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className={cn("h-8 text-xs", !canEngage && "opacity-50")}
+                  disabled={!canEngage}
+                  onClick={onReply}
+                >
+                  Reply
+                </Button>
+              </span>
+            )}
+            <span title={!canEngage ? engageHint : "Report"} className="inline-flex">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className={cn("h-8 text-xs", !canEngage && "opacity-50")}
+                disabled={!canEngage}
+                onClick={onReport}
+              >
+                Report
+              </Button>
+            </span>
+          </div>
+        )}
+      </div>
+      <p className="text-sm mt-2 whitespace-pre-wrap">{comment.text}</p>
+      {imageUrl && (
+        <img src={imageUrl} alt="" className="mt-2 rounded-lg max-h-48 border border-foreground/10" />
+      )}
+    </li>
   );
 }

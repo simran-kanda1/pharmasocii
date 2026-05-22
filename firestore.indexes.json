@@ -71,6 +71,15 @@
         { "fieldPath": "accountStatus", "order": "ASCENDING" },
         { "fieldPath": "spamBlockUntil", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "postsCollection",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "authorId", "order": "ASCENDING" },
+        { "fieldPath": "archived", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

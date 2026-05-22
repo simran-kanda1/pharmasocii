@@ -24,13 +24,16 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email_verified == true;
     }
 
-    function memberNotSpamBlocked() {
+    function memberCanWrite() {
       return memberExists()
-        && (!('accountStatus' in memberData()) || memberData().accountStatus != 'spam_blocked');
+        && (
+          !('accountStatus' in memberData())
+          || memberData().accountStatus == 'active'
+        );
     }
 
     function canUseCommunityWrites() {
-      return emailVerifiedToken() && memberNotSpamBlocked();
+      return emailVerifiedToken() && memberCanWrite();
     }
 
     function stringListMax(list, max) {
@@ -50,6 +53,11 @@ service cloud.firestore {
 
     // Testing: server-written copies of email verification links (admin reads only).
     match /verificationMirrors/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /emailLogCollection/{docId} {
       allow read: if isAdmin();
       allow write: if false;
     }
@@ -97,6 +105,16 @@ service cloud.firestore {
       match /savedPostsCollection/{postId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
         allow create, delete: if canUseCommunityWrites() && request.auth.uid == userId;
+        allow update: if false;
+      }
+
+      match /savedCommentsCollection/{commentId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create: if canUseCommunityWrites()
+          && request.auth.uid == userId
+          && request.resource.data.postId is string
+          && request.resource.data.keys().hasOnly(['postId', 'savedAt']);
+        allow delete: if isSignedIn() && request.auth.uid == userId;
         allow update: if false;
       }
 
@@ -160,14 +178,25 @@ service cloud.firestore {
           && request.resource.data.text is string
           && request.resource.data.archived == false
           && request.resource.data.spamReportCount == 0
+          && get(/databases/$(database)/documents/postsCollection/$(postId)).data.archived != true
           && (
-            (!('parentCommentId' in request.resource.data) && request.resource.data.text.size() <= 500)
+            (
+              (!('parentCommentId' in request.resource.data)
+                || request.resource.data.parentCommentId == null)
+              && request.resource.data.text.size() <= 500
+              && request.resource.data.text.size() > 0
+            )
             || (
               'parentCommentId' in request.resource.data
               && request.resource.data.parentCommentId is string
               && request.resource.data.text.size() <= 300
+              && request.resource.data.text.size() > 0
+              && get(/databases/$(database)/documents/postsCollection/$(postId)/commentsCollection/$(request.resource.data.parentCommentId)).data.parentCommentId == null
             )
           )
+          && (!('imageStoragePath' in request.resource.data)
+            || request.resource.data.imageStoragePath == null
+            || request.resource.data.imageStoragePath is string)
           && request.resource.data.keys().hasAll([
             'authorId', 'userName', 'postId', 'text', 'createdAt', 'archived', 'spamReportCount'
           ]);

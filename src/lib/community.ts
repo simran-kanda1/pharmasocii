@@ -1,4 +1,5 @@
 import type { CommunityCategoryDoc, SelectedCategoryBranch } from "./communityTypes";
+import { formatCommunityCategorySegments } from "./communityCategoryDisplay";
 
 export type { SelectedCategoryBranch } from "./communityTypes";
 
@@ -68,38 +69,14 @@ export function formatCategoryDisplayLine(
   return parts.join(", ");
 }
 
-/** Plain text category line for cards (no markdown). */
+/** Plain text category line for cards (no markdown). Uses display spec (main+subSub hides sub). */
 export function formatCategoryPlain(
   doc: CommunityCategoryDoc | null,
   mainLabels: string[],
   subLabels: string[],
   subSubLabels: string[],
 ): { segments: Array<{ main: string; bracket: string[] }> } {
-  if (!mainLabels.length) return { segments: [] };
-  const mains = doc?.mains ?? [];
-  const segments: Array<{ main: string; bracket: string[] }> = [];
-
-  for (const mainLabel of mainLabels) {
-    const mainNode = mains.find((m) => m.label === mainLabel);
-    const bracket: string[] = [];
-
-    if (subSubLabels.length && mainNode) {
-      for (const ss of subSubLabels) {
-        for (const sub of mainNode.subs ?? []) {
-          const hit = sub.subSubs?.find((x) => x.label === ss);
-          if (hit) bracket.push(ss);
-        }
-      }
-    }
-    if (bracket.length === 0 && subLabels.length && mainNode) {
-      for (const s of subLabels) {
-        const has = (mainNode.subs ?? []).some((sub) => sub.label === s);
-        if (has) bracket.push(s);
-      }
-    }
-    segments.push({ main: mainLabel, bracket });
-  }
-  return { segments };
+  return { segments: formatCommunityCategorySegments(doc, mainLabels, subLabels, subSubLabels) };
 }
 
 export function buildFilterKeys(branches: SelectedCategoryBranch[]): string[] {
