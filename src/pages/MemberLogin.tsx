@@ -12,7 +12,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { requestVerificationMirrorCopy } from "@/lib/requestVerificationMirrorCopy";
+import { ensureVerificationPending } from "@/lib/ensureVerificationPending";
 
 export default function MemberLogin() {
   const navigate = useNavigate();
@@ -104,20 +104,28 @@ export default function MemberLogin() {
         setError("Log in first, then resend verification.");
         return;
       }
-      await sendEmailVerification(auth.currentUser);
-      const mirror = await requestVerificationMirrorCopy();
-      if (mirror.ok) {
-        setResendMsg("Verification email sent. Check spam; a test copy may appear in Admin → Overview.");
-      } else {
+      const queue = await ensureVerificationPending();
+      try {
+        await sendEmailVerification(auth.currentUser);
+      } catch (sendErr: unknown) {
+        const sendCode =
+          typeof sendErr === "object" && sendErr !== null && "code" in sendErr
+            ? (sendErr as FirebaseError).code
+            : "";
+        if (sendCode !== "auth/too-many-requests" || !queue.ok) throw sendErr;
+      }
+      if (queue.ok) {
         setResendMsg(
-          "Verification email sent from Firebase. Test inbox copy failed — open Admin → Overview → verification mirrors, or redeploy functions and check the browser console.",
+          "Verification queued in Admin → Overview. Firebase also emailed your signup address — check spam.",
         );
+      } else {
+        setResendMsg(queue.message || "Could not queue verification. Try again or ask admin.");
       }
     } catch (err: unknown) {
       const code =
         typeof err === "object" && err !== null && "code" in err ? (err as FirebaseError).code : "";
       if (code === "auth/too-many-requests") {
-        setError("Too many emails sent. Wait a while before resending.");
+        setError("Too many emails sent. Wait 15–30 minutes, or use Admin → Overview → Member email verification.");
       } else {
         setError("Could not send email. Try again later.");
       }

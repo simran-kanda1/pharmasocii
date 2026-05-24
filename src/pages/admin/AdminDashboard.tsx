@@ -9,6 +9,7 @@ import {
   Clock,
   Download,
   ExternalLink,
+  Flag,
   Eye,
   FileText,
   History,
@@ -76,7 +77,10 @@ import {
 } from "@/lib/communityCategoryEditorUtils";
 import { CommunityCategoryTreeEditor } from "@/components/admin/CommunityCategoryTreeEditor";
 import { VerificationMirrorsPanel } from "@/components/admin/VerificationMirrorsPanel";
-import { AdminCommunityPanel } from "@/components/admin/AdminCommunityPanel";
+import { AdminMembersPanel } from "@/components/admin/AdminMembersPanel";
+import { AdminMemberPostsPanel } from "@/components/admin/AdminMemberPostsPanel";
+import { AdminArchivedPostsPanel } from "@/components/admin/AdminArchivedPostsPanel";
+import { AdminReportedCommentsPanel } from "@/components/admin/AdminReportedCommentsPanel";
 import { AdminEmailLogPanel } from "@/components/admin/AdminEmailLogPanel";
 import { seedCommunityCategoriesIfMissing } from "@/lib/seedCommunityCategories";
 
@@ -87,7 +91,10 @@ type AdminTab =
   | "plans"
   | "featuredPlans"
   | "categories"
-  | "community"
+  | "communityMembers"
+  | "communityPosts"
+  | "communityArchivePosts"
+  | "communityReportedComments"
   | "communityCategories"
   | "emailLog"
   | "settings"
@@ -830,7 +837,10 @@ export default function AdminDashboard() {
     plans: "Plans",
     featuredPlans: "Featured Plans",
     categories: "Categories",
-    community: "Community moderation",
+    communityMembers: "Members",
+    communityPosts: "Member posts",
+    communityArchivePosts: "Archive posts",
+    communityReportedComments: "Reported comments",
     communityCategories: "Community categories",
     emailLog: "Email log",
     settings: "Settings",
@@ -850,33 +860,37 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex">
-      <aside className="w-64 border-r border-slate-200 bg-white flex flex-col shrink-0">
-        <div className="p-7">
-          <div className="flex items-center gap-3 mb-8">
+    <div className="h-screen bg-slate-50 text-slate-900 flex overflow-hidden">
+      <aside className="w-64 border-r border-slate-200 bg-white flex flex-col shrink-0 h-full">
+        <div className="px-7 pt-7 pb-4 shrink-0 border-b border-slate-100">
+          <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
               <ShieldCheck className="text-white w-5 h-5" />
             </div>
             <h1 className="font-semibold text-lg">Admin Console</h1>
           </div>
+        </div>
 
-          <nav className="space-y-1.5">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-7 py-4 space-y-1.5 custom-scrollbar">
             <SidebarItem label="Overview" icon={LayoutDashboard} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
             <SidebarItem label="Partners" icon={Users} active={activeTab === "partners"} onClick={() => setActiveTab("partners")} badge={stats.pendingApprovals > 0 ? stats.pendingApprovals : undefined} />
             <SidebarItem label="Listings" icon={FileText} active={activeTab === "listings"} onClick={() => setActiveTab("listings")} badge={stats.pendingListings > 0 ? stats.pendingListings : undefined} />
             <SidebarItem label="Plans" icon={Tags} active={activeTab === "plans"} onClick={() => setActiveTab("plans")} />
             <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
-            <SidebarItem label="Community" icon={MessageSquare} active={activeTab === "community"} onClick={() => setActiveTab("community")} />
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
+            <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
+            <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
+            <SidebarItem label="Archive posts" icon={FileText} active={activeTab === "communityArchivePosts"} onClick={() => setActiveTab("communityArchivePosts")} />
+            <SidebarItem label="Reported comments" icon={Flag} active={activeTab === "communityReportedComments"} onClick={() => setActiveTab("communityReportedComments")} />
             <SidebarItem label="Community categories" icon={Tags} active={activeTab === "communityCategories"} onClick={() => setActiveTab("communityCategories")} />
             <SidebarItem label="Email log" icon={History} active={activeTab === "emailLog"} onClick={() => setActiveTab("emailLog")} />
             <SidebarItem label="Settings" icon={Settings} active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
             <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
             <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
-          </nav>
-        </div>
+        </nav>
 
-        <div className="mt-auto p-5 border-t border-slate-200 space-y-2">
+        <div className="shrink-0 p-5 border-t border-slate-200 space-y-2 bg-white">
           <Button variant="ghost" onClick={() => navigate("/")} className="w-full justify-start text-slate-600">
             <ExternalLink className="w-4 h-4 mr-2" /> Back to site
           </Button>
@@ -886,7 +900,7 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto custom-scrollbar">
+      <main className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
         <header className="h-20 border-b border-slate-200 bg-white flex items-center justify-between px-10 sticky top-0 z-40">
           <h2 className="text-xl font-semibold">{activeTabLabelMap[activeTab]}</h2>
           <div className="flex items-center gap-3">
@@ -1010,7 +1024,10 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {activeTab === "community" && <AdminCommunityPanel />}
+          {activeTab === "communityMembers" && <AdminMembersPanel />}
+          {activeTab === "communityPosts" && <AdminMemberPostsPanel />}
+          {activeTab === "communityArchivePosts" && <AdminArchivedPostsPanel />}
+          {activeTab === "communityReportedComments" && <AdminReportedCommentsPanel />}
 
           {activeTab === "emailLog" && <AdminEmailLogPanel />}
 

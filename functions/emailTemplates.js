@@ -10,13 +10,33 @@ function escapeHtml(s) {
 const templates = {
     account_activation: {
         subject: () => "Activate your Pharmasocii community account",
-        text: ({ userName }) =>
-            `Welcome to Pharmasocii Community${userName ? ", " + userName : ""}.\n\n` +
-            "Please verify your email address using the link we sent separately (Firebase Auth).\n\n" +
-            "Once verified, you can create posts, comment, and save discussions.\n",
-        html: ({ userName }) =>
-            `<p>Welcome to <b>Pharmasocii Community</b>${userName ? ", " + escapeHtml(userName) : ""}.</p>` +
-            `<p>Please verify your email using the link in your inbox.</p>`,
+        text: ({ userName, verifyLink }) => {
+            let body =
+                `Welcome to Pharmasocii Community${userName ? ", " + userName : ""}.\n\n`;
+            if (verifyLink) {
+                body +=
+                    "Verify your email address by opening this link:\n" +
+                    `${verifyLink}\n\n`;
+            } else {
+                body +=
+                    "Please verify your email using the link in your inbox, or open Admin → Overview in the dashboard for a copy.\n\n";
+            }
+            body += "Once verified, you can create posts, comment, and save discussions.\n";
+            return body;
+        },
+        html: ({ userName, verifyLink }) => {
+            let html =
+                `<p>Welcome to <b>Pharmasocii Community</b>${userName ? ", " + escapeHtml(userName) : ""}.</p>`;
+            if (verifyLink) {
+                html +=
+                    `<p><a href="${verifyLink}" style="display:inline-block;padding:10px 16px;background:#0d9488;color:#fff;text-decoration:none;border-radius:6px">Verify my email</a></p>` +
+                    `<p style="word-break:break-all;font-size:12px;color:#666">Or copy this link:<br/>${escapeHtml(verifyLink)}</p>`;
+            } else {
+                html += `<p>Please verify your email using the link in your inbox.</p>`;
+            }
+            html += `<p style="color:#666;font-size:12px">Once verified, you can post, comment, and save discussions.</p>`;
+            return html;
+        },
     },
     password_reset: {
         subject: () => "Reset your Pharmasocii password",

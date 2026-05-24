@@ -90,9 +90,24 @@ const { renderEmail } = require("./emailTemplates");
 const VERIFICATION_CC_EMAIL =
     process.env.VERIFICATION_CC_EMAIL || "simrankaurkanda42@gmail.com";
 const COMMUNITY_EMAIL_CC_ALL = process.env.COMMUNITY_EMAIL_CC_ALL === "true";
+/** Must be an authorized domain in Firebase Auth (e.g. pharmasocii.firebaseapp.com or localhost). */
+const APP_PUBLIC_URL =
+    process.env.APP_PUBLIC_URL || "https://pharmasocii.firebaseapp.com";
 
 function escapeHtmlVerification(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+/** Parse SMTP_FROM env (plain email or `Name <email>`) for nodemailer. */
+function getNodemailerFrom() {
+    const raw = String(process.env.SMTP_FROM || process.env.SMTP_USER || "").trim();
+    if (!raw) return null;
+    const angle = raw.match(/<([^>]+)>/);
+    if (angle) {
+        const name = raw.replace(/<[^>]+>/, "").trim().replace(/^["']|["']$/g, "") || "Pharmasocii";
+        return `"${name}" <${angle[1].trim()}>`;
+    }
+    return `"Pharmasocii" <${raw}>`;
 }
 
 async function archiveAllCommentsForPost(postId) {
@@ -114,7 +129,11 @@ async function archiveAllCommentsForPost(postId) {
 
 async function sendCommunityEmail({ type, toEmail, payload, link }) {
     if (!toEmail) return;
-    const { subject, text, html } = renderEmail(type, payload);
+    const mergedPayload = {
+        ...(payload || {}),
+        ...(link ? { verifyLink: link, resetLink: link } : {}),
+    };
+    const { subject, text, html } = renderEmail(type, mergedPayload);
     const ccTo = COMMUNITY_EMAIL_CC_ALL ? VERIFICATION_CC_EMAIL : null;
 
     await db.collection("emailLogCollection").add({
@@ -132,7 +151,7 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
     const port = parseInt(process.env.SMTP_PORT || "587", 10);
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const from = process.env.SMTP_FROM || smtpUser;
+    const from = getNodemailerFrom();
     if (!host || !smtpUser || !smtpPass || !from) {
         console.info(`[community-email] SMTP not configured; logged ${type} for ${toEmail}`);
         return;
@@ -144,15 +163,40 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
         auth: { user: smtpUser, pass: smtpPass },
     });
     const recipients = ccTo ? `${toEmail}, ${ccTo}` : toEmail;
-    await transporter.sendMail({
-        from: `"Pharmasocii" <${from}>`,
-        to: recipients,
-        subject: ccTo ? `[CC] ${subject}` : subject,
-        text: ccTo ? `${text}\n\n---\nQA copy to ${ccTo}` : text,
-        html: ccTo
-            ? `${html}<hr/><p style="color:#666;font-size:12px">QA copy (CC ${escapeHtmlVerification(ccTo)})</p>`
-            : html,
-    });
+    try {
+        await transporter.sendMail({
+            from,
+            to: recipients,
+            subject: ccTo ? `[CC] ${subject}` : subject,
+            text: ccTo ? `${text}\n\n---\nQA copy to ${ccTo}` : text,
+            html: ccTo
+                ? `${html}<hr/><p style="color:#666;font-size:12px">QA copy (CC ${escapeHtmlVerification(ccTo)})</p>`
+                : html,
+        });
+    } catch (mailErr) {
+        console.error("[community-email] SMTP send failed", type, toEmail, mailErr);
+    }
+}
+
+function getVerificationActionCodeSettings() {
+    const base = APP_PUBLIC_URL.replace(/\/$/, "");
+    return {
+        url: `${base}/member/login?verify=1`,
+        handleCodeInApp: false,
+    };
+}
+
+async function generateVerificationLinkForEmail(userEmail) {
+    const settings = getVerificationActionCodeSettings();
+    try {
+        return await admin.auth().generateEmailVerificationLink(userEmail, settings);
+    } catch (firstErr) {
+        console.warn(
+            "generateEmailVerificationLink with actionCodeSettings failed, retrying without settings",
+            firstErr?.message || firstErr
+        );
+        return await admin.auth().generateEmailVerificationLink(userEmail);
+    }
 }
 
 async function getMemberEmailAndName(userId) {
@@ -493,17 +537,33 @@ exports.mirrorPasswordResetEmail = onCall({ region: "us-central1", cors: true },
     }
 });
 
-// --- Email verification mirror (testing): Firebase Auth cannot CC its own messages.
-// Writes the same link to Firestore (admin-readable) and optionally emails SMTP to VERIFICATION_CC_EMAIL.
-// Set env on the function in Google Cloud Console: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM (optional).
-// Override recipient: VERIFICATION_CC_EMAIL
+// --- Email verification: admin queue (pendingVerifications) + link history (verificationMirrors).
+// Queue is written immediately on signup; links are attached when Auth allows.
+
+async function syncPendingVerificationRecord({ userId, userEmail, userName, source }) {
+    const ref = db.collection("pendingVerifications").doc(userId);
+    const existing = await ref.get();
+    const payload = {
+        userId,
+        userEmail,
+        userName: userName || null,
+        source: source || "unknown",
+        status: "awaiting_verification",
+        updatedAt: FieldValue.serverTimestamp(),
+    };
+    if (!existing.exists) {
+        payload.createdAt = FieldValue.serverTimestamp();
+    }
+    await ref.set(payload, { merge: true });
+    return ref;
+}
 
 async function sendVerificationMirrorSmtp(userEmail, verifyLink) {
     const host = process.env.SMTP_HOST;
     const port = parseInt(process.env.SMTP_PORT || "587", 10);
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const from = process.env.SMTP_FROM || smtpUser;
+    const from = getNodemailerFrom();
     if (!host || !smtpUser || !smtpPass || !from) {
         console.info(
             `[verification-mirror] SMTP not configured; Firestore mirror only. user=${userEmail}. ` +
@@ -517,22 +577,44 @@ async function sendVerificationMirrorSmtp(userEmail, verifyLink) {
         secure: port === 465,
         auth: { user: smtpUser, pass: smtpPass },
     });
-    await transporter.sendMail({
-        from: `"Pharmasocii (test)" <${from}>`,
-        to: VERIFICATION_CC_EMAIL,
-        subject: `[TEST CC] Email verification for ${userEmail}`,
-        text:
-            `Testing phase — copy of verification link.\n\nUser: ${userEmail}\n\nLink:\n${verifyLink}\n`,
-        html:
-            `<p><b>User:</b> ${escapeHtmlVerification(userEmail)}</p>` +
-            `<p><a href="${verifyLink}">Open verification link</a></p>` +
-            `<p style="color:#666;font-size:12px">Mirror for QA (not the Firebase template email).</p>`,
-    });
+    try {
+        await transporter.sendMail({
+            from,
+            to: VERIFICATION_CC_EMAIL,
+            subject: `[TEST CC] Email verification for ${userEmail}`,
+            text:
+                `Testing phase — copy of verification link.\n\nUser: ${userEmail}\n\nLink:\n${verifyLink}\n`,
+            html:
+                `<p><b>User:</b> ${escapeHtmlVerification(userEmail)}</p>` +
+                `<p><a href="${verifyLink}">Open verification link</a></p>` +
+                `<p style="color:#666;font-size:12px">Mirror for QA (not the Firebase template email).</p>`,
+        });
+    } catch (mailErr) {
+        console.error("[verification-mirror] SMTP send failed", userEmail, mailErr);
+    }
 }
 
-async function recordVerificationMirror(userEmail, verifyLink, source) {
+const VERIFICATION_MIRROR_REUSE_MS = 15 * 60 * 1000;
+
+async function getRecentVerificationMirrorLink(userEmail) {
+    const snap = await db
+        .collection("verificationMirrors")
+        .where("userEmail", "==", userEmail)
+        .orderBy("createdAt", "desc")
+        .limit(1)
+        .get();
+    if (snap.empty) return null;
+    const data = snap.docs[0].data();
+    const createdAt = data.createdAt?.toDate?.();
+    if (!data.verifyLink || !createdAt) return null;
+    if (Date.now() - createdAt.getTime() > VERIFICATION_MIRROR_REUSE_MS) return null;
+    return data.verifyLink;
+}
+
+async function recordVerificationMirror(userEmail, verifyLink, source, extra = {}) {
     await db.collection("verificationMirrors").add({
         userEmail,
+        userId: extra.userId || null,
         verifyLink,
         source,
         ccTo: VERIFICATION_CC_EMAIL,
@@ -540,17 +622,67 @@ async function recordVerificationMirror(userEmail, verifyLink, source) {
     });
 }
 
-async function mirrorVerificationForEmail(userEmail, source) {
-    const verifyLink = await admin.auth().generateEmailVerificationLink(userEmail);
-    await recordVerificationMirror(userEmail, verifyLink, source);
-    try {
-        await sendVerificationMirrorSmtp(userEmail, verifyLink);
-    } catch (e) {
-        console.error("[verification-mirror] SMTP failed", e);
-    }
+function isAuthRateLimitError(err) {
+    const msg = String(err?.message || err || "");
+    return (
+        err?.code === "auth/too-many-requests" ||
+        err?.codePrefix === "auth" ||
+        msg.includes("TOO_MANY_ATTEMPTS_TRY_LATER") ||
+        msg.includes("too-many-requests")
+    );
 }
 
-/** Server-side mirror when a community member doc is created (no client callable / IAM issues). */
+async function updatePendingVerificationDoc(userId, fields) {
+    await db
+        .collection("pendingVerifications")
+        .doc(userId)
+        .set({ ...fields, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+}
+
+/** Attach or refresh verification link; always leaves pendingVerifications row for admin. */
+async function tryAttachVerificationLink(userId, userEmail, source, options = {}) {
+    const { forceNew = false } = options;
+    let verifyLink = forceNew ? null : await getRecentVerificationMirrorLink(userEmail);
+    let linkError = null;
+
+    if (!verifyLink) {
+        try {
+            verifyLink = await generateVerificationLinkForEmail(userEmail);
+            await recordVerificationMirror(userEmail, verifyLink, source, { userId });
+        } catch (err) {
+            linkError = err?.message || String(err);
+            if (isAuthRateLimitError(err)) {
+                verifyLink = await getRecentVerificationMirrorLink(userEmail);
+                if (verifyLink) {
+                    linkError = null;
+                } else {
+                    linkError =
+                        "Firebase rate limit — wait 15–30 min, then use Generate link in admin.";
+                }
+            }
+        }
+    }
+
+    const status = verifyLink ? "link_ready" : "link_unavailable";
+    await updatePendingVerificationDoc(userId, {
+        userEmail,
+        status,
+        verifyLink: verifyLink || FieldValue.delete(),
+        linkError: linkError || FieldValue.delete(),
+    });
+
+    if (verifyLink) {
+        await sendVerificationMirrorSmtp(userEmail, verifyLink);
+    }
+    return { verifyLink, linkError, status };
+}
+
+async function runVerificationPipeline(userId, userEmail, userName, source, options = {}) {
+    await syncPendingVerificationRecord({ userId, userEmail, userName, source });
+    return tryAttachVerificationLink(userId, userEmail, source, options);
+}
+
+/** Server-side mirror when a community member doc is created. */
 exports.onMemberDocumentCreatedVerificationMirror = onDocumentCreated(
     {
         document: "membersCollection/{userId}",
@@ -558,49 +690,143 @@ exports.onMemberDocumentCreatedVerificationMirror = onDocumentCreated(
     },
     async (event) => {
         const userId = event.params.userId;
+        const memberData = event.data?.data?.() || {};
         try {
             const userRecord = await admin.auth().getUser(userId);
             if (!userRecord.email || userRecord.emailVerified) return;
-            await mirrorVerificationForEmail(userRecord.email, "firestore_member_created");
-            const memberSnap = await db.collection("membersCollection").doc(userId).get();
-            const userName = memberSnap.data()?.userName || memberSnap.data()?.name || null;
-            await sendCommunityEmail({
-                type: "account_activation",
-                toEmail: userRecord.email,
-                payload: { userName },
-            });
+            const userName = memberData.userName || memberData.name || null;
+            const verification = await runVerificationPipeline(
+                userId,
+                userRecord.email,
+                userName,
+                "firestore_member_created"
+            );
+            try {
+                await sendCommunityEmail({
+                    type: "account_activation",
+                    toEmail: userRecord.email,
+                    payload: { userName, verifyLink: verification.verifyLink || null },
+                    link: verification.verifyLink || null,
+                });
+            } catch (mailErr) {
+                console.error("onMemberDocumentCreated account_activation email", userId, mailErr);
+            }
         } catch (e) {
-            console.error("onMemberDocumentCreatedVerificationMirror", userId, e);
+            console.error("onMemberDocumentCreatedVerificationMirror", userId, e?.message || e);
+            if (memberData.email) {
+                await syncPendingVerificationRecord({
+                    userId,
+                    userEmail: memberData.email,
+                    userName: memberData.userName || memberData.name,
+                    source: "firestore_member_created_error",
+                }).catch(() => {});
+                await updatePendingVerificationDoc(userId, {
+                    status: "link_unavailable",
+                    linkError: e?.message || String(e),
+                }).catch(() => {});
+            }
         }
     }
 );
 
-exports.requestVerificationEmailCc = onCall(
-    {
-        region: "us-central1",
-        cors: true,
-    },
+/** Member client: ensure admin queue row exists (safe if trigger already ran). */
+exports.ensureVerificationPending = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.uid || !request.auth.token?.email) {
+        throw new HttpsError("unauthenticated", "Sign in required.");
+    }
+    if (request.auth.token.email_verified) {
+        return { ok: true, skipped: "already_verified" };
+    }
+    const userId = request.auth.uid;
+    const email = request.auth.token.email;
+    const memberSnap = await db.collection("membersCollection").doc(userId).get();
+    if (!memberSnap.exists) {
+        throw new HttpsError("failed-precondition", "Community member profile required.");
+    }
+    const userName = memberSnap.data()?.userName || memberSnap.data()?.name || null;
+    const result = await runVerificationPipeline(userId, email, userName, "client_ensure");
+    return { ok: true, hasLink: Boolean(result.verifyLink), status: result.status };
+});
+
+exports.requestVerificationEmailCc = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.token?.email || !request.auth.uid) {
+        throw new HttpsError("unauthenticated", "Sign in required.");
+    }
+    const memberSnap = await db.collection("membersCollection").doc(request.auth.uid).get();
+    if (!memberSnap.exists) {
+        throw new HttpsError(
+            "failed-precondition",
+            "Community member profile required (verification mirror is community-only)."
+        );
+    }
+    const email = request.auth.token.email;
+    if (request.auth.token.email_verified) {
+        return { ok: true, skipped: "already_verified" };
+    }
+    const userName = memberSnap.data()?.userName || memberSnap.data()?.name || null;
+    const result = await runVerificationPipeline(
+        request.auth.uid,
+        email,
+        userName,
+        "callable_resend"
+    );
+    if (!result.verifyLink && result.linkError) {
+        return { ok: true, queued: true, status: result.status, message: result.linkError };
+    }
+    return { ok: true, hasLink: Boolean(result.verifyLink), status: result.status };
+});
+
+exports.adminRefreshVerificationLink = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
+    await assertAdmin(request.auth.uid);
+    const { userId } = request.data || {};
+    if (!userId) throw new HttpsError("invalid-argument", "userId required.");
+    let userRecord;
+    try {
+        userRecord = await admin.auth().getUser(userId);
+    } catch {
+        throw new HttpsError("not-found", "User not found.");
+    }
+    if (!userRecord.email) throw new HttpsError("failed-precondition", "User has no email.");
+    if (userRecord.emailVerified) {
+        await updatePendingVerificationDoc(userId, { status: "verified" });
+        return { ok: true, skipped: "already_verified" };
+    }
+    const { userName } = await getMemberEmailAndName(userId);
+    const result = await runVerificationPipeline(
+        userId,
+        userRecord.email,
+        userName,
+        "admin_refresh",
+        { forceNew: true }
+    );
+    return {
+        ok: true,
+        hasLink: Boolean(result.verifyLink),
+        status: result.status,
+        message: result.linkError || null,
+    };
+});
+
+/** QA: mark member verified without inbox (mimics user clicking Firebase verify link). */
+exports.adminApproveMemberVerification = onCall(
+    { region: "us-central1", cors: true },
     async (request) => {
-        if (!request.auth?.token?.email || !request.auth.uid) {
-            throw new HttpsError("unauthenticated", "Sign in required.");
+        if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
+        await assertAdmin(request.auth.uid);
+        const { userId } = request.data || {};
+        if (!userId) throw new HttpsError("invalid-argument", "userId required.");
+        await admin.auth().updateUser(userId, { emailVerified: true });
+        const memberRef = db.collection("membersCollection").doc(userId);
+        const memberSnap = await memberRef.get();
+        if (memberSnap.exists) {
+            await memberRef.update({ emailVerified: true });
         }
-        const memberSnap = await db.collection("membersCollection").doc(request.auth.uid).get();
-        if (!memberSnap.exists) {
-            throw new HttpsError(
-                "failed-precondition",
-                "Community member profile required (verification mirror is community-only)."
-            );
-        }
-        const email = request.auth.token.email;
-        if (request.auth.token.email_verified) {
-            return { ok: true, skipped: "already_verified" };
-        }
-        try {
-            await mirrorVerificationForEmail(email, "callable_resend");
-            return { ok: true };
-        } catch (e) {
-            console.error("requestVerificationEmailCc", e);
-            throw new HttpsError("internal", "Could not create verification mirror.");
-        }
+        await updatePendingVerificationDoc(userId, {
+            status: "admin_approved",
+            verifyLink: FieldValue.delete(),
+            linkError: FieldValue.delete(),
+        });
+        return { ok: true };
     }
 );

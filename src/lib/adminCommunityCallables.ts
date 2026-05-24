@@ -36,3 +36,19 @@ export async function mirrorPasswordResetEmail(email: string) {
   const fn = httpsCallable<{ email: string }, { ok: boolean }>(fns, "mirrorPasswordResetEmail");
   return fn({ email });
 }
+
+export async function adminRefreshVerificationLink(userId: string) {
+  const fn = httpsCallable<
+    { userId: string },
+    { ok: boolean; hasLink?: boolean; status?: string; message?: string | null }
+  >(fns, "adminRefreshVerificationLink");
+  return fn({ userId });
+}
+
+export async function adminApproveMemberVerification(userId: string) {
+  const fn = httpsCallable<{ userId: string }, { ok: boolean }>(
+    fns,
+    "adminApproveMemberVerification",
+  );
+  return fn({ userId });
+}

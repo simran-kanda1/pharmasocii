@@ -14,6 +14,7 @@ import {
 import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import { normalizeUserNameKey } from "@/lib/community";
+import { ensureVerificationPending } from "@/lib/ensureVerificationPending";
 
 export default function MemberRegister() {
   const navigate = useNavigate();
@@ -105,10 +106,11 @@ export default function MemberRegister() {
 
       try {
         await sendEmailVerification(user);
+        await ensureVerificationPending();
       } catch (verifyErr: unknown) {
         console.error(verifyErr);
         let hint =
-          "Account created. If you don’t see the email, check spam, then use “Resend verification” after signing in. Admins can copy the verify link from Dashboard → Overview → verification mirrors.";
+          "Account created. If you don’t see the email, check spam, then use “Resend verification” after signing in. Admins can approve or copy the link from Dashboard → Overview → Member email verification.";
         if (typeof verifyErr === "object" && verifyErr !== null && "code" in verifyErr) {
           const code = (verifyErr as FirebaseError).code;
           if (code === "auth/too-many-requests") {

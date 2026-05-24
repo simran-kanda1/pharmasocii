@@ -57,6 +57,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Admin queue: one doc per member awaiting email verification (server writes only).
+    match /pendingVerifications/{userId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /emailLogCollection/{docId} {
       allow read: if isAdmin();
       allow write: if false;
