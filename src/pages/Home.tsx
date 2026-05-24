@@ -1,15 +1,21 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, PlayCircle, ShieldCheck, Building2, Users, Calendar, Briefcase, MessageSquare, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 import { AutoCarousel } from "@/components/ui/auto-carousel";
-import { db } from "@/firebase";
-import { collection, collectionGroup, query, where, limit, getDocs, orderBy } from "firebase/firestore";
+import { auth, db } from "@/firebase";
+import { collection, collectionGroup, query, where, limit, getDocs, orderBy, doc, getDoc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 import { PostCard } from "@/components/community/PostCard";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { toTitleCase } from "@/lib/utils";
+import {
+    loadMemberEngagementIds,
+    togglePostHelpful,
+    toggleSavedPost,
+} from "@/lib/communityEngagement";
 
 const FEATURE_FETCH_LIMIT = 5000;
 /** When no rows match paid home spotlight, still show recent active listings so the home page is not empty. */
@@ -82,6 +88,89 @@ export default function Home() {
     const [featuredEvents, setFeaturedEvents] = useState<any[]>([]);
     const [featuredConsulting, setFeaturedConsulting] = useState<any[]>([]);
     const [communityHighlights, setCommunityHighlights] = useState<any[]>([]);
+    const [user, setUser] = useState<import("firebase/auth").User | null>(null);
+    const [verified, setVerified] = useState(false);
+    const [hasMemberProfile, setHasMemberProfile] = useState(false);
+    const [memberRestricted, setMemberRestricted] = useState(false);
+    const [savedPostIds, setSavedPostIds] = useState<Set<string>>(new Set());
+    const [helpfulPostIds, setHelpfulPostIds] = useState<Set<string>>(new Set());
+
+    useEffect(() => {
+        const unsub = onAuthStateChanged(auth, async (u) => {
+            setUser(u);
+            if (!u) {
+                setVerified(false);
+                setHasMemberProfile(false);
+                setMemberRestricted(false);
+                setSavedPostIds(new Set());
+                setHelpfulPostIds(new Set());
+                return;
+            }
+            await u.reload();
+            setVerified(u.emailVerified);
+            const m = await getDoc(doc(db, "membersCollection", u.uid));
+            setHasMemberProfile(m.exists());
+            const st = m.data()?.accountStatus;
+            setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
+            if (m.exists()) {
+                const engagement = await loadMemberEngagementIds(u.uid);
+                setSavedPostIds(engagement.savedPostIds);
+                setHelpfulPostIds(engagement.helpfulPostIds);
+            } else {
+                setSavedPostIds(new Set());
+                setHelpfulPostIds(new Set());
+            }
+        });
+        return () => unsub();
+    }, []);
+
+    const canEngage = Boolean(user && verified && hasMemberProfile && !memberRestricted);
+    const engageHint = memberRestricted
+        ? "Your account is view-only."
+        : !user
+            ? "Log in with a verified member profile."
+            : !verified
+                ? "Verify your email first."
+                : !hasMemberProfile
+                    ? "Create your community profile."
+                    : "";
+
+    const toggleSavePost = useCallback(async (postId: string) => {
+        if (!canEngage || !user) return;
+        try {
+            const nowSaved = await toggleSavedPost(user.uid, postId, savedPostIds.has(postId));
+            setSavedPostIds((prev) => {
+                const next = new Set(prev);
+                if (nowSaved) next.add(postId);
+                else next.delete(postId);
+                return next;
+            });
+        } catch (e) {
+            console.error(e);
+        }
+    }, [canEngage, user, savedPostIds]);
+
+    const toggleHelpfulPost = useCallback(async (postId: string) => {
+        if (!canEngage || !user) return;
+        try {
+            const nowHelpful = await togglePostHelpful(user.uid, postId, helpfulPostIds.has(postId));
+            setHelpfulPostIds((prev) => {
+                const next = new Set(prev);
+                if (nowHelpful) next.add(postId);
+                else next.delete(postId);
+                return next;
+            });
+            setCommunityHighlights((prev) =>
+                prev.map((p) =>
+                    p.id === postId
+                        ? { ...p, likeCount: Math.max(0, Number(p.likeCount ?? 0) + (nowHelpful ? 1 : -1)) }
+                        : p,
+                ),
+            );
+        } catch (e) {
+            console.error(e);
+        }
+    }, [canEngage, user, helpfulPostIds]);
 
     useEffect(() => {
         const fetchFeaturedData = async () => {
@@ -447,6 +536,13 @@ export default function Home() {
                                     key={p.id}
                                     post={p}
                                     categoryDoc={categoryDoc}
+                                    showActionBar={Boolean(user)}
+                                    canEngage={canEngage}
+                                    engageHint={engageHint}
+                                    saved={savedPostIds.has(p.id)}
+                                    helpful={helpfulPostIds.has(p.id)}
+                                    onToggleSave={() => toggleSavePost(p.id)}
+                                    onToggleHelpful={() => toggleHelpfulPost(p.id)}
                                 />
                             ))
                         )}

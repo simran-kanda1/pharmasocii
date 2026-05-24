@@ -9,8 +9,11 @@ import { formatCategoryPlain, formatRelativeTime } from "@/lib/community";
 import { Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+import { PostActionBar } from "@/components/community/PostActionBar";
+
 export type PostCardPost = {
   id: string;
+  authorId?: string;
   authorUserName: string;
   title: string;
   text: string;
@@ -20,6 +23,8 @@ export type PostCardPost = {
   countries?: string[];
   externalLinks?: string[];
   imageStoragePath?: string | null;
+  commentCount?: number;
+  likeCount?: number;
   createdAt?: { toDate: () => Date };
 };
 
@@ -49,17 +54,26 @@ export function PostCard({
   post,
   categoryDoc,
   showAuthorEmail,
+  showActionBar = false,
+  canEngage = false,
+  engageHint,
   saved,
+  helpful,
   canSave,
   onToggleSave,
+  onToggleHelpful,
 }: {
   post: PostCardPost;
   categoryDoc: CommunityCategoryDoc | null;
-  /** When set, shown next to username (e.g. Firebase user email on feed for signed-in context). */
   showAuthorEmail?: string | null;
+  showActionBar?: boolean;
+  canEngage?: boolean;
+  engageHint?: string;
   saved?: boolean;
+  helpful?: boolean;
   canSave?: boolean;
   onToggleSave?: () => void;
+  onToggleHelpful?: () => void;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const created = post.createdAt?.toDate?.() ?? new Date();
@@ -116,7 +130,7 @@ export function PostCard({
                 <span className="text-xs text-muted-foreground truncate max-w-[200px]">{showAuthorEmail}</span>
               ) : null}
               <span className="text-xs text-muted-foreground">{formatRelativeTime(created)}</span>
-              {canSave && onToggleSave && (
+              {!showActionBar && canSave && onToggleSave && (
                 <Button
                   type="button"
                   variant="ghost"
@@ -179,6 +193,22 @@ export function PostCard({
             />
           </div>
         </Link>
+      )}
+
+      {showActionBar && (
+        <PostActionBar
+          postId={post.id}
+          postTitle={post.title}
+          targetAuthorId={post.authorId}
+          commentCount={post.commentCount ?? 0}
+          helpfulCount={post.likeCount ?? 0}
+          canEngage={canEngage}
+          engageHint={engageHint}
+          saved={saved}
+          helpful={helpful}
+          onToggleSave={onToggleSave}
+          onToggleHelpful={onToggleHelpful}
+        />
       )}
     </article>
   );

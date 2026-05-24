@@ -60,8 +60,8 @@ export function AdminEmailLogPanel() {
           <div>
             <CardTitle className="text-base">Community email log</CardTitle>
             <CardDescription>
-              Transactional emails (spam notices, reactivation, admin actions, password reset mirrors). CC
-              default: simrankaurkanda42@gmail.com when SMTP + COMMUNITY_EMAIL_CC_ALL=true.
+              CC defaults (comma-separated): simrankaurkanda42@gmail.com, singhamyw@outlook.com when SMTP +
+              COMMUNITY_EMAIL_CC_ALL=true.
             </CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={() => setRefreshKey((k) => k + 1)}>

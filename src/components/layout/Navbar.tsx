@@ -147,7 +147,7 @@ export default function Navbar() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-56 bg-background/90 border-foreground/10 shadow-2xl backdrop-blur-xl">
                                     {hasMemberProfile && (
-                                        <DropdownMenuItem className="p-3 focus:bg-foreground/5 cursor-pointer" onClick={() => navigate("/member/dashboard")}>
+                                        <DropdownMenuItem className="p-3 focus:bg-foreground/5 cursor-pointer" onClick={() => navigate("/community?view=my-space")}>
                                             <User className="w-4 h-4 mr-2 text-primary" />
                                             <span>Member dashboard</span>
                                         </DropdownMenuItem>

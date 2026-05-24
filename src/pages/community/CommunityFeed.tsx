@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   collection,
@@ -9,9 +9,6 @@ import {
   getDocs,
   doc,
   getDoc,
-  setDoc,
-  deleteDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -25,11 +22,19 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { CommunityFilterSidebar } from "@/components/community/CommunityFilterSidebar";
 import { postMatchesFilterKeys } from "@/lib/communityCategoryDisplay";
+import { CommunityMemberSidebar, type CommunityView } from "@/components/community/CommunityMemberSidebar";
+import { CommunityMemberPanels } from "@/components/community/CommunityMemberPanels";
+import { CreatePostModal, type CreatePostModalAction } from "@/components/community/CreatePostModal";
+import {
+  loadMemberEngagementIds,
+  togglePostHelpful,
+  toggleSavedPost,
+} from "@/lib/communityEngagement";
 
 type TabKey = "all" | "latest";
 
 export default function CommunityFeed() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { categoryDoc, categoriesLoading } = useCommunityCategories();
   const [posts, setPosts] = useState<Array<{ id: string; [k: string]: unknown }>>([]);
   const [loading, setLoading] = useState(true);
@@ -43,7 +48,26 @@ export default function CommunityFeed() {
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [selectedFilterKeys, setSelectedFilterKeys] = useState<string[]>([]);
   const [savedPostIds, setSavedPostIds] = useState<Set<string>>(new Set());
+  const [helpfulPostIds, setHelpfulPostIds] = useState<Set<string>>(new Set());
   const [memberRestricted, setMemberRestricted] = useState(false);
+  const [memberBio, setMemberBio] = useState("");
+  const [notificationUnread, setNotificationUnread] = useState(0);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createAction, setCreateAction] = useState<CreatePostModalAction>(null);
+  const [refreshPostsKey, setRefreshPostsKey] = useState(0);
+
+  const communityView = (searchParams.get("view") as CommunityView) || "home";
+  const setCommunityView = useCallback(
+    (view: CommunityView) => {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        if (view === "home") next.delete("view");
+        else next.set("view", view);
+        return next;
+      });
+    },
+    [setSearchParams],
+  );
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -54,22 +78,33 @@ export default function CommunityFeed() {
         const m = await getDoc(doc(db, "membersCollection", u.uid));
         setHasMemberProfile(m.exists());
         setMemberUserName(m.exists() ? String(m.data()?.userName ?? "") : null);
+        setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
         const st = m.data()?.accountStatus;
         setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
         if (m.exists()) {
-          const savedSnap = await getDocs(
-            collection(db, "membersCollection", u.uid, "savedPostsCollection"),
+          const engagement = await loadMemberEngagementIds(u.uid);
+          setSavedPostIds(engagement.savedPostIds);
+          setHelpfulPostIds(engagement.helpfulPostIds);
+          const nq = query(
+            collection(db, "membersCollection", u.uid, "notificationsCollection"),
+            where("isRead", "==", false),
           );
-          setSavedPostIds(new Set(savedSnap.docs.map((d) => d.id)));
+          const ns = await getDocs(nq);
+          setNotificationUnread(ns.size);
         } else {
           setSavedPostIds(new Set());
+          setHelpfulPostIds(new Set());
+          setNotificationUnread(0);
         }
       } else {
         setVerified(false);
         setHasMemberProfile(false);
         setMemberUserName(null);
+        setMemberBio("");
         setMemberRestricted(false);
         setSavedPostIds(new Set());
+        setHelpfulPostIds(new Set());
+        setNotificationUnread(0);
       }
     });
     return () => unsub();
@@ -78,6 +113,7 @@ export default function CommunityFeed() {
   useEffect(() => {
     (async () => {
       try {
+        setLoading(true);
         const q = query(
           collection(db, "postsCollection"),
           where("archived", "==", false),
@@ -92,7 +128,7 @@ export default function CommunityFeed() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [refreshPostsKey]);
 
   useEffect(() => {
     const q = searchParams.get("search") || "";
@@ -145,236 +181,264 @@ export default function CommunityFeed() {
   const welcomeName = memberUserName || user?.displayName || user?.email?.split("@")[0] || "Guest";
   const profileInitials = (welcomeName || "G").slice(0, 2).toUpperCase();
 
+  const engageHint = memberRestricted
+    ? "Your account is view-only."
+    : !user
+      ? "Log in with a verified member profile."
+      : !verified
+        ? "Verify your email first."
+        : !hasMemberProfile
+          ? "Create your community profile."
+          : "";
+
+  const openCreate = (action: CreatePostModalAction = null) => {
+    setCreateAction(action);
+    setCreateOpen(true);
+  };
+
   const toggleSavePost = async (postId: string) => {
     if (!canEngage || !user) return;
-    const sref = doc(db, "membersCollection", user.uid, "savedPostsCollection", postId);
     try {
-      if (savedPostIds.has(postId)) {
-        await deleteDoc(sref);
-        setSavedPostIds((prev) => {
-          const next = new Set(prev);
-          next.delete(postId);
-          return next;
-        });
-      } else {
-        await setDoc(sref, { savedAt: serverTimestamp() });
-        setSavedPostIds((prev) => new Set(prev).add(postId));
-      }
+      const nowSaved = await toggleSavedPost(user.uid, postId, savedPostIds.has(postId));
+      setSavedPostIds((prev) => {
+        const next = new Set(prev);
+        if (nowSaved) next.add(postId);
+        else next.delete(postId);
+        return next;
+      });
     } catch (e) {
       console.error(e);
     }
   };
 
+  const toggleHelpfulPost = async (postId: string) => {
+    if (!canEngage || !user) return;
+    try {
+      const nowHelpful = await togglePostHelpful(user.uid, postId, helpfulPostIds.has(postId));
+      setHelpfulPostIds((prev) => {
+        const next = new Set(prev);
+        if (nowHelpful) next.add(postId);
+        else next.delete(postId);
+        return next;
+      });
+      setPosts((prev) =>
+        prev.map((p) =>
+          p.id === postId
+            ? { ...p, likeCount: Math.max(0, Number(p.likeCount ?? 0) + (nowHelpful ? 1 : -1)) }
+            : p,
+        ),
+      );
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const reloadPosts = () => setRefreshPostsKey((k) => k + 1);
+  const showMemberPanels = Boolean(user && hasMemberProfile && communityView !== "home");
+  const displayName = memberBio ? `${welcomeName} (${memberBio})` : welcomeName;
+
+  const composerBlock = canCompose ? (
+    <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-foreground/15 dark:bg-card">
+      <div className="bg-slate-800 text-white px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
+        <Avatar className="h-9 w-9 shrink-0">
+          <AvatarFallback className="bg-white/15 text-white text-xs font-semibold">{profileInitials}</AvatarFallback>
+        </Avatar>
+        <button
+          type="button"
+          onClick={() => openCreate()}
+          className="flex-1 text-left text-sm text-slate-300 hover:text-white transition-colors py-2"
+        >
+          Share what&apos;s on your mind
+        </button>
+      </div>
+      <div className="grid grid-cols-4 divide-x divide-slate-200 border-t border-slate-200 dark:divide-foreground/10 dark:border-foreground/10">
+        {(
+          [
+            { action: "category" as const, icon: Tag, label: "Category" },
+            { action: "country" as const, icon: Globe, label: "Country" },
+            { action: "link" as const, icon: Link2, label: "Link" },
+            { action: "photo" as const, icon: ImageIcon, label: "Photo" },
+          ] as const
+        ).map(({ action, icon: Icon, label }) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => openCreate(action)}
+            className="flex flex-col sm:flex-row items-center justify-center gap-1 py-3 text-xs font-medium text-muted-foreground hover:bg-slate-50 hover:text-foreground dark:hover:bg-muted/40 transition-colors"
+          >
+            <Icon className="h-4 w-4" />
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  ) : (
+    <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center gap-3 dark:border-foreground/15 dark:bg-card">
+      <MessageSquarePlus className="h-8 w-8 text-muted-foreground shrink-0" />
+      <div className="flex-1 min-w-[200px]">
+        <p className="font-medium text-sm">Join the conversation</p>
+        <p className="text-xs text-muted-foreground">Sign in with a verified member profile to start a post.</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {!user && (
+          <Button size="sm" asChild>
+            <Link to="/member/login">Log in</Link>
+          </Button>
+        )}
+        {user && verified && !hasMemberProfile && (
+          <Button size="sm" asChild>
+            <Link to="/member/setup">Set up profile</Link>
+          </Button>
+        )}
+        {user && !verified && (
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/member/login">Verify email</Link>
+          </Button>
+        )}
+        {!user && (
+          <Button size="sm" variant="outline" asChild>
+            <Link to="/member/register">Register</Link>
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-slate-100/90 text-foreground dark:bg-background">
       <div className="max-w-[1440px] mx-auto px-3 sm:px-4 lg:px-6 py-6 lg:py-8">
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
-          {/* Left — profile summary */}
           <aside className="xl:col-span-3 order-2 xl:order-1">
             <div className="xl:sticky xl:top-20 space-y-4">
-              <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-foreground/15 dark:bg-card">
-                <div className="flex items-center gap-3">
-                  <Avatar className="h-14 w-14">
-                    <AvatarFallback className="bg-slate-800 text-lg text-white font-semibold dark:bg-primary">
-                      {profileInitials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide">Welcome</p>
-                    <p className="font-semibold text-lg leading-tight">{welcomeName}</p>
-                  </div>
-                </div>
-                <div className="mt-5 space-y-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Interest(s)</p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-3 text-center dark:border-foreground/15 dark:bg-muted/30">
-                      <p className="text-[10px] font-medium text-muted-foreground uppercase">Countries</p>
-                      <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                        {selectedCountries.length
-                          ? selectedCountries.join(", ")
-                          : "Use filters to explore by country"}
-                      </p>
-                    </div>
-                    <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-3 text-center dark:border-foreground/15 dark:bg-muted/30">
-                      <p className="text-[10px] font-medium text-muted-foreground uppercase">Categories</p>
-                      <p className="text-xs text-muted-foreground mt-1 leading-snug">
-                        {selectedFilterKeys.length > 0
-                          ? `${selectedFilterKeys.length} filter(s) active`
-                          : "Filter posts by category →"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                {!user && (
-                  <Button variant="outline" className="w-full mt-4" asChild>
-                    <Link to="/member/login">Sign in</Link>
-                  </Button>
-                )}
-                {user && !hasMemberProfile && (
-                  <Button className="w-full mt-4" asChild>
-                    <Link to="/member/setup">Create community profile</Link>
-                  </Button>
-                )}
-              </div>
+              <CommunityMemberSidebar
+                welcomeName={welcomeName}
+                profileInitials={profileInitials}
+                activeView={user ? communityView : "home"}
+                onViewChange={setCommunityView}
+                notificationUnread={notificationUnread}
+                selectedCountries={selectedCountries}
+                selectedFilterKeysCount={selectedFilterKeys.length}
+                signedIn={Boolean(user)}
+              />
+              {user && !hasMemberProfile && (
+                <Button className="w-full" asChild>
+                  <Link to="/member/setup">Create community profile</Link>
+                </Button>
+              )}
             </div>
           </aside>
 
-          {/* Center — composer + feed */}
           <main className="xl:col-span-6 order-1 xl:order-2 space-y-5">
             {memberRestricted && user && (
               <p className="text-sm text-muted-foreground rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
                 Your account is view-only. You cannot post or comment until restrictions are lifted.
               </p>
             )}
-            {canCompose ? (
-              <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-foreground/15 dark:bg-card">
-                <div className="bg-slate-800 text-white px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
-                  <Avatar className="h-9 w-9 shrink-0">
-                    <AvatarFallback className="bg-white/15 text-white text-xs font-semibold">
-                      {profileInitials}
-                    </AvatarFallback>
-                  </Avatar>
-                  <Link
-                    to="/community/new"
-                    className="flex-1 text-left text-sm text-slate-300 hover:text-white transition-colors py-2"
+
+            {(communityView === "home" || communityView === "my-space") && composerBlock}
+
+            {showMemberPanels && user ? (
+              <CommunityMemberPanels
+                view={communityView}
+                categoryDoc={categoryDoc}
+                userId={user.uid}
+                canEngage={canEngage}
+                engageHint={engageHint}
+                savedPostIds={savedPostIds}
+                helpfulPostIds={helpfulPostIds}
+                onToggleSave={toggleSavePost}
+                onToggleHelpful={toggleHelpfulPost}
+                onUnreadChange={setNotificationUnread}
+              />
+            ) : communityView === "home" ? (
+              <>
+                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
+                  <form
+                    className="flex gap-2 mb-4"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      setSearch(qInput);
+                    }}
                   >
-                    Share what&apos;s on your mind
-                  </Link>
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                      <Input
+                        value={qInput}
+                        onChange={(e) => setQInput(e.target.value)}
+                        placeholder="Search here"
+                        className="pl-9 h-11 bg-slate-50 border-slate-200 dark:bg-muted/30"
+                      />
+                    </div>
+                    <Button type="submit" variant="secondary" className="h-11">
+                      Search
+                    </Button>
+                  </form>
+
+                  <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-2 dark:border-foreground/10">
+                    <div className="flex gap-6">
+                      <button
+                        type="button"
+                        onClick={() => setFeedTab("all")}
+                        className={cn(
+                          "pb-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                          feedTab === "all"
+                            ? "border-slate-800 text-foreground dark:border-primary"
+                            : "border-transparent text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        All updates
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFeedTab("latest")}
+                        className={cn(
+                          "pb-2 text-sm font-medium border-b-2 -mb-px transition-colors",
+                          feedTab === "latest"
+                            ? "border-slate-800 text-foreground dark:border-primary"
+                            : "border-transparent text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        Latest
+                      </button>
+                    </div>
+                    <p className="text-sm text-muted-foreground tabular-nums">
+                      {sidebarFiltered.length} post{sidebarFiltered.length === 1 ? "" : "s"}
+                    </p>
+                  </div>
                 </div>
-                <div className="grid grid-cols-4 divide-x divide-slate-200 border-t border-slate-200 dark:divide-foreground/10 dark:border-foreground/10">
-                  {[
-                    { to: "/community/new", icon: Tag, label: "Category" },
-                    { to: "/community/new", icon: Globe, label: "Country" },
-                    { to: "/community/new", icon: Link2, label: "Link" },
-                    { to: "/community/new", icon: ImageIcon, label: "Photo" },
-                  ].map(({ to, icon: Icon, label }) => (
-                    <Link
-                      key={label}
-                      to={to}
-                      className="flex flex-col sm:flex-row items-center justify-center gap-1 py-3 text-xs font-medium text-muted-foreground hover:bg-slate-50 hover:text-foreground dark:hover:bg-muted/40 transition-colors"
-                    >
-                      <Icon className="h-4 w-4" />
-                      <span>{label}</span>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center gap-3 dark:border-foreground/15 dark:bg-card">
-                <MessageSquarePlus className="h-8 w-8 text-muted-foreground shrink-0" />
-                <div className="flex-1 min-w-[200px]">
-                  <p className="font-medium text-sm">Join the conversation</p>
-                  <p className="text-xs text-muted-foreground">
-                    Sign in with a verified member profile to start a post.
+
+                {loading || categoriesLoading ? (
+                  <p className="text-muted-foreground text-center py-12">Loading…</p>
+                ) : sidebarFiltered.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-12 rounded-xl border border-dashed border-slate-200 bg-white dark:border-foreground/15 dark:bg-card">
+                    No posts match your filters. Try clearing filters or search.
                   </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {!user && (
-                    <Button size="sm" asChild>
-                      <Link to="/member/login">Log in</Link>
-                    </Button>
-                  )}
-                  {user && verified && !hasMemberProfile && (
-                    <Button size="sm" asChild>
-                      <Link to="/member/setup">Set up profile</Link>
-                    </Button>
-                  )}
-                  {user && !verified && (
-                    <Button size="sm" variant="outline" asChild>
-                      <Link to="/member/login">Verify email</Link>
-                    </Button>
-                  )}
-                  {!user && (
-                    <Button size="sm" variant="outline" asChild>
-                      <Link to="/member/register">Register</Link>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            )}
-
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
-              <form
-                className="flex gap-2 mb-4"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  setSearch(qInput);
-                }}
-              >
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    value={qInput}
-                    onChange={(e) => setQInput(e.target.value)}
-                    placeholder="Search here"
-                    className="pl-9 h-11 bg-slate-50 border-slate-200 dark:bg-muted/30"
-                  />
-                </div>
-                <Button type="submit" variant="secondary" className="h-11">
-                  Search
-                </Button>
-              </form>
-
-              <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-2 dark:border-foreground/10">
-                <div className="flex gap-6">
-                  <button
-                    type="button"
-                    onClick={() => setFeedTab("all")}
-                    className={cn(
-                      "pb-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                      feedTab === "all"
-                        ? "border-slate-800 text-foreground dark:border-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    All updates
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFeedTab("latest")}
-                    className={cn(
-                      "pb-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                      feedTab === "latest"
-                        ? "border-slate-800 text-foreground dark:border-primary"
-                        : "border-transparent text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    Latest
-                  </button>
-                </div>
-                <p className="text-sm text-muted-foreground tabular-nums">
-                  {sidebarFiltered.length} post{sidebarFiltered.length === 1 ? "" : "s"}
-                </p>
-              </div>
-            </div>
-
-            {loading || categoriesLoading ? (
-              <p className="text-muted-foreground text-center py-12">Loading…</p>
-            ) : sidebarFiltered.length === 0 ? (
-              <p className="text-muted-foreground text-center py-12 rounded-xl border border-dashed border-slate-200 bg-white dark:border-foreground/15 dark:bg-card">
-                No posts match your filters. Try clearing filters or search.
-              </p>
-            ) : (
-              <ul className="space-y-5">
-                {sidebarFiltered.map((p) => (
-                  <li key={p.id}>
-                    <PostCard
-                      post={p as PostCardPost}
-                      categoryDoc={categoryDoc}
-                      showAuthorEmail={
-                        user && (p as { authorId?: string }).authorId === user.uid ? user.email : null
-                      }
-                      canSave={canEngage}
-                      saved={savedPostIds.has(p.id)}
-                      onToggleSave={() => toggleSavePost(p.id)}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
+                ) : (
+                  <ul className="space-y-5">
+                    {sidebarFiltered.map((p) => (
+                      <li key={p.id}>
+                        <PostCard
+                          post={p as PostCardPost}
+                          categoryDoc={categoryDoc}
+                          showAuthorEmail={
+                            user && (p as { authorId?: string }).authorId === user.uid ? user.email : null
+                          }
+                          showActionBar
+                          canEngage={canEngage}
+                          engageHint={engageHint}
+                          saved={savedPostIds.has(p.id)}
+                          helpful={helpfulPostIds.has(p.id)}
+                          onToggleSave={() => toggleSavePost(p.id)}
+                          onToggleHelpful={() => toggleHelpfulPost(p.id)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            ) : null}
           </main>
 
-          {/* Right — filters */}
           <aside className="xl:col-span-3 order-3">
             <div className="xl:sticky xl:top-20">
               <CommunityFilterSidebar
@@ -388,6 +452,16 @@ export default function CommunityFeed() {
           </aside>
         </div>
       </div>
+
+      <CreatePostModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        displayName={displayName}
+        profileInitials={profileInitials}
+        bio={memberBio}
+        initialAction={createAction}
+        onPublished={reloadPosts}
+      />
     </div>
   );
 }

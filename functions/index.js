@@ -3,7 +3,7 @@
  * Community: comment counts, spam thresholds, spam-block release.
  * Community-only email testing: onMemberDocumentCreatedVerificationMirror (Firestore) +
  * requestVerificationEmailCc (resend) mirror links to verificationMirrors and optional SMTP
- * to VERIFICATION_CC_EMAIL (default simrankaurkanda42@gmail.com).
+ * to VERIFICATION_CC_EMAIL (comma-separated; default includes simrankaurkanda42@gmail.com and singhamyw@outlook.com).
  *
  * Deploy: cd functions && npm install && cd .. && firebase deploy --only functions,firestore:rules
  *
@@ -87,8 +87,19 @@ const SPAM_THRESHOLD = 3;
 const BLOCK_DAYS = 30;
 const { renderEmail } = require("./emailTemplates");
 
-const VERIFICATION_CC_EMAIL =
-    process.env.VERIFICATION_CC_EMAIL || "simrankaurkanda42@gmail.com";
+function parseVerificationCcEmails() {
+    const raw =
+        process.env.VERIFICATION_CC_EMAIL ||
+        "simrankaurkanda42@gmail.com,singhamyw@outlook.com";
+    return raw
+        .split(/[,;]+/)
+        .map((e) => e.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+const VERIFICATION_CC_EMAILS = parseVerificationCcEmails();
+/** Comma-separated CC list for Firestore logs and display. */
+const VERIFICATION_CC_EMAIL = VERIFICATION_CC_EMAILS.join(", ");
 const COMMUNITY_EMAIL_CC_ALL = process.env.COMMUNITY_EMAIL_CC_ALL === "true";
 /** Must be an authorized domain in Firebase Auth (e.g. pharmasocii.firebaseapp.com or localhost). */
 const APP_PUBLIC_URL =
@@ -134,7 +145,8 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
         ...(link ? { verifyLink: link, resetLink: link } : {}),
     };
     const { subject, text, html } = renderEmail(type, mergedPayload);
-    const ccTo = COMMUNITY_EMAIL_CC_ALL ? VERIFICATION_CC_EMAIL : null;
+    const ccList = COMMUNITY_EMAIL_CC_ALL ? VERIFICATION_CC_EMAILS : [];
+    const ccTo = ccList.length ? VERIFICATION_CC_EMAIL : null;
 
     await db.collection("emailLogCollection").add({
         type,
@@ -162,14 +174,14 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
         secure: port === 465,
         auth: { user: smtpUser, pass: smtpPass },
     });
-    const recipients = ccTo ? `${toEmail}, ${ccTo}` : toEmail;
     try {
         await transporter.sendMail({
             from,
-            to: recipients,
-            subject: ccTo ? `[CC] ${subject}` : subject,
-            text: ccTo ? `${text}\n\n---\nQA copy to ${ccTo}` : text,
-            html: ccTo
+            to: toEmail,
+            ...(ccList.length ? { cc: ccList } : {}),
+            subject: ccList.length ? `[CC] ${subject}` : subject,
+            text: ccList.length ? `${text}\n\n---\nQA copy to ${ccTo}` : text,
+            html: ccList.length
                 ? `${html}<hr/><p style="color:#666;font-size:12px">QA copy (CC ${escapeHtmlVerification(ccTo)})</p>`
                 : html,
         });
@@ -580,7 +592,7 @@ async function sendVerificationMirrorSmtp(userEmail, verifyLink) {
     try {
         await transporter.sendMail({
             from,
-            to: VERIFICATION_CC_EMAIL,
+            to: VERIFICATION_CC_EMAILS,
             subject: `[TEST CC] Email verification for ${userEmail}`,
             text:
                 `Testing phase — copy of verification link.\n\nUser: ${userEmail}\n\nLink:\n${verifyLink}\n`,

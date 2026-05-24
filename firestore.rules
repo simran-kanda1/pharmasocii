@@ -124,6 +124,12 @@ service cloud.firestore {
         allow update: if false;
       }
 
+      match /helpfulPostsCollection/{postId} {
+        allow read: if isSignedIn() && request.auth.uid == userId;
+        allow create, delete: if canUseCommunityWrites() && request.auth.uid == userId;
+        allow update: if false;
+      }
+
       match /notificationsCollection/{notificationId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
         allow update: if isSignedIn()
@@ -165,6 +171,15 @@ service cloud.firestore {
         && request.resource.data.likeCount == 0;
 
       allow update: if isAdmin()
+        || (
+          canUseCommunityWrites()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
+          && (
+            request.resource.data.likeCount == resource.data.likeCount + 1
+            || (request.resource.data.likeCount == resource.data.likeCount - 1
+              && request.resource.data.likeCount >= 0)
+          )
+        )
         || (
           resource.data.authorId == request.auth.uid
           && request.resource.data.authorId == resource.data.authorId
