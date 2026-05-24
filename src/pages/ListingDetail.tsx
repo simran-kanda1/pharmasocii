@@ -773,14 +773,14 @@ export default function ListingDetail() {
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
                                 <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                                    <Building2 className="w-5 h-5 text-primary" /> Categories & Subcategories
+                                    <Building2 className="w-5 h-5 text-primary" /> Areas & Categories
                                 </h3>
                             </div>
                             <table className="w-full text-left border-collapse">
                                 <thead>
                                     <tr className="bg-muted/10 border-b border-foreground/10">
-                                        <th className="px-8 py-5 text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest w-1/3">Categories</th>
-                                        <th className="px-8 py-5 text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">Subcategories</th>
+                                        <th className="px-8 py-5 text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest w-1/3">Areas</th>
+                                        <th className="px-8 py-5 text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">Categories</th>
                                     </tr>
                                 </thead>
                                 <tbody>
