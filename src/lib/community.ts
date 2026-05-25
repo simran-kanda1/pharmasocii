@@ -13,6 +13,30 @@ export const POST_MAIN_CAT_MAX = 3;
 export const POST_SUB_PER_MAIN_MAX = 2;
 export const POST_SUBSUB_PER_SUB_MAX = 2;
 export const EXTERNAL_LINKS_MAX = 15;
+export const COMMENT_EXTERNAL_LINK_MAX = 1;
+
+/** Normalize http(s) URL; returns null if empty or invalid. */
+export function normalizeExternalLink(raw: string): string | null {
+  const t = raw.trim();
+  if (!t) return null;
+  try {
+    const u = new URL(/^https?:\/\//i.test(t) ? t : `https://${t}`);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return null;
+    return u.href;
+  } catch {
+    return null;
+  }
+}
+
+export function normalizeExternalLinks(raw: string[]): string[] {
+  const out: string[] = [];
+  for (const line of raw) {
+    const n = normalizeExternalLink(line);
+    if (n && !out.includes(n)) out.push(n);
+    if (out.length >= EXTERNAL_LINKS_MAX) break;
+  }
+  return out;
+}
 
 export function normalizeUserNameKey(userName: string): string {
   return userName.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");

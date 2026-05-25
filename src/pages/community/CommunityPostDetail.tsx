@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
@@ -30,8 +30,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
-import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX } from "@/lib/community";
-import { ArrowLeft, Bookmark, Flag, Share2 } from "lucide-react";
+import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink } from "@/lib/community";
+import { ArrowLeft, Bookmark, Flag, Share2, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const MAX_COMMENT_IMAGE_BYTES = 1.5 * 1024 * 1024;
@@ -44,6 +44,7 @@ type CommentRow = {
   text: string;
   parentCommentId?: string | null;
   imageStoragePath?: string | null;
+  externalLink?: string | null;
   createdAt?: { toDate: () => Date };
   archived?: boolean;
 };
@@ -63,7 +64,9 @@ export default function CommunityPostDetail() {
   const [memberRestricted, setMemberRestricted] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentFile, setCommentFile] = useState<File | null>(null);
+  const [commentLink, setCommentLink] = useState("");
   const [replyTo, setReplyTo] = useState<CommentRow | null>(null);
+  const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
   const [savedCommentIds, setSavedCommentIds] = useState<Set<string>>(new Set());
   const [reportOpen, setReportOpen] = useState(false);
@@ -170,6 +173,32 @@ export default function CommunityPostDetail() {
     }
   }, [highlightCommentId, comments]);
 
+  const { topLevelComments, repliesByParentId } = useMemo(() => {
+    const top: CommentRow[] = [];
+    const byParent = new Map<string, CommentRow[]>();
+    for (const c of comments) {
+      if (!c.parentCommentId) top.push(c);
+      else {
+        const pid = c.parentCommentId;
+        if (!byParent.has(pid)) byParent.set(pid, []);
+        byParent.get(pid)!.push(c);
+      }
+    }
+    return { topLevelComments: top, repliesByParentId: byParent };
+  }, [comments]);
+
+  useEffect(() => {
+    if (!highlightCommentId) return;
+    const highlighted = comments.find((c) => c.id === highlightCommentId);
+    if (highlighted?.parentCommentId) {
+      setExpandedReplies((prev) => {
+        const next = new Set(prev);
+        next.add(highlighted.parentCommentId!);
+        return next;
+      });
+    }
+  }, [highlightCommentId, comments]);
+
   const canEngage = Boolean(user && verified && !memberRestricted && hasMemberProfile);
   const postAuthorId = post?.authorId as string | undefined;
   const archived = post?.archived === true;
@@ -243,8 +272,17 @@ export default function CommunityPostDetail() {
       return;
     }
     if (replyTo?.parentCommentId) {
-      setError("You cannot reply to a reply.");
+      setError("You cannot reply to a reply. Only one level of replies is allowed.");
       return;
+    }
+
+    let externalLink: string | null = null;
+    if (commentLink.trim()) {
+      externalLink = normalizeExternalLink(commentLink);
+      if (!externalLink) {
+        setError("Enter a valid http(s) link or leave the link field empty.");
+        return;
+      }
     }
 
     const member = await getDoc(doc(db, "membersCollection", user.uid));
@@ -273,13 +311,18 @@ export default function CommunityPostDetail() {
         text: t,
         parentCommentId: replyTo?.id ?? null,
         imageStoragePath,
+        externalLink,
         createdAt: serverTimestamp(),
         archived: false,
         spamReportCount: 0,
       });
       setCommentText("");
       setCommentFile(null);
+      setCommentLink("");
       setReplyTo(null);
+      if (replyTo?.id) {
+        setExpandedReplies((prev) => new Set(prev).add(replyTo.id));
+      }
     } catch (err) {
       console.error(err);
       setError("Could not post comment.");
@@ -493,110 +536,162 @@ export default function CommunityPostDetail() {
         )}
       </article>
 
-      <section className="mt-10 space-y-4">
+      <section id="comments" className="mt-10 space-y-4 scroll-mt-24">
         <h2 className="text-lg font-semibold">Comments</h2>
+        <p className="text-xs text-muted-foreground">
+          You can comment on a post and reply once to a comment. Replies to replies are not allowed.
+        </p>
         {memberRestricted && (
           <p className="text-sm text-muted-foreground">
             Your account is temporarily restricted to read-only access.
           </p>
         )}
-        {!archived && (
-          <form
+        {!archived && !replyTo && (
+          <CommentComposer
+            canEngage={canEngage}
+            user={user}
+            verified={verified}
+            hasMemberProfile={hasMemberProfile}
+            isReply={false}
+            commentText={commentText}
+            setCommentText={setCommentText}
+            commentFile={commentFile}
+            setCommentFile={setCommentFile}
+            commentLink={commentLink}
+            setCommentLink={setCommentLink}
             onSubmit={submitComment}
-            className={cn(
-              "space-y-2 border border-foreground/10 rounded-xl p-4",
-              !canEngage && "opacity-60",
-            )}
-          >
-            {replyTo && (
-              <p className="text-xs text-muted-foreground">
-                Replying to <span className="font-medium text-foreground">{replyTo.userName}</span>
-                <Button
-                  type="button"
-                  variant="link"
-                  className="text-xs h-auto p-0 ml-2"
-                  disabled={!canEngage}
-                  onClick={() => setReplyTo(null)}
-                >
-                  Cancel
-                </Button>
-              </p>
-            )}
-            <Textarea
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              maxLength={replyTo ? REPLY_MAX : COMMENT_MAX}
-              rows={4}
-              disabled={!canEngage}
-              placeholder={
-                !canEngage
-                  ? "Log in to comment…"
-                  : replyTo
-                    ? `Reply (max ${REPLY_MAX} characters)`
-                    : `Comment (max ${COMMENT_MAX} characters)`
-              }
-              className="bg-foreground/5 border-foreground/10 disabled:cursor-not-allowed"
-            />
-            <div className="space-y-1">
-              <Label htmlFor="comment-img" className="text-xs text-muted-foreground">
-                Optional image (max 1.5 MB)
-              </Label>
-              <Input
-                id="comment-img"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                disabled={!canEngage}
-                onChange={(e) => setCommentFile(e.target.files?.[0] ?? null)}
-                className="text-sm"
-              />
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Button type="submit" disabled={!canEngage}>
-                Post
-              </Button>
-              {!canEngage && (
-                <p className="text-xs text-muted-foreground">
-                  {user && verified && !hasMemberProfile ? (
-                    <>
-                      <Link to="/member/setup" className="text-primary underline">
-                        Create your community profile
-                      </Link>{" "}
-                      to comment.
-                    </>
-                  ) : (
-                    <>
-                      <Link to="/member/login" className="text-primary underline">
-                        Log in
-                      </Link>{" "}
-                      with a verified member account to comment.
-                    </>
-                  )}
-                </p>
-              )}
-            </div>
-          </form>
+          />
         )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <ul className="space-y-3">
-          {comments.map((c) => (
-            <CommentItem
-              key={c.id}
-              comment={c}
-              archived={archived}
-              canEngage={canEngage}
-              engageHint={engageHint}
-              highlight={highlightCommentId === c.id}
-              saved={savedCommentIds.has(c.id)}
-              commentRef={(el) => {
-                commentRefs.current[c.id] = el;
-              }}
-              onReply={() => setReplyTo(c)}
-              onReport={() => openReport("comment", c)}
-              onToggleSave={() => toggleSaveComment(c.id)}
-            />
-          ))}
+        <ul className="space-y-4">
+          {topLevelComments.map((c) => {
+            const replies = repliesByParentId.get(c.id) ?? [];
+            const repliesExpanded = expandedReplies.has(c.id);
+            return (
+              <li key={c.id} className="space-y-2">
+                <CommentItem
+                  comment={c}
+                  archived={archived}
+                  canEngage={canEngage}
+                  engageHint={engageHint}
+                  highlight={highlightCommentId === c.id}
+                  saved={savedCommentIds.has(c.id)}
+                  commentRef={(el) => {
+                    commentRefs.current[c.id] = el;
+                  }}
+                  showReplyButton
+                  onReply={() => {
+                    setError("");
+                    setReplyTo(c);
+                  }}
+                  onReport={() => openReport("comment", c)}
+                  onToggleSave={() => toggleSaveComment(c.id)}
+                />
+                {replyTo?.id === c.id && (
+                  <CommentComposer
+                    canEngage={canEngage}
+                    user={user}
+                    verified={verified}
+                    hasMemberProfile={hasMemberProfile}
+                    isReply
+                    replyToName={c.userName}
+                    onCancel={() => {
+                      setReplyTo(null);
+                      setCommentText("");
+                      setCommentFile(null);
+                      setCommentLink("");
+                    }}
+                    commentText={commentText}
+                    setCommentText={setCommentText}
+                    commentFile={commentFile}
+                    setCommentFile={setCommentFile}
+                    commentLink={commentLink}
+                    setCommentLink={setCommentLink}
+                    onSubmit={submitComment}
+                  />
+                )}
+                {replies.length > 0 && (
+                  <div
+                    className={cn(
+                      "relative mt-2",
+                      repliesExpanded ? "ml-5 pl-5" : "ml-6 pl-4",
+                    )}
+                  >
+                    {repliesExpanded && (
+                      <div
+                        className="pointer-events-none absolute left-0 top-0 bottom-3 w-[2px] rounded-full bg-gradient-to-b from-primary/35 via-foreground/12 to-transparent"
+                        aria-hidden
+                      />
+                    )}
+                    {!repliesExpanded ? (
+                      <div className="border-l-2 border-foreground/10 pl-4">
+                        <Button
+                          type="button"
+                          variant="link"
+                          className="h-auto p-0 text-sm font-medium"
+                          onClick={() =>
+                            setExpandedReplies((prev) => {
+                              const next = new Set(prev);
+                              next.add(c.id);
+                              return next;
+                            })
+                          }
+                        >
+                          {replies.length} {replies.length === 1 ? "reply" : "replies"} · View replies
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="rounded-lg border border-foreground/8 bg-muted/15 dark:bg-muted/10 py-3 pr-3 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2 pl-0.5">
+                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                            <span className="inline-block w-3 h-px align-middle bg-foreground/25 mr-1.5" aria-hidden />
+                            Replies to{" "}
+                            <span className="font-semibold normal-case text-foreground/80">{c.userName}</span>
+                          </p>
+                          <Button
+                            type="button"
+                            variant="link"
+                            className="h-auto p-0 text-xs text-muted-foreground"
+                            onClick={() =>
+                              setExpandedReplies((prev) => {
+                                const next = new Set(prev);
+                                next.delete(c.id);
+                                return next;
+                              })
+                            }
+                          >
+                            Hide replies
+                          </Button>
+                        </div>
+                        <ul className="space-y-2 relative">
+                          {replies.map((r) => (
+                            <CommentItem
+                              key={r.id}
+                              comment={r}
+                              archived={archived}
+                              canEngage={canEngage}
+                              engageHint={engageHint}
+                              highlight={highlightCommentId === r.id}
+                              saved={savedCommentIds.has(r.id)}
+                              isReply
+                              parentUserName={c.userName}
+                              commentRef={(el) => {
+                                commentRefs.current[r.id] = el;
+                              }}
+                              onReport={() => openReport("comment", r)}
+                              onToggleSave={() => toggleSaveComment(r.id)}
+                            />
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </section>
 
@@ -628,6 +723,129 @@ export default function CommunityPostDetail() {
   );
 }
 
+function CommentComposer({
+  canEngage,
+  user,
+  verified,
+  hasMemberProfile,
+  isReply,
+  replyToName,
+  onCancel,
+  commentText,
+  setCommentText,
+  setCommentFile,
+  commentLink,
+  setCommentLink,
+  onSubmit,
+}: {
+  canEngage: boolean;
+  user: import("firebase/auth").User | null;
+  verified: boolean;
+  hasMemberProfile: boolean;
+  isReply: boolean;
+  replyToName?: string;
+  onCancel?: () => void;
+  commentText: string;
+  setCommentText: (v: string) => void;
+  commentFile: File | null;
+  setCommentFile: (f: File | null) => void;
+  commentLink: string;
+  setCommentLink: (v: string) => void;
+  onSubmit: (e: React.FormEvent) => void;
+}) {
+  const maxLen = isReply ? REPLY_MAX : COMMENT_MAX;
+  const imgId = isReply ? "reply-img" : "comment-img";
+  const linkId = isReply ? "reply-link" : "comment-link";
+
+  return (
+    <form
+      onSubmit={onSubmit}
+      className={cn(
+        "space-y-2 border border-foreground/10 rounded-xl p-4",
+        isReply && "ml-2 bg-muted/20",
+        !canEngage && "opacity-60",
+      )}
+    >
+      {isReply && replyToName && (
+        <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
+          Replying to <span className="font-medium text-foreground">{replyToName}</span>
+          {onCancel && (
+            <Button type="button" variant="link" className="text-xs h-auto p-0" disabled={!canEngage} onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
+        </p>
+      )}
+      <Textarea
+        value={commentText}
+        onChange={(e) => setCommentText(e.target.value)}
+        maxLength={maxLen}
+        rows={isReply ? 3 : 4}
+        disabled={!canEngage}
+        placeholder={
+          !canEngage
+            ? "Log in to comment…"
+            : isReply
+              ? `Write your reply (max ${REPLY_MAX} characters)`
+              : `Comment (max ${COMMENT_MAX} characters)`
+        }
+        className="bg-foreground/5 border-foreground/10 disabled:cursor-not-allowed"
+      />
+      <div className="space-y-1">
+        <Label htmlFor={linkId} className="text-xs text-muted-foreground flex items-center gap-1">
+          <Link2 className="h-3 w-3" /> Optional link
+        </Label>
+        <Input
+          id={linkId}
+          type="url"
+          placeholder="https://…"
+          value={commentLink}
+          disabled={!canEngage}
+          onChange={(e) => setCommentLink(e.target.value)}
+          className="text-sm"
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor={imgId} className="text-xs text-muted-foreground">
+          Optional image (max 1.5 MB)
+        </Label>
+        <Input
+          id={imgId}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          disabled={!canEngage}
+          onChange={(e) => setCommentFile(e.target.files?.[0] ?? null)}
+          className="text-sm"
+        />
+      </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={!canEngage}>
+          {isReply ? "Post reply" : "Post comment"}
+        </Button>
+        {!canEngage && (
+          <p className="text-xs text-muted-foreground">
+            {user && verified && !hasMemberProfile ? (
+              <>
+                <Link to="/member/setup" className="text-primary underline">
+                  Create your community profile
+                </Link>{" "}
+                to comment.
+              </>
+            ) : (
+              <>
+                <Link to="/member/login" className="text-primary underline">
+                  Log in
+                </Link>{" "}
+                with a verified member account to comment.
+              </>
+            )}
+          </p>
+        )}
+      </div>
+    </form>
+  );
+}
+
 function CommentItem({
   comment,
   archived,
@@ -635,6 +853,9 @@ function CommentItem({
   engageHint,
   highlight,
   saved,
+  isReply = false,
+  parentUserName,
+  showReplyButton = false,
   commentRef,
   onReply,
   onReport,
@@ -646,14 +867,15 @@ function CommentItem({
   engageHint: string;
   highlight: boolean;
   saved: boolean;
+  isReply?: boolean;
+  parentUserName?: string;
+  showReplyButton?: boolean;
   commentRef: (el: HTMLLIElement | null) => void;
-  onReply: () => void;
+  onReply?: () => void;
   onReport: () => void;
   onToggleSave: () => void;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const isReply = Boolean(comment.parentCommentId);
-  const canReplyTo = !isReply;
 
   useEffect(() => {
     const path = comment.imageStoragePath;
@@ -670,13 +892,23 @@ function CommentItem({
     <li
       ref={commentRef}
       className={cn(
-        "border border-foreground/10 rounded-xl p-4 bg-background/50",
-        isReply && "ml-8",
-        highlight && "ring-2 ring-primary ring-offset-2 animate-pulse",
+        "border rounded-xl p-4 list-none",
+        isReply
+          ? "border-foreground/8 bg-background/80 shadow-none"
+          : "border-foreground/10 bg-background/50",
+        highlight && "ring-2 ring-primary ring-offset-2",
       )}
     >
       <div className="flex justify-between gap-2">
-        <div>
+        <div className="min-w-0 flex-1">
+          {isReply && parentUserName && (
+            <p className="text-[10px] text-muted-foreground mb-1.5 flex items-center gap-1.5">
+              <span className="shrink-0 w-5 h-px bg-gradient-to-r from-primary/40 to-foreground/15" aria-hidden />
+              <span>
+                Reply to <span className="font-medium text-foreground/75">{parentUserName}</span>
+              </span>
+            </p>
+          )}
           <p className="text-sm font-semibold">{comment.userName}</p>
           <p className="text-xs text-muted-foreground">
             {comment.createdAt?.toDate ? formatRelativeTime(comment.createdAt.toDate()) : ""}
@@ -697,7 +929,7 @@ function CommentItem({
                 <Bookmark className={cn("w-4 h-4", saved && "fill-current")} />
               </Button>
             </span>
-            {canReplyTo && (
+            {showReplyButton && onReply && (
               <span title={!canEngage ? engageHint : "Reply"} className="inline-flex">
                 <Button
                   type="button"
@@ -727,6 +959,16 @@ function CommentItem({
         )}
       </div>
       <p className="text-sm mt-2 whitespace-pre-wrap">{comment.text}</p>
+      {comment.externalLink && (
+        <a
+          href={comment.externalLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-primary font-medium underline break-all mt-2 inline-block"
+        >
+          {comment.externalLink}
+        </a>
+      )}
       {imageUrl && (
         <img src={imageUrl} alt="" className="mt-2 rounded-lg max-h-48 border border-foreground/10" />
       )}

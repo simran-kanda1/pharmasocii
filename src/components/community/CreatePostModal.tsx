@@ -17,7 +17,7 @@ import {
 } from "@/components/community/CategoryPicker";
 import { CountryMultiSelect } from "@/components/community/CountryMultiSelect";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
-import { POST_BODY_MAX, POST_COUNTRIES_MAX, POST_TITLE_MAX } from "@/lib/community";
+import { POST_BODY_MAX, POST_COUNTRIES_MAX, POST_TITLE_MAX, normalizeExternalLinks } from "@/lib/community";
 import { publishCommunityPost, POST_IMAGE_ACCEPT } from "@/lib/publishCommunityPost";
 import { Globe, Link2, Send, Tag, ImageIcon, X } from "lucide-react";
 import { selectionToPostFields } from "@/components/community/CategoryPicker";
@@ -48,7 +48,8 @@ export function CreatePostModal({
   const [title, setTitle] = useState("");
   const [text, setText] = useState("");
   const [countries, setCountries] = useState<string[]>([]);
-  const [links, setLinks] = useState<string[]>([""]);
+  const [links, setLinks] = useState<string[]>([]);
+  const [showLinkFields, setShowLinkFields] = useState(false);
   const [catSel, setCatSel] = useState<CategorySelectionState>(emptyCategorySelection());
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState("");
@@ -59,6 +60,9 @@ export function CreatePostModal({
     if (open && initialAction) {
       if (initialAction === "photo") {
         window.setTimeout(() => fileInputRef.current?.click(), 100);
+      } else if (initialAction === "link") {
+        setShowLinkFields(true);
+        setLinks((prev) => (prev.length > 0 ? prev : [""]));
       } else {
         setNested(initialAction);
       }
@@ -69,7 +73,8 @@ export function CreatePostModal({
     setTitle("");
     setText("");
     setCountries([]);
-    setLinks([""]);
+    setLinks([]);
+    setShowLinkFields(false);
     setCatSel(emptyCategorySelection());
     setFile(null);
     setError("");
@@ -86,7 +91,7 @@ export function CreatePostModal({
 
   const submit = async () => {
     setError("");
-    const externalLinks = links.map((l) => l.trim()).filter(Boolean);
+    const externalLinks = normalizeExternalLinks(links);
     try {
       setSaving(true);
       await publishCommunityPost({
@@ -151,7 +156,7 @@ export function CreatePostModal({
               </p>
             </div>
 
-            {links.some((l) => l.trim()) && (
+            {(showLinkFields || links.length > 0) && (
               <div className="space-y-2">
                 <Label>Links</Label>
                 {links.map((link, i) => (
@@ -172,6 +177,14 @@ export function CreatePostModal({
                     )}
                   </div>
                 ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setLinks((prev) => [...prev, ""])}
+                >
+                  Add another link
+                </Button>
               </div>
             )}
 
@@ -212,7 +225,10 @@ export function CreatePostModal({
                   variant="ghost"
                   size="sm"
                   className="h-9 gap-1"
-                  onClick={() => setLinks((prev) => (prev.length && prev[prev.length - 1] === "" ? prev : [...prev, ""]))}
+                  onClick={() => {
+                    setShowLinkFields(true);
+                    setLinks((prev) => (prev.length > 0 ? prev : [""]));
+                  }}
                 >
                   <Link2 className="h-4 w-4" /> Link
                 </Button>

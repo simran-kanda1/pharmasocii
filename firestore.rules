@@ -218,6 +218,11 @@ service cloud.firestore {
           && (!('imageStoragePath' in request.resource.data)
             || request.resource.data.imageStoragePath == null
             || request.resource.data.imageStoragePath is string)
+          && (!('externalLink' in request.resource.data)
+            || request.resource.data.externalLink == null
+            || (request.resource.data.externalLink is string
+              && request.resource.data.externalLink.size() > 0
+              && request.resource.data.externalLink.size() <= 500))
           && request.resource.data.keys().hasAll([
             'authorId', 'userName', 'postId', 'text', 'createdAt', 'archived', 'spamReportCount'
           ]);
