@@ -408,7 +408,7 @@ export default function ListingDetail() {
                                                 <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10 h-full">
                                                     <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
+                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Areas</p>
                                                         <div className="text-sm font-semibold text-foreground">
                                                             {showAllCategories ? cats.join(", ") : cats.slice(0, initialLimit).join(", ") + (hasMore ? "..." : "")}
                                                             {hasMore && (
