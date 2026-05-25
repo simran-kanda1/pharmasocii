@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { auth, db } from "@/firebase";
 import {
   createUserWithEmailAndPassword,
-  sendEmailVerification,
   fetchSignInMethodsForEmail,
 } from "firebase/auth";
 import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
@@ -105,12 +104,14 @@ export default function MemberRegister() {
       });
 
       try {
-        await sendEmailVerification(user);
-        await ensureVerificationPending();
+        const queue = await ensureVerificationPending();
+        if (queue.ok && !queue.hasLink) {
+          console.warn("Verification link not ready yet", queue);
+        }
       } catch (verifyErr: unknown) {
         console.error(verifyErr);
         let hint =
-          "Account created. If you don’t see the email, check spam, then use “Resend verification” after signing in. Admins can approve or copy the link from Dashboard → Overview → Member email verification.";
+          "Account created. Check your inbox for an email from Pharmasocii with a verification link (also check spam). You can use “Resend verification” after signing in, or ask an admin to generate a link from Dashboard → Overview.";
         if (typeof verifyErr === "object" && verifyErr !== null && "code" in verifyErr) {
           const code = (verifyErr as FirebaseError).code;
           if (code === "auth/too-many-requests") {

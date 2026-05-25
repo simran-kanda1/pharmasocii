@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth, db } from "@/firebase";
-import { onAuthStateChanged, sendEmailVerification } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
+import { ensureVerificationPending } from "@/lib/ensureVerificationPending";
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { normalizeUserNameKey } from "@/lib/community";
 
@@ -107,7 +108,7 @@ export default function MemberCommunitySetup() {
       });
 
       if (!user.emailVerified) {
-        await sendEmailVerification(user);
+        await ensureVerificationPending();
       }
       navigate("/member/login?verify=1", { replace: true });
     } catch (err: unknown) {

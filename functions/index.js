@@ -138,6 +138,36 @@ async function archiveAllCommentsForPost(postId) {
     return n;
 }
 
+async function sendAccountActivationEmail(userId, userEmail, userName, verifyLink, options = {}) {
+    const { forceResend = false } = options;
+    if (!verifyLink || !userEmail) return { sent: false };
+
+    if (!forceResend && userId) {
+        const pending = await db.collection("pendingVerifications").doc(userId).get();
+        if (pending.exists() && pending.data()?.activationEmailSentAt) {
+            return { sent: false, skipped: "already_sent" };
+        }
+    }
+
+    try {
+        await sendCommunityEmail({
+            type: "account_activation",
+            toEmail: userEmail,
+            payload: { userName, verifyLink },
+            link: verifyLink,
+        });
+        if (userId) {
+            await updatePendingVerificationDoc(userId, {
+                activationEmailSentAt: FieldValue.serverTimestamp(),
+            });
+        }
+        return { sent: true };
+    } catch (mailErr) {
+        console.error("sendAccountActivationEmail", userId, userEmail, mailErr);
+        return { sent: false, error: mailErr?.message || String(mailErr) };
+    }
+}
+
 async function sendCommunityEmail({ type, toEmail, payload, link }) {
     if (!toEmail) return;
     const mergedPayload = {
@@ -653,7 +683,7 @@ async function updatePendingVerificationDoc(userId, fields) {
 
 /** Attach or refresh verification link; always leaves pendingVerifications row for admin. */
 async function tryAttachVerificationLink(userId, userEmail, source, options = {}) {
-    const { forceNew = false } = options;
+    const { forceNew = false, userName = null, forceResend = false } = options;
     let verifyLink = forceNew ? null : await getRecentVerificationMirrorLink(userEmail);
     let linkError = null;
 
@@ -685,13 +715,14 @@ async function tryAttachVerificationLink(userId, userEmail, source, options = {}
 
     if (verifyLink) {
         await sendVerificationMirrorSmtp(userEmail, verifyLink);
+        await sendAccountActivationEmail(userId, userEmail, userName, verifyLink, { forceResend });
     }
     return { verifyLink, linkError, status };
 }
 
 async function runVerificationPipeline(userId, userEmail, userName, source, options = {}) {
     await syncPendingVerificationRecord({ userId, userEmail, userName, source });
-    return tryAttachVerificationLink(userId, userEmail, source, options);
+    return tryAttachVerificationLink(userId, userEmail, source, { ...options, userName });
 }
 
 /** Server-side mirror when a community member doc is created. */
@@ -707,22 +738,12 @@ exports.onMemberDocumentCreatedVerificationMirror = onDocumentCreated(
             const userRecord = await admin.auth().getUser(userId);
             if (!userRecord.email || userRecord.emailVerified) return;
             const userName = memberData.userName || memberData.name || null;
-            const verification = await runVerificationPipeline(
+            await runVerificationPipeline(
                 userId,
                 userRecord.email,
                 userName,
                 "firestore_member_created"
             );
-            try {
-                await sendCommunityEmail({
-                    type: "account_activation",
-                    toEmail: userRecord.email,
-                    payload: { userName, verifyLink: verification.verifyLink || null },
-                    link: verification.verifyLink || null,
-                });
-            } catch (mailErr) {
-                console.error("onMemberDocumentCreated account_activation email", userId, mailErr);
-            }
         } catch (e) {
             console.error("onMemberDocumentCreatedVerificationMirror", userId, e?.message || e);
             if (memberData.email) {
@@ -757,7 +778,12 @@ exports.ensureVerificationPending = onCall({ region: "us-central1", cors: true }
     }
     const userName = memberSnap.data()?.userName || memberSnap.data()?.name || null;
     const result = await runVerificationPipeline(userId, email, userName, "client_ensure");
-    return { ok: true, hasLink: Boolean(result.verifyLink), status: result.status };
+    return {
+        ok: true,
+        hasLink: Boolean(result.verifyLink),
+        status: result.status,
+        message: result.linkError || null,
+    };
 });
 
 exports.requestVerificationEmailCc = onCall({ region: "us-central1", cors: true }, async (request) => {
@@ -780,7 +806,8 @@ exports.requestVerificationEmailCc = onCall({ region: "us-central1", cors: true 
         request.auth.uid,
         email,
         userName,
-        "callable_resend"
+        "callable_resend",
+        { forceResend: true }
     );
     if (!result.verifyLink && result.linkError) {
         return { ok: true, queued: true, status: result.status, message: result.linkError };
@@ -810,7 +837,7 @@ exports.adminRefreshVerificationLink = onCall({ region: "us-central1", cors: tru
         userRecord.email,
         userName,
         "admin_refresh",
-        { forceNew: true }
+        { forceNew: true, forceResend: true }
     );
     return {
         ok: true,

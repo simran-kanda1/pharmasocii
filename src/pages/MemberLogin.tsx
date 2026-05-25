@@ -8,7 +8,6 @@ import { Label } from "@/components/ui/label";
 import { auth, db } from "@/firebase";
 import {
   signInWithEmailAndPassword,
-  sendEmailVerification,
   onAuthStateChanged,
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
@@ -105,18 +104,14 @@ export default function MemberLogin() {
         return;
       }
       const queue = await ensureVerificationPending();
-      try {
-        await sendEmailVerification(auth.currentUser);
-      } catch (sendErr: unknown) {
-        const sendCode =
-          typeof sendErr === "object" && sendErr !== null && "code" in sendErr
-            ? (sendErr as FirebaseError).code
-            : "";
-        if (sendCode !== "auth/too-many-requests" || !queue.ok) throw sendErr;
-      }
-      if (queue.ok) {
+      if (queue.ok && queue.hasLink) {
         setResendMsg(
-          "Verification queued in Admin → Overview. Firebase also emailed your signup address — check spam.",
+          "Verification email sent with your link. Check inbox and spam.",
+        );
+      } else if (queue.ok) {
+        setResendMsg(
+          queue.message ||
+            "Verification queued but the link could not be generated yet (rate limit). Try again in 15–30 minutes or use Admin → Overview → Generate link.",
         );
       } else {
         setResendMsg(queue.message || "Could not queue verification. Try again or ask admin.");
