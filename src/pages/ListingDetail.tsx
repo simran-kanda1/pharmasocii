@@ -33,7 +33,7 @@ export default function ListingDetail() {
                 if (type === "business") {
                     collectionNames = ["businessOfferingsCollection"];
                 } else if (type === "consulting") {
-                    // Keep both names for backward compatibility with existing data.
+                    // Keep both names for backward compatibility with existing data. 
                     collectionNames = ["consultingServicesCollection", "consultingCollection"];
                 } else if (type === "events") {
                     collectionNames = ["eventsCollection"];
@@ -177,13 +177,13 @@ export default function ListingDetail() {
     // Helper to group subcategories by Area
     const getGroupedCategories = () => {
         if (type !== "business" && type !== "consulting") return [];
-        
+
         // Comprehensive fallbacks for different field names used in Firestore
         const selectedAreas = Array.isArray(item.selectedCategoriesDisplay) ? item.selectedCategoriesDisplay :
-                              (Array.isArray(item.selectedCategories) ? item.selectedCategories : 
-                              (Array.isArray(item.categories) ? item.categories :
-                              (item.category ? [item.category] : 
-                              (item.consultingCategory ? [item.consultingCategory] : []))));
+            (Array.isArray(item.selectedCategories) ? item.selectedCategories :
+                (Array.isArray(item.categories) ? item.categories :
+                    (item.category ? [item.category] :
+                        (item.consultingCategory ? [item.consultingCategory] : []))));
 
         const allSelectedSubs = Array.isArray(item.selectedSubcategoriesDisplay) ? item.selectedSubcategoriesDisplay :
             (Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories :
@@ -206,14 +206,14 @@ export default function ListingDetail() {
             const areaConfig = (categoriesDict as any)[area] || [];
             const matchingSubs = areaConfig.map((entry: any) => {
                 const subLabel = typeof entry === "string" ? entry : entry.label;
-                
+
                 // Flexible matching
                 const isSubSelected = allSelectedSubs.some((s: string) => normalize(s) === normalize(subLabel));
                 if (isSubSelected) claimedSubs.add(normalize(subLabel));
 
                 let subSubItems: string[] = [];
                 if (typeof entry !== "string" && entry.subSubcategories) {
-                    subSubItems = (entry.subSubcategories as string[]).filter((ss: string) => 
+                    subSubItems = (entry.subSubcategories as string[]).filter((ss: string) =>
                         allSelectedSubSubs.some((selectedSS: string) => normalize(selectedSS) === normalize(ss))
                     );
                     subSubItems.forEach((ss: string) => claimedSubSubs.add(normalize(ss)));
@@ -397,13 +397,13 @@ export default function ListingDetail() {
                                             </div>
                                         )}
                                         {(() => {
-                                            const cats = Array.isArray(item.selectedCategories) ? item.selectedCategories : 
-                                                         (Array.isArray(item.categories) ? item.categories : []);
+                                            const cats = Array.isArray(item.selectedCategories) ? item.selectedCategories :
+                                                (Array.isArray(item.categories) ? item.categories : []);
                                             if (cats.length === 0) return null;
-                                            
+
                                             const initialLimit = 3;
                                             const hasMore = cats.length > initialLimit;
-                                            
+
                                             return (
                                                 <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10 h-full">
                                                     <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
@@ -412,7 +412,7 @@ export default function ListingDetail() {
                                                         <div className="text-sm font-semibold text-foreground">
                                                             {showAllCategories ? cats.join(", ") : cats.slice(0, initialLimit).join(", ") + (hasMore ? "..." : "")}
                                                             {hasMore && (
-                                                                <button 
+                                                                <button
                                                                     onClick={() => setShowAllCategories(!showAllCategories)}
                                                                     className="ml-2 text-[10px] text-primary hover:underline uppercase font-bold tracking-tighter"
                                                                 >
@@ -700,47 +700,47 @@ export default function ListingDetail() {
                     const pdf = String(item.agendaPdfUrl || "").trim();
                     return highlights !== "" || pdf !== "";
                 })() && (
-                    <div className="mb-12">
-                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
-                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10 flex flex-wrap items-center justify-between gap-4">
-                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
-                                    <CalendarRange className="w-5 h-5 text-primary" /> Agenda
-                                </h3>
-                                {item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "" && (
-                                    <Button asChild variant="outline" size="sm" className="rounded-full shadow-sm border-primary/20 hover:bg-primary/5">
-                                        <a href={item.agendaPdfUrl} target="_blank" rel="noopener noreferrer">
-                                            <FileText className="mr-2 w-4 h-4 text-primary" /> Open Full PDF Agenda
-                                        </a>
-                                    </Button>
-                                )}
-                            </div>
-                            <div className="p-8 space-y-6">
-                                {(() => {
-                                    const text = String(item.agendaHighlights || item.agenda || "").trim();
-                                    if (!text) return null;
-                                    return (
-                                    <div className="space-y-3">
-                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Agenda Highlights</p>
-                                        <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{text}</p>
-                                    </div>
-                                    );
-                                })()}
-                                
-                                {item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "" && (
-                                    <div className="pt-4 border-t border-foreground/5">
-                                        <div className="aspect-[16/9] md:aspect-[21/9] w-full rounded-2xl border border-foreground/10 overflow-hidden bg-muted/20">
-                                            <iframe
-                                                title="Event Agenda PDF"
-                                                src={`${item.agendaPdfUrl}#toolbar=0`}
-                                                className="w-full h-full"
-                                            />
+                        <div className="mb-12">
+                            <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
+                                <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10 flex flex-wrap items-center justify-between gap-4">
+                                    <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                        <CalendarRange className="w-5 h-5 text-primary" /> Agenda
+                                    </h3>
+                                    {item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "" && (
+                                        <Button asChild variant="outline" size="sm" className="rounded-full shadow-sm border-primary/20 hover:bg-primary/5">
+                                            <a href={item.agendaPdfUrl} target="_blank" rel="noopener noreferrer">
+                                                <FileText className="mr-2 w-4 h-4 text-primary" /> Open Full PDF Agenda
+                                            </a>
+                                        </Button>
+                                    )}
+                                </div>
+                                <div className="p-8 space-y-6">
+                                    {(() => {
+                                        const text = String(item.agendaHighlights || item.agenda || "").trim();
+                                        if (!text) return null;
+                                        return (
+                                            <div className="space-y-3">
+                                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Agenda Highlights</p>
+                                                <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{text}</p>
+                                            </div>
+                                        );
+                                    })()}
+
+                                    {item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "" && (
+                                        <div className="pt-4 border-t border-foreground/5">
+                                            <div className="aspect-[16/9] md:aspect-[21/9] w-full rounded-2xl border border-foreground/10 overflow-hidden bg-muted/20">
+                                                <iframe
+                                                    title="Event Agenda PDF"
+                                                    src={`${item.agendaPdfUrl}#toolbar=0`}
+                                                    className="w-full h-full"
+                                                />
+                                            </div>
                                         </div>
-                                    </div>
-                                )}
-                            </div>
-                        </Card>
-                    </div>
-                )}
+                                    )}
+                                </div>
+                            </Card>
+                        </div>
+                    )}
 
                 {/* Subcategories detail for events */}
                 {type === "events" && (Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0) && (
@@ -854,7 +854,7 @@ export default function ListingDetail() {
                                         serviceCountries.forEach((country: string) => {
                                             let matched = false;
                                             const normalizedCountry = country.trim().toLowerCase();
-                                            
+
                                             // Check each region in the map
                                             for (const [region, regionCountries] of Object.entries(REGION_COUNTRY_MAP)) {
                                                 if (regionCountries.some(rc => rc.trim().toLowerCase() === normalizedCountry)) {
@@ -879,10 +879,10 @@ export default function ListingDetail() {
                                         }
 
                                         const regionList = Object.keys(regionsMapping).sort();
-                                        
+
                                         // Ensure active region is valid
-                                        const currentActive = regionList.includes(activeRegion || "") 
-                                            ? activeRegion 
+                                        const currentActive = regionList.includes(activeRegion || "")
+                                            ? activeRegion
                                             : (regionList.length > 0 ? regionList[0] : null);
 
                                         if (regionList.length === 0) {
@@ -899,11 +899,10 @@ export default function ListingDetail() {
                                                             <button
                                                                 key={region}
                                                                 onClick={() => setActiveRegion(region)}
-                                                                className={`text-sm py-2 px-6 rounded-xl transition-all border-2 ${
-                                                                    currentActive === region 
-                                                                    ? "bg-primary text-primary-foreground border-primary shadow-md transform scale-105" 
+                                                                className={`text-sm py-2 px-6 rounded-xl transition-all border-2 ${currentActive === region
+                                                                    ? "bg-primary text-primary-foreground border-primary shadow-md transform scale-105"
                                                                     : "bg-muted/50 text-slate-600 border-transparent hover:bg-slate-200"
-                                                                }`}
+                                                                    }`}
                                                             >
                                                                 {region}
                                                             </button>
