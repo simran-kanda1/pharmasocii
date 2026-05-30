@@ -18,6 +18,7 @@ import {
   LogOut,
   MessageSquare,
   MoreVertical,
+  Plus,
   Receipt,
   Search,
   SearchX,
@@ -83,6 +84,10 @@ import { AdminArchivedPostsPanel } from "@/components/admin/AdminArchivedPostsPa
 import { AdminReportedCommentsPanel } from "@/components/admin/AdminReportedCommentsPanel";
 import { AdminEmailLogPanel } from "@/components/admin/AdminEmailLogPanel";
 import { seedCommunityCategoriesIfMissing } from "@/lib/seedCommunityCategories";
+import { AdminAddPartner } from "@/components/admin/AdminAddPartner";
+import { AdminAddCategory } from "@/components/admin/AdminAddCategory";
+import { AdminAddPlan } from "@/components/admin/AdminAddPlan";
+import { AdminAddFeaturedPlan } from "@/components/admin/AdminAddFeaturedPlan";
 
 type AdminTab =
   | "overview"
@@ -182,6 +187,24 @@ const getCollectionLabel = (collectionName: string) => {
   }
 };
 
+const formatAdminDate = (val: any) => {
+  if (!val) return "-";
+  let d: Date;
+  if (val.seconds) {
+    d = new Date(val.seconds * 1000);
+  } else if (typeof val.toDate === "function") {
+    d = val.toDate();
+  } else {
+    d = new Date(val);
+  }
+  if (isNaN(d.getTime())) return "-";
+  // Format as dd-mm-yyyy
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 const getStatusBadge = (status?: string) => {
   switch (status) {
     case "Approved":
@@ -262,6 +285,10 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [listingSearchTerm, setListingSearchTerm] = useState("");
   const [listingFilter, setListingFilter] = useState<ListingFilter>("all");
+  const [isAddingPartner, setIsAddingPartner] = useState(false);
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [isAddingPlan, setIsAddingPlan] = useState(false);
+  const [isAddingFeaturedPlan, setIsAddingFeaturedPlan] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminName, setAdminName] = useState("");
@@ -329,27 +356,39 @@ export default function AdminDashboard() {
       setTransactions(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
 
-    const qPartnerPlans = query(collectionGroup(db, "planCollection"), orderBy("createdAt", "desc"));
-    const unsubPartnerPlans = onSnapshot(qPartnerPlans, (snap) => {
-      setPartnerPlans(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Record<string, any>),
-          partnerId: d.ref.path.split("/")[1] || "",
-        })) as PartnerPlanRecord[],
-      );
-    });
+    const qPartnerPlans = query(collectionGroup(db, "planCollection"));
+    const unsubPartnerPlans = onSnapshot(
+      qPartnerPlans,
+      (snap) => {
+        setPartnerPlans(
+          snap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Record<string, any>),
+            partnerId: d.ref.path.split("/")[1] || "",
+          })) as PartnerPlanRecord[],
+        );
+      },
+      (error) => {
+        console.error("Failed to fetch partnerPlans:", error);
+      }
+    );
 
-    const qFeatured = query(collectionGroup(db, "featuresCollection"), orderBy("createdAt", "desc"));
-    const unsubFeatured = onSnapshot(qFeatured, (snap) => {
-      setFeaturedPlans(
-        snap.docs.map((d) => ({
-          id: d.id,
-          ...(d.data() as Record<string, any>),
-          partnerId: d.ref.path.split("/")[1] || "",
-        })) as FeaturedPlanPurchase[],
-      );
-    });
+    const qFeatured = query(collectionGroup(db, "featuresCollection"));
+    const unsubFeatured = onSnapshot(
+      qFeatured,
+      (snap) => {
+        setFeaturedPlans(
+          snap.docs.map((d) => ({
+            id: d.id,
+            ...(d.data() as Record<string, any>),
+            partnerId: d.ref.path.split("/")[1] || "",
+          })) as FeaturedPlanPurchase[],
+        );
+      },
+      (error) => {
+        console.error("Failed to fetch featuredPlans:", error);
+      }
+    );
 
     const fetchListings = async () => {
       const collectionNames = [
@@ -655,8 +694,8 @@ export default function AdminDashboard() {
     partnerPlans.forEach((plan) => {
       if (!plan.partnerId) return;
       const existing = latestPlansByPartner.get(plan.partnerId);
-      const existingTs = existing?.createdAt?.seconds || 0;
-      const currentTs = plan?.createdAt?.seconds || 0;
+      const existingTs = (existing as any)?.startDate?.seconds || existing?.createdAt?.seconds || 0;
+      const currentTs = (plan as any)?.startDate?.seconds || plan?.createdAt?.seconds || 0;
       if (!existing || currentTs >= existingTs) {
         latestPlansByPartner.set(plan.partnerId, plan);
       }
@@ -672,6 +711,80 @@ export default function AdminDashboard() {
       return acc;
     }, {} as Record<string, { latestPlan: string; listingCount: number; featuredCount: number }>);
   }, [partners, partnerPlans, listings, featuredPlans]);
+
+  const listingInsights = useMemo(() => {
+    const plansByListing = new Map<string, PartnerPlanRecord>();
+    const plansByPartner = new Map<string, PartnerPlanRecord>();
+    const featuresByListing = new Map<string, FeaturedPlanPurchase>();
+    const featuresByPartner = new Map<string, FeaturedPlanPurchase>();
+
+    partnerPlans.forEach((plan) => {
+      const currentTs = (plan as any)?.startDate?.seconds || plan?.createdAt?.seconds || 0;
+
+      const listingId = (plan as any).listingId;
+      if (listingId) {
+        const existing = plansByListing.get(listingId);
+        const existingTs = (existing as any)?.startDate?.seconds || existing?.createdAt?.seconds || 0;
+        if (!existing || currentTs >= existingTs) {
+          plansByListing.set(listingId, plan);
+        }
+      }
+
+      if (plan.partnerId) {
+        const existing = plansByPartner.get(plan.partnerId);
+        const existingTs = (existing as any)?.startDate?.seconds || existing?.createdAt?.seconds || 0;
+        if (!existing || currentTs >= existingTs) {
+          plansByPartner.set(plan.partnerId, plan);
+        }
+      }
+    });
+
+    featuredPlans.forEach((feature) => {
+      const currentTs = (feature as any)?.lastPaymentReceived?.seconds || feature?.createdAt?.seconds || 0;
+
+      const listingId = (feature as any).listingId;
+      if (listingId) {
+        const existing = featuresByListing.get(listingId);
+        const existingTs = (existing as any)?.lastPaymentReceived?.seconds || existing?.createdAt?.seconds || 0;
+        if (!existing || currentTs >= existingTs) {
+          featuresByListing.set(listingId, feature);
+        }
+      }
+
+      if (feature.partnerId) {
+        const existing = featuresByPartner.get(feature.partnerId);
+        const existingTs = (existing as any)?.lastPaymentReceived?.seconds || existing?.createdAt?.seconds || 0;
+        if (!existing || currentTs >= existingTs) {
+          featuresByPartner.set(feature.partnerId, feature);
+        }
+      }
+    });
+
+    return listings.reduce((acc, listing) => {
+      let partnerId = listing.partnerId;
+      if (!partnerId) {
+        if (listing.__col === "businessOfferingsCollection" || listing.__path.includes("partnersCollection")) {
+           partnerId = listing.__path.split("/")[1];
+        }
+      }
+
+      const plan = plansByListing.get(listing.id) || (partnerId ? plansByPartner.get(partnerId) : undefined);
+      const feature = featuresByListing.get(listing.id) || (partnerId ? featuresByPartner.get(partnerId) : undefined);
+
+      acc[listing.id] = {
+        subscribedOn: (plan as any)?.startDate || plan?.createdAt || null,
+        upgradedOn: (plan as any)?.upgradedAt || null,
+        cancelledOn: (plan as any)?.cancelAt || (plan as any)?.canceledAt || null,
+        expiryDate: (plan as any)?.billingPeriodEnd || null,
+        isFeatured: listing.isFeatured || feature?.active || !!feature,
+        featurePlan: (feature as any)?.featureName || feature?.featureId || "-",
+        featureDate: feature?.createdAt || listing.lastFeaturePaymentReceivedAt || (feature as any)?.lastPaymentReceived || null,
+        featureCancelDate: (feature as any)?.accessThrough || (feature as any)?.cancelAt || null,
+        resubmitted: "-",
+      };
+      return acc;
+    }, {} as Record<string, any>);
+  }, [listings, partnerPlans, featuredPlans]);
 
   const categoryRows = useMemo(() => {
     const sources = [
@@ -935,33 +1048,47 @@ export default function AdminDashboard() {
           )}
 
           {activeTab === "partners" && (
-            <div className="space-y-4">
-              <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
-                <div className="relative w-full md:w-96">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    placeholder="Search partners by business or email..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 h-11 bg-white border-slate-200"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={() => exportPartners("csv")}>
-                    <Download className="w-4 h-4 mr-2" /> Export CSV
-                  </Button>
-                  <Button variant="outline" onClick={() => exportPartners("excel")}>
-                    <Download className="w-4 h-4 mr-2" /> Export Excel
-                  </Button>
-                </div>
-              </div>
-              <PartnerList
-                partners={filteredPartners}
-                partnerInsights={partnerInsights}
-                onView={openPartnerEditor}
-                onSetStatus={setPartnerStatus}
+            isAddingPartner ? (
+              <AdminAddPartner 
+                onCancel={() => setIsAddingPartner(false)} 
+                onSuccess={() => {
+                  setIsAddingPartner(false);
+                  setSaveNotice("Partner added successfully!");
+                  setTimeout(() => setSaveNotice(""), 5000);
+                }} 
               />
-            </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
+                  <div className="relative w-full md:w-96">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Search partners by business or email..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-10 h-11 bg-white border-slate-200"
+                    />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => exportPartners("csv")}>
+                      <Download className="w-4 h-4 mr-2" /> Export CSV
+                    </Button>
+                    <Button variant="outline" onClick={() => exportPartners("excel")}>
+                      <Download className="w-4 h-4 mr-2" /> Export Excel
+                    </Button>
+                    <Button onClick={() => setIsAddingPartner(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                      Add Partner <Plus className="w-4 h-4 ml-2" />
+                    </Button>
+                  </div>
+                </div>
+                <PartnerList
+                  partners={filteredPartners}
+                  partnerInsights={partnerInsights}
+                  onView={openPartnerEditor}
+                  onSetStatus={setPartnerStatus}
+                />
+              </div>
+            )
           )}
 
           {activeTab === "listings" && (
@@ -995,6 +1122,7 @@ export default function AdminDashboard() {
 
               <ListingsList
                 listings={filteredListings}
+                listingInsights={listingInsights}
                 onView={openListingEditor}
                 onSetStatus={setListingStatus}
               />
@@ -1003,25 +1131,79 @@ export default function AdminDashboard() {
 
           {activeTab === "transactions" && <TransactionList transactions={transactions} />}
 
-          {activeTab === "plans" && <PlansCatalogTab />}
+          {activeTab === "plans" && (
+            isAddingPlan ? (
+              <AdminAddPlan 
+                onCancel={() => setIsAddingPlan(false)}
+                onSuccess={() => {
+                  setIsAddingPlan(false);
+                  setSaveNotice("Plan added successfully!");
+                  setTimeout(() => setSaveNotice(""), 5000);
+                }}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-end">
+                  <Button onClick={() => setIsAddingPlan(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                    Add Plan <Plus className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+                <PlansCatalogTab />
+              </div>
+            )
+          )}
 
           {activeTab === "featuredPlans" && (
-            <FeaturedPlansTab featuredPlans={featuredPlans} partners={partners} />
+            isAddingFeaturedPlan ? (
+              <AdminAddFeaturedPlan 
+                onCancel={() => setIsAddingFeaturedPlan(false)}
+                onSuccess={() => {
+                  setIsAddingFeaturedPlan(false);
+                  setSaveNotice("Featured plan added successfully!");
+                  setTimeout(() => setSaveNotice(""), 5000);
+                }}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex justify-end">
+                  <Button onClick={() => setIsAddingFeaturedPlan(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                    Add Featured Plan <Plus className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+                <FeaturedPlansTab featuredPlans={featuredPlans} partners={partners} />
+              </div>
+            )
           )}
 
           {activeTab === "categories" && (
-            <div className="space-y-4">
-              <div className="relative w-full md:w-96">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Search categories, subcategories..."
-                  value={categorySearch}
-                  onChange={(e) => setCategorySearch(e.target.value)}
-                  className="pl-10 h-11 bg-white border-slate-200"
-                />
+            isAddingCategory ? (
+              <AdminAddCategory 
+                onCancel={() => setIsAddingCategory(false)}
+                onSuccess={() => {
+                  setIsAddingCategory(false);
+                  setSaveNotice("Category added successfully!");
+                  setTimeout(() => setSaveNotice(""), 5000);
+                }}
+              />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
+                  <div className="relative w-full md:w-96">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Search categories, subcategories..."
+                      value={categorySearch}
+                      onChange={(e) => setCategorySearch(e.target.value)}
+                      className="pl-10 h-11 bg-white border-slate-200"
+                    />
+                  </div>
+                  <Button onClick={() => setIsAddingCategory(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                    Add Category <Plus className="w-4 h-4 ml-2" />
+                  </Button>
+                </div>
+                <CategoryBreakdownTable rows={filteredCategoryRows} />
               </div>
-              <CategoryBreakdownTable rows={filteredCategoryRows} />
-            </div>
+            )
           )}
 
           {activeTab === "communityMembers" && <AdminMembersPanel />}
@@ -1426,6 +1608,7 @@ function PartnerList({
               <TableHead>Listings</TableHead>
               <TableHead>Featured</TableHead>
               <TableHead>Contact</TableHead>
+              <TableHead>By Admin</TableHead>
               <TableHead className="text-right pr-6">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -1445,6 +1628,9 @@ function PartnerList({
                 <TableCell>
                   <p className="text-sm">{partner.primaryName || "-"}</p>
                   <p className="text-xs text-slate-500">{partner.businessAddress || "-"}</p>
+                </TableCell>
+                <TableCell>
+                  {(partner as any).createdByAdmin ? "Yes" : "No"}
                 </TableCell>
                 <TableCell className="text-right pr-6">
                   <DropdownMenu>
@@ -1687,13 +1873,15 @@ function CategoryBreakdownTable({
               <TableHead className="pl-6">Group</TableHead>
               <TableHead>Category</TableHead>
               <TableHead>Sub Category</TableHead>
-              <TableHead className="pr-6">Sub Sub Categories</TableHead>
+              <TableHead>Sub Sub Categories</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="pr-6 text-center">Featured Image</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {rows.length === 0 ? (
               <TableRow>
-                <TableCell className="pl-6 text-slate-500" colSpan={4}>
+                <TableCell className="pl-6 text-slate-500" colSpan={6}>
                   No categories found.
                 </TableCell>
               </TableRow>
@@ -1703,7 +1891,15 @@ function CategoryBreakdownTable({
                   <TableCell className="pl-6">{row.group}</TableCell>
                   <TableCell>{row.category}</TableCell>
                   <TableCell>{row.subcategory}</TableCell>
-                  <TableCell className="pr-6">{row.subSubcategory}</TableCell>
+                  <TableCell>{row.subSubcategory}</TableCell>
+                  <TableCell>
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
+                  </TableCell>
+                  <TableCell className="pr-6 text-center">
+                    <div className="w-10 h-8 mx-auto bg-slate-100 rounded border border-slate-200 flex items-center justify-center overflow-hidden">
+                      <img src="https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80" alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
+                    </div>
+                  </TableCell>
                 </TableRow>
               ))
             )}
@@ -1716,10 +1912,12 @@ function CategoryBreakdownTable({
 
 function ListingsList({
   listings,
+  listingInsights,
   onView,
   onSetStatus,
 }: {
   listings: ListingRecord[];
+  listingInsights: Record<string, any>;
   onView: (listing: ListingRecord) => void;
   onSetStatus: (listing: ListingRecord, status: string, active: boolean) => void;
 }) {
@@ -1736,17 +1934,27 @@ function ListingsList({
   return (
     <Card className="bg-white border-slate-200 shadow-sm">
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-6">Business</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Plan</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right pr-6">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+        <div className="overflow-x-auto">
+          <Table className="min-w-max">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">Business</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Created On</TableHead>
+                <TableHead>Subscribed On</TableHead>
+                <TableHead>Upgraded On</TableHead>
+                <TableHead>Expiry Date</TableHead>
+                <TableHead>Cancelled On</TableHead>
+                <TableHead>Is Featured</TableHead>
+                <TableHead>Feature Plan</TableHead>
+                <TableHead>Feature Date</TableHead>
+                <TableHead>Feature Cancel Date</TableHead>
+                <TableHead>Resubmitted</TableHead>
+                <TableHead className="text-right pr-6 sticky right-0 bg-white shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
           <TableBody>
             {listings.map((listing) => (
               <TableRow key={listing.__path}>
@@ -1759,12 +1967,23 @@ function ListingsList({
                 </TableCell>
                 <TableCell>{listing.selectedPlan?.replace(/_/g, " ") || "-"}</TableCell>
                 <TableCell>{getStatusBadge(listing.status)}</TableCell>
+                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listing.createdAt)}</TableCell>
+                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.subscribedOn)}</TableCell>
+                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.upgradedOn)}</TableCell>
+                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.expiryDate)}</TableCell>
+                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.cancelledOn)}</TableCell>
                 <TableCell className="text-slate-500 text-sm">
-                  {listing.createdAt?.seconds
-                    ? new Date(listing.createdAt.seconds * 1000).toLocaleDateString()
-                    : "-"}
+                  {listingInsights[listing.id]?.isFeatured ? (
+                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Yes</Badge>
+                  ) : (
+                    <Badge className="bg-slate-50 text-slate-500 border-slate-200">No</Badge>
+                  )}
                 </TableCell>
-                <TableCell className="text-right pr-6">
+                <TableCell className="text-slate-500 text-sm">{listingInsights[listing.id]?.featurePlan || "-"}</TableCell>
+                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.featureDate)}</TableCell>
+                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.featureCancelDate)}</TableCell>
+                <TableCell className="text-slate-500 text-sm">{listingInsights[listing.id]?.resubmitted || "-"}</TableCell>
+                <TableCell className="text-right pr-6 sticky right-0 bg-white shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon">
@@ -1793,6 +2012,7 @@ function ListingsList({
             ))}
           </TableBody>
         </Table>
+        </div>
       </CardContent>
     </Card>
   );
