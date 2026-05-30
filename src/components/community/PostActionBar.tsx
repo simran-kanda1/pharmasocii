@@ -2,16 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "@/firebase";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { CommunityReportDialog } from "@/components/community/CommunityReportDialog";
 import { buildLinkedInShareUrl, copyPostLink } from "@/lib/communityShare";
 import {
   Bookmark,
@@ -53,37 +44,37 @@ export function PostActionBar({
   className,
 }: PostActionBarProps) {
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportReason, setReportReason] = useState("");
-  const [reportError, setReportError] = useState("");
   const [copyMsg, setCopyMsg] = useState("");
+  const [hintMsg, setHintMsg] = useState("");
 
-  const submitReport = async () => {
-    setReportError("");
-    const user = auth.currentUser;
-    const reason = reportReason.trim();
-    if (!user || !canEngage) return;
-    if (!reason || reason.length > 500) {
-      setReportError("Add a short reason (max 500 characters).");
+  const showHint = (msg: string) => {
+    setHintMsg(msg);
+    window.setTimeout(() => setHintMsg(""), 3000);
+  };
+
+  const requireEngage = (action?: () => void) => {
+    if (!canEngage) {
+      showHint(engageHint || "Sign in with a verified member profile to use this.");
       return;
     }
+    action?.();
+  };
+
+  const submitReport = async (reason: string) => {
+    const user = auth.currentUser;
+    if (!user || !canEngage) throw new Error("Not allowed");
     const reportId = `${user.uid}_post_${postId}`;
-    try {
-      await setDoc(doc(db, "spamReportsCollection", reportId), {
-        reporterId: user.uid,
-        targetType: "post",
-        targetKey: postId,
-        targetAuthorId: targetAuthorId || "",
-        postId,
-        commentId: null,
-        reason,
-        status: "open",
-        createdAt: serverTimestamp(),
-      });
-      setReportOpen(false);
-      setReportReason("");
-    } catch {
-      setReportError("Report failed. You may have already reported this post.");
-    }
+    await setDoc(doc(db, "spamReportsCollection", reportId), {
+      reporterId: user.uid,
+      targetType: "post",
+      targetKey: postId,
+      targetAuthorId: targetAuthorId || "",
+      postId,
+      commentId: null,
+      reason,
+      status: "open",
+      createdAt: serverTimestamp(),
+    });
   };
 
   const linkedInShare = () => {
@@ -101,10 +92,18 @@ export function PostActionBar({
 
   return (
     <>
-      <div className={cn("flex flex-wrap items-stretch border-t border-slate-200 bg-slate-50/80 dark:border-foreground/10 dark:bg-muted/20", className)}>
+      <div
+        className={cn(
+          "relative z-20 flex flex-wrap items-stretch border-t border-slate-200 bg-slate-50/80 dark:border-foreground/10 dark:bg-muted/20",
+          className,
+        )}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <Link
           to={`/community/post/${postId}#comments`}
           className="flex flex-1 min-w-[100px] items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 dark:border-foreground/10 dark:hover:bg-card"
+          onClick={(e) => e.stopPropagation()}
         >
           <MessageSquare className="h-4 w-4 shrink-0" />
           <span className="truncate">Comment ({commentCount})</span>
@@ -113,68 +112,35 @@ export function PostActionBar({
           label={`Helpful (${helpfulCount})`}
           icon={CheckSquare}
           active={helpful}
-          disabled={!canEngage}
           title={!canEngage ? disabledTitle : helpful ? "Remove helpful" : "Mark as helpful"}
-          onClick={onToggleHelpful}
+          onClick={() => requireEngage(onToggleHelpful)}
           className="flex-1 min-w-[100px]"
         />
         <ActionBtn
           label="Save"
           icon={Bookmark}
           active={saved}
-          disabled={!canEngage}
           title={!canEngage ? disabledTitle : saved ? "Unsave" : "Save"}
-          onClick={onToggleSave}
+          onClick={() => requireEngage(onToggleSave)}
           className="flex-1 min-w-[90px]"
         />
         <ActionBtn
           label="Spam"
           icon={ShieldAlert}
-          disabled={!canEngage}
-          title={!canEngage ? disabledTitle : "Report spam"}
-          onClick={() => setReportOpen(true)}
+          title={!canEngage ? disabledTitle : "Report content"}
+          onClick={() => requireEngage(() => setReportOpen(true))}
           className="flex-1 min-w-[80px]"
         />
-        <ActionBtn
-          label="LinkedIn"
-          icon={Linkedin}
-          onClick={linkedInShare}
-          className="flex-1 min-w-[90px]"
-        />
-        <ActionBtn
-          label={copyMsg || "Copy link"}
-          icon={Copy}
-          onClick={copyLink}
-          className="flex-1 min-w-[100px]"
-        />
+        <ActionBtn label="LinkedIn" icon={Linkedin} onClick={linkedInShare} className="flex-1 min-w-[90px]" />
+        <ActionBtn label={copyMsg || "Copy link"} icon={Copy} onClick={copyLink} className="flex-1 min-w-[100px]" />
       </div>
+      {hintMsg && (
+        <p className="relative z-20 text-xs text-center text-muted-foreground bg-muted/50 py-1.5 px-2 border-t border-slate-100 dark:border-foreground/10">
+          {hintMsg}
+        </p>
+      )}
 
-      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Report post</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="report-reason">Reason</Label>
-            <Textarea
-              id="report-reason"
-              value={reportReason}
-              onChange={(e) => setReportReason(e.target.value)}
-              rows={4}
-              maxLength={500}
-            />
-            {reportError && <p className="text-sm text-destructive">{reportError}</p>}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setReportOpen(false)}>
-              Cancel
-            </Button>
-            <Button type="button" onClick={submitReport}>
-              Submit report
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CommunityReportDialog open={reportOpen} onOpenChange={setReportOpen} onSubmit={submitReport} />
     </>
   );
 }
@@ -183,7 +149,6 @@ function ActionBtn({
   label,
   icon: Icon,
   onClick,
-  disabled,
   active,
   title,
   className,
@@ -191,7 +156,6 @@ function ActionBtn({
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   onClick?: () => void;
-  disabled?: boolean;
   active?: boolean;
   title?: string;
   className?: string;
@@ -200,12 +164,15 @@ function ActionBtn({
     <button
       type="button"
       className={cn(
-        "flex items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 last:border-r-0 dark:border-foreground/10 dark:hover:bg-card disabled:opacity-50 disabled:pointer-events-none",
+        "flex items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 last:border-r-0 dark:border-foreground/10 dark:hover:bg-card",
         active && "text-primary bg-white dark:bg-card",
         className,
       )}
-      onClick={onClick}
-      disabled={disabled}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick?.();
+      }}
       title={title}
     >
       <Icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} />

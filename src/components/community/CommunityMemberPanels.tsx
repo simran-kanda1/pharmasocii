@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   collection,
   doc,
@@ -21,6 +21,14 @@ import { PostCard } from "@/components/community/PostCard";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import type { CommunityView } from "@/components/community/CommunityMemberSidebar";
 import type { CommunityPost } from "@/lib/communityTypes";
+import { X } from "lucide-react";
+import {
+  deleteMemberNotification,
+  filterNotificationsByAge,
+  notificationTargetUrl,
+  purgeExpiredNotifications,
+  type MemberNotification,
+} from "@/lib/communityNotifications";
 
 type Props = {
   view: CommunityView;
@@ -47,14 +55,13 @@ export function CommunityMemberPanels({
   onToggleHelpful,
   onUnreadChange,
 }: Props) {
+  const navigate = useNavigate();
   const [myPosts, setMyPosts] = useState<Array<{ id: string } & CommunityPost>>([]);
   const [savedPosts, setSavedPosts] = useState<Array<{ id: string } & CommunityPost>>([]);
   const [savedComments, setSavedComments] = useState<
     Array<{ commentId: string; postId: string; preview?: string; unavailable?: boolean }>
   >([]);
-  const [notifications, setNotifications] = useState<
-    Array<{ id: string; preview?: string; postId?: string; isRead?: boolean }>
-  >([]);
+  const [notifications, setNotifications] = useState<MemberNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState("");
   const [userName, setUserName] = useState("");
@@ -117,13 +124,16 @@ export function CommunityMemberPanels({
         }
 
         if (view === "notifications") {
+          await purgeExpiredNotifications(userId);
           const nq = query(
             collection(db, "membersCollection", userId, "notificationsCollection"),
             orderBy("createdAt", "desc"),
-            limit(30),
+            limit(50),
           );
           const ns = await getDocs(nq);
-          const list = ns.docs.map((d) => ({ id: d.id, ...d.data() })) as typeof notifications;
+          const list = filterNotificationsByAge(
+            ns.docs.map((d) => ({ id: d.id, ...d.data() })) as MemberNotification[],
+          );
           setNotifications(list);
           onUnreadChange?.(list.filter((n) => !n.isRead).length);
         }
@@ -198,42 +208,86 @@ export function CommunityMemberPanels({
   }
 
   if (view === "notifications") {
+    const openNotification = async (n: MemberNotification) => {
+      const url = notificationTargetUrl(n);
+      if (!url) return;
+      if (!n.isRead) {
+        try {
+          await updateDoc(doc(db, "membersCollection", userId, "notificationsCollection", n.id), {
+            isRead: true,
+          });
+          setNotifications((prev) => {
+            const next = prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x));
+            onUnreadChange?.(next.filter((x) => !x.isRead).length);
+            return next;
+          });
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      navigate(url);
+    };
+
+    const removeNotification = async (n: MemberNotification) => {
+      try {
+        await deleteMemberNotification(userId, n.id);
+        const next = notifications.filter((x) => x.id !== n.id);
+        setNotifications(next);
+        onUnreadChange?.(next.filter((x) => !x.isRead).length);
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-3 dark:border-foreground/15 dark:bg-card">
         <h2 className="font-semibold">Notifications</h2>
+        <p className="text-xs text-muted-foreground">Notifications older than 30 days are removed automatically.</p>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading…</p>
         ) : notifications.length === 0 ? (
           <p className="text-sm text-muted-foreground">No notifications yet.</p>
         ) : (
-          notifications.map((n) => (
-            <div key={n.id} className={`border rounded-lg p-3 flex justify-between gap-3 ${n.isRead ? "opacity-70" : ""}`}>
-              <div>
-                <p className="text-sm font-medium">New comment</p>
-                <p className="text-sm text-muted-foreground line-clamp-2">{n.preview}</p>
-                {n.postId && (
-                  <Link to={`/community/post/${n.postId}`} className="text-xs text-primary underline mt-1 inline-block">
-                    View post
-                  </Link>
-                )}
-              </div>
-              {!n.isRead && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={async () => {
-                    await updateDoc(doc(db, "membersCollection", userId, "notificationsCollection", n.id), {
-                      isRead: true,
-                    });
-                    setNotifications((prev) => prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x)));
-                    onUnreadChange?.(notifications.filter((x) => x.id !== n.id && !x.isRead).length);
-                  }}
+          notifications.map((n) => {
+            const href = notificationTargetUrl(n);
+            const who = n.fromUserName || "Someone";
+            return (
+              <div
+                key={n.id}
+                className={`border rounded-lg flex gap-1 overflow-hidden ${n.isRead ? "opacity-75 bg-muted/10" : "bg-background"}`}
+              >
+                <button
+                  type="button"
+                  className="flex-1 text-left p-3 min-w-0 hover:bg-muted/30 transition-colors"
+                  disabled={!href}
+                  onClick={() => openNotification(n)}
                 >
-                  Mark read
+                  <p className="text-sm font-medium">
+                    {who} commented on your post
+                    {!n.isRead && (
+                      <span className="ml-2 inline-block h-2 w-2 rounded-full bg-primary align-middle" />
+                    )}
+                  </p>
+                  {n.preview ? (
+                    <p className="text-sm text-muted-foreground line-clamp-2 mt-1">&ldquo;{n.preview}&rdquo;</p>
+                  ) : null}
+                  {href ? (
+                    <span className="text-xs text-primary mt-2 inline-block">View comment →</span>
+                  ) : null}
+                </button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="shrink-0 h-auto rounded-none self-stretch px-2"
+                  aria-label="Delete notification"
+                  onClick={() => removeNotification(n)}
+                >
+                  <X className="h-4 w-4" />
                 </Button>
-              )}
-            </div>
-          ))
+              </div>
+            );
+          })
         )}
       </div>
     );

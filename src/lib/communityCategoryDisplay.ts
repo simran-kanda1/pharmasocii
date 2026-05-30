@@ -57,7 +57,7 @@ export function segmentsToPlainLine(segments: CategoryDisplaySegment[]): string 
     .join(", ");
 }
 
-/** Build filter keys from stored post fields (for posts created before filterKeys existed). */
+/** Build all plausible filter keys from stored post category arrays (for older posts). */
 export function legacyFilterKeysFromPost(post: {
   mainCategories?: string[];
   subCategories?: string[];
@@ -71,17 +71,19 @@ export function legacyFilterKeysFromPost(post: {
     keys.push(`main:${m}`);
   }
   for (const s of subs) {
-    const main = mains[0];
-    if (main) keys.push(`sub:${main}:${s}`);
+    for (const m of mains) {
+      keys.push(`sub:${m}:${s}`);
+    }
   }
   for (const ss of subSubs) {
-    const main = mains[0];
-    if (main) keys.push(`ss:${main}:${ss}`);
+    for (const m of mains) {
+      keys.push(`ss:${m}:${ss}`);
+    }
   }
-  return keys;
+  return [...new Set(keys)];
 }
 
-/** Match post filterKeys against selected filter keys (OR within selection). */
+/** Match post filterKeys against selected filter keys (OR). Supports main / sub / sub-sub via keys or legacy post fields. */
 export function postMatchesFilterKeys(
   postFilterKeys: string[] | undefined,
   selectedFilterKeys: string[],
@@ -94,7 +96,35 @@ export function postMatchesFilterKeys(
   if (selectedFilterKeys.length === 0) return true;
   const postKeys =
     postFilterKeys?.length ? postFilterKeys : post ? legacyFilterKeysFromPost(post) : [];
-  return selectedFilterKeys.some((fk) => postKeys.includes(fk));
+  const mains = post?.mainCategories ?? [];
+  const subs = post?.subCategories ?? [];
+  const subSubs = post?.subSubCategories ?? [];
+
+  return selectedFilterKeys.some((fk) => {
+    if (postKeys.includes(fk)) return true;
+
+    if (fk.startsWith("main:")) {
+      const main = fk.slice(5);
+      return mains.includes(main);
+    }
+    if (fk.startsWith("sub:")) {
+      const rest = fk.slice(4);
+      const colon = rest.indexOf(":");
+      if (colon < 0) return false;
+      const main = rest.slice(0, colon);
+      const sub = rest.slice(colon + 1);
+      return mains.includes(main) && subs.includes(sub);
+    }
+    if (fk.startsWith("ss:")) {
+      const rest = fk.slice(3);
+      const colon = rest.indexOf(":");
+      if (colon < 0) return false;
+      const main = rest.slice(0, colon);
+      const ss = rest.slice(colon + 1);
+      return mains.includes(main) && subSubs.includes(ss);
+    }
+    return false;
+  });
 }
 
 export { buildFilterKeys, type SelectedCategoryBranch };

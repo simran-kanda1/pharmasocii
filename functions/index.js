@@ -264,10 +264,20 @@ exports.onCommunityCommentCreated = onDocumentCreated(
         });
 
         const authorId = data.authorId;
+        const commentId = event.params.commentId;
         const postSnap = await postRef.get();
         const postAuthor = postSnap.data()?.authorId;
         if (postAuthor && authorId && postAuthor !== authorId) {
             const text = String(data.text || "").slice(0, 200);
+            let fromUserName = String(data.userName || "");
+            if (!fromUserName) {
+                const memberSnap = await db.collection("membersCollection").doc(authorId).get();
+                if (memberSnap.exists) {
+                    fromUserName =
+                        String(memberSnap.data()?.userName || memberSnap.data()?.name || "") ||
+                        "A member";
+                }
+            }
             await db
                 .collection("membersCollection")
                 .doc(postAuthor)
@@ -277,7 +287,9 @@ exports.onCommunityCommentCreated = onDocumentCreated(
                     isRead: false,
                     createdAt: FieldValue.serverTimestamp(),
                     postId,
+                    commentId,
                     fromUserId: authorId,
+                    fromUserName,
                     preview: text,
                 });
         }

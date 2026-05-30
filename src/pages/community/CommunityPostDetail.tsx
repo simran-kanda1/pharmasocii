@@ -19,13 +19,7 @@ import { auth, db, storage } from "@/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
+import { CommunityReportDialog } from "@/components/community/CommunityReportDialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -70,7 +64,6 @@ export default function CommunityPostDetail() {
   const [saved, setSaved] = useState(false);
   const [savedCommentIds, setSavedCommentIds] = useState<Set<string>>(new Set());
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportReason, setReportReason] = useState("");
   const [reportTarget, setReportTarget] = useState<"post" | "comment">("post");
   const [reportComment, setReportComment] = useState<CommentRow | null>(null);
   const [error, setError] = useState("");
@@ -332,8 +325,34 @@ export default function CommunityPostDetail() {
   const openReport = (type: "post" | "comment", c?: CommentRow) => {
     setReportTarget(type);
     setReportComment(c ?? null);
-    setReportReason("");
     setReportOpen(true);
+  };
+
+  const submitReport = async (reason: string) => {
+    if (!canEngage || !user || !postId || !postAuthorId) throw new Error("Not allowed");
+
+    let targetAuthorId = postAuthorId;
+    let targetKey = postId;
+    if (reportTarget === "comment" && reportComment) {
+      targetAuthorId = reportComment.authorId;
+      targetKey = `${postId}__${reportComment.id}`;
+    }
+    if (targetAuthorId === user.uid) {
+      throw new Error("You cannot report your own content.");
+    }
+
+    const reportId = `${user.uid}_${reportTarget}_${targetKey}`;
+    await setDoc(doc(db, "spamReportsCollection", reportId), {
+      reporterId: user.uid,
+      targetType: reportTarget,
+      targetKey,
+      targetAuthorId,
+      postId,
+      commentId: reportComment?.id ?? null,
+      reason,
+      status: "open",
+      createdAt: serverTimestamp(),
+    });
   };
 
   const toggleSaveComment = async (commentId: string) => {
@@ -354,45 +373,6 @@ export default function CommunityPostDetail() {
     } catch (e) {
       console.error(e);
       setError("Could not update saved comment.");
-    }
-  };
-
-  const submitReport = async () => {
-    if (!canEngage || !user || !postId || !postAuthorId) return;
-    const reason = reportReason.trim();
-    if (!reason || reason.length > 500) {
-      setError("Add a short reason (max 500 characters).");
-      return;
-    }
-
-    let targetAuthorId = postAuthorId;
-    let targetKey = postId;
-    if (reportTarget === "comment" && reportComment) {
-      targetAuthorId = reportComment.authorId;
-      targetKey = `${postId}__${reportComment.id}`;
-    }
-    if (targetAuthorId === user.uid) {
-      setError("You cannot report your own content.");
-      return;
-    }
-
-    const reportId = `${user.uid}_${reportTarget}_${targetKey}`;
-    try {
-      await setDoc(doc(db, "spamReportsCollection", reportId), {
-        reporterId: user.uid,
-        targetType: reportTarget,
-        targetKey,
-        targetAuthorId,
-        postId,
-        commentId: reportComment?.id ?? null,
-        reason,
-        status: "open",
-        createdAt: serverTimestamp(),
-      });
-      setReportOpen(false);
-    } catch (err) {
-      console.error(err);
-      setError("Report failed. You may have already reported this item.");
     }
   };
 
@@ -695,30 +675,7 @@ export default function CommunityPostDetail() {
         </ul>
       </section>
 
-      <Dialog open={reportOpen} onOpenChange={setReportOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Report spam</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-2">
-            <Label htmlFor="reason">Reason</Label>
-            <Input
-              id="reason"
-              value={reportReason}
-              onChange={(e) => setReportReason(e.target.value)}
-              placeholder="Why is this spam?"
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReportOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={submitReport} disabled={!canEngage}>
-              Submit report
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <CommunityReportDialog open={reportOpen} onOpenChange={setReportOpen} onSubmit={submitReport} />
     </div>
   );
 }

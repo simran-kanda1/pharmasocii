@@ -25,6 +25,7 @@ import { postMatchesFilterKeys } from "@/lib/communityCategoryDisplay";
 import { CommunityMemberSidebar, type CommunityView } from "@/components/community/CommunityMemberSidebar";
 import { CommunityMemberPanels } from "@/components/community/CommunityMemberPanels";
 import { CreatePostModal, type CreatePostModalAction } from "@/components/community/CreatePostModal";
+import { purgeExpiredNotifications } from "@/lib/communityNotifications";
 import {
   loadMemberEngagementIds,
   togglePostHelpful,
@@ -85,6 +86,7 @@ export default function CommunityFeed() {
           const engagement = await loadMemberEngagementIds(u.uid);
           setSavedPostIds(engagement.savedPostIds);
           setHelpfulPostIds(engagement.helpfulPostIds);
+          await purgeExpiredNotifications(u.uid);
           const nq = query(
             collection(db, "membersCollection", u.uid, "notificationsCollection"),
             where("isRead", "==", false),

@@ -196,19 +196,21 @@ export function PostCard({
       )}
 
       {showActionBar && (
-        <PostActionBar
-          postId={post.id}
-          postTitle={post.title}
-          targetAuthorId={post.authorId}
-          commentCount={post.commentCount ?? 0}
-          helpfulCount={post.likeCount ?? 0}
-          canEngage={canEngage}
-          engageHint={engageHint}
-          saved={saved}
-          helpful={helpful}
-          onToggleSave={onToggleSave}
-          onToggleHelpful={onToggleHelpful}
-        />
+        <div className="relative z-20" onClick={(e) => e.stopPropagation()}>
+          <PostActionBar
+            postId={post.id}
+            postTitle={post.title}
+            targetAuthorId={post.authorId}
+            commentCount={post.commentCount ?? 0}
+            helpfulCount={post.likeCount ?? 0}
+            canEngage={canEngage}
+            engageHint={engageHint}
+            saved={saved}
+            helpful={helpful}
+            onToggleSave={onToggleSave}
+            onToggleHelpful={onToggleHelpful}
+          />
+        </div>
       )}
     </article>
   );

@@ -135,7 +135,8 @@ service cloud.firestore {
         allow update: if isSignedIn()
           && request.auth.uid == userId
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isRead']);
-        allow create, delete: if false;
+        allow delete: if isSignedIn() && request.auth.uid == userId;
+        allow create: if false;
       }
     }
 

@@ -55,6 +55,52 @@ export function CommunityFilterSidebar({
     }
   };
 
+  const setFilterKeys = (next: string[]) => {
+    onFilterKeysChange([...new Set(next)]);
+  };
+
+  const onMainCheck = (mainLabel: string, checked: boolean) => {
+    const key = `main:${mainLabel}`;
+    if (checked) {
+      const prefix = `sub:${mainLabel}:`;
+      const ssPrefix = `ss:${mainLabel}:`;
+      const next = selectedFilterKeys.filter(
+        (k) => k !== key && !k.startsWith(prefix) && !k.startsWith(ssPrefix),
+      );
+      setFilterKeys([...next, key]);
+    } else {
+      toggleFilterKey(key, false);
+    }
+  };
+
+  const onSubCheck = (mainLabel: string, subLabel: string, checked: boolean) => {
+    const key = `sub:${mainLabel}:${subLabel}`;
+    const mainKey = `main:${mainLabel}`;
+    if (checked) {
+      const next = selectedFilterKeys.filter((k) => k !== mainKey);
+      if (!next.includes(key)) next.push(key);
+      setFilterKeys(next);
+      setExpandedMains((prev) => new Set(prev).add(mainLabel));
+    } else {
+      toggleFilterKey(key, false);
+    }
+  };
+
+  const onSubSubCheck = (mainLabel: string, subLabel: string, subSubLabel: string, checked: boolean) => {
+    const key = `ss:${mainLabel}:${subSubLabel}`;
+    const mainKey = `main:${mainLabel}`;
+    const subKey = `sub:${mainLabel}:${subLabel}`;
+    if (checked) {
+      let next = selectedFilterKeys.filter((k) => k !== mainKey && k !== subKey);
+      if (!next.includes(key)) next.push(key);
+      setFilterKeys(next);
+      setExpandedMains((prev) => new Set(prev).add(mainLabel));
+      setExpandedSubs((prev) => new Set(prev).add(keyMainSub(mainLabel, subLabel)));
+    } else {
+      toggleFilterKey(key, false);
+    }
+  };
+
   const toggleMainExpand = (label: string) => {
     setExpandedMains((prev) => {
       const next = new Set(prev);
@@ -71,26 +117,6 @@ export function CommunityFilterSidebar({
       else next.add(msKey);
       return next;
     });
-  };
-
-  const onMainCheck = (mainLabel: string, checked: boolean) => {
-    const key = `main:${mainLabel}`;
-    toggleFilterKey(key, checked);
-  };
-
-  const onSubCheck = (mainLabel: string, subLabel: string, checked: boolean) => {
-    const key = `sub:${mainLabel}:${subLabel}`;
-    toggleFilterKey(key, checked);
-    if (checked) toggleFilterKey(`main:${mainLabel}`, false);
-  };
-
-  const onSubSubCheck = (mainLabel: string, subLabel: string, subSubLabel: string, checked: boolean) => {
-    const key = `ss:${mainLabel}:${subSubLabel}`;
-    toggleFilterKey(key, checked);
-    if (checked) {
-      toggleFilterKey(`main:${mainLabel}`, false);
-      toggleFilterKey(`sub:${mainLabel}:${subLabel}`, false);
-    }
   };
 
   return (
