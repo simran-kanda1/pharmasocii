@@ -13,6 +13,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
 
 type PostActionBarProps = {
   postId: string;
@@ -27,6 +28,7 @@ type PostActionBarProps = {
   onToggleSave?: () => void;
   onToggleHelpful?: () => void;
   className?: string;
+  rememberFeedScroll?: boolean;
 };
 
 export function PostActionBar({
@@ -42,6 +44,7 @@ export function PostActionBar({
   onToggleSave,
   onToggleHelpful,
   className,
+  rememberFeedScroll,
 }: PostActionBarProps) {
   const [reportOpen, setReportOpen] = useState(false);
   const [copyMsg, setCopyMsg] = useState("");
@@ -103,7 +106,10 @@ export function PostActionBar({
         <Link
           to={`/community/post/${postId}#comments`}
           className="flex flex-1 min-w-[100px] items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 dark:border-foreground/10 dark:hover:bg-card"
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (rememberFeedScroll) saveCommunityFeedScroll(postId);
+          }}
         >
           <MessageSquare className="h-4 w-4 shrink-0" />
           <span className="truncate">Comment ({commentCount})</span>

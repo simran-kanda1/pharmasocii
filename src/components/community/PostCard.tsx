@@ -10,6 +10,7 @@ import { Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { PostActionBar } from "@/components/community/PostActionBar";
+import { saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
 
 export type PostCardPost = {
   id: string;
@@ -62,6 +63,7 @@ export function PostCard({
   canSave,
   onToggleSave,
   onToggleHelpful,
+  rememberFeedScroll,
 }: {
   post: PostCardPost;
   categoryDoc: CommunityCategoryDoc | null;
@@ -74,7 +76,12 @@ export function PostCard({
   canSave?: boolean;
   onToggleSave?: () => void;
   onToggleHelpful?: () => void;
+  /** When true, saves scroll position before opening post (community feed). */
+  rememberFeedScroll?: boolean;
 }) {
+  const beforeOpenPost = () => {
+    if (rememberFeedScroll) saveCommunityFeedScroll(post.id);
+  };
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const created = post.createdAt?.toDate?.() ?? new Date();
   const { segments } = formatCategoryPlain(
@@ -155,7 +162,7 @@ export function PostCard({
           </div>
         </div>
 
-        <Link to={`/community/post/${post.id}`} className="block group mt-4">
+        <Link to={`/community/post/${post.id}`} className="block group mt-4" onClick={beforeOpenPost}>
           <h2 className="text-lg font-bold text-foreground leading-snug group-hover:text-primary transition-colors">
             {post.title}
           </h2>
@@ -183,7 +190,11 @@ export function PostCard({
       </div>
 
       {imageUrl && (
-        <Link to={`/community/post/${post.id}`} className="block border-t border-slate-100 dark:border-foreground/10">
+        <Link
+          to={`/community/post/${post.id}`}
+          className="block border-t border-slate-100 dark:border-foreground/10"
+          onClick={beforeOpenPost}
+        >
           <div className="relative w-full bg-slate-100 dark:bg-muted/40 aspect-[16/10] max-h-[420px]">
             <img
               src={imageUrl}
@@ -209,6 +220,7 @@ export function PostCard({
             helpful={helpful}
             onToggleSave={onToggleSave}
             onToggleHelpful={onToggleHelpful}
+            rememberFeedScroll={rememberFeedScroll}
           />
         </div>
       )}

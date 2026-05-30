@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useMemo } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ref as storageRef, uploadBytes, getDownloadURL } from "firebase/storage";
 import {
   collection,
@@ -27,6 +27,7 @@ import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink } from "@/lib/community";
 import { ArrowLeft, Bookmark, Flag, Share2, Link2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
 
 const MAX_COMMENT_IMAGE_BYTES = 1.5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -44,6 +45,7 @@ type CommentRow = {
 };
 
 export default function CommunityPostDetail() {
+  const navigate = useNavigate();
   const { postId } = useParams<{ postId: string }>();
   const [searchParams] = useSearchParams();
   const highlightCommentId = searchParams.get("highlight");
@@ -381,8 +383,8 @@ export default function CommunityPostDetail() {
     return (
       <div className="container mx-auto px-4 py-16 max-w-2xl">
         <p className="text-muted-foreground">Post not found.</p>
-        <Button asChild variant="link" className="mt-4 px-0">
-          <Link to="/community">Back to feed</Link>
+        <Button type="button" variant="link" className="mt-4 px-0" onClick={() => goBackToCommunityFeed(navigate)}>
+          Back to feed
         </Button>
       </div>
     );
@@ -405,10 +407,13 @@ export default function CommunityPostDetail() {
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl">
-      <Button variant="ghost" asChild className="mb-6 gap-2">
-        <Link to="/community">
-          <ArrowLeft className="w-4 h-4" /> Back
-        </Link>
+      <Button
+        type="button"
+        variant="ghost"
+        className="mb-6 gap-2"
+        onClick={() => goBackToCommunityFeed(navigate)}
+      >
+        <ArrowLeft className="w-4 h-4" /> Back
       </Button>
 
       {archived && (

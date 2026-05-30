@@ -32,6 +32,7 @@ import {
   toggleSavedPost,
 } from "@/lib/communityEngagement";
 import { parseSavedFilters, saveCommunityFilters } from "@/lib/communityFilterPreferences";
+import { restoreCommunityFeedScroll } from "@/lib/communityScrollRestore";
 
 type TabKey = "all" | "latest";
 
@@ -216,6 +217,11 @@ export default function CommunityFeed() {
     }
     return list;
   }, [textFiltered, selectedCountries, selectedFilterKeys, feedTab]);
+
+  useEffect(() => {
+    if (loading || categoriesLoading || communityView !== "home") return;
+    restoreCommunityFeedScroll();
+  }, [loading, categoriesLoading, communityView, sidebarFiltered.length]);
 
   const canEngage = Boolean(user && verified && hasMemberProfile && !memberRestricted);
   const canCompose = canEngage;
@@ -464,6 +470,7 @@ export default function CommunityFeed() {
                       <li key={p.id}>
                         <PostCard
                           post={p as PostCardPost}
+                          rememberFeedScroll
                           categoryDoc={categoryDoc}
                           showAuthorEmail={
                             user && (p as { authorId?: string }).authorId === user.uid ? user.email : null
