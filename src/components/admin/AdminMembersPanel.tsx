@@ -4,12 +4,6 @@ import { auth, db } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
 import { loadCommunityMembers, type AdminMemberRow } from "@/lib/adminCommunityData";
 import { formatAdminDate, formatAdminDateTime } from "@/lib/formatAdminDate";
-import {
-  adminApproveMemberVerification,
-  adminRefreshVerificationLink,
-  adminSetMemberStatus,
-} from "@/lib/adminCommunityCallables";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -27,16 +21,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, Pencil, Trash2 } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+import { AdminRowActions } from "@/components/admin/community/AdminRowActions";
+import { AdminConfirmDialog } from "@/components/admin/community/AdminConfirmDialog";
+import { AdminMemberDetailPage } from "@/components/admin/community/AdminMemberDetailPage";
+import { AdminMemberEditPage } from "@/components/admin/community/AdminMemberEditPage";
+import { AdminTablePagination } from "@/components/admin/AdminTablePagination";
 
 const PAGE_SIZES = [10, 25, 50] as const;
+
+type Screen = { type: "list" } | { type: "view"; id: string } | { type: "edit"; id: string };
 
 function statusBadge(status?: string) {
   if (status === "spam_blocked") return <Badge variant="destructive">Blocked</Badge>;
@@ -53,7 +46,8 @@ export function AdminMembersPanel() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(10);
   const [page, setPage] = useState(0);
-  const [selected, setSelected] = useState<AdminMemberRow | null>(null);
+  const [screen, setScreen] = useState<Screen>({ type: "list" });
+  const [deleteTarget, setDeleteTarget] = useState<AdminMemberRow | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -105,31 +99,46 @@ export function AdminMembersPanel() {
     });
   };
 
-  const run = async (label: string, fn: () => Promise<unknown>) => {
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
     setBusy(true);
-    setMsg("");
     try {
-      await fn();
-      await logAction(label);
-      setMsg("Done.");
+      await deleteDoc(doc(db, "membersCollection", deleteTarget.id));
+      await logAction(`Deleted member ${deleteTarget.userName}`);
+      setDeleteTarget(null);
+      setMsg("Member profile deleted.");
+      if (screen.type !== "list") setScreen({ type: "list" });
       await load();
-      if (selected) {
-        const refreshed = (await loadCommunityMembers()).find((r) => r.id === selected.id);
-        if (refreshed) setSelected(refreshed);
-      }
     } catch (e) {
       console.error(e);
-      setMsg("Action failed.");
+      setMsg("Could not delete member.");
     } finally {
       setBusy(false);
     }
   };
 
-  const handleDelete = async (m: AdminMemberRow) => {
-    if (!window.confirm(`Delete community profile for @${m.userName}? This does not delete Firebase Auth.`)) return;
-    await run(`Deleted member ${m.userName}`, () => deleteDoc(doc(db, "membersCollection", m.id)));
-    setSelected(null);
-  };
+  if (screen.type === "view") {
+    return (
+      <AdminMemberDetailPage
+        memberId={screen.id}
+        onBack={() => setScreen({ type: "list" })}
+        onEdit={() => setScreen({ type: "edit", id: screen.id })}
+      />
+    );
+  }
+
+  if (screen.type === "edit") {
+    return (
+      <AdminMemberEditPage
+        memberId={screen.id}
+        onBack={() => setScreen({ type: "view", id: screen.id })}
+        onSaved={() => {
+          void load();
+          setScreen({ type: "view", id: screen.id });
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -228,24 +237,12 @@ export function AdminMembersPanel() {
                   <TableCell>{formatAdminDateTime(m.lastLoginAt?.toDate?.())}</TableCell>
                   <TableCell>{formatAdminDate(m.spamBlockUntil?.toDate?.())}</TableCell>
                   <TableCell>
-                    <div className="flex justify-end gap-1">
-                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setSelected(m)}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8" onClick={() => setSelected(m)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        size="icon"
-                        variant="ghost"
-                        className="h-8 w-8 text-destructive"
-                        disabled={busy}
-                        onClick={() => handleDelete(m)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                    <AdminRowActions
+                      disabled={busy}
+                      onView={() => setScreen({ type: "view", id: m.id })}
+                      onEdit={() => setScreen({ type: "edit", id: m.id })}
+                      onDelete={() => setDeleteTarget(m)}
+                    />
                   </TableCell>
                 </TableRow>
               ))
@@ -254,128 +251,29 @@ export function AdminMembersPanel() {
         </Table>
       </div>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {filtered.length} member{filtered.length === 1 ? "" : "s"}
-        </span>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={page <= 0} onClick={() => setPage((p) => p - 1)}>
-            Previous
-          </Button>
-          <span className="self-center">
-            Page {page + 1} of {pageCount}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page + 1 >= pageCount}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading || busy}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <AdminTablePagination
+        page={page}
+        pageCount={pageCount}
+        onPageChange={setPage}
+        totalLabel={`${filtered.length} member${filtered.length === 1 ? "" : "s"}`}
+        onRefresh={load}
+        refreshDisabled={loading || busy}
+      />
 
-      <Sheet open={!!selected} onOpenChange={(open) => !open && setSelected(null)}>
-        <SheetContent className="overflow-y-auto sm:max-w-md">
-          {selected && (
-            <>
-              <SheetHeader>
-                <SheetTitle>@{selected.userName}</SheetTitle>
-                <SheetDescription>{selected.email}</SheetDescription>
-              </SheetHeader>
-              <div className="mt-6 space-y-3 text-sm">
-                <p>
-                  <span className="text-muted-foreground">Status:</span> {selected.accountStatus || "active"}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Verified:</span> {selected.emailVerified ? "Yes" : "No"}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Posts:</span> {selected.postCount}
-                </p>
-                <p>
-                  <span className="text-muted-foreground">Spam (active / total):</span>{" "}
-                  {selected.spamActiveReportCount ?? 0} / {selected.spamTotalReportCount ?? 0}
-                </p>
-              </div>
-              <div className="mt-6 flex flex-wrap gap-2">
-                {!selected.emailVerified && (
-                  <>
-                    <Button
-                      size="sm"
-                      disabled={busy}
-                      onClick={() =>
-                        run(`Generated verify link for ${selected.userName}`, () =>
-                          adminRefreshVerificationLink(selected.id),
-                        )
-                      }
-                    >
-                      Generate verify link
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      disabled={busy}
-                      onClick={() =>
-                        run(`Approved verification ${selected.userName}`, () =>
-                          adminApproveMemberVerification(selected.id),
-                        )
-                      }
-                    >
-                      Approve email (QA)
-                    </Button>
-                  </>
-                )}
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    run(`Hold ${selected.userName}`, () =>
-                      adminSetMemberStatus({ userId: selected.id, status: "admin_hold", reason: "Admin hold" }),
-                    )
-                  }
-                >
-                  Hold
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    run(`Block ${selected.userName}`, () =>
-                      adminSetMemberStatus({ userId: selected.id, status: "spam_blocked" }),
-                    )
-                  }
-                >
-                  Block 30d
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy}
-                  onClick={() =>
-                    run(`Reactivate ${selected.userName}`, () =>
-                      adminSetMemberStatus({
-                        userId: selected.id,
-                        status: "active",
-                        clearSpamCounters: true,
-                      }),
-                    )
-                  }
-                >
-                  Reactivate
-                </Button>
-              </div>
-            </>
-          )}
-        </SheetContent>
-      </Sheet>
+      <AdminConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete member profile?"
+        description={
+          deleteTarget
+            ? `Remove the community profile for @${deleteTarget.userName}? This does not delete their Firebase Authentication account.`
+            : ""
+        }
+        confirmLabel="Delete"
+        destructive
+        busy={busy}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
-import { auth } from "@/firebase";
+import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { auth, db } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
 import { loadReportedComments, type AdminReportedCommentRow } from "@/lib/adminCommunityData";
 import { adminRestoreComment } from "@/lib/adminCommunityCallables";
@@ -23,7 +23,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ExternalLink } from "lucide-react";
+import { AdminRowActions } from "@/components/admin/community/AdminRowActions";
+import { AdminCommentDetailPage } from "@/components/admin/community/AdminCommentDetailPage";
+import { AdminTablePagination } from "@/components/admin/AdminTablePagination";
 
 const PAGE_SIZES = [10, 25, 50] as const;
 
@@ -35,6 +37,7 @@ export function AdminReportedCommentsPanel() {
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(10);
   const [page, setPage] = useState(0);
+  const [viewRow, setViewRow] = useState<AdminReportedCommentRow | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -69,38 +72,51 @@ export function AdminReportedCommentsPanel() {
 
   useEffect(() => setPage(0), [search, pageSize]);
 
-  const reactivate = async (row: AdminReportedCommentRow) => {
+  const toggleCommentStatus = async (row: AdminReportedCommentRow) => {
     if (!row.postId || !row.commentId) return;
     setBusy(true);
     setMsg("");
     try {
-      await adminRestoreComment(row.postId, row.commentId);
+      if (row.commentArchived) {
+        await adminRestoreComment(row.postId, row.commentId);
+      } else {
+        await updateDoc(doc(db, "postsCollection", row.postId, "commentsCollection", row.commentId), {
+          archived: true,
+          archivedAt: serverTimestamp(),
+        });
+      }
       const u = auth.currentUser;
       if (u) {
         await logActivity({
           partnerId: u.uid,
           partnerName: u.email || "Admin",
           action: "ADMIN_ACTION",
-          details: `Reactivated comment ${row.commentId}`,
+          details: `${row.commentArchived ? "Activated" : "Deactivated"} comment ${row.commentId}`,
           category: "admin",
           metadata: { scope: "reported_comments" },
         });
       }
-      setMsg("Comment reactivated.");
+      setMsg(row.commentArchived ? "Comment activated." : "Comment deactivated.");
       await load();
     } catch (e) {
       console.error(e);
-      setMsg("Could not reactivate comment.");
+      setMsg("Could not update comment status.");
     } finally {
       setBusy(false);
     }
   };
 
+  if (viewRow) {
+    return <AdminCommentDetailPage row={viewRow} onBack={() => setViewRow(null)} />;
+  }
+
   return (
     <div className="space-y-4">
       <div>
         <p className="text-sm font-medium">Reported comments</p>
-        <p className="text-sm text-muted-foreground">All reported comments and replies from community members.</p>
+        <p className="text-sm text-muted-foreground">
+          View comment details or activate/deactivate. Use the eye icon to open details and link to the live comment.
+        </p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
@@ -171,23 +187,20 @@ export function AdminReportedCommentsPanel() {
                   <TableCell>{formatAdminDate(r.createdAt?.toDate?.())}</TableCell>
                   <TableCell>{r.commentArchived ? "Not active" : "Active"}</TableCell>
                   <TableCell>{formatAdminDate(r.archivedAt?.toDate?.())}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      {r.commentArchived && r.postId && r.commentId && (
-                        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => reactivate(r)}>
-                          Reactivate
+                  <TableCell>
+                    <div className="flex justify-end items-center gap-1">
+                      {r.postId && r.commentId && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={busy}
+                          onClick={() => toggleCommentStatus(r)}
+                        >
+                          {r.commentArchived ? "Activate" : "Deactivate"}
                         </Button>
                       )}
-                      {r.postId && (
-                        <Button type="button" size="icon" variant="ghost" className="h-8 w-8" asChild>
-                          <Link
-                            to={`/community/post/${r.postId}${r.commentId ? `?highlight=${r.commentId}` : ""}`}
-                            target="_blank"
-                          >
-                            <ExternalLink className="h-4 w-4" />
-                          </Link>
-                        </Button>
-                      )}
+                      <AdminRowActions viewOnly disabled={busy} onView={() => setViewRow(r)} />
                     </div>
                   </TableCell>
                 </TableRow>
@@ -197,29 +210,14 @@ export function AdminReportedCommentsPanel() {
         </Table>
       </div>
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>{filtered.length} report(s)</span>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={page <= 0} onClick={() => setPage((p) => p - 1)}>
-            Previous
-          </Button>
-          <span className="self-center">
-            Page {page + 1} of {pageCount}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page + 1 >= pageCount}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading || busy}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <AdminTablePagination
+        page={page}
+        pageCount={pageCount}
+        onPageChange={setPage}
+        totalLabel={`${filtered.length} report(s)`}
+        onRefresh={load}
+        refreshDisabled={loading || busy}
+      />
     </div>
   );
 }

@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { auth } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
 import { loadCommunityPosts, type AdminPostRow } from "@/lib/adminCommunityData";
 import { adminRestorePost } from "@/lib/adminCommunityCallables";
-import { formatAdminDate } from "@/lib/formatAdminDate";
-import { AdminPostImageThumb } from "@/components/admin/AdminPostImageThumb";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -16,17 +11,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ExternalLink } from "lucide-react";
+import { AdminPostListTable } from "@/components/admin/community/AdminPostListTable";
+import { AdminPostDetailPage } from "@/components/admin/community/AdminPostDetailPage";
+import { AdminPostEditPage } from "@/components/admin/community/AdminPostEditPage";
+import { AdminTablePagination } from "@/components/admin/AdminTablePagination";
 
 const PAGE_SIZES = [10, 25, 50] as const;
+
+type Screen = { type: "list" } | { type: "view"; id: string } | { type: "edit"; id: string };
 
 export function AdminArchivedPostsPanel() {
   const [rows, setRows] = useState<AdminPostRow[]>([]);
@@ -36,6 +28,7 @@ export function AdminArchivedPostsPanel() {
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(10);
   const [page, setPage] = useState(0);
+  const [screen, setScreen] = useState<Screen>({ type: "list" });
 
   const load = async () => {
     setLoading(true);
@@ -59,7 +52,8 @@ export function AdminArchivedPostsPanel() {
     return rows.filter(
       (p) =>
         (p.title || "").toLowerCase().includes(q) ||
-        (p.authorUserName || "").toLowerCase().includes(q),
+        (p.authorUserName || "").toLowerCase().includes(q) ||
+        (p.authorEmail || "").toLowerCase().includes(q),
     );
   }, [rows, search]);
 
@@ -68,7 +62,7 @@ export function AdminArchivedPostsPanel() {
 
   useEffect(() => setPage(0), [search, pageSize]);
 
-  const reactivate = async (postId: string) => {
+  const activate = async (postId: string) => {
     setBusy(true);
     setMsg("");
     try {
@@ -79,24 +73,53 @@ export function AdminArchivedPostsPanel() {
           partnerId: u.uid,
           partnerName: u.email || "Admin",
           action: "ADMIN_ACTION",
-          details: `Reactivated post ${postId}`,
+          details: `Activated post ${postId}`,
           category: "admin",
           metadata: { scope: "community_archive" },
         });
       }
-      setMsg("Post reactivated.");
+      setMsg("Post activated.");
+      if (screen.type !== "list") setScreen({ type: "list" });
       await load();
     } catch (e) {
       console.error(e);
-      setMsg("Could not reactivate post.");
+      setMsg("Could not activate post.");
     } finally {
       setBusy(false);
     }
   };
 
+  if (screen.type === "view") {
+    return (
+      <AdminPostDetailPage
+        postId={screen.id}
+        archived
+        onBack={() => setScreen({ type: "list" })}
+        onEdit={() => setScreen({ type: "edit", id: screen.id })}
+        backLabel="Back To Archive Posts"
+      />
+    );
+  }
+
+  if (screen.type === "edit") {
+    return (
+      <AdminPostEditPage
+        postId={screen.id}
+        onBack={() => setScreen({ type: "view", id: screen.id })}
+        onSaved={() => {
+          void load();
+          setScreen({ type: "view", id: screen.id });
+        }}
+        backLabel="Back To Archive Posts"
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">Archived member posts (spam threshold, admin action, or deactivated).</p>
+      <p className="text-sm text-muted-foreground">
+        Archived member posts (spam threshold, admin action, or deactivated). Use Activate to restore to the live feed.
+      </p>
 
       <div className="flex flex-col sm:flex-row gap-3 sm:items-center sm:justify-between">
         <Select value={String(pageSize)} onValueChange={(v) => setPageSize(Number(v) as (typeof PAGE_SIZES)[number])}>
@@ -121,93 +144,26 @@ export function AdminArchivedPostsPanel() {
 
       {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
 
-      <div className="rounded-lg border bg-white overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Sr.</TableHead>
-              <TableHead>Title</TableHead>
-              <TableHead>Content</TableHead>
-              <TableHead>Image</TableHead>
-              <TableHead>User</TableHead>
-              <TableHead>Account</TableHead>
-              <TableHead>Archive date</TableHead>
-              <TableHead>Reports</TableHead>
-              <TableHead>Post status</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={11}>Loading…</TableCell>
-              </TableRow>
-            ) : pageRows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={11}>No archived posts.</TableCell>
-              </TableRow>
-            ) : (
-              pageRows.map((p, idx) => (
-                <TableRow key={p.id}>
-                  <TableCell>{page * pageSize + idx + 1}</TableCell>
-                  <TableCell className="max-w-[160px] truncate">{p.title || "—"}</TableCell>
-                  <TableCell className="max-w-[220px] truncate text-muted-foreground">{p.text || "—"}</TableCell>
-                  <TableCell>
-                    <AdminPostImageThumb path={p.imageStoragePath} />
-                  </TableCell>
-                  <TableCell>{p.authorUserName || "—"}</TableCell>
-                  <TableCell>
-                    {p.authorAccountStatus === "active" || !p.authorAccountStatus ? "Active" : p.authorAccountStatus}
-                  </TableCell>
-                  <TableCell>{formatAdminDate(p.archivedAt?.toDate?.() || p.createdAt?.toDate?.())}</TableCell>
-                  <TableCell>{p.spamReportCount ?? 0}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">Not active</Badge>
-                  </TableCell>
-                  <TableCell>{formatAdminDate(p.createdAt?.toDate?.())}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => reactivate(p.id)}>
-                        Reactivate
-                      </Button>
-                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8" asChild>
-                        <Link to={`/community/post/${p.id}`} target="_blank">
-                          <ExternalLink className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <AdminPostListTable
+        rows={pageRows}
+        loading={loading}
+        page={page}
+        pageSize={pageSize}
+        archived
+        busy={busy}
+        onActivate={activate}
+        onView={(id) => setScreen({ type: "view", id })}
+        onEdit={(id) => setScreen({ type: "edit", id })}
+      />
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>{filtered.length} archived post(s)</span>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={page <= 0} onClick={() => setPage((p) => p - 1)}>
-            Previous
-          </Button>
-          <span className="self-center">
-            Page {page + 1} of {pageCount}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page + 1 >= pageCount}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading || busy}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <AdminTablePagination
+        page={page}
+        pageCount={pageCount}
+        onPageChange={setPage}
+        totalLabel={`${filtered.length} archived post(s)`}
+        onRefresh={load}
+        refreshDisabled={loading || busy}
+      />
     </div>
   );
 }

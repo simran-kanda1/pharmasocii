@@ -26,6 +26,36 @@ export function emptyCategorySelection(): CategorySelectionState {
   return { subsByMain: new Map(), subSubsByMainSub: new Map() };
 }
 
+/** Rebuild picker state from stored post category arrays (admin edit). */
+export function postFieldsToCategorySelection(
+  doc: CommunityCategoryDoc,
+  mainCategories: string[],
+  subCategories: string[],
+  subSubCategories: string[],
+): CategorySelectionState {
+  const sel = emptyCategorySelection();
+  for (const main of doc.mains) {
+    if (!mainCategories.includes(main.label)) continue;
+    const subsSet = new Set<string>();
+    let hasSpecific = false;
+    for (const sub of main.subs ?? []) {
+      if (subCategories.includes(sub.label)) {
+        subsSet.add(sub.label);
+        hasSpecific = true;
+        const msKey = keyMainSub(main.label, sub.label);
+        const ssSet = new Set<string>();
+        for (const ss of sub.subSubs ?? []) {
+          if (subSubCategories.includes(ss.label)) ssSet.add(ss.label);
+        }
+        if (ssSet.size > 0) sel.subSubsByMainSub.set(msKey, ssSet);
+      }
+    }
+    if (!hasSpecific) subsSet.add("__main_only__");
+    if (subsSet.size > 0) sel.subsByMain.set(main.label, subsSet);
+  }
+  return sel;
+}
+
 export function selectionToPostFields(
   doc: CommunityCategoryDoc,
   sel: CategorySelectionState,

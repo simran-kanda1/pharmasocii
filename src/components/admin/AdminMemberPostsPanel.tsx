@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { auth } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
 import { loadCommunityPosts, type AdminPostRow } from "@/lib/adminCommunityData";
 import { adminArchivePost } from "@/lib/adminCommunityCallables";
-import { formatAdminDate } from "@/lib/formatAdminDate";
-import { AdminPostImageThumb } from "@/components/admin/AdminPostImageThumb";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -16,17 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { ExternalLink } from "lucide-react";
+import { AdminPostListTable } from "@/components/admin/community/AdminPostListTable";
+import { AdminConfirmDialog } from "@/components/admin/community/AdminConfirmDialog";
+import { AdminPostDetailPage } from "@/components/admin/community/AdminPostDetailPage";
+import { AdminPostEditPage } from "@/components/admin/community/AdminPostEditPage";
+import { AdminTablePagination } from "@/components/admin/AdminTablePagination";
 
 const PAGE_SIZES = [10, 25, 50] as const;
+
+type Screen = { type: "list" } | { type: "view"; id: string } | { type: "edit"; id: string };
 
 export function AdminMemberPostsPanel() {
   const [rows, setRows] = useState<AdminPostRow[]>([]);
@@ -36,6 +29,8 @@ export function AdminMemberPostsPanel() {
   const [search, setSearch] = useState("");
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(10);
   const [page, setPage] = useState(0);
+  const [screen, setScreen] = useState<Screen>({ type: "list" });
+  const [archiveTarget, setArchiveTarget] = useState<AdminPostRow | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -69,31 +64,57 @@ export function AdminMemberPostsPanel() {
 
   useEffect(() => setPage(0), [search, pageSize]);
 
-  const deactivate = async (postId: string) => {
+  const confirmArchive = async () => {
+    if (!archiveTarget) return;
     setBusy(true);
     setMsg("");
     try {
-      await adminArchivePost(postId, "admin_deactivate");
+      await adminArchivePost(archiveTarget.id, "admin_deactivate");
       const u = auth.currentUser;
       if (u) {
         await logActivity({
           partnerId: u.uid,
           partnerName: u.email || "Admin",
           action: "ADMIN_ACTION",
-          details: `Deactivated post ${postId}`,
+          details: `Deactivated post ${archiveTarget.id}`,
           category: "admin",
           metadata: { scope: "community_posts" },
         });
       }
-      setMsg("Post deactivated.");
+      setArchiveTarget(null);
+      setMsg("Post archived.");
+      if (screen.type !== "list") setScreen({ type: "list" });
       await load();
     } catch (e) {
       console.error(e);
-      setMsg("Could not deactivate post.");
+      setMsg("Could not archive post.");
     } finally {
       setBusy(false);
     }
   };
+
+  if (screen.type === "view") {
+    return (
+      <AdminPostDetailPage
+        postId={screen.id}
+        onBack={() => setScreen({ type: "list" })}
+        onEdit={() => setScreen({ type: "edit", id: screen.id })}
+      />
+    );
+  }
+
+  if (screen.type === "edit") {
+    return (
+      <AdminPostEditPage
+        postId={screen.id}
+        onBack={() => setScreen({ type: "view", id: screen.id })}
+        onSaved={() => {
+          void load();
+          setScreen({ type: "view", id: screen.id });
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -125,104 +146,40 @@ export function AdminMemberPostsPanel() {
 
       {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
 
-      <div className="rounded-lg border bg-white overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Sr.</TableHead>
-              <TableHead>Title</TableHead>
-              <TableHead>Content</TableHead>
-              <TableHead>Image</TableHead>
-              <TableHead>Likes</TableHead>
-              <TableHead>Comments</TableHead>
-              <TableHead>User</TableHead>
-              <TableHead>Spam</TableHead>
-              <TableHead>Account</TableHead>
-              <TableHead>Post status</TableHead>
-              <TableHead>Created</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={12}>Loading…</TableCell>
-              </TableRow>
-            ) : pageRows.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={12}>No posts.</TableCell>
-              </TableRow>
-            ) : (
-              pageRows.map((p, idx) => (
-                <TableRow key={p.id}>
-                  <TableCell>{page * pageSize + idx + 1}</TableCell>
-                  <TableCell className="max-w-[160px] truncate font-medium">{p.title || "—"}</TableCell>
-                  <TableCell className="max-w-[220px] truncate text-muted-foreground">{p.text || "—"}</TableCell>
-                  <TableCell>
-                    <AdminPostImageThumb path={p.imageStoragePath} />
-                  </TableCell>
-                  <TableCell>{p.likeCount ?? 0}</TableCell>
-                  <TableCell>{p.commentCount ?? 0}</TableCell>
-                  <TableCell className="max-w-[140px] truncate">
-                    {p.authorUserName}
-                    {p.authorEmail ? (
-                      <span className="block text-xs text-muted-foreground truncate">{p.authorEmail}</span>
-                    ) : null}
-                  </TableCell>
-                  <TableCell>{p.spamReportCount ?? 0}</TableCell>
-                  <TableCell>
-                    {p.authorAccountStatus === "active" || !p.authorAccountStatus ? (
-                      <Badge className="bg-emerald-600 hover:bg-emerald-600">Active</Badge>
-                    ) : (
-                      <Badge variant="secondary">{p.authorAccountStatus}</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className="bg-emerald-600 hover:bg-emerald-600">Active</Badge>
-                  </TableCell>
-                  <TableCell>{formatAdminDate(p.createdAt?.toDate?.())}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">
-                      <Button type="button" size="sm" variant="outline" disabled={busy} onClick={() => deactivate(p.id)}>
-                        Deactivate
-                      </Button>
-                      <Button type="button" size="icon" variant="ghost" className="h-8 w-8" asChild>
-                        <Link to={`/community/post/${p.id}`} target="_blank">
-                          <ExternalLink className="h-4 w-4" />
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <AdminPostListTable
+        rows={pageRows}
+        loading={loading}
+        page={page}
+        pageSize={pageSize}
+        busy={busy}
+        onView={(id) => setScreen({ type: "view", id })}
+        onEdit={(id) => setScreen({ type: "edit", id })}
+        onDelete={(p) => setArchiveTarget(p)}
+      />
 
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>{filtered.length} post(s)</span>
-        <div className="flex gap-2">
-          <Button type="button" variant="outline" size="sm" disabled={page <= 0} onClick={() => setPage((p) => p - 1)}>
-            Previous
-          </Button>
-          <span className="self-center">
-            Page {page + 1} of {pageCount}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page + 1 >= pageCount}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            Next
-          </Button>
-          <Button type="button" variant="outline" size="sm" onClick={load} disabled={loading || busy}>
-            Refresh
-          </Button>
-        </div>
-      </div>
+      <AdminTablePagination
+        page={page}
+        pageCount={pageCount}
+        onPageChange={setPage}
+        totalLabel={`${filtered.length} post(s)`}
+        onRefresh={load}
+        refreshDisabled={loading || busy}
+      />
+
+      <AdminConfirmDialog
+        open={!!archiveTarget}
+        onOpenChange={(open) => !open && setArchiveTarget(null)}
+        title="Archive this post?"
+        description={
+          archiveTarget
+            ? `Move "${archiveTarget.title || "Untitled"}" to archive? Comments will be archived as well.`
+            : ""
+        }
+        confirmLabel="Archive"
+        destructive
+        busy={busy}
+        onConfirm={confirmArchive}
+      />
     </div>
   );
 }
