@@ -3808,6 +3808,142 @@ app.post("/api/backfill-upgrade-transactions", async (req, res) => {
     }
 });
 
+// ─── Admin Partner Creation ───
+app.post("/api/admin/create-partner", async (req, res) => {
+    try {
+        const idToken = req.headers.authorization?.split("Bearer ")[1];
+        if (!idToken) return res.status(401).json({ error: "Unauthorized" });
+
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        const adminDoc = await db.collection("adminCollection").doc(decodedToken.uid).get();
+        if (!adminDoc.exists) return res.status(403).json({ error: "Forbidden: Admins only" });
+
+        const {
+            firstName,
+            lastName,
+            email,
+            phone,
+            altContactName,
+            altEmail,
+            password,
+            companyName,
+            companyWebsite,
+            businessPhone,
+            linkedinProfile,
+            profileHtml,
+            addressHtml,
+            status,
+            selectedGroup,
+            selectedPlan,
+            featuredPlan,
+            trialPeriod
+        } = req.body;
+
+        if (!email || !password || !firstName || !companyName) {
+            return res.status(400).json({ error: "Missing required fields" });
+        }
+
+        const userRecord = await admin.auth().createUser({
+            email,
+            password,
+            displayName: `${firstName} ${lastName}`.trim(),
+            emailVerified: true
+        });
+
+        const uid = userRecord.uid;
+
+        // Create member doc
+        await db.collection("membersCollection").doc(uid).set({
+            userId: uid,
+            email,
+            name: `${firstName} ${lastName}`.trim(),
+            userName: `${firstName} ${lastName}`.trim().toLowerCase().replace(/\s+/g, ""),
+            accountStatus: status === "Inactive" ? "disabled" : "active",
+            role: "partner",
+            createdAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Create partner doc
+        await db.collection("partnersCollection").doc(uid).set({
+            firstName,
+            lastName,
+            email,
+            phone: phone || null,
+            altContactName: altContactName || null,
+            altEmail: altEmail || null,
+            companyName,
+            companyWebsite: companyWebsite || null,
+            businessPhone: businessPhone || null,
+            linkedinProfile: linkedinProfile || null,
+            profileHtml: profileHtml || null,
+            addressHtml: addressHtml || null,
+            status: status || "Pending Review",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdByAdmin: true
+        });
+
+        // Handle Plan Selection (Free Grant by Admin)
+        if (selectedPlan && selectedPlan !== "none") {
+            let collectionName = "businessOfferingsCollection";
+            if (selectedGroup === "Consulting Services") collectionName = "consultingServicesCollection";
+            else if (selectedGroup === "Events") collectionName = "eventsCollection";
+            else if (selectedGroup === "Jobs") collectionName = "jobsCollection";
+
+            // If we are giving them a plan, create the planCollection doc
+            const isYearly = selectedPlan.endsWith("_yr");
+            const startDate = new Date();
+            const billingPeriodEnd = new Date();
+            let isTrial = false;
+
+            if (trialPeriod && trialPeriod !== "none") {
+                isTrial = true;
+                if (trialPeriod === "7_days") billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 7);
+                else if (trialPeriod === "30_days") billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 30);
+                else if (trialPeriod === "3_months") billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 3);
+            } else {
+                if (isYearly) billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                else billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+            }
+
+            await db.collection("partnersCollection").doc(uid).collection("planCollection").add({
+                planId: selectedPlan,
+                planName: selectedPlan.replace(/_/g, " "),
+                startDate,
+                billingPeriodEnd,
+                billingInterval: isYearly ? "year" : "month",
+                active: true,
+                lastPaymentReceivedAt: startDate,
+                partnerId: uid,
+                collectionName,
+                source: "admin_granted",
+                isTrial: isTrial || false
+            });
+        }
+
+        // Handle Featured Plan
+        if (featuredPlan && featuredPlan !== "none") {
+            const startDate = new Date();
+            const paidThrough = new Date();
+            paidThrough.setMonth(paidThrough.getMonth() + 1); // features are monthly
+
+            await db.collection("partnersCollection").doc(uid).collection("featuresCollection").add({
+                featureId: featuredPlan,
+                featureName: featuredPlan.replace(/_/g, " "),
+                active: true,
+                lastPaymentReceived: startDate,
+                accessThrough: paidThrough,
+                partnerId: uid,
+                source: "admin_granted"
+            });
+        }
+
+        return res.json({ success: true, uid });
+    } catch (err) {
+        console.error("❌ Add partner error:", err.message);
+        return res.status(500).json({ error: err.message || "Failed to create partner." });
+    }
+});
+
 // ─── Serve Static Frontend (Production) ───
 const distPath = resolve(__dirname, "..", "dist");
 if (existsSync(distPath)) {

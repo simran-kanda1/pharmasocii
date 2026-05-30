@@ -259,6 +259,14 @@ service cloud.firestore {
       allow read: if true;
     }
 
+    // Allow admins to perform collectionGroup queries for dashboard analytics
+    match /{path=**}/planCollection/{planId} {
+      allow read: if isAdmin();
+    }
+    match /{path=**}/featuresCollection/{featureId} {
+      allow read: if isAdmin();
+    }
+
     // --- Marketplace / partners (existing app) ---
     match /partnersCollection/{partnerId} {
       allow read: if true;
