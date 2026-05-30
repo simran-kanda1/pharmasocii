@@ -4,7 +4,9 @@ import { auth } from "@/firebase";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, Home, LogOut, Monitor, User } from "lucide-react";
+import { Bell, Home, LogOut, Monitor, User, X } from "lucide-react";
+import type { CommunityCategoryDoc } from "@/lib/communityTypes";
+import { filterKeyToLabel } from "@/lib/communityFilterPreferences";
 
 export type CommunityView = "home" | "my-space" | "profile" | "notifications";
 
@@ -15,8 +17,12 @@ type CommunityMemberSidebarProps = {
   onViewChange: (view: CommunityView) => void;
   notificationUnread: number;
   selectedCountries: string[];
-  selectedFilterKeysCount: number;
+  selectedFilterKeys: string[];
+  categoryDoc: CommunityCategoryDoc | null;
   signedIn: boolean;
+  onRemoveCountry?: (country: string) => void;
+  onRemoveFilterKey?: (key: string) => void;
+  onClearAllFilters?: () => void;
 };
 
 export function CommunityMemberSidebar({
@@ -26,10 +32,15 @@ export function CommunityMemberSidebar({
   onViewChange,
   notificationUnread,
   selectedCountries,
-  selectedFilterKeysCount,
+  selectedFilterKeys,
+  categoryDoc,
   signedIn,
+  onRemoveCountry,
+  onRemoveFilterKey,
+  onClearAllFilters,
 }: CommunityMemberSidebarProps) {
   const navigate = useNavigate();
+  const hasFilters = selectedCountries.length > 0 || selectedFilterKeys.length > 0;
 
   const navItem = (view: CommunityView, label: string, icon: React.ComponentType<{ className?: string }>, badge?: number) => {
     const Icon = icon;
@@ -91,21 +102,78 @@ export function CommunityMemberSidebar({
       )}
 
       <div>
-        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Interest(s)</p>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-2.5 text-center dark:border-foreground/15 dark:bg-muted/30">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase">Countries</p>
-            <p className="text-[11px] text-muted-foreground mt-1 leading-snug line-clamp-3">
-              {selectedCountries.length ? selectedCountries.join(", ") : "No countries selected"}
-            </p>
-          </div>
-          <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-2.5 text-center dark:border-foreground/15 dark:bg-muted/30">
-            <p className="text-[10px] font-medium text-muted-foreground uppercase">Categories</p>
-            <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-              {selectedFilterKeysCount > 0 ? `${selectedFilterKeysCount} filter(s) active` : "No categories selected"}
-            </p>
-          </div>
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Interest(s)</p>
+          {hasFilters && onClearAllFilters && signedIn && (
+            <button
+              type="button"
+              className="text-[10px] font-medium text-primary hover:underline"
+              onClick={onClearAllFilters}
+            >
+              Clear all
+            </button>
+          )}
         </div>
+        {!hasFilters ? (
+          <p className="text-xs text-muted-foreground">
+            Use the filters on the right to choose countries and categories. Your selections are saved for next visit.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {selectedCountries.length > 0 && (
+              <div>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1.5">Countries</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedCountries.map((c) => (
+                    <span
+                      key={c}
+                      className="inline-flex items-center gap-1 max-w-full rounded-md bg-slate-100 dark:bg-muted px-2 py-0.5 text-[11px]"
+                    >
+                      <span className="truncate">{c}</span>
+                      {onRemoveCountry && (
+                        <button
+                          type="button"
+                          className="shrink-0 rounded hover:bg-slate-200 dark:hover:bg-muted-foreground/20 p-0.5"
+                          aria-label={`Remove ${c}`}
+                          onClick={() => onRemoveCountry(c)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {selectedFilterKeys.length > 0 && (
+              <div>
+                <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1.5">Categories</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedFilterKeys.map((key) => (
+                    <span
+                      key={key}
+                      className="inline-flex items-center gap-1 max-w-full rounded-md bg-slate-100 dark:bg-muted px-2 py-0.5 text-[11px]"
+                    >
+                      <span className="truncate" title={filterKeyToLabel(key, categoryDoc)}>
+                        {filterKeyToLabel(key, categoryDoc)}
+                      </span>
+                      {onRemoveFilterKey && (
+                        <button
+                          type="button"
+                          className="shrink-0 rounded hover:bg-slate-200 dark:hover:bg-muted-foreground/20 p-0.5"
+                          aria-label="Remove category filter"
+                          onClick={() => onRemoveFilterKey(key)}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

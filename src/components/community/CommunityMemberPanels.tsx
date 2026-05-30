@@ -69,6 +69,10 @@ export function CommunityMemberPanels({
   const [bio, setBio] = useState("");
   const [picture, setPicture] = useState("");
   const [profileMsg, setProfileMsg] = useState("");
+  const [spamTotal, setSpamTotal] = useState(0);
+  const [spamActive, setSpamActive] = useState(0);
+  const [accountStatus, setAccountStatus] = useState<string>("active");
+  const [spamBlockUntil, setSpamBlockUntil] = useState<Date | null>(null);
 
   useEffect(() => {
     if (view === "home" || !userId) return;
@@ -84,6 +88,15 @@ export function CommunityMemberPanels({
           setEmail(String(d.email ?? ""));
           setBio(String(d.userBio ?? ""));
           setPicture(String(d.profilePicture ?? ""));
+          setSpamTotal(Number(d.spamTotalReportCount ?? 0));
+          setSpamActive(Number(d.spamActiveReportCount ?? 0));
+          setAccountStatus(String(d.accountStatus ?? "active"));
+          const until = d.spamBlockUntil;
+          if (until && typeof until.toDate === "function") {
+            setSpamBlockUntil(until.toDate());
+          } else {
+            setSpamBlockUntil(null);
+          }
         }
 
         if (view === "my-space" || view === "notifications") {
@@ -329,6 +342,30 @@ export function CommunityMemberPanels({
           <div className="space-y-2">
             <Label htmlFor="pic">Profile picture URL</Label>
             <Input id="pic" value={picture} onChange={(e) => setPicture(e.target.value)} placeholder="https://…" />
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2 dark:border-foreground/15 dark:bg-muted/30">
+            <p className="text-sm font-medium">Community standing</p>
+            <p className="text-xs text-muted-foreground">
+              Spam reports on your posts and comments are tracked for your lifetime. After three reports in the current
+              cycle, your account is paused for 30 days; the cycle counter resets when you are reactivated.
+            </p>
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+              <dt className="text-muted-foreground">Lifetime spam reports</dt>
+              <dd className="font-medium">{spamTotal}</dd>
+              <dt className="text-muted-foreground">Current cycle</dt>
+              <dd className="font-medium">
+                {spamActive} / 3
+              </dd>
+            </dl>
+            {accountStatus === "spam_blocked" && (
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                Account paused
+                {spamBlockUntil
+                  ? ` until ${spamBlockUntil.toLocaleDateString(undefined, { dateStyle: "medium" })}`
+                  : " (30-day reactivation applies)"}
+                . You can browse but cannot post or comment until reactivated.
+              </p>
+            )}
           </div>
           {profileMsg && <p className="text-sm text-muted-foreground">{profileMsg}</p>}
           <Button type="submit">Save</Button>

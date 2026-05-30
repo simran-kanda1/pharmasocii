@@ -359,19 +359,23 @@ exports.onSpamReportCreated = onDocumentCreated(
         await db.runTransaction(async (tx) => {
             const m = await tx.get(memberRef);
             if (!m.exists) return;
-            const active = (m.data().spamActiveReportCount || 0) + 1;
-            const total = (m.data().spamTotalReportCount || 0) + 1;
-            newActive = active;
-            const update = {
-                spamActiveReportCount: active,
-                spamTotalReportCount: total,
-            };
-            if (active >= SPAM_THRESHOLD) {
-                const until = new Date();
-                until.setDate(until.getDate() + BLOCK_DAYS);
-                blockedUntil = until;
-                update.accountStatus = "spam_blocked";
-                update.spamBlockUntil = admin.firestore.Timestamp.fromDate(until);
+            const data = m.data();
+            const isBlocked = data.accountStatus === "spam_blocked";
+            const total = (data.spamTotalReportCount || 0) + 1;
+            const update = { spamTotalReportCount: total };
+            if (!isBlocked) {
+                const active = (data.spamActiveReportCount || 0) + 1;
+                newActive = active;
+                if (active >= SPAM_THRESHOLD) {
+                    const until = new Date();
+                    until.setDate(until.getDate() + BLOCK_DAYS);
+                    blockedUntil = until;
+                    update.accountStatus = "spam_blocked";
+                    update.spamBlockUntil = admin.firestore.Timestamp.fromDate(until);
+                    update.spamActiveReportCount = 0;
+                } else {
+                    update.spamActiveReportCount = active;
+                }
             }
             tx.update(memberRef, update);
         });

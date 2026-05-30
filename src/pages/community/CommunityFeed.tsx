@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import {
   collection,
@@ -31,6 +31,7 @@ import {
   togglePostHelpful,
   toggleSavedPost,
 } from "@/lib/communityEngagement";
+import { parseSavedFilters, saveCommunityFilters } from "@/lib/communityFilterPreferences";
 
 type TabKey = "all" | "latest";
 
@@ -56,6 +57,8 @@ export default function CommunityFeed() {
   const [createOpen, setCreateOpen] = useState(false);
   const [createAction, setCreateAction] = useState<CreatePostModalAction>(null);
   const [refreshPostsKey, setRefreshPostsKey] = useState(0);
+  const filtersHydratedRef = useRef(false);
+  const skipNextFilterSaveRef = useRef(false);
 
   const communityView = (searchParams.get("view") as CommunityView) || "home";
   const setCommunityView = useCallback(
@@ -83,6 +86,11 @@ export default function CommunityFeed() {
         const st = m.data()?.accountStatus;
         setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
         if (m.exists()) {
+          const saved = parseSavedFilters(m.data() as Record<string, unknown>);
+          skipNextFilterSaveRef.current = true;
+          filtersHydratedRef.current = true;
+          setSelectedCountries(saved.countries);
+          setSelectedFilterKeys(saved.filterKeys);
           const engagement = await loadMemberEngagementIds(u.uid);
           setSavedPostIds(engagement.savedPostIds);
           setHelpfulPostIds(engagement.helpfulPostIds);
@@ -107,9 +115,40 @@ export default function CommunityFeed() {
         setSavedPostIds(new Set());
         setHelpfulPostIds(new Set());
         setNotificationUnread(0);
+        filtersHydratedRef.current = false;
+        setSelectedCountries([]);
+        setSelectedFilterKeys([]);
       }
     });
     return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (!user?.uid || !hasMemberProfile || !filtersHydratedRef.current) return;
+    if (skipNextFilterSaveRef.current) {
+      skipNextFilterSaveRef.current = false;
+      return;
+    }
+    const t = window.setTimeout(() => {
+      saveCommunityFilters(user.uid, {
+        countries: selectedCountries,
+        filterKeys: selectedFilterKeys,
+      }).catch(() => {});
+    }, 400);
+    return () => window.clearTimeout(t);
+  }, [user?.uid, hasMemberProfile, selectedCountries, selectedFilterKeys]);
+
+  const removeCountryFilter = useCallback((country: string) => {
+    setSelectedCountries((prev) => prev.filter((c) => c !== country));
+  }, []);
+
+  const removeFilterKey = useCallback((key: string) => {
+    setSelectedFilterKeys((prev) => prev.filter((k) => k !== key));
+  }, []);
+
+  const clearAllFilters = useCallback(() => {
+    setSelectedCountries([]);
+    setSelectedFilterKeys([]);
   }, []);
 
   useEffect(() => {
@@ -319,8 +358,12 @@ export default function CommunityFeed() {
                 onViewChange={setCommunityView}
                 notificationUnread={notificationUnread}
                 selectedCountries={selectedCountries}
-                selectedFilterKeysCount={selectedFilterKeys.length}
+                selectedFilterKeys={selectedFilterKeys}
+                categoryDoc={categoryDoc}
                 signedIn={Boolean(user)}
+                onRemoveCountry={user && hasMemberProfile ? removeCountryFilter : undefined}
+                onRemoveFilterKey={user && hasMemberProfile ? removeFilterKey : undefined}
+                onClearAllFilters={user && hasMemberProfile ? clearAllFilters : undefined}
               />
               {user && !hasMemberProfile && (
                 <Button className="w-full" asChild>

@@ -104,6 +104,8 @@ service cloud.firestore {
           && request.resource.data.userName == resource.data.userName
           && request.resource.data.userId == resource.data.userId
           && request.resource.data.email == resource.data.email
+          && (!('savedFilterCountries' in request.resource.data) || request.resource.data.savedFilterCountries is list)
+          && (!('savedFilterKeys' in request.resource.data) || request.resource.data.savedFilterKeys is list)
         );
 
       allow delete: if isAdmin();
