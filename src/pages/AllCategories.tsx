@@ -11,7 +11,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
 import { db } from "@/firebase";
-import { collection, collectionGroup, query, where, getDocs, limit } from "firebase/firestore";
+import { collection, collectionGroup, query, getDocs, limit } from "firebase/firestore";
+import {
+    buildLiveListingKeySet,
+    isListingStatusPublic,
+    isPartnerListingPublic,
+} from "@/lib/partnerListingPublic";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 import {
     Select,
@@ -224,10 +229,6 @@ const BSL_FILTER_OPTIONS = ["1", "2", "3", "4"];
 const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"];
 const WORK_MODELS = ["Hybrid", "Remote", "On-site"];
 
-/** Embedded business offerings often omit `active`; do not require `active == true` in Firestore. */
-function isBusinessListingPublic(data: Record<string, any>): boolean {
-    return data.active !== false;
-}
 
 export default function AllCategories() {
     const { category } = useParams<{ category: string }>();
@@ -270,12 +271,6 @@ export default function AllCategories() {
     const itemsPerPage = 30;
 
     // ── Persistence Logic ──
-
-    const isApprovedStatus = (value: any): boolean => {
-        if (!value) return true;
-        const normalized = String(value).trim().toLowerCase();
-        return normalized === "approved" || normalized === "active";
-    };
 
     const spotlightAccessEndMs = (item: any): number | null => {
         const raw = item.featureSpotlightAccessEnd;
@@ -322,44 +317,55 @@ export default function AllCategories() {
         const fetchAllCategoriesData = async () => {
             setLoading(true);
             try {
-                let docs: any[] = [];
+                let docs: Array<{ doc: any; collectionName: string }> = [];
+                const plansSnap = await getDocs(query(collectionGroup(db, "planCollection"), limit(10000)));
+                const liveListingKeys = buildLiveListingKeySet(
+                    plansSnap.docs.map((planDoc) => ({
+                        path: planDoc.ref.path,
+                        data: planDoc.data() as Record<string, unknown>,
+                    })),
+                );
+
                 if (currentTab === "business") {
                     const q = query(collectionGroup(db, "businessOfferingsCollection"), limit(5000));
                     const snap = await getDocs(q);
-                    docs = snap.docs;
+                    docs = snap.docs.map((d) => ({ doc: d, collectionName: "businessOfferingsCollection" }));
                 } else if (currentTab === "consulting") {
                     const [servicesSnap, legacySnap] = await Promise.all([
-                        getDocs(query(collection(db, "consultingServicesCollection"), where("active", "==", true))),
-                        getDocs(query(collection(db, "consultingCollection"), where("active", "==", true))),
+                        getDocs(query(collection(db, "consultingServicesCollection"), limit(5000))),
+                        getDocs(query(collection(db, "consultingCollection"), limit(5000))),
                     ]);
-                    docs = [...servicesSnap.docs, ...legacySnap.docs];
+                    docs = [
+                        ...servicesSnap.docs.map((d) => ({ doc: d, collectionName: "consultingServicesCollection" })),
+                        ...legacySnap.docs.map((d) => ({ doc: d, collectionName: "consultingCollection" })),
+                    ];
                 } else if (currentTab === "events") {
-                    const q = query(collection(db, "eventsCollection"), where("active", "==", true));
+                    const q = query(collection(db, "eventsCollection"), limit(5000));
                     const snap = await getDocs(q);
-                    docs = snap.docs;
+                    docs = snap.docs.map((d) => ({ doc: d, collectionName: "eventsCollection" }));
                 } else if (currentTab === "jobs") {
-                    const q = query(collection(db, "jobsCollection"), where("active", "==", true));
+                    const q = query(collection(db, "jobsCollection"), limit(5000));
                     const snap = await getDocs(q);
-                    docs = snap.docs;
+                    docs = snap.docs.map((d) => ({ doc: d, collectionName: "jobsCollection" }));
                 }
 
                 if (docs.length > 0) {
-                    // De-duplicate and only show records that are approved/live.
+                    // De-duplicate and only show records backed by a billing-live plan.
                     const deduped = new Map<string, any>();
-                    docs.forEach((d: any) => {
+                    docs.forEach(({ doc: d, collectionName }) => {
                         const raw = d.data() as Record<string, any>;
-                        if (currentTab === "business" && !isBusinessListingPublic(raw)) return;
+                        const partnerFromPath =
+                            d.ref?.parent?.parent?.id && String(d.ref.parent.parent.path || "").includes("partnersCollection")
+                                ? d.ref.parent.parent.id
+                                : "";
+                        const listing = { id: d.id, partnerId: raw.partnerId || partnerFromPath || "", ...raw };
+                        if (!isPartnerListingPublic(listing, collectionName, liveListingKeys)) return;
                         const key = d.ref?.path || d.id;
                         if (!deduped.has(key)) {
-                            const partnerFromPath =
-                                d.ref?.parent?.parent?.id && String(d.ref.parent.parent.path || "").includes("partnersCollection")
-                                    ? d.ref.parent.parent.id
-                                    : "";
-                            const partnerId = raw.partnerId || partnerFromPath || "";
-                            deduped.set(key, { id: d.id, partnerId, ...raw });
+                            deduped.set(key, listing);
                         }
                     });
-                    const approvedDocs = Array.from(deduped.values()).filter((doc: any) => isApprovedStatus(doc.status));
+                    const approvedDocs = Array.from(deduped.values()).filter((doc: any) => isListingStatusPublic(doc));
                     
                     // Sort by most recent if requested
                     if (sortBy === "recent") {

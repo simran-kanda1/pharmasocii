@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
 import { db } from "@/firebase";
 import { doc, getDoc, collectionGroup, query, getDocs, limit } from "firebase/firestore";
+import {
+    buildLiveListingKeySet,
+    isPartnerListingPublic,
+} from "@/lib/partnerListingPublic";
 import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,37 +47,72 @@ export default function ListingDetail() {
 
                 if (collectionNames.length > 0) {
                     let docSnap: any = null;
+                    let resolvedCollectionName = "";
+                    const plansSnap = await getDocs(query(collectionGroup(db, "planCollection"), limit(10000)));
+                    const liveListingKeys = buildLiveListingKeySet(
+                        plansSnap.docs.map((planDoc) => ({
+                            path: planDoc.ref.path,
+                            data: planDoc.data() as Record<string, unknown>,
+                        })),
+                    );
+
                     for (const collectionName of collectionNames) {
                         if (type === "business") {
                             const q = query(collectionGroup(db, collectionName), limit(BUSINESS_LOOKUP_LIMIT));
                             const querySnap = await getDocs(q);
-                            const found = querySnap.docs.find(
-                                (d) => d.id === id && d.data()?.active !== false,
-                            );
+                            const found = querySnap.docs.find((d) => {
+                                if (d.id !== id) return false;
+                                const raw = d.data() as Record<string, any>;
+                                const path = String(d.ref.parent?.parent?.path || "");
+                                const partnerFromPath =
+                                    path.includes("partnersCollection") && d.ref.parent?.parent?.id
+                                        ? d.ref.parent.parent.id
+                                        : "";
+                                const listing = {
+                                    id: d.id,
+                                    partnerId: raw.partnerId || partnerFromPath,
+                                    ...raw,
+                                };
+                                return isPartnerListingPublic(listing, collectionName, liveListingKeys);
+                            });
                             if (found) {
                                 docSnap = found;
+                                resolvedCollectionName = collectionName;
                                 break;
                             }
 
                             // Fallback for legacy records stored in top-level collections.
                             const directBusinessRef = doc(db, collectionName, id);
                             const directBusinessSnap = await getDoc(directBusinessRef);
-                            if (directBusinessSnap.exists() && directBusinessSnap.data()?.active !== false) {
-                                docSnap = directBusinessSnap;
-                                break;
+                            if (directBusinessSnap.exists()) {
+                                const raw = directBusinessSnap.data() as Record<string, any>;
+                                const listing = { id: directBusinessSnap.id, partnerId: raw.partnerId, ...raw };
+                                if (isPartnerListingPublic(listing, collectionName, liveListingKeys)) {
+                                    docSnap = directBusinessSnap;
+                                    resolvedCollectionName = collectionName;
+                                    break;
+                                }
                             }
                         } else {
                             const directRef = doc(db, collectionName, id);
                             const directSnap = await getDoc(directRef);
-                            if (directSnap.exists() && directSnap.data()?.active !== false) {
-                                docSnap = directSnap;
-                                break;
+                            if (directSnap.exists()) {
+                                const raw = directSnap.data() as Record<string, any>;
+                                const listing = { id: directSnap.id, partnerId: raw.partnerId, ...raw };
+                                if (isPartnerListingPublic(listing, collectionName, liveListingKeys)) {
+                                    docSnap = directSnap;
+                                    resolvedCollectionName = collectionName;
+                                    break;
+                                }
                             }
                         }
                     }
 
                     if (docSnap && docSnap.exists()) {
                         const listingData: any = { id: docSnap.id, ...docSnap.data() };
+                        if (resolvedCollectionName) {
+                            listingData._collectionName = resolvedCollectionName;
+                        }
                         setItem(listingData);
 
                         // Fetch partner metadata

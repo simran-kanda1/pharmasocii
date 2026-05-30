@@ -7,6 +7,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 import { auth, db } from "@/firebase";
 import { collection, collectionGroup, query, where, limit, getDocs, orderBy, doc, getDoc } from "firebase/firestore";
+import {
+    buildLiveListingKeySet,
+    isPartnerListingPublic,
+} from "@/lib/partnerListingPublic";
 import { onAuthStateChanged } from "firebase/auth";
 import { PostCard } from "@/components/community/PostCard";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
@@ -20,11 +24,6 @@ import {
 const FEATURE_FETCH_LIMIT = 5000;
 /** When no rows match paid home spotlight, still show recent active listings so the home page is not empty. */
 const FALLBACK_CAROUSEL_CAP = 24;
-
-/** Embedded business offerings often omit `active`; Firestore `active == true` would exclude them. Only hide when explicitly false. */
-function isBusinessListingPublic(data: Record<string, any>): boolean {
-    return data.active !== false;
-}
 
 function pickSpotlightOrRecent(
     rows: Record<string, any>[],
@@ -182,6 +181,19 @@ export default function Home() {
                 return addon === "home_page" || addon === "both" || (item.isFeatured && !addon);
             };
 
+            let liveListingKeys = new Set<string>();
+            try {
+                const plansSnap = await getDocs(query(collectionGroup(db, "planCollection"), limit(10000)));
+                liveListingKeys = buildLiveListingKeySet(
+                    plansSnap.docs.map((planDoc) => ({
+                        path: planDoc.ref.path,
+                        data: planDoc.data() as Record<string, unknown>,
+                    })),
+                );
+            } catch (e) {
+                console.error("Home: plan fetch failed:", e);
+            }
+
             let businessRows: Record<string, any>[] = [];
             try {
                 const businessQuery = query(collectionGroup(db, "businessOfferingsCollection"), limit(FEATURE_FETCH_LIMIT));
@@ -194,7 +206,7 @@ export default function Home() {
                             path.includes("partnersCollection") && doc.ref.parent?.parent?.id ? doc.ref.parent.parent.id : "";
                         return { id: doc.id, partnerId: raw.partnerId || partnerFromPath, ...raw };
                     })
-                    .filter(isBusinessListingPublic);
+                    .filter((row) => isPartnerListingPublic(row, "businessOfferingsCollection", liveListingKeys));
             } catch (e) {
                 console.error("Home: business offerings fetch failed:", e);
             }
@@ -202,9 +214,11 @@ export default function Home() {
 
             let jobRows: Record<string, any>[] = [];
             try {
-                const jobQuery = query(collection(db, "jobsCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT));
+                const jobQuery = query(collection(db, "jobsCollection"), limit(FEATURE_FETCH_LIMIT));
                 const jobDocs = await getDocs(jobQuery);
-                jobRows = jobDocs.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) }));
+                jobRows = jobDocs.docs
+                    .map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
+                    .filter((row) => isPartnerListingPublic(row, "jobsCollection", liveListingKeys));
             } catch (e) {
                 console.error("Home: jobs fetch failed:", e);
             }
@@ -212,9 +226,11 @@ export default function Home() {
 
             let eventRows: Record<string, any>[] = [];
             try {
-                const evtQuery = query(collection(db, "eventsCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT));
+                const evtQuery = query(collection(db, "eventsCollection"), limit(FEATURE_FETCH_LIMIT));
                 const evtDocs = await getDocs(evtQuery);
-                eventRows = evtDocs.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) }));
+                eventRows = evtDocs.docs
+                    .map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
+                    .filter((row) => isPartnerListingPublic(row, "eventsCollection", liveListingKeys));
             } catch (e) {
                 console.error("Home: events fetch failed:", e);
             }
@@ -223,12 +239,16 @@ export default function Home() {
             let consultingRows: Record<string, any>[] = [];
             try {
                 const [consultingServicesDocs, consultingLegacyDocs] = await Promise.all([
-                    getDocs(query(collection(db, "consultingServicesCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT))),
-                    getDocs(query(collection(db, "consultingCollection"), where("active", "==", true), limit(FEATURE_FETCH_LIMIT))),
+                    getDocs(query(collection(db, "consultingServicesCollection"), limit(FEATURE_FETCH_LIMIT))),
+                    getDocs(query(collection(db, "consultingCollection"), limit(FEATURE_FETCH_LIMIT))),
                 ]);
                 consultingRows = [
-                    ...consultingServicesDocs.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
-                    ...consultingLegacyDocs.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) })),
+                    ...consultingServicesDocs.docs
+                        .map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
+                        .filter((row) => isPartnerListingPublic(row, "consultingServicesCollection", liveListingKeys)),
+                    ...consultingLegacyDocs.docs
+                        .map((doc) => ({ id: doc.id, ...(doc.data() as Record<string, any>) }))
+                        .filter((row) => isPartnerListingPublic(row, "consultingCollection", liveListingKeys)),
                 ];
             } catch (e) {
                 console.error("Home: consulting fetch failed:", e);

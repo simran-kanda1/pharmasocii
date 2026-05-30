@@ -6,6 +6,7 @@ import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import admin from "firebase-admin";
 import { cleanupExpiredSpotlights } from "./cleanupExpiredSpotlights.js";
+import { cleanupExpiredListings } from "./cleanupExpiredListings.js";
 
 //Load .env if present
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -2456,6 +2457,28 @@ app.post("/api/cron/cleanup-expired-spotlights", async (req, res) => {
         return res.json({ ok: true, ...result });
     } catch (err) {
         console.error("cleanup-expired-spotlights:", err);
+        return res.status(500).json({ error: err.message || "Cleanup failed" });
+    }
+});
+
+/**
+ * POST /api/cron/cleanup-expired-listings
+ * Deactivates listings whose plan billing period has ended (e.g. auto-cancelled subscriptions).
+ * Header: x-cron-secret: process.env.CRON_SECRET
+ */
+app.post("/api/cron/cleanup-expired-listings", async (req, res) => {
+    const expected = process.env.CRON_SECRET;
+    if (!expected || req.headers["x-cron-secret"] !== expected) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (!admin.apps?.length) {
+        return res.status(503).json({ error: "Firebase Admin not initialized" });
+    }
+    try {
+        const result = await cleanupExpiredListings();
+        return res.json({ ok: true, ...result });
+    } catch (err) {
+        console.error("cleanup-expired-listings:", err);
         return res.status(500).json({ error: err.message || "Cleanup failed" });
     }
 });
