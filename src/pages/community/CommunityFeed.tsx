@@ -6,9 +6,12 @@ import {
   where,
   orderBy,
   limit,
+  startAfter,
   getDocs,
   doc,
   getDoc,
+  type QueryDocumentSnapshot,
+  type DocumentData,
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -19,7 +22,6 @@ import { auth } from "@/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Search, Tag, Globe, Link2, ImageIcon, MessageSquarePlus } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { cn } from "@/lib/utils";
 import { CommunityFilterSidebar } from "@/components/community/CommunityFilterSidebar";
 import { postMatchesFilterKeys } from "@/lib/communityCategoryDisplay";
 import { CommunityMemberSidebar, type CommunityView } from "@/components/community/CommunityMemberSidebar";
@@ -34,7 +36,7 @@ import {
 import { parseSavedFilters, saveCommunityFilters } from "@/lib/communityFilterPreferences";
 import { restoreCommunityFeedScroll } from "@/lib/communityScrollRestore";
 
-type TabKey = "all" | "latest";
+const FEED_PAGE_SIZE = 100;
 
 export default function CommunityFeed() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -47,7 +49,8 @@ export default function CommunityFeed() {
   const [verified, setVerified] = useState(false);
   const [hasMemberProfile, setHasMemberProfile] = useState(false);
   const [memberUserName, setMemberUserName] = useState<string | null>(null);
-  const [feedTab, setFeedTab] = useState<TabKey>("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasNextPage, setHasNextPage] = useState(false);
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [selectedFilterKeys, setSelectedFilterKeys] = useState<string[]>([]);
   const [savedPostIds, setSavedPostIds] = useState<Set<string>>(new Set());
@@ -60,6 +63,7 @@ export default function CommunityFeed() {
   const [refreshPostsKey, setRefreshPostsKey] = useState(0);
   const filtersHydratedRef = useRef(false);
   const skipNextFilterSaveRef = useRef(false);
+  const pageCursorsRef = useRef<Map<number, QueryDocumentSnapshot<DocumentData>>>(new Map());
 
   const communityView = (searchParams.get("view") as CommunityView) || "home";
   const setCommunityView = useCallback(
@@ -156,21 +160,34 @@ export default function CommunityFeed() {
     (async () => {
       try {
         setLoading(true);
-        const q = query(
+        const base = [
           collection(db, "postsCollection"),
           where("archived", "==", false),
           orderBy("createdAt", "desc"),
-          limit(80),
-        );
+        ] as const;
+        const cursor = currentPage > 1 ? pageCursorsRef.current.get(currentPage - 1) : undefined;
+        const q = cursor
+          ? query(...base, startAfter(cursor), limit(FEED_PAGE_SIZE))
+          : query(...base, limit(FEED_PAGE_SIZE));
         const snap = await getDocs(q);
         setPosts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        setHasNextPage(snap.docs.length === FEED_PAGE_SIZE);
+        const lastDoc = snap.docs[snap.docs.length - 1];
+        if (lastDoc) {
+          pageCursorsRef.current.set(currentPage, lastDoc);
+        }
       } catch (e) {
         console.error(e);
       } finally {
         setLoading(false);
       }
     })();
-  }, [refreshPostsKey]);
+  }, [refreshPostsKey, currentPage]);
+
+  useEffect(() => {
+    if (communityView !== "home") return;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [currentPage, communityView]);
 
   useEffect(() => {
     const q = searchParams.get("search") || "";
@@ -208,15 +225,8 @@ export default function CommunityFeed() {
         ),
       );
     }
-    if (feedTab === "latest") {
-      const cutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
-      list = list.filter((p) => {
-        const ts = (p.createdAt as { toDate?: () => Date } | undefined)?.toDate?.()?.getTime() ?? 0;
-        return ts >= cutoff;
-      });
-    }
     return list;
-  }, [textFiltered, selectedCountries, selectedFilterKeys, feedTab]);
+  }, [textFiltered, selectedCountries, selectedFilterKeys]);
 
   useEffect(() => {
     if (loading || categoriesLoading || communityView !== "home") return;
@@ -280,7 +290,17 @@ export default function CommunityFeed() {
     }
   };
 
-  const reloadPosts = () => setRefreshPostsKey((k) => k + 1);
+  const reloadPosts = () => {
+    pageCursorsRef.current.clear();
+    setCurrentPage(1);
+    setRefreshPostsKey((k) => k + 1);
+  };
+
+  const goToPage = (page: number) => {
+    if (page < 1 || page === currentPage) return;
+    if (page > currentPage && !hasNextPage) return;
+    setCurrentPage(page);
+  };
   const showMemberPanels = Boolean(user && hasMemberProfile && communityView !== "home");
   const displayName = memberBio ? `${welcomeName} (${memberBio})` : welcomeName;
 
@@ -426,34 +446,15 @@ export default function CommunityFeed() {
                   </form>
 
                   <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-2 dark:border-foreground/10">
-                    <div className="flex gap-6">
-                      <button
-                        type="button"
-                        onClick={() => setFeedTab("all")}
-                        className={cn(
-                          "pb-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                          feedTab === "all"
-                            ? "border-slate-800 text-foreground dark:border-primary"
-                            : "border-transparent text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        All updates
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setFeedTab("latest")}
-                        className={cn(
-                          "pb-2 text-sm font-medium border-b-2 -mb-px transition-colors",
-                          feedTab === "latest"
-                            ? "border-slate-800 text-foreground dark:border-primary"
-                            : "border-transparent text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        Latest
-                      </button>
-                    </div>
+                    <p className="pb-2 text-sm font-medium text-foreground">All updates</p>
                     <p className="text-sm text-muted-foreground tabular-nums">
-                      {sidebarFiltered.length} post{sidebarFiltered.length === 1 ? "" : "s"}
+                      Page {currentPage}
+                      {sidebarFiltered.length > 0 && (
+                        <>
+                          {" "}
+                          · {sidebarFiltered.length} post{sidebarFiltered.length === 1 ? "" : "s"}
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>
@@ -465,27 +466,52 @@ export default function CommunityFeed() {
                     No posts match your filters. Try clearing filters or search.
                   </p>
                 ) : (
-                  <ul className="space-y-5">
-                    {sidebarFiltered.map((p) => (
-                      <li key={p.id}>
-                        <PostCard
-                          post={p as PostCardPost}
-                          rememberFeedScroll
-                          categoryDoc={categoryDoc}
-                          showAuthorEmail={
-                            user && (p as { authorId?: string }).authorId === user.uid ? user.email : null
-                          }
-                          showActionBar
-                          canEngage={canEngage}
-                          engageHint={engageHint}
-                          saved={savedPostIds.has(p.id)}
-                          helpful={helpfulPostIds.has(p.id)}
-                          onToggleSave={() => toggleSavePost(p.id)}
-                          onToggleHelpful={() => toggleHelpfulPost(p.id)}
-                        />
-                      </li>
-                    ))}
-                  </ul>
+                  <>
+                    <ul className="space-y-5">
+                      {sidebarFiltered.map((p) => (
+                        <li key={p.id}>
+                          <PostCard
+                            post={p as PostCardPost}
+                            rememberFeedScroll
+                            categoryDoc={categoryDoc}
+                            showAuthorEmail={
+                              user && (p as { authorId?: string }).authorId === user.uid ? user.email : null
+                            }
+                            showActionBar
+                            canEngage={canEngage}
+                            engageHint={engageHint}
+                            saved={savedPostIds.has(p.id)}
+                            helpful={helpfulPostIds.has(p.id)}
+                            onToggleSave={() => toggleSavePost(p.id)}
+                            onToggleHelpful={() => toggleHelpfulPost(p.id)}
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                    {(currentPage > 1 || hasNextPage) && (
+                      <div className="flex items-center justify-center gap-3 pt-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={currentPage <= 1 || loading}
+                          onClick={() => goToPage(currentPage - 1)}
+                        >
+                          Previous
+                        </Button>
+                        <span className="text-sm text-muted-foreground tabular-nums">Page {currentPage}</span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!hasNextPage || loading}
+                          onClick={() => goToPage(currentPage + 1)}
+                        >
+                          Next
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             ) : null}

@@ -41,6 +41,49 @@ export function liveListingKey(partnerId: string, collectionName: string, listin
     return `${partnerId}:${collectionName}:${listingId}`;
 }
 
+const CONSULTING_COLLECTION_ALIASES = ["consultingServicesCollection", "consultingCollection"] as const;
+
+function addLiveListingKeys(
+    keys: Set<string>,
+    partnerId: string,
+    collectionName: string,
+    listingId: string,
+): void {
+    keys.add(liveListingKey(partnerId, collectionName, listingId));
+    if (
+        CONSULTING_COLLECTION_ALIASES.includes(
+            collectionName as (typeof CONSULTING_COLLECTION_ALIASES)[number],
+        )
+    ) {
+        for (const alias of CONSULTING_COLLECTION_ALIASES) {
+            if (alias !== collectionName) {
+                keys.add(liveListingKey(partnerId, alias, listingId));
+            }
+        }
+    }
+}
+
+export function hasLiveListingKey(
+    liveKeys: Set<string>,
+    partnerId: string,
+    collectionName: string,
+    listingId: string,
+): boolean {
+    if (liveKeys.has(liveListingKey(partnerId, collectionName, listingId))) return true;
+    if (
+        CONSULTING_COLLECTION_ALIASES.includes(
+            collectionName as (typeof CONSULTING_COLLECTION_ALIASES)[number],
+        )
+    ) {
+        for (const alias of CONSULTING_COLLECTION_ALIASES) {
+            if (alias !== collectionName && liveKeys.has(liveListingKey(partnerId, alias, listingId))) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 export function buildLiveListingKeySet(
     plans: Array<{ path?: string; data: Record<string, unknown> }>,
 ): Set<string> {
@@ -55,7 +98,7 @@ export function buildLiveListingKeySet(
             (typeof data.partnerId === "string" && data.partnerId) ||
             partnerIdFromPlanDocPath(path);
         if (!partnerId) continue;
-        keys.add(liveListingKey(partnerId, collectionName, listingId));
+        addLiveListingKeys(keys, partnerId, collectionName, listingId);
     }
     return keys;
 }
@@ -93,5 +136,15 @@ export function isPartnerListingPublic(
         return listing.active !== false;
     }
 
-    return liveKeys.has(liveListingKey(partnerId, collectionName, listingId));
+    if (hasLiveListingKey(liveKeys, partnerId, collectionName, listingId)) return true;
+
+    // Plans could not be loaded (e.g. rules not deployed yet) — fall back to listing fields.
+    if (liveKeys.size === 0) {
+        const status = String(listing.status || "").trim().toLowerCase();
+        const approved =
+            !status || status === "approved" || status === "active" || status === "published";
+        return listing.active !== false && approved;
+    }
+
+    return false;
 }

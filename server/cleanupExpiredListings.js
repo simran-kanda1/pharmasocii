@@ -69,7 +69,20 @@ async function resolveListingDocRef(db, partnerId, collectionName, listingId) {
     return canonicalRef;
 }
 
-export async function cleanupExpiredListings() {
+const STRIPE_LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due"]);
+
+async function stripeSubscriptionStillLive(stripe, subscriptionId) {
+    if (!stripe || !subscriptionId) return false;
+    try {
+        const sub = await stripe.subscriptions.retrieve(String(subscriptionId));
+        return STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(String(sub?.status || "").toLowerCase());
+    } catch {
+        return false;
+    }
+}
+
+export async function cleanupExpiredListings(options = {}) {
+    const { stripe = null } = options;
     const db = admin.firestore();
     const fv = admin.firestore.FieldValue;
     const listingUpdateOnEnd = {
@@ -86,6 +99,11 @@ export async function cleanupExpiredListings() {
     for (const planDoc of plansSnap.docs) {
         const plan = planDoc.data() || {};
         if (isFirestorePlanBillingLive(plan)) continue;
+
+        const stripeSubId = plan.stripeSubscriptionId;
+        if (stripe && stripeSubId && (await stripeSubscriptionStillLive(stripe, stripeSubId))) {
+            continue;
+        }
 
         const partnerId = partnerIdFromPartnersPlanRef(planDoc.ref);
         const listingId = plan.listingId;

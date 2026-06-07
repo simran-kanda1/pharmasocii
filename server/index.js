@@ -2475,7 +2475,7 @@ app.post("/api/cron/cleanup-expired-listings", async (req, res) => {
         return res.status(503).json({ error: "Firebase Admin not initialized" });
     }
     try {
-        const result = await cleanupExpiredListings();
+        const result = await cleanupExpiredListings({ stripe });
         return res.json({ ok: true, ...result });
     } catch (err) {
         console.error("cleanup-expired-listings:", err);

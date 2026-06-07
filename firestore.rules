@@ -262,9 +262,10 @@ service cloud.firestore {
       allow read: if true;
     }
 
-    // Allow admins to perform collectionGroup queries for dashboard analytics
+    // Public browse (Home, AllCategories) uses collectionGroup on planCollection to
+    // determine which partner listings are billing-live. Only non-sensitive fields are stored.
     match /{path=**}/planCollection/{planId} {
-      allow read: if isAdmin();
+      allow read: if true;
     }
     match /{path=**}/featuresCollection/{featureId} {
       allow read: if isAdmin();

@@ -10,11 +10,28 @@
  * Requires server/pharmasocii_admin.json (same as other server scripts).
  */
 import admin from "firebase-admin";
+import Stripe from "stripe";
 import { existsSync, readFileSync } from "fs";
 import { resolve } from "path";
 import { cleanupExpiredListings } from "../cleanupExpiredListings.js";
 
+function loadEnvFile(filePath) {
+    if (!existsSync(filePath)) return;
+    const content = readFileSync(filePath, "utf8");
+    for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eq = trimmed.indexOf("=");
+        if (eq <= 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        if (!process.env[key]) process.env[key] = trimmed.slice(eq + 1).trim();
+    }
+}
+
 const ROOT = resolve(process.cwd());
+loadEnvFile(resolve(ROOT, "server/.env"));
+loadEnvFile(resolve(ROOT, ".env"));
+
 const APPLY = process.argv.includes("--apply");
 
 function initAdmin() {
@@ -36,7 +53,9 @@ async function main() {
         return;
     }
 
-    const result = await cleanupExpiredListings();
+    const stripeKey = process.env.STRIPE_SECRET_KEY;
+    const stripe = stripeKey ? new Stripe(stripeKey) : null;
+    const result = await cleanupExpiredListings({ stripe });
     console.log(JSON.stringify({ ok: true, ...result }, null, 2));
 }
 
