@@ -3902,7 +3902,15 @@ app.post("/api/admin/create-partner", async (req, res) => {
             addressHtml: addressHtml || null,
             status: status || "Pending Review",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
-            createdByAdmin: true
+            createdByAdmin: true,
+
+            // Fields used by frontend dashboard (AdminDashboard, CompleteProfile, etc.):
+            businessName: companyName,
+            primaryEmail: email,
+            primaryName: `${firstName} ${lastName}`.trim(),
+            phoneNumber: phone || null,
+            partnerStatus: status || "Pending Review",
+            businessAddress: addressHtml || null
         });
 
         // Handle Plan Selection (Free Grant by Admin)

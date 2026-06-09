@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Eye, EyeOff, Loader2, UploadCloud } from "lucide-react";
+import { API_BASE_URL } from "@/apiConfig";
 // import ReactQuill from "react-quill";
 // import "react-quill/dist/quill.snow.css";
 
@@ -100,7 +101,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       const idToken = await auth.currentUser?.getIdToken();
       if (!idToken) throw new Error("Not authenticated");
 
-      const response = await fetch("/api/admin/create-partner", {
+      const response = await fetch(`${API_BASE_URL}/api/admin/create-partner`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
