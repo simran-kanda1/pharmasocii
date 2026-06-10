@@ -38,7 +38,7 @@ import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink } from "@/lib/community";
 import { ArrowLeft, Link2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { goBackToCommunityFeed, saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
+import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
 import { syncPostCommentCount } from "@/lib/communityCallables";
 
 const MAX_COMMENT_IMAGE_BYTES = 1.5 * 1024 * 1024;

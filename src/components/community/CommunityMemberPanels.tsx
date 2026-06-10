@@ -50,7 +50,6 @@ export function CommunityMemberPanels({
   categoryDoc,
   userId,
   canEngage,
-  canSave,
   engageHint,
   savedPostIds,
   helpfulPostIds,
