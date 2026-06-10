@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { COMMUNITY_REPORT_REASONS } from "@/lib/communityReportReasons";
+import { AlreadyReportedError } from "@/lib/submitCommunityReport";
 import { cn } from "@/lib/utils";
 
 type CommunityReportDialogProps = {
@@ -44,8 +45,12 @@ export function CommunityReportDialog({
       setSubmitting(true);
       await onSubmit(selected);
       close();
-    } catch {
-      setError("Report failed. You may have already reported this item.");
+    } catch (err) {
+      if (err instanceof AlreadyReportedError) {
+        setError("You have already reported this content.");
+      } else {
+        setError("Report failed. You may have already reported this item.");
+      }
     } finally {
       setSubmitting(false);
     }

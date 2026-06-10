@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/firebase";
+import { auth } from "@/firebase";
 import { CommunityReportDialog } from "@/components/community/CommunityReportDialog";
 import { buildLinkedInShareUrl, copyPostLink } from "@/lib/communityShare";
+import { submitCommunitySpamReport } from "@/lib/submitCommunityReport";
 import {
   Bookmark,
   CheckSquare,
@@ -66,8 +66,7 @@ export function PostActionBar({
   const submitReport = async (reason: string) => {
     const user = auth.currentUser;
     if (!user || !canEngage) throw new Error("Not allowed");
-    const reportId = `${user.uid}_post_${postId}`;
-    await setDoc(doc(db, "spamReportsCollection", reportId), {
+    await submitCommunitySpamReport({
       reporterId: user.uid,
       targetType: "post",
       targetKey: postId,
@@ -75,20 +74,22 @@ export function PostActionBar({
       postId,
       commentId: null,
       reason,
-      status: "open",
-      createdAt: serverTimestamp(),
     });
   };
 
   const linkedInShare = () => {
-    const url = buildLinkedInShareUrl(postId, postTitle);
-    window.open(url, "_blank", "noopener,noreferrer");
+    requireEngage(() => {
+      const url = buildLinkedInShareUrl(postId, postTitle);
+      window.open(url, "_blank", "noopener,noreferrer");
+    });
   };
 
-  const copyLink = async () => {
-    const ok = await copyPostLink(postId);
-    setCopyMsg(ok ? "Link copied" : "Could not copy");
-    window.setTimeout(() => setCopyMsg(""), 2000);
+  const copyLink = () => {
+    requireEngage(async () => {
+      const ok = await copyPostLink(postId);
+      setCopyMsg(ok ? "Link copied" : "Could not copy");
+      window.setTimeout(() => setCopyMsg(""), 2000);
+    });
   };
 
   const disabledTitle = engageHint || "Sign in with a verified member profile to use this.";
@@ -105,17 +106,19 @@ export function PostActionBar({
       >
         <Link
           to={`/community/post/${postId}#comments`}
-          className="flex flex-1 min-w-[100px] items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 dark:border-foreground/10 dark:hover:bg-card"
+          className="flex shrink-0 items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 dark:border-foreground/10 dark:hover:bg-card min-w-[6.5rem]"
           onClick={(e) => {
             e.stopPropagation();
             if (rememberFeedScroll) saveCommunityFeedScroll(postId);
           }}
         >
           <MessageSquare className="h-4 w-4 shrink-0" />
-          <span className="truncate">Comment ({commentCount})</span>
+          <span className="whitespace-nowrap tabular-nums">
+            Comment ({Math.max(0, commentCount)})
+          </span>
         </Link>
         <ActionBtn
-          label={`Helpful (${helpfulCount})`}
+          label={`Helpful (${Math.max(0, helpfulCount)})`}
           icon={CheckSquare}
           active={helpful}
           title={!canEngage ? disabledTitle : helpful ? "Remove helpful" : "Mark as helpful"}
@@ -182,7 +185,7 @@ function ActionBtn({
       title={title}
     >
       <Icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} />
-      <span className="truncate">{label}</span>
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   );
 }

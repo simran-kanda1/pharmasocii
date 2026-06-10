@@ -22,6 +22,7 @@ import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import type { CommunityView } from "@/components/community/CommunityMemberSidebar";
 import type { CommunityPost } from "@/lib/communityTypes";
 import { X } from "lucide-react";
+import { saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
 import {
   deleteMemberNotification,
   filterNotificationsByAge,
@@ -35,6 +36,7 @@ type Props = {
   categoryDoc: CommunityCategoryDoc | null;
   userId: string;
   canEngage: boolean;
+  canSave: boolean;
   engageHint?: string;
   savedPostIds: Set<string>;
   helpfulPostIds: Set<string>;
@@ -48,6 +50,7 @@ export function CommunityMemberPanels({
   categoryDoc,
   userId,
   canEngage,
+  canSave,
   engageHint,
   savedPostIds,
   helpfulPostIds,
@@ -57,7 +60,7 @@ export function CommunityMemberPanels({
 }: Props) {
   const navigate = useNavigate();
   const [myPosts, setMyPosts] = useState<Array<{ id: string } & CommunityPost>>([]);
-  const [savedPosts, setSavedPosts] = useState<Array<{ id: string } & CommunityPost>>([]);
+  const [savedPosts, setSavedPosts] = useState<Array<{ id: string; unavailable?: boolean } & CommunityPost>>([]);
   const [savedComments, setSavedComments] = useState<
     Array<{ commentId: string; postId: string; preview?: string; unavailable?: boolean }>
   >([]);
@@ -110,12 +113,19 @@ export function CommunityMemberPanels({
           setMyPosts(ps.docs.map((d) => ({ id: d.id, ...(d.data() as CommunityPost) })));
 
           const savedSnap = await getDocs(collection(db, "membersCollection", userId, "savedPostsCollection"));
-          const loaded: Array<{ id: string } & CommunityPost> = [];
+          const loaded: Array<{ id: string; unavailable?: boolean } & CommunityPost> = [];
           for (const d of savedSnap.docs) {
             const pr = await getDoc(doc(db, "postsCollection", d.id));
-            if (pr.exists() && pr.data().archived !== true) {
-              loaded.push({ id: pr.id, ...(pr.data() as CommunityPost) });
+            if (!pr.exists()) {
+              loaded.push({ id: d.id, unavailable: true } as { id: string; unavailable?: boolean } & CommunityPost);
+              continue;
             }
+            const data = pr.data() as CommunityPost;
+            loaded.push({
+              id: pr.id,
+              ...data,
+              unavailable: data.archived === true,
+            });
           }
           setSavedPosts(loaded);
 
@@ -127,7 +137,7 @@ export function CommunityMemberPanels({
             const postId = String(d.data().postId || "");
             if (!postId) continue;
             const cref = await getDoc(doc(db, "postsCollection", postId, "commentsCollection", d.id));
-            if (!cref.exists() || cref.data()?.archived) {
+            if (!cref.exists() || cref.data()?.archived === true) {
               rows.push({ commentId: d.id, postId, unavailable: true });
             } else {
               rows.push({ commentId: d.id, postId, preview: String(cref.data()?.text || "").slice(0, 120) });
@@ -162,6 +172,7 @@ export function CommunityMemberPanels({
     post: p as never,
     categoryDoc,
     showActionBar: true,
+    rememberFeedScroll: true,
     canEngage,
     engageHint,
     saved: savedPostIds.has(p.id),
@@ -190,21 +201,28 @@ export function CommunityMemberPanels({
                 ))}
               </TabsContent>
               <TabsContent value="saved-posts" className="space-y-4 mt-0">
-                {savedPosts.map((p) => (
-                  <PostCard key={p.id} {...postCardProps(p)} />
-                ))}
+                {savedPosts.map((p) =>
+                  p.unavailable ? (
+                    <div key={p.id} className="border rounded-lg p-3 text-sm text-muted-foreground">
+                      Saved post temporarily unavailable
+                    </div>
+                  ) : (
+                    <PostCard key={p.id} {...postCardProps(p)} />
+                  ),
+                )}
               </TabsContent>
               <TabsContent value="saved-comments" className="space-y-2 mt-0">
                 {savedComments.map((c) => (
                   <div key={c.commentId} className="border rounded-lg p-3 text-sm">
                     {c.unavailable ? (
-                      <p className="text-muted-foreground">Unavailable</p>
+                      <p className="text-muted-foreground">Saved comment temporarily unavailable</p>
                     ) : (
                       <>
                         <p className="line-clamp-2">{c.preview}</p>
                         <Link
                           to={`/community/post/${c.postId}?highlight=${c.commentId}`}
                           className="text-xs text-primary underline mt-2 inline-block"
+                          onClick={() => saveCommunityFeedScroll(c.postId)}
                         >
                           Open post
                         </Link>
@@ -346,8 +364,10 @@ export function CommunityMemberPanels({
           <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2 dark:border-foreground/15 dark:bg-muted/30">
             <p className="text-sm font-medium">Community standing</p>
             <p className="text-xs text-muted-foreground">
-              Spam reports on your posts and comments are tracked for your lifetime. After three reports in the current
-              cycle, your account is paused for 30 days; the cycle counter resets when you are reactivated.
+              Spam reports on your posts and comments are tracked per active cycle. After three unique
+              reports in a cycle, your account is paused for 30 days starting from that third report. While
+              paused, new reports are logged but do not extend the pause or increase your counts. The cycle
+              resets when you are reactivated.
             </p>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
               <dt className="text-muted-foreground">Lifetime spam reports</dt>

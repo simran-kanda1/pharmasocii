@@ -36,6 +36,10 @@ service cloud.firestore {
       return emailVerifiedToken() && memberCanWrite();
     }
 
+    function canUseCommunitySaves() {
+      return emailVerifiedToken() && memberExists();
+    }
+
     function stringListMax(list, max) {
       return list is list && list.size() <= max;
     }
@@ -112,18 +116,23 @@ service cloud.firestore {
 
       match /savedPostsCollection/{postId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
-        allow create, delete: if canUseCommunityWrites() && request.auth.uid == userId;
-        allow update: if false;
+        allow create, delete: if canUseCommunitySaves() && request.auth.uid == userId;
+        allow update: if canUseCommunitySaves()
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasOnly(['savedAt']);
       }
 
       match /savedCommentsCollection/{commentId} {
         allow read: if isSignedIn() && request.auth.uid == userId;
-        allow create: if canUseCommunityWrites()
+        allow create: if canUseCommunitySaves()
+          && request.auth.uid == userId
+          && request.resource.data.postId is string
+          && request.resource.data.keys().hasOnly(['postId', 'savedAt']);
+        allow update: if canUseCommunitySaves()
           && request.auth.uid == userId
           && request.resource.data.postId is string
           && request.resource.data.keys().hasOnly(['postId', 'savedAt']);
         allow delete: if isSignedIn() && request.auth.uid == userId;
-        allow update: if false;
       }
 
       match /helpfulPostsCollection/{postId} {
@@ -144,7 +153,7 @@ service cloud.firestore {
 
     // --- Community posts ---
     match /postsCollection/{postId} {
-      allow read: if resource.data.archived != true || isAdmin();
+      allow read: if (resource.data.archived != true && memberExists() && emailVerifiedToken()) || isAdmin();
 
       allow create: if canUseCommunityWrites()
         && request.resource.data.authorId == request.auth.uid
@@ -194,7 +203,8 @@ service cloud.firestore {
         );
 
       match /commentsCollection/{commentId} {
-        allow read: if resource.data.archived != true || isAdmin();
+        // Members may read all comments on a query (including archived). UI hides archived ones.
+        allow read: if (memberExists() && emailVerifiedToken()) || isAdmin();
 
         allow create: if canUseCommunityWrites()
           && request.resource.data.authorId == request.auth.uid

@@ -85,6 +85,12 @@ exports.cleanupExpiredSpotlights = onSchedule(
 
 const SPAM_THRESHOLD = 3;
 const BLOCK_DAYS = 30;
+
+function computeSpamBlockEnd(startDate) {
+    const until = new Date(startDate.getTime());
+    until.setDate(until.getDate() + BLOCK_DAYS);
+    return until;
+}
 const { renderEmail } = require("./emailTemplates");
 
 function parseVerificationCcEmails() {
@@ -121,6 +127,20 @@ function getNodemailerFrom() {
     return `"Pharmasocii" <${raw}>`;
 }
 
+async function recountActiveCommentCount(postId) {
+    const commentsSnap = await db
+        .collection("postsCollection")
+        .doc(postId)
+        .collection("commentsCollection")
+        .get();
+    let count = 0;
+    for (const c of commentsSnap.docs) {
+        if (c.data().archived !== true) count += 1;
+    }
+    await db.collection("postsCollection").doc(postId).update({ commentCount: count });
+    return count;
+}
+
 async function archiveAllCommentsForPost(postId) {
     const commentsSnap = await db
         .collection("postsCollection")
@@ -135,7 +155,77 @@ async function archiveAllCommentsForPost(postId) {
         n += 1;
     }
     if (n > 0) await batch.commit();
+    await recountActiveCommentCount(postId);
     return n;
+}
+
+/** Restore comments archived only because their parent post was archived (not independently spam-removed). */
+async function restoreCommentsArchivedForPost(postId) {
+    const commentsSnap = await db
+        .collection("postsCollection")
+        .doc(postId)
+        .collection("commentsCollection")
+        .get();
+    let batch = db.batch();
+    let batchOps = 0;
+    let restored = 0;
+    for (const c of commentsSnap.docs) {
+        const data = c.data();
+        if (data.archived !== true || data.archivedReason !== "post_archived") continue;
+        batch.update(c.ref, {
+            archived: false,
+            archivedReason: FieldValue.delete(),
+            archivedAt: FieldValue.delete(),
+        });
+        batchOps += 1;
+        restored += 1;
+        if (batchOps >= 450) {
+            await batch.commit();
+            batch = db.batch();
+            batchOps = 0;
+        }
+    }
+    if (batchOps > 0) await batch.commit();
+    return restored;
+}
+
+function buildSpamCountUpdate(existingData, reporterId) {
+    const reportedBy = Array.isArray(existingData?.reportedBy) ? existingData.reportedBy : [];
+    if (reportedBy.includes(reporterId)) {
+        return { duplicate: true, update: null, nextCount: existingData?.spamReportCount || 0 };
+    }
+    const next = (existingData?.spamReportCount || 0) + 1;
+    return {
+        duplicate: false,
+        nextCount: next,
+        update: {
+            spamReportCount: next,
+            reportedBy: [...reportedBy, reporterId],
+        },
+    };
+}
+
+function memberTimestampToDate(value) {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value.toDate === "function") {
+        const d = value.toDate();
+        return d instanceof Date && !Number.isNaN(d.getTime()) ? d : null;
+    }
+    if (typeof value.seconds === "number") {
+        const d = new Date(value.seconds * 1000);
+        return Number.isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+}
+
+/** Account cannot post/comment — spam block or admin hold. Reports while restricted do not move counters or extend blocks. */
+function isMemberSpamRestricted(data) {
+    if (!data) return false;
+    if (data.accountStatus === "spam_blocked" || data.accountStatus === "admin_hold") return true;
+    const until = memberTimestampToDate(data.spamBlockUntil);
+    if (until && until.getTime() > Date.now()) return true;
+    return false;
 }
 
 async function sendAccountActivationEmail(userId, userEmail, userName, verifyLink, options = {}) {
@@ -309,9 +399,13 @@ exports.onSpamReportCreated = onDocumentCreated(
         const targetKey = d.targetKey;
         const targetAuthorId = d.targetAuthorId;
         const postId = d.postId;
+        const reporterId = d.reporterId;
+
+        if (!reporterId || !targetAuthorId) return;
 
         let contentArchived = false;
         let contentTypeLabel = targetType === "post" ? "post" : "comment";
+        let countedTowardContent = false;
 
         if (targetType === "post") {
             const pref = db.collection("postsCollection").doc(postId);
@@ -319,9 +413,11 @@ exports.onSpamReportCreated = onDocumentCreated(
             await db.runTransaction(async (tx) => {
                 const p = await tx.get(pref);
                 if (!p.exists) return;
-                const next = (p.data().spamReportCount || 0) + 1;
-                const update = { spamReportCount: next };
-                if (next >= SPAM_THRESHOLD) {
+                const spam = buildSpamCountUpdate(p.data(), reporterId);
+                if (spam.duplicate || !spam.update) return;
+                countedTowardContent = true;
+                const update = { ...spam.update };
+                if (spam.nextCount >= SPAM_THRESHOLD) {
                     update.archived = true;
                     update.archivedReason = "spam_reports";
                     shouldCascade = true;
@@ -339,49 +435,66 @@ exports.onSpamReportCreated = onDocumentCreated(
                 .doc(postId)
                 .collection("commentsCollection")
                 .doc(commentId);
+            const postRef = db.collection("postsCollection").doc(postId);
+            let shouldRecount = false;
             await db.runTransaction(async (tx) => {
                 const c = await tx.get(cref);
                 if (!c.exists) return;
-                const next = (c.data().spamReportCount || 0) + 1;
-                const update = { spamReportCount: next };
-                if (next >= SPAM_THRESHOLD) {
+                const spam = buildSpamCountUpdate(c.data(), reporterId);
+                if (spam.duplicate || !spam.update) return;
+                countedTowardContent = true;
+                const update = { ...spam.update };
+                if (spam.nextCount >= SPAM_THRESHOLD) {
                     update.archived = true;
                     update.archivedReason = "spam_reports";
                     contentArchived = true;
+                    shouldRecount = true;
                 }
                 tx.update(cref, update);
             });
+            if (shouldRecount) await recountActiveCommentCount(postId);
         }
 
         let newActive = 0;
         let blockedUntil = null;
+        let memberWasRestricted = false;
         const memberRef = db.collection("membersCollection").doc(targetAuthorId);
         await db.runTransaction(async (tx) => {
             const m = await tx.get(memberRef);
             if (!m.exists) return;
             const data = m.data();
-            const isBlocked = data.accountStatus === "spam_blocked";
-            const total = (data.spamTotalReportCount || 0) + 1;
-            const update = { spamTotalReportCount: total };
-            if (!isBlocked) {
-                const active = (data.spamActiveReportCount || 0) + 1;
-                newActive = active;
-                if (active >= SPAM_THRESHOLD) {
-                    const until = new Date();
-                    until.setDate(until.getDate() + BLOCK_DAYS);
-                    blockedUntil = until;
-                    update.accountStatus = "spam_blocked";
-                    update.spamBlockUntil = admin.firestore.Timestamp.fromDate(until);
-                    update.spamActiveReportCount = 0;
-                } else {
-                    update.spamActiveReportCount = active;
-                }
+
+            if (isMemberSpamRestricted(data)) {
+                memberWasRestricted = true;
+                newActive = data.spamActiveReportCount ?? SPAM_THRESHOLD;
+                return;
+            }
+
+            if (!countedTowardContent) {
+                newActive = data.spamActiveReportCount || 0;
+                return;
+            }
+
+            const active = (data.spamActiveReportCount || 0) + 1;
+            newActive = active;
+            const update = {
+                spamTotalReportCount: (data.spamTotalReportCount || 0) + 1,
+            };
+            if (active >= SPAM_THRESHOLD) {
+                const blockStartedAt = new Date();
+                blockedUntil = computeSpamBlockEnd(blockStartedAt);
+                update.accountStatus = "spam_blocked";
+                update.spamBlockStartedAt = admin.firestore.Timestamp.fromDate(blockStartedAt);
+                update.spamBlockUntil = admin.firestore.Timestamp.fromDate(blockedUntil);
+                update.spamActiveReportCount = SPAM_THRESHOLD;
+            } else {
+                update.spamActiveReportCount = active;
             }
             tx.update(memberRef, update);
         });
 
         const { email, userName } = await getMemberEmailAndName(targetAuthorId);
-        if (email) {
+        if (email && !memberWasRestricted) {
             if (newActive === 1) {
                 await sendCommunityEmail({ type: "spam_strike_1", toEmail: email, payload: { userName } });
             } else if (newActive === 2) {
@@ -396,13 +509,13 @@ exports.onSpamReportCreated = onDocumentCreated(
                     },
                 });
             }
-            if (contentArchived) {
-                await sendCommunityEmail({
-                    type: "content_archived_spam",
-                    toEmail: email,
-                    payload: { userName, contentType: contentTypeLabel },
-                });
-            }
+        }
+        if (email && contentArchived) {
+            await sendCommunityEmail({
+                type: "content_archived_spam",
+                toEmail: email,
+                payload: { userName, contentType: contentTypeLabel },
+            });
         }
     }
 );
@@ -427,6 +540,7 @@ exports.releaseExpiredSpamBlocks = onSchedule(
                 accountStatus: "active",
                 spamActiveReportCount: 0,
                 spamBlockUntil: FieldValue.delete(),
+                spamBlockStartedAt: FieldValue.delete(),
             });
             const { email, userName } = await getMemberEmailAndName(docSnap.id);
             if (email) {
@@ -476,8 +590,12 @@ exports.adminRestorePost = onCall({ region: "us-central1", cors: true }, async (
     await pref.update({
         archived: false,
         archivedReason: FieldValue.delete(),
+        archivedAt: FieldValue.delete(),
         spamReportCount: 0,
+        reportedBy: [],
     });
+    await restoreCommentsArchivedForPost(postId);
+    await recountActiveCommentCount(postId);
     const { email, userName } = await getMemberEmailAndName(authorId);
     if (email) {
         await sendCommunityEmail({
@@ -498,11 +616,27 @@ exports.adminRestoreComment = onCall({ region: "us-central1", cors: true }, asyn
     const c = await cref.get();
     if (!c.exists) throw new HttpsError("not-found", "Comment not found.");
     const authorId = c.data().authorId;
-    await cref.update({
-        archived: false,
-        archivedReason: FieldValue.delete(),
-        spamReportCount: 0,
-    });
+    const commentData = c.data();
+    const postRef = db.collection("postsCollection").doc(postId);
+    const postSnap = await postRef.get();
+    const postData = postSnap.exists ? postSnap.data() : null;
+    if (commentData?.archivedReason === "post_archived" && postData?.archived === true) {
+        await postRef.update({
+            archived: false,
+            archivedReason: FieldValue.delete(),
+            archivedAt: FieldValue.delete(),
+        });
+        await restoreCommentsArchivedForPost(postId);
+    } else {
+        await cref.update({
+            archived: false,
+            archivedReason: FieldValue.delete(),
+            archivedAt: FieldValue.delete(),
+            spamReportCount: 0,
+            reportedBy: [],
+        });
+    }
+    await recountActiveCommentCount(postId);
     const { email, userName } = await getMemberEmailAndName(authorId);
     if (email) {
         await sendCommunityEmail({
@@ -512,6 +646,19 @@ exports.adminRestoreComment = onCall({ region: "us-central1", cors: true }, asyn
         });
     }
     return { ok: true };
+});
+
+exports.syncPostCommentCount = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
+    const member = await db.collection("membersCollection").doc(request.auth.uid).get();
+    if (!member.exists) throw new HttpsError("permission-denied", "Member profile required.");
+    const { postId } = request.data || {};
+    if (!postId) throw new HttpsError("invalid-argument", "postId required.");
+    const postSnap = await db.collection("postsCollection").doc(postId).get();
+    if (!postSnap.exists) throw new HttpsError("not-found", "Post not found.");
+    if (postSnap.data()?.archived === true) throw new HttpsError("failed-precondition", "Post archived.");
+    const count = await recountActiveCommentCount(postId);
+    return { count };
 });
 
 exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, async (request) => {
@@ -524,15 +671,16 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     const update = { accountStatus: status };
     if (status === "active") {
         update.spamBlockUntil = FieldValue.delete();
-        if (clearSpamCounters) {
-            update.spamActiveReportCount = 0;
-        }
+        update.spamBlockStartedAt = FieldValue.delete();
+        update.spamActiveReportCount = 0;
     } else if (status === "spam_blocked") {
-        const until = new Date();
-        until.setDate(until.getDate() + BLOCK_DAYS);
-        update.spamBlockUntil = admin.firestore.Timestamp.fromDate(until);
+        const blockStartedAt = new Date();
+        update.spamBlockStartedAt = admin.firestore.Timestamp.fromDate(blockStartedAt);
+        update.spamBlockUntil = admin.firestore.Timestamp.fromDate(computeSpamBlockEnd(blockStartedAt));
+        update.spamActiveReportCount = SPAM_THRESHOLD;
     } else if (status === "admin_hold") {
         update.spamBlockUntil = FieldValue.delete();
+        update.spamBlockStartedAt = FieldValue.delete();
     }
     if (reason) update.adminHoldReason = reason;
     await db.collection("membersCollection").doc(userId).update(update);

@@ -29,23 +29,36 @@ export type PostCardPost = {
   createdAt?: { toDate: () => Date };
 };
 
+function ExternalInlineLink({ href }: { href: string }) {
+  return (
+    <span
+      role="link"
+      tabIndex={0}
+      className="text-primary font-medium underline underline-offset-2 break-all cursor-pointer"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        window.open(href, "_blank", "noopener,noreferrer");
+      }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          e.stopPropagation();
+          window.open(href, "_blank", "noopener,noreferrer");
+        }
+      }}
+    >
+      {href}
+    </span>
+  );
+}
+
 function linkifyText(text: string) {
   const urlRegex = /(https?:\/\/[^\s]+)/g;
   const parts = text.split(urlRegex);
   return parts.map((part, i) => {
     if (part.match(/^https?:\/\//)) {
-      return (
-        <a
-          key={i}
-          href={part}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-primary font-medium underline underline-offset-2 break-all"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {part}
-        </a>
-      );
+      return <ExternalInlineLink key={i} href={part} />;
     }
     return <span key={i}>{part}</span>;
   });

@@ -24,6 +24,7 @@ export type AdminMemberRow = {
   emailVerified?: boolean;
   spamActiveReportCount?: number;
   spamTotalReportCount?: number;
+  spamBlockStartedAt?: { toDate: () => Date };
   spamBlockUntil?: { toDate: () => Date };
   createdAt?: { toDate: () => Date };
   lastLoginAt?: { toDate: () => Date };
@@ -139,6 +140,7 @@ export async function loadCommunityMembers(): Promise<AdminMemberRow[]> {
         emailVerified: Boolean(data.emailVerified),
         spamActiveReportCount: data.spamActiveReportCount as number | undefined,
         spamTotalReportCount: data.spamTotalReportCount as number | undefined,
+        spamBlockStartedAt: data.spamBlockStartedAt as { toDate: () => Date } | undefined,
         spamBlockUntil: data.spamBlockUntil as { toDate: () => Date } | undefined,
         createdAt: data.createdAt as { toDate: () => Date } | undefined,
         lastLoginAt: (data.lastLoginAt as { toDate: () => Date } | undefined) ||
@@ -350,6 +352,7 @@ export async function loadMemberDetail(memberId: string): Promise<AdminMemberDet
     emailVerified: Boolean(data.emailVerified),
     spamActiveReportCount: data.spamActiveReportCount as number | undefined,
     spamTotalReportCount: data.spamTotalReportCount as number | undefined,
+    spamBlockStartedAt: data.spamBlockStartedAt as { toDate: () => Date } | undefined,
     spamBlockUntil: data.spamBlockUntil as { toDate: () => Date } | undefined,
     createdAt: data.createdAt as { toDate: () => Date } | undefined,
     lastLoginAt: (data.lastLoginAt as { toDate: () => Date } | undefined) ||

@@ -44,6 +44,7 @@ export function AdminMemberDetailPage({ memberId, onBack, onEdit, backLabel = "B
   }
 
   const blockUntil = member.spamBlockUntil?.toDate?.() ?? null;
+  const blockStarted = member.spamBlockStartedAt?.toDate?.() ?? null;
 
   return (
     <AdminDetailChrome title="Member details" breadcrumb={["Members", "Member details"]} onBack={onBack} backLabel={backLabel}>
@@ -59,6 +60,8 @@ export function AdminMemberDetailPage({ memberId, onBack, onEdit, backLabel = "B
           { label: "About", value: member.userBio || "N/A" },
           { label: "Verified Email", value: member.emailVerified ? "Yes" : "No" },
           { label: "Status", value: memberStatusLabel(member.accountStatus, blockUntil) },
+          { label: "Block start date", value: formatAdminDate(blockStarted) },
+          { label: "Block end date", value: formatAdminDate(blockUntil) },
           { label: "Lifetime spam reports", value: String(member.spamTotalReportCount ?? 0) },
           { label: "Current spam cycle", value: `${member.spamActiveReportCount ?? 0} / 3` },
           { label: "Created At", value: formatAdminDate(member.createdAt?.toDate?.()) },

@@ -6,12 +6,8 @@ import {
   doc,
   getDoc,
   getDocs,
-  setDoc,
-  deleteDoc,
   addDoc,
   query,
-  where,
-  orderBy,
   serverTimestamp,
   onSnapshot,
 } from "firebase/firestore";
@@ -20,14 +16,30 @@ import { onAuthStateChanged } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { CommunityReportDialog } from "@/components/community/CommunityReportDialog";
+import { CommunityIconAction, communityActionIcons } from "@/components/community/CommunityIconAction";
+import { submitCommunitySpamReport } from "@/lib/submitCommunityReport";
+import { toggleSavedComment, toggleSavedPost } from "@/lib/communityEngagement";
+import {
+  buildLinkedInShareUrl,
+  buildLinkedInCommentShareUrl,
+  copyCommentLink,
+  copyPostLink,
+} from "@/lib/communityShare";
+import {
+  canAccessCommunity,
+  canEngageCommunity,
+  canSaveCommunityContent,
+  communityAccessHint,
+} from "@/lib/communityAccess";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink } from "@/lib/community";
-import { ArrowLeft, Bookmark, Flag, Share2, Link2 } from "lucide-react";
+import { ArrowLeft, Link2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
+import { goBackToCommunityFeed, saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
+import { syncPostCommentCount } from "@/lib/communityCallables";
 
 const MAX_COMMENT_IMAGE_BYTES = 1.5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -51,6 +63,7 @@ export default function CommunityPostDetail() {
   const highlightCommentId = searchParams.get("highlight");
   const { categoryDoc } = useCommunityCategories();
   const commentRefs = useRef<Record<string, HTMLLIElement | null>>({});
+  const syncCommentCountBusy = useRef(false);
   const [post, setPost] = useState<Record<string, unknown> | null>(null);
   const [postMissing, setPostMissing] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -69,8 +82,10 @@ export default function CommunityPostDetail() {
   const [reportTarget, setReportTarget] = useState<"post" | "comment">("post");
   const [reportComment, setReportComment] = useState<CommentRow | null>(null);
   const [error, setError] = useState("");
+  const [commentsLoadError, setCommentsLoadError] = useState("");
   const [hasMemberProfile, setHasMemberProfile] = useState(false);
-  const [shareFeedback, setShareFeedback] = useState("");
+  const [authReady, setAuthReady] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState("");
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -101,12 +116,13 @@ export default function CommunityPostDetail() {
         setSavedCommentIds(new Set());
         setHasMemberProfile(false);
       }
+      setAuthReady(true);
     });
     return () => unsub();
   }, [postId]);
 
   useEffect(() => {
-    if (!postId) return;
+    if (!postId || !canAccessCommunity(user, verified, hasMemberProfile)) return;
     const pref = doc(db, "postsCollection", postId);
     const unsub = onSnapshot(
       pref,
@@ -125,10 +141,10 @@ export default function CommunityPostDetail() {
       },
     );
     return () => unsub();
-  }, [postId]);
+  }, [postId, user, verified, hasMemberProfile]);
 
   useEffect(() => {
-    if (!postId || !post) return;
+    if (!postId || !post || !canAccessCommunity(user, verified, hasMemberProfile)) return;
     const path = post.imageStoragePath as string | undefined;
     if (!path) {
       setImageUrl(null);
@@ -137,26 +153,52 @@ export default function CommunityPostDetail() {
     getDownloadURL(storageRef(storage, path))
       .then(setImageUrl)
       .catch(() => setImageUrl(null));
-  }, [post, postId]);
+  }, [post, postId, user, verified, hasMemberProfile]);
 
   useEffect(() => {
-    if (!postId) return;
-    const q = query(
-      collection(db, "postsCollection", postId, "commentsCollection"),
-      where("archived", "==", false),
-      orderBy("createdAt", "asc"),
-    );
+    if (!postId || !canAccessCommunity(user, verified, hasMemberProfile)) return;
+    const q = query(collection(db, "postsCollection", postId, "commentsCollection"));
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setComments(
-          snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<CommentRow, "id">) })),
-        );
+        setCommentsLoadError("");
+        const rows = snap.docs
+          .filter((d) => d.data().archived !== true)
+          .map((d) => ({ id: d.id, ...(d.data() as Omit<CommentRow, "id">) }));
+        rows.sort((a, b) => {
+          const ta = a.createdAt?.toDate?.()?.getTime() ?? 0;
+          const tb = b.createdAt?.toDate?.()?.getTime() ?? 0;
+          return ta - tb;
+        });
+        setComments(rows);
       },
-      (e) => console.error(e),
+      (e) => {
+        console.error(e);
+        setComments([]);
+        setCommentsLoadError("Could not load comments. Try refreshing the page.");
+      },
     );
     return () => unsub();
+  }, [postId, user, verified, hasMemberProfile]);
+
+  useEffect(() => {
+    syncCommentCountBusy.current = false;
   }, [postId]);
+
+  useEffect(() => {
+    if (!postId || !canAccessCommunity(user, verified, hasMemberProfile) || !post) return;
+    const stored = Number(post.commentCount ?? 0);
+    if (comments.length === stored || syncCommentCountBusy.current) return;
+    syncCommentCountBusy.current = true;
+    syncPostCommentCount(postId)
+      .then(({ count }) => {
+        setPost((prev) => (prev ? { ...prev, commentCount: count } : prev));
+      })
+      .catch(() => {})
+      .finally(() => {
+        syncCommentCountBusy.current = false;
+      });
+  }, [comments.length, post, postId, user, verified, hasMemberProfile]);
 
   useEffect(() => {
     if (!highlightCommentId || comments.length === 0) return;
@@ -194,59 +236,34 @@ export default function CommunityPostDetail() {
     }
   }, [highlightCommentId, comments]);
 
-  const canEngage = Boolean(user && verified && !memberRestricted && hasMemberProfile);
+  const canAccess = canAccessCommunity(user, verified, hasMemberProfile);
+  const canEngage = canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
+  const canSave = canSaveCommunityContent(user, verified, hasMemberProfile);
   const postAuthorId = post?.authorId as string | undefined;
   const archived = post?.archived === true;
 
-  const engageHint = (() => {
-    if (archived) return "This post is archived.";
-    if (memberRestricted) return "Your account is temporarily restricted (view only).";
-    if (!user) return "Log in with a verified member account to use this.";
-    if (!verified) return "Verify your email to use this.";
-    if (!hasMemberProfile) return "Create your community profile to use this.";
-    return "";
-  })();
+  const engageHint = archived
+    ? "This post is archived."
+    : communityAccessHint(memberRestricted, user, verified, hasMemberProfile);
 
-  const sharePost = async () => {
-    if (!postId || archived || !canEngage) return;
-    const url = `${window.location.origin}/community/post/${postId}`;
-    const title = String(post?.title ?? "Community post");
-    setShareFeedback("");
-    try {
-      if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({ title, text: title, url });
-        return;
-      }
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(url);
-        setShareFeedback("Link copied to clipboard");
-        window.setTimeout(() => setShareFeedback(""), 2500);
-        return;
-      }
-      setShareFeedback(url);
-    } catch (e: unknown) {
-      if (e && typeof e === "object" && "name" in e && (e as { name: string }).name === "AbortError") return;
-      try {
-        if (navigator.clipboard?.writeText) {
-          await navigator.clipboard.writeText(url);
-          setShareFeedback("Link copied to clipboard");
-          window.setTimeout(() => setShareFeedback(""), 2500);
-        } else {
-          setError("Could not share. Copy the address from your browser bar.");
-        }
-      } catch {
-        setError("Could not share. Copy the address from your browser bar.");
-      }
-    }
+  const shareLinkedIn = () => {
+    if (!canEngage || !postId) return;
+    const url = buildLinkedInShareUrl(postId, String(post?.title ?? "Community post"));
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+
+  const copyPostLinkAction = async () => {
+    if (!canEngage || !postId) return;
+    const ok = await copyPostLink(postId);
+    setCopyFeedback(ok ? "Link copied" : "Could not copy");
+    window.setTimeout(() => setCopyFeedback(""), 2500);
   };
 
   const toggleSave = async () => {
-    if (!canEngage || !postId || !user) return;
-    const sref = doc(db, "membersCollection", user.uid, "savedPostsCollection", postId);
+    if (!canSave || !postId || !user) return;
     try {
-      if (saved) await deleteDoc(sref);
-      else await setDoc(sref, { savedAt: serverTimestamp() });
-      setSaved(!saved);
+      const nowSaved = await toggleSavedPost(user.uid, postId, saved);
+      setSaved(nowSaved);
     } catch (e) {
       console.error(e);
       setError("Could not update saved posts.");
@@ -343,8 +360,7 @@ export default function CommunityPostDetail() {
       throw new Error("You cannot report your own content.");
     }
 
-    const reportId = `${user.uid}_${reportTarget}_${targetKey}`;
-    await setDoc(doc(db, "spamReportsCollection", reportId), {
+    await submitCommunitySpamReport({
       reporterId: user.uid,
       targetType: reportTarget,
       targetKey,
@@ -352,26 +368,24 @@ export default function CommunityPostDetail() {
       postId,
       commentId: reportComment?.id ?? null,
       reason,
-      status: "open",
-      createdAt: serverTimestamp(),
     });
   };
 
   const toggleSaveComment = async (commentId: string) => {
-    if (!canEngage || !user || !postId) return;
-    const sref = doc(db, "membersCollection", user.uid, "savedCommentsCollection", commentId);
+    if (!canSave || !user || !postId) return;
     try {
-      if (savedCommentIds.has(commentId)) {
-        await deleteDoc(sref);
-        setSavedCommentIds((prev) => {
-          const next = new Set(prev);
-          next.delete(commentId);
-          return next;
-        });
-      } else {
-        await setDoc(sref, { postId, savedAt: serverTimestamp() });
-        setSavedCommentIds((prev) => new Set(prev).add(commentId));
-      }
+      const nowSaved = await toggleSavedComment(
+        user.uid,
+        commentId,
+        postId,
+        savedCommentIds.has(commentId),
+      );
+      setSavedCommentIds((prev) => {
+        const next = new Set(prev);
+        if (nowSaved) next.add(commentId);
+        else next.delete(commentId);
+        return next;
+      });
     } catch (e) {
       console.error(e);
       setError("Could not update saved comment.");
@@ -379,6 +393,50 @@ export default function CommunityPostDetail() {
   };
 
   if (!postId) return null;
+
+  if (authReady && !canAccess) {
+    return (
+      <div className="container mx-auto px-4 py-16 max-w-2xl space-y-4 text-center">
+        <p className="font-semibold text-lg">Members-only community</p>
+        <p className="text-sm text-muted-foreground">
+          Log in with a verified account and complete your community profile to read this post.
+        </p>
+        <div className="flex flex-wrap justify-center gap-2">
+          {!user && (
+            <>
+              <Button size="sm" asChild>
+                <Link to="/member/login">Log in</Link>
+              </Button>
+              <Button size="sm" variant="outline" asChild>
+                <Link to="/member/register">Register</Link>
+              </Button>
+            </>
+          )}
+          {user && !verified && (
+            <Button size="sm" asChild>
+              <Link to="/member/login">Verify email</Link>
+            </Button>
+          )}
+          {user && verified && !hasMemberProfile && (
+            <Button size="sm" asChild>
+              <Link to="/member/setup">Set up profile</Link>
+            </Button>
+          )}
+        </div>
+        <Button type="button" variant="link" className="mt-2" onClick={() => goBackToCommunityFeed(navigate)}>
+          Back
+        </Button>
+      </div>
+    );
+  }
+
+  if (!authReady) {
+    return (
+      <div className="container mx-auto px-4 py-16 max-w-2xl">
+        <p className="text-muted-foreground">Loading…</p>
+      </div>
+    );
+  }
   if (postMissing) {
     return (
       <div className="container mx-auto px-4 py-16 max-w-2xl">
@@ -438,50 +496,40 @@ export default function CommunityPostDetail() {
             </div>
           </div>
           {!archived && (
-            <div className="flex flex-wrap gap-2 shrink-0 justify-end">
-              <span title={!canEngage ? engageHint : saved ? "Remove from saved" : "Save post"} className="inline-flex">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant={saved ? "secondary" : "outline"}
-                  disabled={!canEngage}
-                  className={cn(!canEngage && "opacity-50")}
-                  onClick={toggleSave}
-                  aria-label={saved ? "Unsave" : "Save"}
-                >
-                  <Bookmark className={`w-4 h-4 ${saved ? "fill-current" : ""}`} />
-                </Button>
-              </span>
-              <span title={!canEngage ? engageHint : "Share or copy link"} className="inline-flex">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  disabled={!canEngage}
-                  className={cn(!canEngage && "opacity-50")}
-                  onClick={sharePost}
-                  aria-label="Share post"
-                >
-                  <Share2 className="w-4 h-4" />
-                </Button>
-              </span>
-              <span title={!canEngage ? engageHint : "Report spam"} className="inline-flex">
-                <Button
-                  type="button"
-                  size="icon"
-                  variant="outline"
-                  disabled={!canEngage}
-                  className={cn(!canEngage && "opacity-50")}
-                  onClick={() => openReport("post")}
-                  aria-label="Report post"
-                >
-                  <Flag className="w-4 h-4" />
-                </Button>
-              </span>
+            <div className="flex flex-wrap gap-1 shrink-0 justify-end items-center">
+              <CommunityIconAction
+                label="Save"
+                icon={communityActionIcons.save}
+                active={saved}
+                disabled={!canSave}
+                title={!canSave ? engageHint : saved ? "Unsave" : "Save"}
+                onClick={toggleSave}
+              />
+              <CommunityIconAction
+                label="Spam"
+                icon={communityActionIcons.report}
+                disabled={!canEngage}
+                title={!canEngage ? engageHint : "Report content"}
+                onClick={() => openReport("post")}
+              />
+              <CommunityIconAction
+                label="LinkedIn"
+                icon={communityActionIcons.linkedIn}
+                disabled={!canEngage}
+                title={!canEngage ? engageHint : "Share on LinkedIn"}
+                onClick={shareLinkedIn}
+              />
+              <CommunityIconAction
+                label={copyFeedback || "Copy link"}
+                icon={communityActionIcons.copyLink}
+                disabled={!canEngage}
+                title={!canEngage ? engageHint : "Copy link"}
+                onClick={copyPostLinkAction}
+              />
             </div>
           )}
         </div>
-        {shareFeedback && <p className="text-xs text-muted-foreground">{shareFeedback}</p>}
+        {copyFeedback && <p className="text-xs text-muted-foreground">{copyFeedback}</p>}
 
         <div className="text-sm">
           {segments.map((seg, i) => (
@@ -522,7 +570,9 @@ export default function CommunityPostDetail() {
       </article>
 
       <section id="comments" className="mt-10 space-y-4 scroll-mt-24">
-        <h2 className="text-lg font-semibold">Comments</h2>
+        <h2 className="text-lg font-semibold">
+          Comments{comments.length > 0 ? ` (${comments.length})` : ""}
+        </h2>
         <p className="text-xs text-muted-foreground">
           You can comment on a post and reply once to a comment. Replies to replies are not allowed.
         </p>
@@ -549,6 +599,11 @@ export default function CommunityPostDetail() {
         )}
 
         {error && <p className="text-sm text-destructive">{error}</p>}
+        {commentsLoadError && <p className="text-sm text-destructive">{commentsLoadError}</p>}
+
+        {comments.length === 0 && !commentsLoadError && (
+          <p className="text-sm text-muted-foreground">No comments yet.</p>
+        )}
 
         <ul className="space-y-4">
           {topLevelComments.map((c) => {
@@ -557,9 +612,11 @@ export default function CommunityPostDetail() {
             return (
               <li key={c.id} className="space-y-2">
                 <CommentItem
+                  postId={postId}
                   comment={c}
                   archived={archived}
                   canEngage={canEngage}
+                  canSave={canSave}
                   engageHint={engageHint}
                   highlight={highlightCommentId === c.id}
                   saved={savedCommentIds.has(c.id)}
@@ -654,9 +711,11 @@ export default function CommunityPostDetail() {
                           {replies.map((r) => (
                             <CommentItem
                               key={r.id}
+                              postId={postId!}
                               comment={r}
                               archived={archived}
                               canEngage={canEngage}
+                              canSave={canSave}
                               engageHint={engageHint}
                               highlight={highlightCommentId === r.id}
                               saved={savedCommentIds.has(r.id)}
@@ -809,9 +868,11 @@ function CommentComposer({
 }
 
 function CommentItem({
+  postId,
   comment,
   archived,
   canEngage,
+  canSave,
   engageHint,
   highlight,
   saved,
@@ -823,9 +884,11 @@ function CommentItem({
   onReport,
   onToggleSave,
 }: {
+  postId: string;
   comment: CommentRow;
   archived: boolean;
   canEngage: boolean;
+  canSave: boolean;
   engageHint: string;
   highlight: boolean;
   saved: boolean;
@@ -838,6 +901,7 @@ function CommentItem({
   onToggleSave: () => void;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [copyMsg, setCopyMsg] = useState("");
 
   useEffect(() => {
     const path = comment.imageStoragePath;
@@ -877,46 +941,57 @@ function CommentItem({
           </p>
         </div>
         {!archived && (
-          <div className="flex gap-1">
-            <span title={!canEngage ? engageHint : saved ? "Unsave" : "Save comment"} className="inline-flex">
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className={cn("h-8 w-8", !canEngage && "opacity-50")}
-                disabled={!canEngage}
-                onClick={onToggleSave}
-                aria-label={saved ? "Unsave comment" : "Save comment"}
-              >
-                <Bookmark className={cn("w-4 h-4", saved && "fill-current")} />
-              </Button>
-            </span>
+          <div className="flex flex-wrap gap-0.5 justify-end max-w-[220px]">
+            <CommunityIconAction
+              label="Save"
+              icon={communityActionIcons.save}
+              active={saved}
+              disabled={!canSave}
+              title={!canSave ? engageHint : saved ? "Unsave" : "Save"}
+              onClick={onToggleSave}
+            />
             {showReplyButton && onReply && (
-              <span title={!canEngage ? engageHint : "Reply"} className="inline-flex">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  className={cn("h-8 text-xs", !canEngage && "opacity-50")}
-                  disabled={!canEngage}
-                  onClick={onReply}
-                >
-                  Reply
-                </Button>
-              </span>
-            )}
-            <span title={!canEngage ? engageHint : "Report"} className="inline-flex">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className={cn("h-8 text-xs", !canEngage && "opacity-50")}
+              <CommunityIconAction
+                label="Reply"
+                icon={MessageSquare}
                 disabled={!canEngage}
-                onClick={onReport}
-              >
-                Report
-              </Button>
-            </span>
+                title={!canEngage ? engageHint : "Reply"}
+                onClick={onReply}
+              />
+            )}
+            <CommunityIconAction
+              label="Spam"
+              icon={communityActionIcons.report}
+              disabled={!canEngage}
+              title={!canEngage ? engageHint : "Report content"}
+              onClick={onReport}
+            />
+            <CommunityIconAction
+              label="LinkedIn"
+              icon={communityActionIcons.linkedIn}
+              disabled={!canEngage}
+              title={!canEngage ? engageHint : "Share on LinkedIn"}
+              onClick={() => {
+                if (!canEngage) return;
+                window.open(
+                  buildLinkedInCommentShareUrl(postId, comment.id, comment.text),
+                  "_blank",
+                  "noopener,noreferrer",
+                );
+              }}
+            />
+            <CommunityIconAction
+              label={copyMsg || "Copy link"}
+              icon={communityActionIcons.copyLink}
+              disabled={!canEngage}
+              title={!canEngage ? engageHint : "Copy link"}
+              onClick={async () => {
+                if (!canEngage) return;
+                const ok = await copyCommentLink(postId, comment.id);
+                setCopyMsg(ok ? "Copied" : "Failed");
+                window.setTimeout(() => setCopyMsg(""), 2000);
+              }}
+            />
           </div>
         )}
       </div>

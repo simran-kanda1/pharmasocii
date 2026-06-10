@@ -35,6 +35,13 @@ import {
 } from "@/lib/communityEngagement";
 import { parseSavedFilters, saveCommunityFilters } from "@/lib/communityFilterPreferences";
 import { restoreCommunityFeedScroll } from "@/lib/communityScrollRestore";
+import {
+  canAccessCommunity,
+  canEngageCommunity,
+  canSaveCommunityContent,
+  communityAccessHint,
+} from "@/lib/communityAccess";
+import { CommunityViewHeader } from "@/components/community/CommunityViewHeader";
 
 const FEED_PAGE_SIZE = 100;
 
@@ -157,7 +164,18 @@ export default function CommunityFeed() {
   }, []);
 
   useEffect(() => {
+    if (!canAccessCommunity(user, verified, hasMemberProfile) && communityView !== "home") {
+      setCommunityView("home");
+    }
+  }, [user, verified, hasMemberProfile, communityView, setCommunityView]);
+
+  useEffect(() => {
     (async () => {
+      if (!canAccessCommunity(user, verified, hasMemberProfile)) {
+        setPosts([]);
+        setLoading(false);
+        return;
+      }
       try {
         setLoading(true);
         const base = [
@@ -182,7 +200,7 @@ export default function CommunityFeed() {
         setLoading(false);
       }
     })();
-  }, [refreshPostsKey, currentPage]);
+  }, [refreshPostsKey, currentPage, user, verified, hasMemberProfile]);
 
   useEffect(() => {
     if (communityView !== "home") return;
@@ -233,20 +251,14 @@ export default function CommunityFeed() {
     restoreCommunityFeedScroll();
   }, [loading, categoriesLoading, communityView, sidebarFiltered.length]);
 
-  const canEngage = Boolean(user && verified && hasMemberProfile && !memberRestricted);
+  const canAccess = canAccessCommunity(user, verified, hasMemberProfile);
+  const canEngage = canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
+  const canSave = canSaveCommunityContent(user, verified, hasMemberProfile);
   const canCompose = canEngage;
   const welcomeName = memberUserName || user?.displayName || user?.email?.split("@")[0] || "Guest";
   const profileInitials = (welcomeName || "G").slice(0, 2).toUpperCase();
 
-  const engageHint = memberRestricted
-    ? "Your account is view-only."
-    : !user
-      ? "Log in with a verified member profile."
-      : !verified
-        ? "Verify your email first."
-        : !hasMemberProfile
-          ? "Create your community profile."
-          : "";
+  const engageHint = communityAccessHint(memberRestricted, user, verified, hasMemberProfile);
 
   const openCreate = (action: CreatePostModalAction = null) => {
     setCreateAction(action);
@@ -254,7 +266,7 @@ export default function CommunityFeed() {
   };
 
   const toggleSavePost = async (postId: string) => {
-    if (!canEngage || !user) return;
+    if (!canSave || !user) return;
     try {
       const nowSaved = await toggleSavedPost(user.uid, postId, savedPostIds.has(postId));
       setSavedPostIds((prev) => {
@@ -301,7 +313,7 @@ export default function CommunityFeed() {
     if (page > currentPage && !hasNextPage) return;
     setCurrentPage(page);
   };
-  const showMemberPanels = Boolean(user && hasMemberProfile && communityView !== "home");
+  const showMemberPanels = Boolean(canAccess && communityView !== "home");
   const displayName = memberBio ? `${welcomeName} (${memberBio})` : welcomeName;
 
   const composerBlock = canCompose ? (
@@ -408,12 +420,17 @@ export default function CommunityFeed() {
 
             {(communityView === "home" || communityView === "my-space") && composerBlock}
 
+            {showMemberPanels && communityView !== "home" && (
+              <CommunityViewHeader view={communityView} onBack={() => setCommunityView("home")} />
+            )}
+
             {showMemberPanels && user ? (
               <CommunityMemberPanels
                 view={communityView}
                 categoryDoc={categoryDoc}
                 userId={user.uid}
                 canEngage={canEngage}
+                canSave={canSave}
                 engageHint={engageHint}
                 savedPostIds={savedPostIds}
                 helpfulPostIds={helpfulPostIds}
@@ -422,6 +439,37 @@ export default function CommunityFeed() {
                 onUnreadChange={setNotificationUnread}
               />
             ) : communityView === "home" ? (
+              !canAccess ? (
+                <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-foreground/15 dark:bg-card space-y-4">
+                  <p className="font-semibold text-lg">Members-only community</p>
+                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                    Log in with a verified account and complete your community profile to read posts, filter the feed,
+                    save content, and share links.
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {!user && (
+                      <>
+                        <Button size="sm" asChild>
+                          <Link to="/member/login">Log in</Link>
+                        </Button>
+                        <Button size="sm" variant="outline" asChild>
+                          <Link to="/member/register">Register</Link>
+                        </Button>
+                      </>
+                    )}
+                    {user && !verified && (
+                      <Button size="sm" asChild>
+                        <Link to="/member/login">Verify email</Link>
+                      </Button>
+                    )}
+                    {user && verified && !hasMemberProfile && (
+                      <Button size="sm" asChild>
+                        <Link to="/member/setup">Set up profile</Link>
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ) : (
               <>
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
                   <form
@@ -514,6 +562,7 @@ export default function CommunityFeed() {
                   </>
                 )}
               </>
+              )
             ) : null}
           </main>
 
@@ -525,6 +574,7 @@ export default function CommunityFeed() {
                 selectedFilterKeys={selectedFilterKeys}
                 onCountriesChange={setSelectedCountries}
                 onFilterKeysChange={setSelectedFilterKeys}
+                locked={!canAccess}
               />
             </div>
           </aside>

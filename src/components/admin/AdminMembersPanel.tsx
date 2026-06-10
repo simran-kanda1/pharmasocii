@@ -201,20 +201,21 @@ export function AdminMembersPanel() {
               <TableHead>Verified</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead>Last login</TableHead>
-              <TableHead>Blocked until</TableHead>
+              <TableHead>Block start</TableHead>
+              <TableHead>Block end</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={16} className="text-muted-foreground">
+                <TableCell colSpan={17} className="text-muted-foreground">
                   Loading…
                 </TableCell>
               </TableRow>
             ) : pageRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={16} className="text-muted-foreground">
+                <TableCell colSpan={17} className="text-muted-foreground">
                   No community members found.
                 </TableCell>
               </TableRow>
@@ -235,6 +236,7 @@ export function AdminMembersPanel() {
                   <TableCell>{m.emailVerified ? "Yes" : "No"}</TableCell>
                   <TableCell>{formatAdminDate(m.createdAt?.toDate?.())}</TableCell>
                   <TableCell>{formatAdminDateTime(m.lastLoginAt?.toDate?.())}</TableCell>
+                  <TableCell>{formatAdminDate(m.spamBlockStartedAt?.toDate?.())}</TableCell>
                   <TableCell>{formatAdminDate(m.spamBlockUntil?.toDate?.())}</TableCell>
                   <TableCell>
                     <AdminRowActions

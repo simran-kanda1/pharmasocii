@@ -18,6 +18,7 @@ type Props = {
   selectedFilterKeys: string[];
   onCountriesChange: (countries: string[]) => void;
   onFilterKeysChange: (keys: string[]) => void;
+  locked?: boolean;
 };
 
 function keyMainSub(main: string, sub: string) {
@@ -30,6 +31,7 @@ export function CommunityFilterSidebar({
   selectedFilterKeys,
   onCountriesChange,
   onFilterKeysChange,
+  locked = false,
 }: Props) {
   const allCountries = useMemo(() => getAllCommunityCountries(), []);
   const [expandedMains, setExpandedMains] = useState<Set<string>>(new Set());
@@ -38,6 +40,7 @@ export function CommunityFilterSidebar({
   const [countrySearch, setCountrySearch] = useState("");
 
   const toggleCountry = (c: string) => {
+    if (locked) return;
     onCountriesChange(
       selectedCountries.includes(c)
         ? selectedCountries.filter((x) => x !== c)
@@ -46,6 +49,7 @@ export function CommunityFilterSidebar({
   };
 
   const toggleFilterKey = (key: string, checked: boolean) => {
+    if (locked) return;
     if (checked) {
       if (!selectedFilterKeys.includes(key)) {
         onFilterKeysChange([...selectedFilterKeys, key]);
@@ -120,7 +124,12 @@ export function CommunityFilterSidebar({
   };
 
   return (
-    <div className="space-y-4">
+    <div className={cn("space-y-4", locked && "opacity-60 pointer-events-none select-none")}>
+      {locked && (
+        <p className="text-xs text-muted-foreground rounded-lg border border-dashed px-3 py-2">
+          Sign in and set up your member profile to use filters.
+        </p>
+      )}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
         <p className="text-sm font-semibold mb-3">Select country(ies)</p>
         <Button

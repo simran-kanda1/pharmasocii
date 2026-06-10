@@ -161,21 +161,110 @@ const FEATURE_PRICE_CENTS: Record<string, number> = {
     both: 100000,
 };
 
+const FEATURE_SPOTLIGHT_TIER: Record<string, number> = {
+    landing_page: 1,
+    home_page: 2,
+    both: 3,
+};
+
+const isEventOrJobPlanId = (planId?: string | null) => {
+    const id = String(planId || "");
+    return id.includes("_event") || id.includes("_job");
+};
+
+const spotlightTierFromId = (featureId?: string | null) =>
+    FEATURE_SPOTLIGHT_TIER[String(featureId || "").trim()] || 0;
+
+const spotlightIdFromTier = (tier: number): string | null => {
+    if (tier >= 3) return "both";
+    if (tier >= 2) return "home_page";
+    if (tier >= 1) return "landing_page";
+    return null;
+};
+
+const getEffectiveSpotlightTier = (listing: any, planId?: string | null) => {
+    const addon = getSpotlightAddonTierId(listing);
+    const included = planId ? PLAN_CONFIGS[planId]?.featurePlan : null;
+    return Math.max(spotlightTierFromId(addon), spotlightTierFromId(included));
+};
+
+const getEffectiveSpotlightFeatureId = (listing: any, planId?: string | null) =>
+    spotlightIdFromTier(getEffectiveSpotlightTier(listing, planId));
+
+const hasStandaloneSpotlightAddon = (listing: any, planId?: string | null) => {
+    if (!listing) return false;
+    if (listing.featureSpotlightStripeSubscriptionId) return true;
+    const addon = getSpotlightAddonTierId(listing);
+    if (!addon) return false;
+    const included = planId ? PLAN_CONFIGS[planId]?.featurePlan : null;
+    if (included && addon === included && !listing.featureSpotlightStripeSubscriptionId) {
+        return false;
+    }
+    return Boolean(
+        listing.lastFeaturePaymentReceivedAt ||
+        listing.featureSpotlightPaidThrough ||
+        listing.featureSpotlightSubscriptionItemId,
+    );
+};
+
+const isSpotlightCancelPending = (listing: any): boolean => {
+    if (!listing?.featureSpotlightCancelPending) return false;
+    const end =
+        toDateValue(listing?.featureSpotlightAccessEnd) ||
+        toDateValue(listing?.featureSpotlightPaidThrough);
+    if (!end) return true;
+    return end.getTime() > Date.now();
+};
+
 const getSpotlightAddonTierId = (listing: any): string | null => {
     const raw = String(listing?.selectedAddon || listing?.featuredPlacement || "").trim();
     if (raw === "landing_page" || raw === "home_page" || raw === "both") return raw;
     return null;
 };
 
-const getFeatureUpgradeTargets = (currentId: string | null | undefined): string[] => {
+const getFeatureUpgradeTargets = (
+    currentId: string | null | undefined,
+    planId?: string | null,
+    listing?: any,
+): string[] => {
+    if (listing && isSpotlightCancelPending(listing)) return [];
+    const effectiveTier = Math.max(
+        spotlightTierFromId(currentId),
+        spotlightTierFromId(planId ? PLAN_CONFIGS[planId]?.featurePlan : null),
+    );
+    if (effectiveTier >= 3) return [];
+    if (isEventOrJobPlanId(planId)) return ["both"];
+
     const c = (currentId || "").trim();
     if (c === "landing_page") return ["home_page", "both"];
     if (c === "home_page") return ["both"];
+    if (effectiveTier === 1) return ["home_page", "both"];
+    if (effectiveTier === 2) return ["both"];
     return [];
 };
 
-const formatFeatureUpgradeDelta = (fromId: string, toId: string): string => {
-    const from = FEATURE_PRICE_CENTS[fromId];
+const getFeaturePurchaseTargets = (planId?: string | null, listing?: any): string[] => {
+    if (listing && isSpotlightCancelPending(listing)) return [];
+    const effectiveTier = getEffectiveSpotlightTier(listing, planId);
+    if (effectiveTier >= 3) return [];
+    if (hasStandaloneSpotlightAddon(listing, planId)) return [];
+
+    if (isEventOrJobPlanId(planId)) {
+        if (effectiveTier === 0) return ["landing_page", "home_page", "both"];
+        return ["both"];
+    }
+
+    if (effectiveTier === 0) return ["landing_page", "home_page", "both"];
+    return getFeatureUpgradeTargets(getSpotlightAddonTierId(listing), planId, listing);
+};
+
+const formatFeatureUpgradeDelta = (fromId: string, toId: string, planId?: string | null): string => {
+    const effectiveFromTier = Math.max(
+        spotlightTierFromId(fromId),
+        spotlightTierFromId(planId ? PLAN_CONFIGS[planId]?.featurePlan : null),
+    );
+    const effectiveFromId = spotlightIdFromTier(effectiveFromTier) || fromId;
+    const from = FEATURE_PRICE_CENTS[effectiveFromId];
     const to = FEATURE_PRICE_CENTS[toId];
     if (from == null || to == null) return "";
     return `+$${((to - from) / 100).toFixed(2)} today`;
@@ -335,17 +424,28 @@ export default function Dashboard() {
     } | null>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
+    const [cancelModalError, setCancelModalError] = useState("");
     const profileCompanyProfileTooLong = (profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH;
-    const getLinkedListingForPlan = (plan: any) =>
-        offerings.find((o) =>
-            o.id === plan?.listingId &&
-            (!plan?.collectionName || o.__col === plan.collectionName)
-        ) || offerings.find((o) => o.id === plan?.listingId);
+    const getLinkedListingForPlan = (plan: any) => {
+        const matches = offerings.filter(
+            (o) =>
+                o.id === plan?.listingId &&
+                (!plan?.collectionName || o.__col === plan.collectionName),
+        );
+        if (matches.length === 0) {
+            return offerings.find((o) => o.id === plan?.listingId);
+        }
+        if (plan?.collectionName !== "businessOfferingsCollection") {
+            return matches.find((o) => o.__source === "global") || matches[0];
+        }
+        return matches.find((o) => o.__source === "partner") || matches[0];
+    };
     const hasStandaloneFeatureForPlan = (plan: any) => {
         const linkedListing = getLinkedListingForPlan(plan);
-        const hasFeature = Boolean(linkedListing?.selectedAddon && linkedListing.selectedAddon !== "none");
-        const hasIncludedFeature = Boolean(PLAN_CONFIGS[plan?.planId]?.featurePlan);
-        return hasFeature && !hasIncludedFeature;
+        return (
+            hasStandaloneSpotlightAddon(linkedListing, plan?.planId) &&
+            !isSpotlightCancelPending(linkedListing)
+        );
     };
     const isFeatureEligiblePlan = (plan: any) => {
         if (!isPlanBillingLive(plan) || plan.cancelAtPeriodEnd || !plan.listingId || !plan.collectionName) return false;
@@ -441,8 +541,12 @@ export default function Dashboard() {
                                 mergedByListing.set(key, entry);
                                 continue;
                             }
-                            // Prefer partner-embedded docs when both sources have same listing id.
-                            if (existing.__source !== "partner" && entry.__source === "partner") {
+                            const preferGlobal = entry.__col !== "businessOfferingsCollection";
+                            if (preferGlobal) {
+                                if (existing.__source !== "global" && entry.__source === "global") {
+                                    mergedByListing.set(key, entry);
+                                }
+                            } else if (existing.__source !== "partner" && entry.__source === "partner") {
                                 mergedByListing.set(key, entry);
                             }
                         }
@@ -1068,6 +1172,7 @@ export default function Dashboard() {
 
     const handleCancelPlan = async (cancelScope: CancelScope) => {
         setActionProcessing(true);
+        setCancelModalError("");
         try {
             if (auth.currentUser && selectedPlanForAction) {
                 const response = await fetch(`${API_BASE_URL}/api/cancel-plan`, {
@@ -1089,24 +1194,28 @@ export default function Dashboard() {
                     throw new Error(payload?.error || "Cancellation request failed.");
                 }
 
+                if (cancelScope === "feature" && !payload?.cancelledFeature) {
+                    throw new Error("Spotlight cancellation could not be confirmed. Please refresh and try again.");
+                }
+
                 const successText =
                     cancelScope === "feature"
-                        ? "Feature spotlight cancelled successfully."
+                        ? "Spotlight add-on scheduled to end at the close of your paid period. It will not renew."
                         : "Subscription will end after the current billing period. Any separate spotlight add-on for this listing has been removed.";
                 setActionMessage({ type: "success", text: successText });
                 setPendingUpgradePlanId(null);
-                setTimeout(() => {
-                    setShowCancelModal(false);
-                    setSelectedPlanForAction(null);
+                setShowCancelModal(false);
+                setSelectedPlanForAction(null);
+                window.setTimeout(() => {
                     setActionMessage({ type: "", text: "" });
-                }, 2000);
+                    window.location.reload();
+                }, 1200);
             }
         } catch (err: any) {
             console.error("Failed to cancel plan:", err);
-            setActionMessage({
-                type: "error",
-                text: err?.message || "Failed to cancel subscription. Please try again.",
-            });
+            const message = err?.message || "Failed to cancel subscription. Please try again.";
+            setCancelModalError(message);
+            setActionMessage({ type: "error", text: message });
         } finally {
             setActionProcessing(false);
         }
@@ -1119,6 +1228,12 @@ export default function Dashboard() {
             if (auth.currentUser && selectedPlanForAction) {
                 if (!isFeatureEligiblePlan(selectedPlanForAction) || !isPlanBillingLive(selectedPlanForAction)) {
                     throw new Error("Feature add-ons require a paid and active listing-backed plan.");
+                }
+                const linkedListing = getLinkedListingForPlan(selectedPlanForAction);
+                if (linkedListing && isSpotlightCancelPending(linkedListing)) {
+                    throw new Error(
+                        "This spotlight add-on is already scheduled to end. You can purchase again after the current paid period ends.",
+                    );
                 }
                 const origin = window.location.origin;
                 const resp = await fetch(`${API_BASE_URL}/api/create-feature-checkout`, {
@@ -1195,7 +1310,6 @@ export default function Dashboard() {
     const displayName = partnerData.primaryName || "Partner";
     const currentPlan = PLAN_CONFIGS[partnerData.selectedPlan] || null;
     const currentGroup = partnerData.selectedGroup || "";
-    const includedFeature = currentPlan?.featurePlan || null;
     const businessOfferingLock = getGroupPlanLock(activePlans, "business_offerings");
     const consultingLock = getGroupPlanLock(activePlans, "consulting");
 
@@ -1207,8 +1321,19 @@ export default function Dashboard() {
                 (!liveListingPlanForFeatures.collectionName || o.__col === liveListingPlanForFeatures.collectionName)
         ) || offerings.find((o) => o.id === liveListingPlanForFeatures.listingId)
         : null;
-    const globalModalAddonTier = getSpotlightAddonTierId(listingForGlobalFeatureModal);
-    const globalModalUpgradeTargets = getFeatureUpgradeTargets(globalModalAddonTier);
+    const globalModalAddonTier = getEffectiveSpotlightFeatureId(
+        listingForGlobalFeatureModal,
+        liveListingPlanForFeatures?.planId,
+    );
+    const globalModalUpgradeTargets = getFeatureUpgradeTargets(
+        globalModalAddonTier,
+        liveListingPlanForFeatures?.planId,
+        listingForGlobalFeatureModal,
+    );
+    const globalModalPurchaseTargets = getFeaturePurchaseTargets(
+        liveListingPlanForFeatures?.planId,
+        listingForGlobalFeatureModal,
+    );
 
     const representativeOptions = (() => {
         const [altFName, ...altLNames] = ((partnerData?.secondaryName || "") as string).split(" ");
@@ -1307,13 +1432,17 @@ export default function Dashboard() {
                                                 ? "Move up to a higher spotlight tier. You pay only the difference in price."
                                                 : "Get extra visibility by being featured on the category page or the home page. Select a plan below:"}
                                         </p>
-                                        {FEATURE_PLANS.map(fp => {
+                                        {FEATURE_PLANS.filter((fp) =>
+                                            globalModalUpgradeTargets.length > 0
+                                                ? globalModalUpgradeTargets.includes(fp.id)
+                                                : globalModalPurchaseTargets.includes(fp.id),
+                                        ).map(fp => {
                                             const Ic = fp.icon;
                                             const isSelected = selectedFeaturePlan === fp.id;
                                             const alreadyHasExact =
-                                                partnerData.selectedAddon === fp.id ||
-                                                includedFeature === fp.id ||
-                                                globalModalAddonTier === fp.id;
+                                                getEffectiveSpotlightTier(listingForGlobalFeatureModal, liveListingPlanForFeatures?.planId) >=
+                                                (FEATURE_SPOTLIGHT_TIER[fp.id] || 0) &&
+                                                getEffectiveSpotlightTier(listingForGlobalFeatureModal, liveListingPlanForFeatures?.planId) > 0;
                                             const isValidUpgradeChoice = globalModalUpgradeTargets.includes(fp.id);
                                             const inUpgradeMode = globalModalUpgradeTargets.length > 0;
                                             const disabled =
@@ -1339,7 +1468,13 @@ export default function Dashboard() {
                                                         </div>
                                                         <div className="text-right shrink-0">
                                                             {inUpgradeMode && isValidUpgradeChoice && globalModalAddonTier ? (
-                                                                <p className="text-lg font-bold text-primary">{formatFeatureUpgradeDelta(globalModalAddonTier, fp.id)}</p>
+                                                                <p className="text-lg font-bold text-primary">
+                                                                    {formatFeatureUpgradeDelta(
+                                                                        globalModalAddonTier,
+                                                                        fp.id,
+                                                                        liveListingPlanForFeatures?.planId,
+                                                                    )}
+                                                                </p>
                                                             ) : (
                                                                 <p className="text-lg font-bold text-foreground">{fp.price}</p>
                                                             )}
@@ -1423,11 +1558,14 @@ export default function Dashboard() {
                         key={selectedPlanForAction.id}
                         plan={selectedPlanForAction}
                         planConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
+                        linkedListing={getLinkedListingForPlan(selectedPlanForAction)}
                         hasFeature={hasStandaloneFeatureForPlan(selectedPlanForAction)}
+                        cancelError={cancelModalError}
                         onClose={() => {
                             setShowCancelModal(false);
                             setSelectedPlanForAction(null);
                             setPendingUpgradePlanId(null);
+                            setCancelModalError("");
                         }}
                         onCancel={handleCancelPlan}
                         processing={actionProcessing}
@@ -1439,7 +1577,9 @@ export default function Dashboard() {
                     <AddFeaturePlanModal
                         plan={selectedPlanForAction}
                         listing={selectedListingForEdit}
-                        featurePlans={FEATURE_PLANS}
+                        featurePlans={FEATURE_PLANS.filter((fp) =>
+                            getFeaturePurchaseTargets(selectedPlanForAction.planId, selectedListingForEdit).includes(fp.id),
+                        )}
                         onClose={() => {
                             setShowAddFeatureModal(false);
                             setShowUpgradeFeatureModal(false);
@@ -1451,9 +1591,13 @@ export default function Dashboard() {
                     />
                 )}
 
-                {showUpgradeFeatureModal && selectedPlanForAction && selectedListingForEdit && getSpotlightAddonTierId(selectedListingForEdit) && (
+                {showUpgradeFeatureModal && selectedPlanForAction && selectedListingForEdit && (
                     <UpgradeFeaturePlanModal
-                        currentAddonId={getSpotlightAddonTierId(selectedListingForEdit) as string}
+                        currentAddonId={
+                            getEffectiveSpotlightFeatureId(selectedListingForEdit, selectedPlanForAction.planId) || ""
+                        }
+                        planId={selectedPlanForAction.planId}
+                        listing={selectedListingForEdit}
                         onClose={() => {
                             setShowUpgradeFeatureModal(false);
                             setSelectedPlanForAction(null);
@@ -1487,11 +1631,22 @@ export default function Dashboard() {
                 offerings.find((o) => o.id === plan.listingId && (!plan.collectionName || o.__col === plan.collectionName)) ||
                 offerings.find((o) => o.id === plan.listingId);
             const planRepresentatives = linkedListing?.companyRepresentatives || plan.companyRepresentatives || [];
-            const hasFeature = linkedListing?.selectedAddon && linkedListing.selectedAddon !== "" && linkedListing.selectedAddon !== "none";
+            const hasFeature = linkedListing?.selectedAddon && linkedListing?.selectedAddon !== "" && linkedListing?.selectedAddon !== "none";
             const includedPlanFeature = planConfig?.featurePlan;
-            const canAddFeature = !includedPlanFeature && !hasFeature && isFeatureEligiblePlan(plan);
-            const spotlightTier = hasStandaloneFeatureForPlan(plan) ? getSpotlightAddonTierId(linkedListing) : null;
-            const spotlightUpgradeTargets = spotlightTier ? getFeatureUpgradeTargets(spotlightTier) : [];
+            const effectiveSpotlightId = getEffectiveSpotlightFeatureId(linkedListing, plan.planId);
+            const effectiveSpotlightTier = getEffectiveSpotlightTier(linkedListing, plan.planId);
+            const purchaseTargets = getFeaturePurchaseTargets(plan.planId, linkedListing);
+            const upgradeTargets = getFeatureUpgradeTargets(effectiveSpotlightId, plan.planId, linkedListing);
+            const canAddFeature =
+                purchaseTargets.length > 0 &&
+                isFeatureEligiblePlan(plan) &&
+                effectiveSpotlightTier === 0 &&
+                !isSpotlightCancelPending(linkedListing);
+            const canUpgradeFeature =
+                upgradeTargets.length > 0 &&
+                isFeatureEligiblePlan(plan) &&
+                effectiveSpotlightTier > 0 &&
+                !isSpotlightCancelPending(linkedListing);
             const isEnding = Boolean(plan.cancelAtPeriodEnd);
             const actionsLocked = false;
             const canListingPlanUpgradeAction = getAvailablePlanUpgradeIds(plan.planId).length > 0;
@@ -1595,7 +1750,7 @@ export default function Dashboard() {
                                         <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Add spotlight
                                     </Button>
                                 )}
-                                {spotlightUpgradeTargets.length > 0 && linkedListing && (
+                                {canUpgradeFeature && linkedListing && (
                                     <Button
                                         size="sm"
                                         className="bg-violet-700 text-white border border-violet-800 hover:bg-violet-800 hover:text-white shadow-sm font-semibold disabled:opacity-50"
@@ -1631,10 +1786,19 @@ export default function Dashboard() {
                             <div className="pt-3 border-t border-foreground/10">
                                 <p className="text-sm text-foreground flex items-center gap-2">
                                     <Sparkles className="w-4 h-4 text-primary" />
-                                    {includedPlanFeature
+                                    {includedPlanFeature && !hasStandaloneSpotlightAddon(linkedListing)
                                         ? `Included: ${includedPlanFeature === "home_page" ? "Home page" : "Landing page"} spotlight`
-                                        : `Active spotlight: ${FEATURE_PLANS.find((f) => f.id === linkedListing?.selectedAddon)?.label}`}
+                                        : `Active spotlight: ${FEATURE_PLANS.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label}`}
                                 </p>
+                                {linkedListing?.featureSpotlightCancelPending && linkedListing?.featureSpotlightAccessEnd && (
+                                    <p className="text-xs text-amber-700 dark:text-amber-200 mt-1">
+                                        Spotlight add-on scheduled to end on{" "}
+                                        {linkedListing.featureSpotlightAccessEnd?.seconds
+                                            ? new Date(linkedListing.featureSpotlightAccessEnd.seconds * 1000).toLocaleDateString()
+                                            : new Date(linkedListing.featureSpotlightAccessEnd).toLocaleDateString()}
+                                        . It will not renew; you can purchase again after that date.
+                                    </p>
+                                )}
                                 {linkedListing?.featureSpotlightPaidThrough && (
                                     <p className="text-xs text-muted-foreground mt-1">
                                         Spotlight paid-through:{" "}
@@ -3745,17 +3909,23 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
 interface CancelPlanModalProps {
     plan: any;
     planConfig: any;
+    linkedListing?: any;
     hasFeature: boolean;
+    cancelError?: string;
     onClose: () => void;
     onCancel: (scope: CancelScope) => void;
     processing: boolean;
 }
 
-function CancelPlanModal({ plan, planConfig, hasFeature, onClose, onCancel, processing }: CancelPlanModalProps) {
+function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, cancelError, onClose, onCancel, processing }: CancelPlanModalProps) {
     const billingEnd =
         plan.billingPeriodEnd?.seconds
             ? new Date(plan.billingPeriodEnd.seconds * 1000)
             : getPlanPeriodEndDate(plan);
+    const spotlightEnd =
+        toDateValue(linkedListing?.featureSpotlightPaidThrough) ||
+        toDateValue(linkedListing?.featureSpotlightAccessEnd) ||
+        billingEnd;
     const [cancelChoice, setCancelChoice] = useState<CancelScope | null>(hasFeature ? null : "plan");
 
     return (
@@ -3805,7 +3975,13 @@ function CancelPlanModal({ plan, planConfig, hasFeature, onClose, onCancel, proc
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
                         <p className="text-sm text-yellow-400">
                             {hasFeature && cancelChoice === "feature" ? (
-                                "The spotlight add-on is removed now. Your listing plan stays active until you cancel it."
+                                <>
+                                    Spotlight stays active until{" "}
+                                    <span className="font-semibold">
+                                        {spotlightEnd?.toLocaleDateString() || "the end of your paid period"}
+                                    </span>
+                                    , then won&apos;t renew.
+                                </>
                             ) : !hasFeature || cancelChoice === "plan" ? (
                                 <>
                                     Your subscription stays active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>.
@@ -3816,6 +3992,9 @@ function CancelPlanModal({ plan, planConfig, hasFeature, onClose, onCancel, proc
                             )}
                         </p>
                     </div>
+                    {cancelError && (
+                        <p className="text-sm text-destructive">{cancelError}</p>
+                    )}
                 </div>
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
                     <Button variant="ghost" onClick={onClose}>Keep subscription</Button>
@@ -3838,14 +4017,18 @@ function CancelPlanModal({ plan, planConfig, hasFeature, onClose, onCancel, proc
 
 interface UpgradeFeaturePlanModalProps {
     currentAddonId: string;
+    planId?: string;
+    listing?: any;
     onClose: () => void;
     onPurchase: (featureId: string) => void;
     processing: boolean;
 }
 
-function UpgradeFeaturePlanModal({ currentAddonId, onClose, onPurchase, processing }: UpgradeFeaturePlanModalProps) {
+function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onPurchase, processing }: UpgradeFeaturePlanModalProps) {
     const [selectedFeature, setSelectedFeature] = useState<string>("");
-    const targets = FEATURE_PLANS.filter((fp) => getFeatureUpgradeTargets(currentAddonId).includes(fp.id));
+    const targets = FEATURE_PLANS.filter((fp) =>
+        getFeatureUpgradeTargets(currentAddonId, planId, listing).includes(fp.id),
+    );
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -3887,7 +4070,9 @@ function UpgradeFeaturePlanModal({ currentAddonId, onClose, onPurchase, processi
                                                 <p className="font-semibold text-foreground">{fp.label}</p>
                                                 <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
                                             </div>
-                                            <p className="text-lg font-bold text-primary shrink-0">{formatFeatureUpgradeDelta(currentAddonId, fp.id)}</p>
+                                            <p className="text-lg font-bold text-primary shrink-0">
+                                                {formatFeatureUpgradeDelta(currentAddonId, fp.id, planId)}
+                                            </p>
                                         </div>
                                     </button>
                                 );

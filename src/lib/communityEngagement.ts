@@ -32,6 +32,21 @@ export async function toggleSavedPost(userId: string, postId: string, saved: boo
   return true;
 }
 
+export async function toggleSavedComment(
+  userId: string,
+  commentId: string,
+  postId: string,
+  saved: boolean,
+) {
+  const ref = doc(db, "membersCollection", userId, "savedCommentsCollection", commentId);
+  if (saved) {
+    await deleteDoc(ref);
+    return false;
+  }
+  await setDoc(ref, { postId, savedAt: serverTimestamp() });
+  return true;
+}
+
 export async function togglePostHelpful(userId: string, postId: string, helpful: boolean) {
   const postRef = doc(db, "postsCollection", postId);
   const helpfulRef = doc(db, "membersCollection", userId, "helpfulPostsCollection", postId);
