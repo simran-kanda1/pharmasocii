@@ -4179,7 +4179,53 @@ app.post("/api/admin/create-partner", async (req, res) => {
             selectedGroup,
             selectedPlan,
             featuredPlan,
-            trialPeriod
+            trialPeriod,
+
+            // New fields
+            billingEmail,
+            businessId,
+            businessCountry,
+            selectedCategories,
+            selectedSubcategories,
+            selectedSubSubcategories,
+            companyRepresentatives,
+
+            // Business Offerings / Consulting metadata
+            bioSafetyLevel,
+            certifications,
+            serviceRegions,
+            serviceCountries,
+
+            // Event fields
+            eventName,
+            eventLink,
+            startDate,
+            endDate,
+            eventCountry,
+            stateRegion,
+            city,
+            location,
+            eventProfile,
+            agendaHighlights,
+            agendaPdfUrl,
+
+            // Job fields
+            jobTitle,
+            industry,
+            positionType,
+            experienceLevel,
+            positionLink,
+            jobCountry,
+            jobSummary,
+            education,
+            workModel,
+            applicationDeadline,
+            jobDescriptionPdfUrl,
+
+            // Display category fields
+            displayCategory,
+            displaySubcategory,
+            displaySubSubcategory
         } = req.body;
 
         if (!email || !password || !firstName || !companyName) {
@@ -4206,8 +4252,105 @@ app.post("/api/admin/create-partner", async (req, res) => {
             createdAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        // Create partner doc
-        await db.collection("partnersCollection").doc(uid).set({
+        // Determine group conversion
+        let groupKey = "business_offerings";
+        let collectionName = "businessOfferingsCollection";
+        if (selectedGroup === "Consulting Services" || selectedGroup === "consulting") {
+            groupKey = "consulting";
+            collectionName = "consultingServicesCollection";
+        } else if (selectedGroup === "Events" || selectedGroup === "events") {
+            groupKey = "events";
+            collectionName = "eventsCollection";
+        } else if (selectedGroup === "Jobs" || selectedGroup === "jobs") {
+            groupKey = "jobs";
+            collectionName = "jobsCollection";
+        }
+
+        // Initialize listing document reference
+        let listingRef;
+        if (groupKey === "business_offerings") {
+            listingRef = db.collection("partnersCollection").doc(uid).collection("businessOfferingsCollection").doc();
+        } else {
+            listingRef = db.collection(collectionName).doc();
+        }
+        const listingDocId = listingRef.id;
+
+        // Build listing payload
+        const listingData = {
+            partnerId: uid,
+            businessName: companyName,
+            selectedGroup: groupKey,
+            selectedPlan: selectedPlan || "none",
+            selectedAddon: "",
+            selectedCategories: selectedCategories || [],
+            selectedSubcategories: selectedSubcategories || [],
+            selectedSubSubcategories: selectedSubSubcategories || [],
+            companyRepresentatives: companyRepresentatives || [],
+            status: status || "Pending Review",
+            active: status !== "Inactive",
+            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            displayCategory: displayCategory || "",
+            displaySubcategory: displaySubcategory || "",
+            displaySubSubcategory: displaySubSubcategory || "",
+        };
+
+        if (groupKey === "business_offerings") {
+            Object.assign(listingData, {
+                bioSafetyLevel: bioSafetyLevel || [],
+                certifications: certifications || [],
+                serviceRegions: serviceRegions || [],
+                serviceCountries: serviceCountries || [],
+                companyProfileText: (profileHtml || "").slice(0, 1000),
+                businessAddress: addressHtml || "",
+                businessCountry: businessCountry || ""
+            });
+        } else if (groupKey === "consulting") {
+            Object.assign(listingData, {
+                serviceRegions: serviceRegions || [],
+                serviceCountries: serviceCountries || [],
+                companyProfileText: (profileHtml || "").slice(0, 1000),
+                businessAddress: addressHtml || "",
+                businessCountry: businessCountry || ""
+            });
+        } else if (groupKey === "events") {
+            Object.assign(listingData, {
+                eventName: eventName || "",
+                eventLink: eventLink || "",
+                startDate: startDate || "",
+                endDate: endDate || "",
+                eventCountry: eventCountry || "",
+                stateRegion: stateRegion || "",
+                city: city || "",
+                location: location || "",
+                eventProfile: eventProfile || "",
+                agendaHighlights: agendaHighlights || "",
+                agenda: agendaHighlights || "",
+                agendaPdfUrl: agendaPdfUrl || ""
+            });
+        } else if (groupKey === "jobs") {
+            Object.assign(listingData, {
+                jobTitle: jobTitle || "",
+                industry: industry || "",
+                jobtype: positionType || "",
+                positionType: positionType || "",
+                experienceLevel: experienceLevel || "",
+                positionLink: positionLink || "",
+                jobCountry: jobCountry || "",
+                stateRegion: stateRegion || "",
+                city: city || "",
+                location: location || "",
+                jobSummary: jobSummary || "",
+                education: education || "",
+                workModel: workModel || "",
+                applicationDeadline: applicationDeadline || "",
+                jobDescriptionPdfUrl: jobDescriptionPdfUrl || ""
+            });
+        }
+
+        await listingRef.set(listingData);
+
+        // Build partner payload
+        const partnerData = {
             firstName,
             lastName,
             email,
@@ -4224,23 +4367,79 @@ app.post("/api/admin/create-partner", async (req, res) => {
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             createdByAdmin: true,
 
-            // Fields used by frontend dashboard (AdminDashboard, CompleteProfile, etc.):
             businessName: companyName,
             primaryEmail: email,
             primaryName: `${firstName} ${lastName}`.trim(),
             phoneNumber: phone || null,
             partnerStatus: status || "Pending Review",
-            businessAddress: addressHtml || null
-        });
+            businessAddress: addressHtml || null,
+            businessCountry: businessCountry || null,
+
+            billingEmailAddress: billingEmail || null,
+            VAT_ABN_EIN_businessId: businessId || null,
+            selectedGroup: groupKey,
+            selectedPlan: selectedPlan || "none",
+            selectedAddon: "",
+            selectedCategories: selectedCategories || [],
+            selectedSubcategories: selectedSubcategories || [],
+            selectedSubSubcategories: selectedSubSubcategories || [],
+            companyRepresentatives: companyRepresentatives || [],
+            displayCategory: displayCategory || "",
+            displaySubcategory: displaySubcategory || "",
+            displaySubSubcategory: displaySubSubcategory || "",
+        };
+
+        if (groupKey === "business_offerings") {
+            Object.assign(partnerData, {
+                bioSafetyLevel: bioSafetyLevel || [],
+                certifications: certifications || [],
+                serviceRegions: serviceRegions || [],
+                serviceCountries: serviceCountries || [],
+                companyProfileText: (profileHtml || "").slice(0, 1000)
+            });
+        } else if (groupKey === "consulting") {
+            Object.assign(partnerData, {
+                serviceRegions: serviceRegions || [],
+                serviceCountries: serviceCountries || [],
+                companyProfileText: (profileHtml || "").slice(0, 1000)
+            });
+        } else if (groupKey === "events") {
+            Object.assign(partnerData, {
+                eventName: eventName || "",
+                eventLink: eventLink || "",
+                startDate: startDate || "",
+                endDate: endDate || "",
+                eventCountry: eventCountry || "",
+                stateRegion: stateRegion || "",
+                city: city || "",
+                location: location || "",
+                eventProfile: eventProfile || "",
+                agendaHighlights: agendaHighlights || "",
+                agendaPdfUrl: agendaPdfUrl || ""
+            });
+        } else if (groupKey === "jobs") {
+            Object.assign(partnerData, {
+                jobTitle: jobTitle || "",
+                industry: industry || "",
+                positionType: positionType || "",
+                experienceLevel: experienceLevel || "",
+                positionLink: positionLink || "",
+                jobCountry: jobCountry || "",
+                stateRegion: stateRegion || "",
+                city: city || "",
+                location: location || "",
+                jobSummary: jobSummary || "",
+                education: education || "",
+                workModel: workModel || "",
+                applicationDeadline: applicationDeadline || "",
+                jobDescriptionPdfUrl: jobDescriptionPdfUrl || ""
+            });
+        }
+
+        await db.collection("partnersCollection").doc(uid).set(partnerData);
 
         // Handle Plan Selection (Free Grant by Admin)
         if (selectedPlan && selectedPlan !== "none") {
-            let collectionName = "businessOfferingsCollection";
-            if (selectedGroup === "Consulting Services") collectionName = "consultingServicesCollection";
-            else if (selectedGroup === "Events") collectionName = "eventsCollection";
-            else if (selectedGroup === "Jobs") collectionName = "jobsCollection";
-
-            // If we are giving them a plan, create the planCollection doc
             const isYearly = selectedPlan.endsWith("_yr");
             const startDate = new Date();
             const billingPeriodEnd = new Date();
@@ -4267,7 +4466,8 @@ app.post("/api/admin/create-partner", async (req, res) => {
                 partnerId: uid,
                 collectionName,
                 source: "admin_granted",
-                isTrial: isTrial || false
+                isTrial: isTrial || false,
+                listingId: listingDocId
             });
         }
 
@@ -4288,7 +4488,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
             });
         }
 
-        return res.json({ success: true, uid });
+        return res.json({ success: true, uid, listingId: listingDocId, collectionName });
     } catch (err) {
         console.error("❌ Add partner error:", err.message);
         return res.status(500).json({ error: err.message || "Failed to create partner." });
