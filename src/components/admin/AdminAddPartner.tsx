@@ -63,6 +63,7 @@ interface CompanyRepresentative {
 }
 
 const PLAN_LIMITS: Record<string, PlanLimits> = {
+  none: { maxCategories: -1, maxCountries: -1 },
   basic_mo: { maxCategories: 3, maxCountries: 1 },
   standard_mo: { maxCategories: 5, maxCountries: 3 },
   premium_mo: { maxCategories: 15, maxCountries: 15 },
