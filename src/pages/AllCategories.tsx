@@ -655,7 +655,7 @@ export default function AllCategories() {
             item.selectedAddon || item.featuredPlacement || inferIncludedSpotlightFromPlan(item)
         ).trim().toLowerCase();
         const hasLegacyFeatureFlag = item.isFeatured && !addon;
-        const isLandingSpotlight = addon === "landing_page" || addon === "both";
+        const isLandingSpotlight = addon === "landing_page" || addon === "both" || addon === "spotlight_addon";
         if (!isLandingSpotlight && !hasLegacyFeatureFlag) return false;
         return true;
     });

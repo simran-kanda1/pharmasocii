@@ -178,7 +178,7 @@ export default function Home() {
                 const addon = String(
                     item.selectedAddon || item.featuredPlacement || inferIncludedSpotlightFromPlan(item)
                 ).trim().toLowerCase();
-                return addon === "home_page" || addon === "both" || (item.isFeatured && !addon);
+                return addon === "home_page" || addon === "both" || addon === "spotlight_addon" || (item.isFeatured && !addon);
             };
 
             let liveListingKeys = new Set<string>();

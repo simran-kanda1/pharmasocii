@@ -4281,7 +4281,17 @@ app.post("/api/admin/create-partner", async (req, res) => {
             businessName: companyName,
             selectedGroup: groupKey,
             selectedPlan: selectedPlan || "none",
-            selectedAddon: "",
+            selectedAddon: (featuredPlan && featuredPlan !== "none") ? featuredPlan : "",
+            featuredPlacement: (featuredPlan && featuredPlan !== "none") ? featuredPlan : "",
+            isFeatured: (featuredPlan && featuredPlan !== "none"),
+            ...(featuredPlan && featuredPlan !== "none" ? {
+                featureSpotlightPaidThrough: (() => {
+                    const paidThrough = new Date();
+                    paidThrough.setMonth(paidThrough.getMonth() + 1);
+                    return paidThrough;
+                })(),
+                lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp()
+            } : {}),
             selectedCategories: selectedCategories || [],
             selectedSubcategories: selectedSubcategories || [],
             selectedSubSubcategories: selectedSubSubcategories || [],
