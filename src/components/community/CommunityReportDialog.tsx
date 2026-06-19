@@ -48,8 +48,10 @@ export function CommunityReportDialog({
     } catch (err) {
       if (err instanceof AlreadyReportedError) {
         setError("You have already reported this content.");
+      } else if (err instanceof Error && err.message) {
+        setError(err.message);
       } else {
-        setError("Report failed. You may have already reported this item.");
+        setError("Report failed. Please try again.");
       }
     } finally {
       setSubmitting(false);

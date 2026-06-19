@@ -20,9 +20,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut, Download, FileSpreadsheet, FileText, Info,
     Building, Mail, Phone, MapPin,
-    PlusCircle, LayoutList, Save, CheckCircle2,
+    PlusCircle, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
-    CreditCard, Calendar, Star, Sparkles, Crown, Check, X,
+    CreditCard, Star, Sparkles, Crown, Check, X,
     Edit3, ArrowUpCircle, XCircle, AlertTriangle, Globe, Tag
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -172,6 +172,11 @@ const isEventOrJobPlanId = (planId?: string | null) => {
     return id.includes("_event") || id.includes("_job");
 };
 
+const isEventOrJobListing = (planId?: string | null, listing?: any) =>
+    isEventOrJobPlanId(planId) ||
+    listing?.__col === "eventsCollection" ||
+    listing?.__col === "jobsCollection";
+
 const spotlightTierFromId = (featureId?: string | null) =>
     FEATURE_SPOTLIGHT_TIER[String(featureId || "").trim()] || 0;
 
@@ -233,7 +238,7 @@ const getFeatureUpgradeTargets = (
         spotlightTierFromId(planId ? PLAN_CONFIGS[planId]?.featurePlan : null),
     );
     if (effectiveTier >= 3) return [];
-    if (isEventOrJobPlanId(planId)) return ["both"];
+    if (isEventOrJobListing(planId, listing)) return ["both"];
 
     const c = (currentId || "").trim();
     if (c === "landing_page") return ["home_page", "both"];
@@ -249,10 +254,7 @@ const getFeaturePurchaseTargets = (planId?: string | null, listing?: any): strin
     if (effectiveTier >= 3) return [];
     if (hasStandaloneSpotlightAddon(listing, planId)) return [];
 
-    if (isEventOrJobPlanId(planId)) {
-        if (effectiveTier === 0) return ["landing_page", "home_page", "both"];
-        return ["both"];
-    }
+    if (isEventOrJobListing(planId, listing)) return ["both"];
 
     if (effectiveTier === 0) return ["landing_page", "home_page", "both"];
     return getFeatureUpgradeTargets(getSpotlightAddonTierId(listing), planId, listing);
@@ -307,6 +309,13 @@ const isPlanBillingLive = (plan: any): boolean => {
     return true;
 };
 
+/** Cancelled or lapsed plans — no edits, upgrades, or new add-ons. */
+const isPlanLockedForChanges = (plan: any): boolean => {
+    if (!plan) return true;
+    if (plan.cancelAtPeriodEnd) return true;
+    return !isPlanBillingLive(plan);
+};
+
 const inferPlanGroup = (plan: any): string => {
     if (plan?.group) return plan.group;
     if (plan?.collectionName === "businessOfferingsCollection") return "business_offerings";
@@ -333,6 +342,35 @@ const inferListingGroup = (listing: any): string => {
     if (listing?.__col === "jobsCollection") return "jobs";
     return "";
 };
+
+const formatPlanGroupLabel = (group: string): string => {
+    const labels: Record<string, string> = {
+        business_offerings: "Business Offerings",
+        consulting: "Consulting",
+        events: "Events",
+        jobs: "Jobs",
+    };
+    if (labels[group]) return labels[group];
+    if (!group) return "";
+    return group.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+};
+
+const getListingDisplayName = (listing: any, plan?: any): string => {
+    if (!listing) return "";
+    const name =
+        (listing.eventName || "").trim() ||
+        (listing.jobTitle || "").trim() ||
+        (listing.businessName || "").trim() ||
+        (listing.companyName || "").trim();
+    if (name) return name;
+    const group = inferListingGroup(listing) || inferPlanGroup(plan);
+    return formatPlanGroupLabel(group) || "Listing";
+};
+
+const formatPlanTierLabel = (plan: any, planConfig: any): string =>
+    planConfig?.label ||
+    plan?.planName ||
+    (plan?.planId ? plan.planId.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) : "Plan");
 
 const normalizeRepresentative = (rep: any): { firstName: string; lastName: string; email: string } | null => {
     const firstName = (rep?.firstName || "").trim();
@@ -448,10 +486,20 @@ export default function Dashboard() {
         );
     };
     const isFeatureEligiblePlan = (plan: any) => {
-        if (!isPlanBillingLive(plan) || plan.cancelAtPeriodEnd || !plan.listingId || !plan.collectionName) return false;
+        if (isPlanLockedForChanges(plan) || !plan.listingId || !plan.collectionName) return false;
         const linkedListing = getLinkedListingForPlan(plan);
         if (!linkedListing) return false;
         return linkedListing.status !== "pending_payment" && linkedListing.active !== false;
+    };
+
+    const assertPlanUnlockedForChanges = (plan: any) => {
+        if (isPlanLockedForChanges(plan)) {
+            throw new Error(
+                plan?.cancelAtPeriodEnd
+                    ? "This plan is scheduled to end. Editing and upgrades are not available until you repurchase."
+                    : "This plan is no longer active. Editing and upgrades are not available until you repurchase.",
+            );
+        }
     };
 
     // Verify payment on return from Stripe checkout
@@ -555,19 +603,25 @@ export default function Dashboard() {
 
                     const attachSnapshot = (col: string, source: "partner" | "global", refQuery: any) => {
                         const sourceKey = `${source}:${col}`;
-                        return onSnapshot(refQuery, (snap: any) => {
-                            setOfferings(prev => {
-                                const withoutThisSource = prev.filter(item => item.__sourceKey !== sourceKey);
-                                const newItems = snap.docs.map((d: any) => ({
-                                    id: d.id,
-                                    ...d.data(),
-                                    __col: col,
-                                    __source: source,
-                                    __sourceKey: sourceKey,
-                                }));
-                                return sortAndDedupeOfferings([...withoutThisSource, ...newItems]);
-                            });
-                        });
+                        return onSnapshot(
+                            refQuery,
+                            (snap: any) => {
+                                setOfferings(prev => {
+                                    const withoutThisSource = prev.filter(item => item.__sourceKey !== sourceKey);
+                                    const newItems = snap.docs.map((d: any) => ({
+                                        id: d.id,
+                                        ...d.data(),
+                                        __col: col,
+                                        __source: source,
+                                        __sourceKey: sourceKey,
+                                    }));
+                                    return sortAndDedupeOfferings([...withoutThisSource, ...newItems]);
+                                });
+                            },
+                            (err) => {
+                                console.warn(`Dashboard listings snapshot (${sourceKey}):`, err?.message || err);
+                            },
+                        );
                     };
 
                     // Keep partner-scoped snapshots for backward compatibility.
@@ -583,15 +637,23 @@ export default function Dashboard() {
 
                     // Fetch transactions (plans & features)
                     const transQ = query(collection(db, "transactionsCollection"), where("partnerId", "==", user.uid));
-                    onSnapshot(transQ, (snap) => {
-                        setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
-                    });
+                    onSnapshot(
+                        transQ,
+                        (snap) => {
+                            setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+                        },
+                        (err) => console.warn("Dashboard transactions snapshot:", err?.message || err),
+                    );
 
                     // Fetch active plans from planCollection
                     const plansQ = query(collection(docRef, "planCollection"));
-                    onSnapshot(plansQ, (snap) => {
-                        setActivePlans(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.startDate?.seconds || 0) - (a.startDate?.seconds || 0)));
-                    });
+                    onSnapshot(
+                        plansQ,
+                        (snap) => {
+                            setActivePlans(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.startDate?.seconds || 0) - (a.startDate?.seconds || 0)));
+                        },
+                        (err) => console.warn("Dashboard plans snapshot:", err?.message || err),
+                    );
                 } else {
                     navigate("/all-categories");
                 }
@@ -889,6 +951,7 @@ export default function Dashboard() {
         if (!auth.currentUser || !planForCheckout) {
             throw new Error("Upgrade session expired. Please select upgrade again.");
         }
+        assertPlanUnlockedForChanges(planForCheckout);
         const datesForCheckout =
             eventDates ??
             pendingEventUpgradeDates ??
@@ -966,6 +1029,17 @@ export default function Dashboard() {
             selectedPlanForAction ?? upgradeCheckoutContextRef.current?.planForCheckout ?? null;
         try {
             if (auth.currentUser && selectedListingForEdit) {
+                const planForEdit =
+                    selectedPlanForAction ||
+                    activePlans.find(
+                        (p) =>
+                            p.listingId === selectedListingForEdit.id &&
+                            (!p.collectionName || p.collectionName === selectedListingForEdit.__col),
+                    );
+                if (planForEdit) {
+                    assertPlanUnlockedForChanges(planForEdit);
+                }
+
                 const isBusinessCollection = selectedListingForEdit.__col === "businessOfferingsCollection";
                 const listingRef = isBusinessCollection
                     ? doc(
@@ -1133,6 +1207,12 @@ export default function Dashboard() {
     // Handle plan upgrade - edit details first, then Stripe upgrade flow
     const handleUpgradePlan = async (newPlanId: string) => {
         if (!selectedPlanForAction) return;
+        try {
+            assertPlanUnlockedForChanges(selectedPlanForAction);
+        } catch (err: any) {
+            setActionMessage({ type: "error", text: err.message || "This plan cannot be upgraded." });
+            return;
+        }
         const linkedListing = offerings.find((o) =>
             o.id === selectedPlanForAction.listingId &&
             (!selectedPlanForAction.collectionName || o.__col === selectedPlanForAction.collectionName)
@@ -1191,7 +1271,15 @@ export default function Dashboard() {
                     payload = null;
                 }
                 if (!response.ok || !payload?.success) {
-                    throw new Error(payload?.error || "Cancellation request failed.");
+                    const apiError = payload?.error;
+                    if (!apiError && !response.ok) {
+                        throw new Error(
+                            response.status === 502
+                                ? "Billing service error. Ensure the API server is running and Stripe is configured."
+                                : `Cancellation failed (${response.status}). Check that the API server is reachable.`,
+                        );
+                    }
+                    throw new Error(apiError || "Cancellation request failed.");
                 }
 
                 if (cancelScope === "feature" && !payload?.cancelledFeature) {
@@ -1648,20 +1736,25 @@ export default function Dashboard() {
                 effectiveSpotlightTier > 0 &&
                 !isSpotlightCancelPending(linkedListing);
             const isEnding = Boolean(plan.cancelAtPeriodEnd);
-            const actionsLocked = false;
-            const canListingPlanUpgradeAction = getAvailablePlanUpgradeIds(plan.planId).length > 0;
+            const actionsLocked = isPlanLockedForChanges(plan);
+            const canListingPlanUpgradeAction =
+                getAvailablePlanUpgradeIds(plan.planId).length > 0 && !actionsLocked;
             const cardShell = isEnding
                 ? "rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-5"
                 : "rounded-xl border border-foreground/10 bg-muted/40 p-5";
+            const planGroupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
+            const listingName = getListingDisplayName(linkedListing, plan);
+            const planTierLabel = formatPlanTierLabel(plan, planConfig);
+            const planSummaryParts = [planGroupLabel, planTierLabel].filter(Boolean);
 
             return (
                 <div key={plan.id} className={cardShell}>
                     <div className="flex flex-col gap-4">
                         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                             <div className="flex-1">
-                                <div className="flex items-center gap-3 mb-2 flex-wrap">
+                                <div className="flex items-center gap-3 mb-1 flex-wrap">
                                     <h4 className="text-lg font-bold text-foreground">
-                                        {planConfig?.label || plan.planName || plan.planId?.replace(/_/g, " ").toUpperCase()}
+                                        {listingName || planSummaryParts.join(" · ") || planTierLabel}
                                     </h4>
                                     {isEnding ? (
                                         <>
@@ -1680,9 +1773,13 @@ export default function Dashboard() {
                                         </>
                                     )}
                                 </div>
+                                {listingName && planSummaryParts.length > 0 && (
+                                    <p className="text-sm text-muted-foreground mb-2">{planSummaryParts.join(" · ")}</p>
+                                )}
                                 {isEnding && (
                                     <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
                                         This plan is still active and accessible until the end date below. It is scheduled not to renew after that date.
+                                        Editing, plan upgrades, and spotlight changes are disabled while cancellation is scheduled.
                                     </p>
                                 )}
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
@@ -1711,6 +1808,11 @@ export default function Dashboard() {
                                         size="sm"
                                         className="border-foreground/20 text-foreground/80 hover:bg-foreground/5"
                                         disabled={actionsLocked}
+                                        title={
+                                            actionsLocked
+                                                ? "Editing is unavailable while this plan is cancelled or ended."
+                                                : undefined
+                                        }
                                         onClick={() => {
                                             setSelectedListingForEdit(linkedListing);
                                             setSelectedPlanForAction(plan);
@@ -1726,6 +1828,13 @@ export default function Dashboard() {
                                     size="sm"
                                     className={`border-primary/40 ${canListingPlanUpgradeAction ? "text-primary hover:bg-primary/10" : "text-muted-foreground border-foreground/15 opacity-60 cursor-not-allowed"}`}
                                     disabled={actionsLocked || !canListingPlanUpgradeAction}
+                                    title={
+                                        actionsLocked
+                                            ? "Upgrades are unavailable while this plan is cancelled or ended."
+                                            : !canListingPlanUpgradeAction
+                                                ? "No higher plan available."
+                                                : undefined
+                                    }
                                     onClick={() => {
                                         setSelectedPlanForAction(plan);
                                         setPendingUpgradePlanId(null);
@@ -1826,6 +1935,38 @@ export default function Dashboard() {
             );
         };
 
+        const pendingPaymentListings = offerings.filter((o) => o.status === "pending_payment");
+        const pendingPaymentDisplayLimit = 2;
+        const visiblePendingPaymentListings = pendingPaymentListings.slice(0, pendingPaymentDisplayLimit);
+        const hiddenPendingPaymentCount = pendingPaymentListings.length - visiblePendingPaymentListings.length;
+        const renderAddListingDropdown = (buttonClassName?: string) => (
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button className={buttonClassName || "bg-white text-black hover:bg-white/90"}>
+                        <PlusCircle className="w-4 h-4 mr-2" /> Add Listing
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="bg-background border-foreground/10">
+                    <DropdownMenuItem
+                        onClick={() => handleAddPlan("offerings")}
+                        disabled={businessOfferingLock.blocked}
+                        className="cursor-pointer"
+                    >
+                        Business Offering {businessOfferingLock.blocked ? "(limit reached)" : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                        onClick={() => handleAddPlan("consulting")}
+                        disabled={consultingLock.blocked}
+                        className="cursor-pointer"
+                    >
+                        Consulting Service {consultingLock.blocked ? "(limit reached)" : ""}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddPlan("jobs")} className="cursor-pointer">Job Listing</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAddPlan("events")} className="cursor-pointer">Event Listing</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        );
+
         return (
             <div className="max-w-5xl space-y-8">
                 <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-foreground">Company Dashboard</h1>
@@ -1862,15 +2003,40 @@ export default function Dashboard() {
                                 <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">Company Name</p>
                                 <p className="text-2xl text-foreground font-bold">{partnerData.businessName}</p>
                             </div>
-                            <div className="grid grid-cols-2 gap-6 bg-muted/40 p-4 rounded-lg border border-foreground/10">
-                                <div>
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Group</p>
-                                    <p className="text-foreground font-medium capitalize">{currentGroup.replace(/_/g, ' ') || "N/A"}</p>
-                                </div>
-                                <div>
-                                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Plan</p>
-                                    <p className="text-foreground font-medium">{currentPlan?.label || "N/A"}</p>
-                                </div>
+                            <div className="grid grid-cols-1 gap-4 bg-muted/40 p-4 rounded-lg border border-foreground/10">
+                                {livePlansSorted.length > 0 ? (
+                                    <div>
+                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Active plans</p>
+                                        <ul className="space-y-2">
+                                            {livePlansSorted.map((plan) => {
+                                                const linked = getLinkedListingForPlan(plan);
+                                                const planConfig = PLAN_CONFIGS[plan.planId];
+                                                const groupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
+                                                const tierLabel = formatPlanTierLabel(plan, planConfig);
+                                                const name = getListingDisplayName(linked, plan);
+                                                return (
+                                                    <li key={plan.id} className="text-sm text-foreground">
+                                                        <span className="font-medium">{name || `${groupLabel} · ${tierLabel}`}</span>
+                                                        {name && (
+                                                            <span className="text-muted-foreground"> — {groupLabel} · {tierLabel}</span>
+                                                        )}
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    </div>
+                                ) : (
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Group</p>
+                                            <p className="text-foreground font-medium capitalize">{currentGroup.replace(/_/g, " ") || "N/A"}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Plan</p>
+                                            <p className="text-foreground font-medium">{currentPlan?.label || "N/A"}</p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                             <div>
                                 <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><MapPin className="w-4 h-4" /> Registered Address</p>
@@ -1913,15 +2079,20 @@ export default function Dashboard() {
                 </div>
 
                 {/* Plans & billing */}
-                {(livePlans.length > 0 || expiredPlans.length > 0) && (
+                {(livePlans.length > 0 || expiredPlans.length > 0 || pendingPaymentListings.length > 0 || isApproved) && (
                     <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
                         <CardHeader className="pb-4 border-b border-foreground/10">
-                            <CardTitle className="text-xl flex items-center gap-2">
-                                <CreditCard className="w-5 h-5 text-primary" /> Plans &amp; billing
-                            </CardTitle>
-                            <p className="text-sm text-muted-foreground mt-1">
-                                Active subscriptions, plans you have set to cancel at period end, and past plans that are no longer billing.
-                            </p>
+                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+                                <div>
+                                    <CardTitle className="text-xl flex items-center gap-2">
+                                        <CreditCard className="w-5 h-5 text-primary" /> Plans &amp; billing
+                                    </CardTitle>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        Active subscriptions, plans you have set to cancel at period end, and past plans that are no longer billing.
+                                    </p>
+                                </div>
+                                {isApproved && renderAddListingDropdown()}
+                            </div>
                         </CardHeader>
                         <CardContent className="pt-6 space-y-10">
                             {livePlansSorted.length > 0 && (
@@ -1942,6 +2113,11 @@ export default function Dashboard() {
                                     <div className="space-y-4">
                                         {expiredPlans.map((plan) => {
                                             const planConfig = PLAN_CONFIGS[plan.planId];
+                                            const linkedListing = getLinkedListingForPlan(plan);
+                                            const planGroupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
+                                            const listingName = getListingDisplayName(linkedListing, plan);
+                                            const planTierLabel = formatPlanTierLabel(plan, planConfig);
+                                            const planSummaryParts = [planGroupLabel, planTierLabel].filter(Boolean);
                                             const endedAt =
                                                 getPlanPeriodEndDate(plan) ||
                                                 (plan.expiredAt?.seconds ? new Date(plan.expiredAt.seconds * 1000) : null);
@@ -1952,9 +2128,14 @@ export default function Dashboard() {
                                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                                         <div>
                                                             <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                                <h4 className="text-lg font-bold text-foreground">{planConfig?.label || plan.planName || plan.planId}</h4>
+                                                                <h4 className="text-lg font-bold text-foreground">
+                                                                    {listingName || planSummaryParts.join(" · ") || planTierLabel}
+                                                                </h4>
                                                                 <Badge className="bg-foreground/15 text-muted-foreground border-foreground/25">{pastLabel}</Badge>
                                                             </div>
+                                                            {listingName && planSummaryParts.length > 0 && (
+                                                                <p className="text-sm text-muted-foreground mb-1">{planSummaryParts.join(" · ")}</p>
+                                                            )}
                                                             {endedAt && (
                                                                 <p className="text-sm text-muted-foreground">Billing ended {endedAt.toLocaleDateString()}</p>
                                                             )}
@@ -1976,224 +2157,46 @@ export default function Dashboard() {
                                     </div>
                                 </div>
                             )}
+                            {pendingPaymentListings.length > 0 && (
+                                <div className="space-y-3">
+                                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                        <Clock className="w-4 h-4 text-yellow-500" />
+                                        Pending payment ({pendingPaymentListings.length})
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {visiblePendingPaymentListings.map((offering) => {
+                                            const listingGroup = inferListingGroup(offering);
+                                            const listingName = getListingDisplayName(offering);
+                                            const groupLabel = formatPlanGroupLabel(listingGroup);
+                                            const tierLabel = formatPlanTierLabel(offering, PLAN_CONFIGS[offering.selectedPlan || offering.planId]);
+                                            return (
+                                                <div key={offering.id} className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                    <div>
+                                                        <p className="font-semibold text-foreground">{listingName || groupLabel}</p>
+                                                        <p className="text-sm text-muted-foreground mt-0.5">{[groupLabel, tierLabel].filter(Boolean).join(" · ")}</p>
+                                                    </div>
+                                                    <Button
+                                                        size="sm"
+                                                        className="shrink-0"
+                                                        onClick={() => {
+                                                            navigate(`/partner/add-listing/${listingGroup === "business_offerings" ? "offerings" : listingGroup}`);
+                                                        }}
+                                                    >
+                                                        <CreditCard className="w-4 h-4 mr-2" /> Complete payment
+                                                    </Button>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {hiddenPendingPaymentCount > 0 && (
+                                        <p className="text-xs text-muted-foreground">
+                                            + {hiddenPendingPaymentCount} more pending {hiddenPendingPaymentCount === 1 ? "listing" : "listings"} not shown
+                                        </p>
+                                    )}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
-                )}
-
-                {/* Offerings Section */}
-                {isApproved && (
-                    <div className="mt-8 space-y-6">
-                        <div className="flex justify-between items-center border-b border-foreground/10 pb-4">
-                            <h2 className="text-2xl font-bold text-foreground flex items-center gap-2"><LayoutList className="w-6 h-6 text-primary" /> Your Listings</h2>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button className="bg-white text-black hover:bg-white/90"><PlusCircle className="w-4 h-4 mr-2" /> Add Listing</Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent align="end" className="bg-background border-foreground/10">
-                                    <DropdownMenuItem
-                                        onClick={() => handleAddPlan("offerings")}
-                                        disabled={businessOfferingLock.blocked}
-                                        className="cursor-pointer"
-                                    >
-                                        Business Offering {businessOfferingLock.blocked ? "(limit reached)" : ""}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem
-                                        onClick={() => handleAddPlan("consulting")}
-                                        disabled={consultingLock.blocked}
-                                        className="cursor-pointer"
-                                    >
-                                        Consulting Service {consultingLock.blocked ? "(limit reached)" : ""}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleAddPlan("jobs")} className="cursor-pointer">Job Listing</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleAddPlan("events")} className="cursor-pointer">Event Listing</DropdownMenuItem>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </div>
-
-                        {(() => {
-                            // Separate paid listings from pending payment
-                            const paidListings = offerings.filter(o => o.status !== "pending_payment");
-                            const pendingPaymentListings = offerings.filter(o => o.status === "pending_payment");
-
-                            if (offerings.length === 0) {
-                                return (
-                                    <div className="bg-foreground/5 border border-foreground/10 p-12 rounded-xl text-center">
-                                        <p className="text-muted-foreground mb-4">You have not configured any specific listings yet.</p>
-                                        <Button
-                                            onClick={() => handleAddPlan("offerings")}
-                                            variant="outline"
-                                            className="border-primary/50 text-primary"
-                                            disabled={businessOfferingLock.blocked}
-                                        >
-                                            {businessOfferingLock.blocked ? "Business Offering limit reached" : "Set up your first listing"}
-                                        </Button>
-                                    </div>
-                                );
-                            }
-
-                            return (
-                                <>
-                                    {/* Paid/Active Listings */}
-                                    {paidListings.length > 0 && (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            {paidListings.map(offering => {
-                                                const statusColor = offering.status === "Approved"
-                                                    ? "bg-green-500/20 text-green-400 border-green-500/50"
-                                                    : offering.status === "Pending Review"
-                                                        ? "bg-blue-500/20 text-blue-400 border-blue-500/50"
-                                                        : offering.status === "Cancelled"
-                                                            ? "bg-red-500/20 text-red-400 border-red-500/50"
-                                                            : "bg-primary/20 text-primary border-primary/50";
-                                                const statusLabel = offering.status || "Active";
-                                                const listingGroup = inferListingGroup(offering);
-
-                                                return (
-                                                    <Card key={offering.id} className="bg-muted/40 border-foreground/10">
-                                                        <CardHeader className="pb-3 border-b border-foreground/10 bg-foreground/5">
-                                                            <div className="flex justify-between items-start">
-                                                                <div>
-                                                                    <CardTitle className="text-lg text-primary">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || offering.planId?.split('_').join(' ').toUpperCase() || offering.eventName || offering.jobTitle || 'Listing'}</CardTitle>
-                                                                    <p className="text-xs text-muted-foreground mt-1 capitalize">{listingGroup.replace(/_/g, ' ') || offering.__col?.replace('Collection', '').replace(/([A-Z])/g, ' $1').trim()}</p>
-                                                                </div>
-                                                                <Badge className={statusColor}>{statusLabel}</Badge>
-                                                            </div>
-                                                        </CardHeader>
-                                                        <CardContent className="pt-4 space-y-3 text-sm">
-                                                            {/* Categories */}
-                                                            {(offering.selectedCategories?.length > 0 || offering.categories?.length > 0) && (
-                                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Categories</span>
-                                                                    <div className="flex flex-wrap gap-1.5">
-                                                                        {(offering.selectedCategories || offering.categories || []).map((cat: string, i: number) => (
-                                                                            <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">{cat}</Badge>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                            {/* Subcategories */}
-                                                            {offering.selectedSubcategories?.length > 0 && (
-                                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Subcategories</span>
-                                                                    <div className="flex flex-wrap gap-1.5">
-                                                                        {(offering.selectedSubcategories || []).map((sub: string, i: number) => (
-                                                                            <Badge key={i} variant="outline" className="border-foreground/20 text-xs">{sub}</Badge>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                            {/* Sub-subcategories */}
-                                                            {offering.selectedSubSubcategories?.length > 0 && (
-                                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Sub-subcategories</span>
-                                                                    <div className="flex flex-wrap gap-1.5">
-                                                                        {offering.selectedSubSubcategories.map((subSub: string, i: number) => (
-                                                                            <Badge key={i} variant="outline" className="border-primary/30 text-primary text-xs">{subSub}</Badge>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                            {/* Countries */}
-                                                            {offering.serviceCountries?.length > 0 && (
-                                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Service Countries</span>
-                                                                    <div className="flex flex-wrap gap-1.5">
-                                                                        {offering.serviceCountries.map((country: string, i: number) => (
-                                                                            <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">{country}</Badge>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                            {/* Regions */}
-                                                            {offering.serviceRegions?.length > 0 && (
-                                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Service Regions</span>
-                                                                    <p className="font-medium text-foreground text-xs">{offering.serviceRegions.join(', ')}</p>
-                                                                </div>
-                                                            )}
-                                                            {/* Bio Safety Levels */}
-                                                            {offering.bioSafetyLevel?.length > 0 && (
-                                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Bio Safety Levels</span>
-                                                                    <div className="flex flex-wrap gap-2">{offering.bioSafetyLevel.map((b: string, i: number) => <Badge variant="secondary" key={i} className="bg-foreground/10">{b}</Badge>)}</div>
-                                                                </div>
-                                                            )}
-                                                            {/* Certifications */}
-                                                            {offering.certifications?.length > 0 && (
-                                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Certifications</span>
-                                                                    <div className="flex flex-wrap gap-2">{offering.certifications.map((c: string, i: number) => <Badge variant="outline" key={i} className="border-foreground/20">{c}</Badge>)}</div>
-                                                                </div>
-                                                            )}
-                                                            {offering.companyRepresentatives?.length > 0 && (
-                                                                <div className="flex flex-col gap-1 text-foreground/80">
-                                                                    <span className="text-muted-foreground uppercase text-[10px] tracking-wider font-bold">Company Representatives</span>
-                                                                    <div className="space-y-1">
-                                                                        {offering.companyRepresentatives.map((rep: any, i: number) => (
-                                                                            <p key={i} className="text-xs text-foreground">
-                                                                                {rep.firstName} {rep.lastName} - {rep.email}
-                                                                            </p>
-                                                                        ))}
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                            {/* Created date */}
-                                                            {offering.createdAt && (
-                                                                <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t border-foreground/10">
-                                                                    <Calendar className="w-3 h-3" />
-                                                                    <span>Created: {new Date(offering.createdAt.seconds * 1000).toLocaleDateString()}</span>
-                                                                </div>
-                                                            )}
-                                                        </CardContent>
-                                                    </Card>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
-
-                                    {/* Pending Payment Listings */}
-                                    {pendingPaymentListings.length > 0 && (
-                                        <div className="mt-6">
-                                            <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
-                                                <Clock className="w-5 h-5 text-yellow-500" />
-                                                Pending Payment ({pendingPaymentListings.length})
-                                            </h3>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                {pendingPaymentListings.map(offering => {
-                                                    const listingGroup = inferListingGroup(offering);
-                                                    return (
-                                                        <Card key={offering.id} className="bg-yellow-500/5 border-yellow-500/20">
-                                                            <CardHeader className="pb-3 border-b border-yellow-500/10 bg-yellow-500/5">
-                                                                <div className="flex justify-between items-start">
-                                                                    <div>
-                                                                        <CardTitle className="text-base text-foreground">{offering.selectedPlan?.split('_').join(' ').toUpperCase() || 'Listing'}</CardTitle>
-                                                                        <p className="text-xs text-muted-foreground mt-1 capitalize">{listingGroup.replace(/_/g, ' ')}</p>
-                                                                    </div>
-                                                                    <Badge className="bg-yellow-500/20 text-yellow-400 border-yellow-500/50">Pending Payment</Badge>
-                                                                </div>
-                                                            </CardHeader>
-                                                            <CardContent className="pt-4">
-                                                                <p className="text-sm text-muted-foreground mb-3">Complete payment to activate this listing.</p>
-                                                                <Button
-                                                                    size="sm"
-                                                                    className="w-full"
-                                                                    onClick={() => {
-                                                                        // Re-initiate checkout for this listing
-                                                                        navigate(`/partner/add-listing/${listingGroup === "business_offerings" ? "offerings" : listingGroup}`);
-                                                                    }}
-                                                                >
-                                                                    <CreditCard className="w-4 h-4 mr-2" /> Complete Payment
-                                                                </Button>
-                                                            </CardContent>
-                                                        </Card>
-                                                    );
-                                                })}
-                                            </div>
-                                        </div>
-                                    )}
-                                </>
-                            );
-                        })()}
-                    </div>
                 )}
             </div>
         );

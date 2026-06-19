@@ -20,6 +20,13 @@ import {
     togglePostHelpful,
     toggleSavedPost,
 } from "@/lib/communityEngagement";
+import {
+    canEngageCommunity,
+    canReportCommunitySpam,
+    canSaveCommunityContent,
+    canShareCommunityContent,
+    communityAccessHint,
+} from "@/lib/communityAccess";
 
 const FEATURE_FETCH_LIMIT = 5000;
 /** When no rows match paid home spotlight, still show recent active listings so the home page is not empty. */
@@ -123,19 +130,14 @@ export default function Home() {
         return () => unsub();
     }, []);
 
-    const canEngage = Boolean(user && verified && hasMemberProfile && !memberRestricted);
-    const engageHint = memberRestricted
-        ? "Your account is view-only."
-        : !user
-            ? "Log in with a verified member profile."
-            : !verified
-                ? "Verify your email first."
-                : !hasMemberProfile
-                    ? "Create your community profile."
-                    : "";
+    const canEngage = canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
+    const canShare = canShareCommunityContent();
+    const canReport = canReportCommunitySpam(user, verified, hasMemberProfile, memberRestricted);
+    const canSave = canSaveCommunityContent(user, verified, hasMemberProfile, memberRestricted);
+    const engageHint = communityAccessHint(memberRestricted, user, verified, hasMemberProfile);
 
     const toggleSavePost = useCallback(async (postId: string) => {
-        if (!canEngage || !user) return;
+        if (!canSave || !user) return;
         try {
             const nowSaved = await toggleSavedPost(user.uid, postId, savedPostIds.has(postId));
             setSavedPostIds((prev) => {
@@ -147,7 +149,7 @@ export default function Home() {
         } catch (e) {
             console.error(e);
         }
-    }, [canEngage, user, savedPostIds]);
+    }, [canSave, user, savedPostIds]);
 
     const toggleHelpfulPost = useCallback(async (postId: string) => {
         if (!canEngage || !user) return;
@@ -558,6 +560,9 @@ export default function Home() {
                                     categoryDoc={categoryDoc}
                                     showActionBar={Boolean(user)}
                                     canEngage={canEngage}
+                                    canShare={canShare}
+                                    canReport={canReport}
+                                    canSave={canSave}
                                     engageHint={engageHint}
                                     saved={savedPostIds.has(p.id)}
                                     helpful={helpfulPostIds.has(p.id)}

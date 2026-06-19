@@ -36,6 +36,8 @@ type Props = {
   categoryDoc: CommunityCategoryDoc | null;
   userId: string;
   canEngage: boolean;
+  canShare: boolean;
+  canReport: boolean;
   canSave: boolean;
   engageHint?: string;
   savedPostIds: Set<string>;
@@ -50,6 +52,9 @@ export function CommunityMemberPanels({
   categoryDoc,
   userId,
   canEngage,
+  canShare,
+  canReport,
+  canSave,
   engageHint,
   savedPostIds,
   helpfulPostIds,
@@ -173,6 +178,9 @@ export function CommunityMemberPanels({
     showActionBar: true,
     rememberFeedScroll: true,
     canEngage,
+    canShare,
+    canReport,
+    canSave,
     engageHint,
     saved: savedPostIds.has(p.id),
     helpful: helpfulPostIds.has(p.id),

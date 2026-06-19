@@ -28,7 +28,9 @@ import {
 import {
   canAccessCommunity,
   canEngageCommunity,
+  canReportCommunitySpam,
   canSaveCommunityContent,
+  canShareCommunityContent,
   communityAccessHint,
 } from "@/lib/communityAccess";
 import { Input } from "@/components/ui/input";
@@ -122,7 +124,7 @@ export default function CommunityPostDetail() {
   }, [postId]);
 
   useEffect(() => {
-    if (!postId || !canAccessCommunity(user, verified, hasMemberProfile)) return;
+    if (!postId) return;
     const pref = doc(db, "postsCollection", postId);
     const unsub = onSnapshot(
       pref,
@@ -141,10 +143,10 @@ export default function CommunityPostDetail() {
       },
     );
     return () => unsub();
-  }, [postId, user, verified, hasMemberProfile]);
+  }, [postId]);
 
   useEffect(() => {
-    if (!postId || !post || !canAccessCommunity(user, verified, hasMemberProfile)) return;
+    if (!postId || !post) return;
     const path = post.imageStoragePath as string | undefined;
     if (!path) {
       setImageUrl(null);
@@ -153,10 +155,10 @@ export default function CommunityPostDetail() {
     getDownloadURL(storageRef(storage, path))
       .then(setImageUrl)
       .catch(() => setImageUrl(null));
-  }, [post, postId, user, verified, hasMemberProfile]);
+  }, [post, postId]);
 
   useEffect(() => {
-    if (!postId || !canAccessCommunity(user, verified, hasMemberProfile)) return;
+    if (!postId) return;
     const q = query(collection(db, "postsCollection", postId, "commentsCollection"));
     const unsub = onSnapshot(
       q,
@@ -179,14 +181,14 @@ export default function CommunityPostDetail() {
       },
     );
     return () => unsub();
-  }, [postId, user, verified, hasMemberProfile]);
+  }, [postId]);
 
   useEffect(() => {
     syncCommentCountBusy.current = false;
   }, [postId]);
 
   useEffect(() => {
-    if (!postId || !canAccessCommunity(user, verified, hasMemberProfile) || !post) return;
+    if (!postId || !post || !canAccessCommunity(user, verified, hasMemberProfile)) return;
     const stored = Number(post.commentCount ?? 0);
     if (comments.length === stored || syncCommentCountBusy.current) return;
     syncCommentCountBusy.current = true;
@@ -236,24 +238,27 @@ export default function CommunityPostDetail() {
     }
   }, [highlightCommentId, comments]);
 
-  const canAccess = canAccessCommunity(user, verified, hasMemberProfile);
   const canEngage = canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
-  const canSave = canSaveCommunityContent(user, verified, hasMemberProfile);
+  const canShare = canShareCommunityContent();
+  const canReport = canReportCommunitySpam(user, verified, hasMemberProfile, memberRestricted);
+  const canSave = canSaveCommunityContent(user, verified, hasMemberProfile, memberRestricted);
   const postAuthorId = post?.authorId as string | undefined;
   const archived = post?.archived === true;
 
   const engageHint = archived
     ? "This post is archived."
     : communityAccessHint(memberRestricted, user, verified, hasMemberProfile);
+  const shareHint = "Share on LinkedIn";
+  const reportHint = !canReport ? engageHint : "Report content";
 
   const shareLinkedIn = () => {
-    if (!canEngage || !postId) return;
+    if (!canShare || !postId) return;
     const url = buildLinkedInShareUrl(postId, String(post?.title ?? "Community post"));
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const copyPostLinkAction = async () => {
-    if (!canEngage || !postId) return;
+    if (!canShare || !postId) return;
     const ok = await copyPostLink(postId);
     setCopyFeedback(ok ? "Link copied" : "Could not copy");
     window.setTimeout(() => setCopyFeedback(""), 2500);
@@ -348,7 +353,7 @@ export default function CommunityPostDetail() {
   };
 
   const submitReport = async (reason: string) => {
-    if (!canEngage || !user || !postId || !postAuthorId) throw new Error("Not allowed");
+    if (!canReport || !user || !postId || !postAuthorId) throw new Error("Not allowed");
 
     let targetAuthorId = postAuthorId;
     let targetKey = postId;
@@ -393,42 +398,6 @@ export default function CommunityPostDetail() {
   };
 
   if (!postId) return null;
-
-  if (authReady && !canAccess) {
-    return (
-      <div className="container mx-auto px-4 py-16 max-w-2xl space-y-4 text-center">
-        <p className="font-semibold text-lg">Members-only community</p>
-        <p className="text-sm text-muted-foreground">
-          Log in with a verified account and complete your community profile to read this post.
-        </p>
-        <div className="flex flex-wrap justify-center gap-2">
-          {!user && (
-            <>
-              <Button size="sm" asChild>
-                <Link to="/member/login">Log in</Link>
-              </Button>
-              <Button size="sm" variant="outline" asChild>
-                <Link to="/member/register">Register</Link>
-              </Button>
-            </>
-          )}
-          {user && !verified && (
-            <Button size="sm" asChild>
-              <Link to="/member/login">Verify email</Link>
-            </Button>
-          )}
-          {user && verified && !hasMemberProfile && (
-            <Button size="sm" asChild>
-              <Link to="/member/setup">Set up profile</Link>
-            </Button>
-          )}
-        </div>
-        <Button type="button" variant="link" className="mt-2" onClick={() => goBackToCommunityFeed(navigate)}>
-          Back
-        </Button>
-      </div>
-    );
-  }
 
   if (!authReady) {
     return (
@@ -508,22 +477,22 @@ export default function CommunityPostDetail() {
               <CommunityIconAction
                 label="Spam"
                 icon={communityActionIcons.report}
-                disabled={!canEngage}
-                title={!canEngage ? engageHint : "Report content"}
+                disabled={!canReport}
+                title={!canReport ? reportHint : "Report content"}
                 onClick={() => openReport("post")}
               />
               <CommunityIconAction
                 label="LinkedIn"
                 icon={communityActionIcons.linkedIn}
-                disabled={!canEngage}
-                title={!canEngage ? engageHint : "Share on LinkedIn"}
+                disabled={!canShare}
+                title={shareHint}
                 onClick={shareLinkedIn}
               />
               <CommunityIconAction
                 label={copyFeedback || "Copy link"}
                 icon={communityActionIcons.copyLink}
-                disabled={!canEngage}
-                title={!canEngage ? engageHint : "Copy link"}
+                disabled={!canShare}
+                title={!canShare ? shareHint : "Copy link"}
                 onClick={copyPostLinkAction}
               />
             </div>
@@ -616,8 +585,12 @@ export default function CommunityPostDetail() {
                   comment={c}
                   archived={archived}
                   canEngage={canEngage}
+                  canShare={canShare}
+                  canReport={canReport}
                   canSave={canSave}
                   engageHint={engageHint}
+                  shareHint={shareHint}
+                  reportHint={reportHint}
                   highlight={highlightCommentId === c.id}
                   saved={savedCommentIds.has(c.id)}
                   commentRef={(el) => {
@@ -715,8 +688,12 @@ export default function CommunityPostDetail() {
                               comment={r}
                               archived={archived}
                               canEngage={canEngage}
+                              canShare={canShare}
+                              canReport={canReport}
                               canSave={canSave}
                               engageHint={engageHint}
+                              shareHint={shareHint}
+                              reportHint={reportHint}
                               highlight={highlightCommentId === r.id}
                               saved={savedCommentIds.has(r.id)}
                               isReply
@@ -872,8 +849,12 @@ function CommentItem({
   comment,
   archived,
   canEngage,
+  canShare,
+  canReport,
   canSave,
   engageHint,
+  shareHint,
+  reportHint,
   highlight,
   saved,
   isReply = false,
@@ -888,8 +869,12 @@ function CommentItem({
   comment: CommentRow;
   archived: boolean;
   canEngage: boolean;
+  canShare: boolean;
+  canReport: boolean;
   canSave: boolean;
   engageHint: string;
+  shareHint: string;
+  reportHint: string;
   highlight: boolean;
   saved: boolean;
   isReply?: boolean;
@@ -962,17 +947,17 @@ function CommentItem({
             <CommunityIconAction
               label="Spam"
               icon={communityActionIcons.report}
-              disabled={!canEngage}
-              title={!canEngage ? engageHint : "Report content"}
+              disabled={!canReport}
+              title={!canReport ? reportHint : "Report content"}
               onClick={onReport}
             />
             <CommunityIconAction
               label="LinkedIn"
               icon={communityActionIcons.linkedIn}
-              disabled={!canEngage}
-              title={!canEngage ? engageHint : "Share on LinkedIn"}
+              disabled={!canShare}
+              title={shareHint}
               onClick={() => {
-                if (!canEngage) return;
+                if (!canShare) return;
                 window.open(
                   buildLinkedInCommentShareUrl(postId, comment.id, comment.text),
                   "_blank",
@@ -983,10 +968,10 @@ function CommentItem({
             <CommunityIconAction
               label={copyMsg || "Copy link"}
               icon={communityActionIcons.copyLink}
-              disabled={!canEngage}
-              title={!canEngage ? engageHint : "Copy link"}
+              disabled={!canShare}
+              title={!canShare ? shareHint : "Copy link"}
               onClick={async () => {
-                if (!canEngage) return;
+                if (!canShare) return;
                 const ok = await copyCommentLink(postId, comment.id);
                 setCopyMsg(ok ? "Copied" : "Failed");
                 window.setTimeout(() => setCopyMsg(""), 2000);

@@ -22,6 +22,9 @@ type PostActionBarProps = {
   commentCount?: number;
   helpfulCount?: number;
   canEngage: boolean;
+  canShare?: boolean;
+  canReport?: boolean;
+  canSave?: boolean;
   engageHint?: string;
   saved?: boolean;
   helpful?: boolean;
@@ -38,6 +41,9 @@ export function PostActionBar({
   commentCount = 0,
   helpfulCount = 0,
   canEngage,
+  canShare = canEngage,
+  canReport = canEngage,
+  canSave = canEngage,
   engageHint,
   saved,
   helpful,
@@ -63,9 +69,36 @@ export function PostActionBar({
     action?.();
   };
 
+  const requireSave = (action?: () => void) => {
+    if (!canSave) {
+      showHint(engageHint || "Sign in with a verified member profile to save posts.");
+      return;
+    }
+    action?.();
+  };
+
+  const requireShare = (action?: () => void) => {
+    if (!canShare) {
+      showHint(engageHint || "Sign in with a verified member profile to share.");
+      return;
+    }
+    action?.();
+  };
+
+  const requireReport = (action?: () => void) => {
+    if (!canReport) {
+      showHint(engageHint || "Sign in with a verified member profile to report content.");
+      return;
+    }
+    action?.();
+  };
+
   const submitReport = async (reason: string) => {
     const user = auth.currentUser;
-    if (!user || !canEngage) throw new Error("Not allowed");
+    if (!user || !canReport) throw new Error("Not allowed");
+    if (targetAuthorId === user.uid) {
+      throw new Error("You cannot report your own content.");
+    }
     await submitCommunitySpamReport({
       reporterId: user.uid,
       targetType: "post",
@@ -78,14 +111,14 @@ export function PostActionBar({
   };
 
   const linkedInShare = () => {
-    requireEngage(() => {
+    requireShare(() => {
       const url = buildLinkedInShareUrl(postId, postTitle);
       window.open(url, "_blank", "noopener,noreferrer");
     });
   };
 
   const copyLink = () => {
-    requireEngage(async () => {
+    requireShare(async () => {
       const ok = await copyPostLink(postId);
       setCopyMsg(ok ? "Link copied" : "Could not copy");
       window.setTimeout(() => setCopyMsg(""), 2000);
@@ -93,6 +126,9 @@ export function PostActionBar({
   };
 
   const disabledTitle = engageHint || "Sign in with a verified member profile to use this.";
+  const shareDisabledTitle = !canShare
+    ? engageHint || "Sign in with a verified member profile to share."
+    : undefined;
 
   return (
     <>
@@ -129,19 +165,31 @@ export function PostActionBar({
           label="Save"
           icon={Bookmark}
           active={saved}
-          title={!canEngage ? disabledTitle : saved ? "Unsave" : "Save"}
-          onClick={() => requireEngage(onToggleSave)}
+          title={!canSave ? disabledTitle : saved ? "Unsave" : "Save"}
+          onClick={() => requireSave(onToggleSave)}
           className="flex-1 min-w-[90px]"
         />
         <ActionBtn
           label="Spam"
           icon={ShieldAlert}
-          title={!canEngage ? disabledTitle : "Report content"}
-          onClick={() => requireEngage(() => setReportOpen(true))}
+          title={!canReport ? disabledTitle : "Report content"}
+          onClick={() => requireReport(() => setReportOpen(true))}
           className="flex-1 min-w-[80px]"
         />
-        <ActionBtn label="LinkedIn" icon={Linkedin} onClick={linkedInShare} className="flex-1 min-w-[90px]" />
-        <ActionBtn label={copyMsg || "Copy link"} icon={Copy} onClick={copyLink} className="flex-1 min-w-[100px]" />
+        <ActionBtn
+          label="LinkedIn"
+          icon={Linkedin}
+          title={shareDisabledTitle}
+          onClick={linkedInShare}
+          className="flex-1 min-w-[90px]"
+        />
+        <ActionBtn
+          label={copyMsg || "Copy link"}
+          icon={Copy}
+          title={shareDisabledTitle}
+          onClick={copyLink}
+          className="flex-1 min-w-[100px]"
+        />
       </div>
       {hintMsg && (
         <p className="relative z-20 text-xs text-center text-muted-foreground bg-muted/50 py-1.5 px-2 border-t border-slate-100 dark:border-foreground/10">

@@ -37,7 +37,17 @@ service cloud.firestore {
     }
 
     function canUseCommunitySaves() {
-      return emailVerifiedToken() && memberExists();
+      return emailVerifiedToken() && memberCanWrite();
+    }
+
+    function canReportCommunitySpam() {
+      return canUseCommunityWrites();
+    }
+
+    // spamReportsCollection doc id = reporterUid_targetType_targetKey
+    function isOwnSpamReportId(reportId) {
+      return isSignedIn()
+        && reportId.matches('^' + request.auth.uid + '_.*');
     }
 
     function stringListMax(list, max) {
@@ -153,7 +163,7 @@ service cloud.firestore {
 
     // --- Community posts ---
     match /postsCollection/{postId} {
-      allow read: if (resource.data.archived != true && memberExists() && emailVerifiedToken()) || isAdmin();
+      allow read: if (resource.data.archived != true) || isAdmin();
 
       allow create: if canUseCommunityWrites()
         && request.resource.data.authorId == request.auth.uid
@@ -203,8 +213,8 @@ service cloud.firestore {
         );
 
       match /commentsCollection/{commentId} {
-        // Members may read all comments on a query (including archived). UI hides archived ones.
-        allow read: if (memberExists() && emailVerifiedToken()) || isAdmin();
+        // Public read; UI hides archived comments.
+        allow read: if (!('archived' in resource.data) || resource.data.archived != true) || isAdmin();
 
         allow create: if canUseCommunityWrites()
           && request.resource.data.authorId == request.auth.uid
@@ -254,8 +264,8 @@ service cloud.firestore {
 
     // Spam reports: id = reporterId_targetType_targetKey (targetKey is postId or postId__commentId)
     match /spamReportsCollection/{reportId} {
-      allow read: if isAdmin();
-      allow create: if canUseCommunityWrites()
+      allow read: if isAdmin() || isOwnSpamReportId(reportId);
+      allow create: if canReportCommunitySpam()
         && request.resource.data.reporterId == request.auth.uid
         && request.resource.data.targetAuthorId != request.auth.uid
         && request.resource.data.targetType in ['post', 'comment']
@@ -263,7 +273,8 @@ service cloud.firestore {
         && request.resource.data.reason is string
         && request.resource.data.reason.size() > 0
         && request.resource.data.reason.size() <= 500
-        && reportId == request.auth.uid + '_' + request.resource.data.targetType + '_' + request.resource.data.targetKey;
+        && reportId == request.auth.uid + '_' + request.resource.data.targetType + '_' + request.resource.data.targetKey
+        && !exists(/databases/$(database)/documents/spamReportsCollection/$(reportId));
       allow update, delete: if false;
     }
 
@@ -289,6 +300,30 @@ service cloud.firestore {
         && (request.auth.uid == partnerId || isAdmin());
 
       match /businessOfferingsCollection/{offeringId} {
+        allow read: if true;
+        allow write: if isSignedIn()
+          && (request.auth.uid == partnerId || isAdmin());
+      }
+
+      match /consultingServicesCollection/{offeringId} {
+        allow read: if true;
+        allow write: if isSignedIn()
+          && (request.auth.uid == partnerId || isAdmin());
+      }
+
+      match /consultingCollection/{offeringId} {
+        allow read: if true;
+        allow write: if isSignedIn()
+          && (request.auth.uid == partnerId || isAdmin());
+      }
+
+      match /eventsCollection/{eventId} {
+        allow read: if true;
+        allow write: if isSignedIn()
+          && (request.auth.uid == partnerId || isAdmin());
+      }
+
+      match /jobsCollection/{jobId} {
         allow read: if true;
         allow write: if isSignedIn()
           && (request.auth.uid == partnerId || isAdmin());

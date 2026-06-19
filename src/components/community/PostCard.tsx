@@ -70,10 +70,12 @@ export function PostCard({
   showAuthorEmail,
   showActionBar = false,
   canEngage = false,
+  canShare,
+  canReport,
+  canSave,
   engageHint,
   saved,
   helpful,
-  canSave,
   onToggleSave,
   onToggleHelpful,
   rememberFeedScroll,
@@ -83,10 +85,12 @@ export function PostCard({
   showAuthorEmail?: string | null;
   showActionBar?: boolean;
   canEngage?: boolean;
+  canShare?: boolean;
+  canReport?: boolean;
+  canSave?: boolean;
   engageHint?: string;
   saved?: boolean;
   helpful?: boolean;
-  canSave?: boolean;
   onToggleSave?: () => void;
   onToggleHelpful?: () => void;
   /** When true, saves scroll position before opening post (community feed). */
@@ -228,6 +232,9 @@ export function PostCard({
             commentCount={post.commentCount ?? 0}
             helpfulCount={post.likeCount ?? 0}
             canEngage={canEngage}
+            canShare={canShare ?? canEngage}
+            canReport={canReport ?? canEngage}
+            canSave={canSave ?? canEngage}
             engageHint={engageHint}
             saved={saved}
             helpful={helpful}

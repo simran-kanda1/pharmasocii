@@ -38,7 +38,9 @@ import { restoreCommunityFeedScroll } from "@/lib/communityScrollRestore";
 import {
   canAccessCommunity,
   canEngageCommunity,
+  canReportCommunitySpam,
   canSaveCommunityContent,
+  canShareCommunityContent,
   communityAccessHint,
 } from "@/lib/communityAccess";
 import { CommunityViewHeader } from "@/components/community/CommunityViewHeader";
@@ -171,11 +173,6 @@ export default function CommunityFeed() {
 
   useEffect(() => {
     (async () => {
-      if (!canAccessCommunity(user, verified, hasMemberProfile)) {
-        setPosts([]);
-        setLoading(false);
-        return;
-      }
       try {
         setLoading(true);
         const base = [
@@ -200,7 +197,7 @@ export default function CommunityFeed() {
         setLoading(false);
       }
     })();
-  }, [refreshPostsKey, currentPage, user, verified, hasMemberProfile]);
+  }, [refreshPostsKey, currentPage]);
 
   useEffect(() => {
     if (communityView !== "home") return;
@@ -253,7 +250,9 @@ export default function CommunityFeed() {
 
   const canAccess = canAccessCommunity(user, verified, hasMemberProfile);
   const canEngage = canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
-  const canSave = canSaveCommunityContent(user, verified, hasMemberProfile);
+  const canShare = canShareCommunityContent();
+  const canReport = canReportCommunitySpam(user, verified, hasMemberProfile, memberRestricted);
+  const canSave = canSaveCommunityContent(user, verified, hasMemberProfile, memberRestricted);
   const canCompose = canEngage;
   const welcomeName = memberUserName || user?.displayName || user?.email?.split("@")[0] || "Guest";
   const profileInitials = (welcomeName || "G").slice(0, 2).toUpperCase();
@@ -418,7 +417,11 @@ export default function CommunityFeed() {
               </p>
             )}
 
-            {(communityView === "home" || communityView === "my-space") && composerBlock}
+            {(communityView === "home" || communityView === "my-space") && (
+              <div className="sticky top-16 z-30 -mx-1 px-1 pb-3 bg-slate-100/95 backdrop-blur-md dark:bg-background/95">
+                {composerBlock}
+              </div>
+            )}
 
             {showMemberPanels && communityView !== "home" && (
               <CommunityViewHeader view={communityView} onBack={() => setCommunityView("home")} />
@@ -431,6 +434,8 @@ export default function CommunityFeed() {
                 userId={user.uid}
                 canEngage={canEngage}
                 canSave={canSave}
+                canShare={canShare}
+                canReport={canReport}
                 engageHint={engageHint}
                 savedPostIds={savedPostIds}
                 helpfulPostIds={helpfulPostIds}
@@ -439,37 +444,6 @@ export default function CommunityFeed() {
                 onUnreadChange={setNotificationUnread}
               />
             ) : communityView === "home" ? (
-              !canAccess ? (
-                <div className="rounded-xl border border-slate-200 bg-white p-8 text-center shadow-sm dark:border-foreground/15 dark:bg-card space-y-4">
-                  <p className="font-semibold text-lg">Members-only community</p>
-                  <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                    Log in with a verified account and complete your community profile to read posts, filter the feed,
-                    save content, and share links.
-                  </p>
-                  <div className="flex flex-wrap justify-center gap-2">
-                    {!user && (
-                      <>
-                        <Button size="sm" asChild>
-                          <Link to="/member/login">Log in</Link>
-                        </Button>
-                        <Button size="sm" variant="outline" asChild>
-                          <Link to="/member/register">Register</Link>
-                        </Button>
-                      </>
-                    )}
-                    {user && !verified && (
-                      <Button size="sm" asChild>
-                        <Link to="/member/login">Verify email</Link>
-                      </Button>
-                    )}
-                    {user && verified && !hasMemberProfile && (
-                      <Button size="sm" asChild>
-                        <Link to="/member/setup">Set up profile</Link>
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              ) : (
               <>
                 <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
                   <form
@@ -527,6 +501,9 @@ export default function CommunityFeed() {
                             }
                             showActionBar
                             canEngage={canEngage}
+                            canShare={canShare}
+                            canReport={canReport}
+                            canSave={canSave}
                             engageHint={engageHint}
                             saved={savedPostIds.has(p.id)}
                             helpful={helpfulPostIds.has(p.id)}
@@ -562,7 +539,6 @@ export default function CommunityFeed() {
                   </>
                 )}
               </>
-              )
             ) : null}
           </main>
 
@@ -574,7 +550,6 @@ export default function CommunityFeed() {
                 selectedFilterKeys={selectedFilterKeys}
                 onCountriesChange={setSelectedCountries}
                 onFilterKeysChange={setSelectedFilterKeys}
-                locked={!canAccess}
               />
             </div>
           </aside>

@@ -17,22 +17,42 @@ export async function submitCommunitySpamReport(params: {
   commentId?: string | null;
   reason: string;
 }) {
-  const reportId = `${params.reporterId}_${params.targetType}_${params.targetKey}`;
+  const targetKey = String(params.targetKey || "").trim();
+  const targetAuthorId = String(params.targetAuthorId || "").trim();
+  if (!targetKey || !targetAuthorId) {
+    throw new Error("This content cannot be reported right now.");
+  }
+  if (targetAuthorId === params.reporterId) {
+    throw new Error("You cannot report your own content.");
+  }
+
+  const reportId = `${params.reporterId}_${params.targetType}_${targetKey}`;
   const reportRef = doc(db, "spamReportsCollection", reportId);
   const existing = await getDoc(reportRef);
   if (existing.exists()) {
     throw new AlreadyReportedError();
   }
 
-  await setDoc(reportRef, {
-    reporterId: params.reporterId,
-    targetType: params.targetType,
-    targetKey: params.targetKey,
-    targetAuthorId: params.targetAuthorId,
-    postId: params.postId,
-    commentId: params.commentId ?? null,
-    reason: params.reason,
-    status: "open",
-    createdAt: serverTimestamp(),
-  });
+  try {
+    await setDoc(reportRef, {
+      reporterId: params.reporterId,
+      targetType: params.targetType,
+      targetKey,
+      targetAuthorId,
+      postId: params.postId,
+      commentId: params.commentId ?? null,
+      reason: params.reason,
+      status: "open",
+      createdAt: serverTimestamp(),
+    });
+  } catch (err: unknown) {
+    const code = (err as { code?: string })?.code;
+    if (code === "permission-denied") {
+      const retry = await getDoc(reportRef);
+      if (retry.exists()) {
+        throw new AlreadyReportedError();
+      }
+    }
+    throw err;
+  }
 }

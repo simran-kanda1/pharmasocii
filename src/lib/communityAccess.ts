@@ -1,3 +1,8 @@
+/** Anyone can browse posts and comments (signed out or signed in). */
+export function canViewCommunityContent(): boolean {
+  return true;
+}
+
 /** Verified member with a community profile (includes view-only / restricted accounts). */
 export function canAccessCommunity(
   user: { uid: string } | null | undefined,
@@ -7,7 +12,7 @@ export function canAccessCommunity(
   return Boolean(user && verified && hasMemberProfile);
 }
 
-/** Active member — can post, comment, report, share, and filter. */
+/** Active member — can post, comment, save, helpful, report, and filter. */
 export function canEngageCommunity(
   user: { uid: string } | null | undefined,
   verified: boolean,
@@ -17,13 +22,29 @@ export function canEngageCommunity(
   return canAccessCommunity(user, verified, hasMemberProfile) && !memberRestricted;
 }
 
-/** Save posts/comments while view-only. */
+/** Public posts can be shared by anyone; members retain the same access. */
+export function canShareCommunityContent(): boolean {
+  return canViewCommunityContent();
+}
+
+/** Report spam — active members only. */
+export function canReportCommunitySpam(
+  user: { uid: string } | null | undefined,
+  verified: boolean,
+  hasMemberProfile: boolean,
+  memberRestricted: boolean,
+): boolean {
+  return canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
+}
+
+/** Save posts/comments — active members only. */
 export function canSaveCommunityContent(
   user: { uid: string } | null | undefined,
   verified: boolean,
   hasMemberProfile: boolean,
+  memberRestricted: boolean,
 ): boolean {
-  return canAccessCommunity(user, verified, hasMemberProfile);
+  return canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
 }
 
 export function communityAccessHint(

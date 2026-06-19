@@ -219,6 +219,17 @@ function memberTimestampToDate(value) {
     return null;
 }
 
+/** Timestamp of the spam report doc — used as block/archive start on the 3rd strike only. */
+function resolveReportCreatedAt(snap, data) {
+    if (snap?.createTime?.toDate) {
+        const created = snap.createTime.toDate();
+        if (created instanceof Date && !Number.isNaN(created.getTime())) return created;
+    }
+    const fromField = memberTimestampToDate(data?.createdAt);
+    if (fromField) return fromField;
+    return new Date();
+}
+
 /** Account cannot post/comment — spam block or admin hold. Reports while restricted do not move counters or extend blocks. */
 function isMemberSpamRestricted(data) {
     if (!data) return false;
@@ -403,6 +414,8 @@ exports.onSpamReportCreated = onDocumentCreated(
 
         if (!reporterId || !targetAuthorId) return;
 
+        const reportCreatedAt = resolveReportCreatedAt(snap, d);
+
         let contentArchived = false;
         let contentTypeLabel = targetType === "post" ? "post" : "comment";
         let countedTowardContent = false;
@@ -420,6 +433,7 @@ exports.onSpamReportCreated = onDocumentCreated(
                 if (spam.nextCount >= SPAM_THRESHOLD) {
                     update.archived = true;
                     update.archivedReason = "spam_reports";
+                    update.archivedAt = admin.firestore.Timestamp.fromDate(reportCreatedAt);
                     shouldCascade = true;
                     contentArchived = true;
                 }
@@ -447,6 +461,7 @@ exports.onSpamReportCreated = onDocumentCreated(
                 if (spam.nextCount >= SPAM_THRESHOLD) {
                     update.archived = true;
                     update.archivedReason = "spam_reports";
+                    update.archivedAt = admin.firestore.Timestamp.fromDate(reportCreatedAt);
                     contentArchived = true;
                     shouldRecount = true;
                 }
@@ -480,15 +495,19 @@ exports.onSpamReportCreated = onDocumentCreated(
             const update = {
                 spamTotalReportCount: (data.spamTotalReportCount || 0) + 1,
             };
-            if (active >= SPAM_THRESHOLD) {
-                const blockStartedAt = new Date();
+            if (active === SPAM_THRESHOLD) {
+                const blockStartedAt = reportCreatedAt;
                 blockedUntil = computeSpamBlockEnd(blockStartedAt);
                 update.accountStatus = "spam_blocked";
                 update.spamBlockStartedAt = admin.firestore.Timestamp.fromDate(blockStartedAt);
                 update.spamBlockUntil = admin.firestore.Timestamp.fromDate(blockedUntil);
                 update.spamActiveReportCount = SPAM_THRESHOLD;
-            } else {
+            } else if (active < SPAM_THRESHOLD) {
                 update.spamActiveReportCount = active;
+                if (data.accountStatus !== "spam_blocked" && data.accountStatus !== "admin_hold") {
+                    update.spamBlockStartedAt = FieldValue.delete();
+                    update.spamBlockUntil = FieldValue.delete();
+                }
             }
             tx.update(memberRef, update);
         });

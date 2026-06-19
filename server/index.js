@@ -1523,6 +1523,13 @@ function resolveFeatureCheckoutAmount(
         return { error: "You already have this spotlight tier." };
     }
 
+    if (isEventOrJob && targetFeatureId !== "both") {
+        return {
+            error:
+                "For event and job listings, spotlight add-ons are available as Both (Landing + Home Page) only.",
+        };
+    }
+
     if (!effectiveFeatureId || effectiveTier <= 0) {
         return { unitAmount: target.amount, previousFeatureId: "", isUpgrade: false };
     }
@@ -1533,12 +1540,6 @@ function resolveFeatureCheckoutAmount(
 
     if (!newTier || newTier <= effectiveTier) {
         return { error: "That is not a valid upgrade from your current spotlight tier." };
-    }
-
-    if (isEventOrJob && targetFeatureId !== "both") {
-        return {
-            error: "For event and job listings, upgrade spotlight to Both (Landing + Home Page) only.",
-        };
     }
 
     const diff = target.amount - FEATURE_PRICES[effectiveFeatureId].amount;
@@ -2253,6 +2254,26 @@ const isFirestorePlanBillingLive = (plan) => {
     return true;
 };
 
+const isFirestorePlanLockedForChanges = (plan) => {
+    if (!plan) return true;
+    if (plan.cancelAtPeriodEnd) return true;
+    return !isFirestorePlanBillingLive(plan);
+};
+
+async function findLivePlanDocForListing(partnerId, listingId, collectionName) {
+    if (!partnerId || !listingId || !collectionName) return null;
+    const snap = await db
+        .collection("partnersCollection")
+        .doc(partnerId)
+        .collection("planCollection")
+        .where("listingId", "==", listingId)
+        .where("collectionName", "==", collectionName)
+        .where("active", "==", true)
+        .limit(8)
+        .get();
+    return snap.docs.find((doc) => isFirestorePlanBillingLive(doc.data() || {})) || snap.docs[0] || null;
+}
+
 const getGroupPurchaseLockForPartner = async (partnerId, group) => {
     if (!partnerId || !["business_offerings", "consulting"].includes(group)) {
         return { blocked: false, blockedUntil: null };
@@ -2516,6 +2537,11 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             return res.status(400).json({ error: "No active paid plan found for this listing." });
         }
         const livePlanData = livePlanDoc.data() || {};
+        if (isFirestorePlanLockedForChanges(livePlanData)) {
+            return res.status(409).json({
+                error: "This plan is scheduled to end or is no longer active. Spotlight add-ons and upgrades are not available.",
+            });
+        }
         const planIncludedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[livePlanData.planId] || null;
 
         const pricing = resolveFeatureCheckoutAmount(
@@ -2862,6 +2888,15 @@ app.post("/api/upgrade-subscription", async (req, res) => {
         const pendingEventDates = buildPendingEventDatesPatch(pendingEventStartDate, pendingEventEndDate);
 
         console.log(`⬆️ Upgrading subscription: ${subscriptionId} to ${newPlanId}`);
+
+        if (partnerId && listingId && collectionName) {
+            const planDoc = await findLivePlanDocForListing(partnerId, listingId, collectionName);
+            if (planDoc && isFirestorePlanLockedForChanges(planDoc.data() || {})) {
+                return res.status(409).json({
+                    error: "This plan is scheduled to end or is no longer active. Editing and upgrades are not available until you repurchase.",
+                });
+            }
+        }
 
         const newPlan = PLAN_PRICES[newPlanId];
         if (!newPlan) {
@@ -3347,6 +3382,9 @@ app.post("/api/cancel-plan", async (req, res) => {
         }
 
         const plan = planSnap.data() || {};
+        if (cancelPlan && plan.cancelAtPeriodEnd) {
+            return res.status(409).json({ error: "This plan is already scheduled to cancel at period end." });
+        }
         let cancelledPlan = false;
         let cancelledFeature = false;
         let stripeCancelAt = null;
@@ -3454,10 +3492,21 @@ app.post("/api/cancel-plan", async (req, res) => {
         if (cancelPlan) {
             const planStripeSubId = toStripeSubscriptionId(plan.stripeSubscriptionId);
             if (planStripeSubId) {
-                const subscription = await stripe.subscriptions.update(planStripeSubId, {
-                    cancel_at_period_end: true,
-                });
-                stripeCancelAt = subscription.current_period_end;
+                try {
+                    const subscription = await stripe.subscriptions.update(planStripeSubId, {
+                        cancel_at_period_end: true,
+                    });
+                    stripeCancelAt = subscription.current_period_end;
+                } catch (stripeErr) {
+                    console.warn("   ⚠ Stripe cancel_at_period_end failed:", stripeErr?.message || stripeErr);
+                    if (!plan.cancelAtPeriodEnd) {
+                        return res.status(502).json({
+                            error:
+                                stripeErr?.message ||
+                                "Could not schedule cancellation in Stripe. Try again or contact support.",
+                        });
+                    }
+                }
             }
 
             await planRef.set({

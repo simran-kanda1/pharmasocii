@@ -9,7 +9,7 @@ import {
   type AdminSpamReportRow,
 } from "@/lib/adminCommunityData";
 import { formatAdminDate } from "@/lib/formatAdminDate";
-import { memberStatusLabel } from "@/lib/adminCommunityDisplay";
+import { memberStatusLabel, resolveSpamBlockStartedAt, resolveSpamBlockUntil } from "@/lib/adminCommunityDisplay";
 
 type Props = {
   memberId: string;
@@ -43,8 +43,8 @@ export function AdminMemberDetailPage({ memberId, onBack, onEdit, backLabel = "B
     return <p className="text-sm text-muted-foreground">Member not found.</p>;
   }
 
-  const blockUntil = member.spamBlockUntil?.toDate?.() ?? null;
-  const blockStarted = member.spamBlockStartedAt?.toDate?.() ?? null;
+  const blockStarted = resolveSpamBlockStartedAt(member, reports);
+  const blockUntil = resolveSpamBlockUntil(member, blockStarted);
 
   return (
     <AdminDetailChrome title="Member details" breadcrumb={["Members", "Member details"]} onBack={onBack} backLabel={backLabel}>
