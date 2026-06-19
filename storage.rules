@@ -1,29 +1,27 @@
 rules_version = '2';
 
 // Deploy: firebase deploy --only storage
-// Job description PDFs: partners/{uid}/jobDescriptions/...
-// Event agenda PDFs: partners/{uid}/eventAgendas/...
 service firebase.storage {
   match /b/{bucket}/o {
-    match /partners/{partnerId}/jobDescriptions/{allPaths=**} {
-      allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == partnerId;
+    function isAdmin() {
+      return request.auth != null 
+        && firestore.exists(/databases/(default)/documents/adminCollection/$(request.auth.uid));
     }
-    match /partners/{partnerId}/eventAgendas/{allPaths=**} {
+
+    match /partners/{partnerId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == partnerId;
+      allow write: if request.auth != null && (request.auth.uid == partnerId || isAdmin());
     }
 
     // Community post images
     match /community/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && (request.auth.uid == userId || isAdmin());
     }
 
     match /admin/settings/{fileName} {
       allow read: if true;
-      allow write: if request.auth != null
-        && firestore.exists(/databases/(default)/documents/adminCollection/$(request.auth.uid));
+      allow write: if isAdmin();
     }
   }
 }
