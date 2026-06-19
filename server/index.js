@@ -28,6 +28,162 @@ const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
 const stripe = new Stripe(STRIPE_SECRET_KEY);
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 
+const STRIPE_IS_TEST = Boolean(STRIPE_SECRET_KEY?.startsWith("sk_test_"));
+const STRIPE_TEST_BILLING_DAYS = Math.max(
+    1,
+    parseInt(process.env.STRIPE_TEST_BILLING_DAYS || "5", 10) || 5,
+);
+const STRIPE_TEST_CLOCKS_ENABLED =
+    STRIPE_IS_TEST && String(process.env.STRIPE_TEST_CLOCKS || "true").toLowerCase() !== "false";
+
+if (STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0) {
+    console.log(
+        `Stripe test mode: subscriptions bill every ${STRIPE_TEST_BILLING_DAYS} day(s); test clocks ${STRIPE_TEST_CLOCKS_ENABLED ? "enabled" : "disabled"}.`,
+    );
+}
+
+function getStripeSubscriptionRecurring(catalogInterval = "month") {
+    if (STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0) {
+        return { interval: "day", interval_count: STRIPE_TEST_BILLING_DAYS };
+    }
+    return { interval: catalogInterval || "month" };
+}
+
+function stripeRecurringMatchesCatalog(recurring, catalogInterval) {
+    if (!recurring?.interval) return false;
+    if (STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0) {
+        return (
+            recurring.interval === "day" &&
+            Number(recurring.interval_count || 1) === STRIPE_TEST_BILLING_DAYS
+        );
+    }
+    return recurring.interval === catalogInterval;
+}
+
+function addBillingPeriodFallback(startDate, planId) {
+    const fallback = new Date(startDate);
+    if (STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0) {
+        fallback.setUTCDate(fallback.getUTCDate() + STRIPE_TEST_BILLING_DAYS);
+        return fallback;
+    }
+    const isYearly = String(planId || "").includes("_yr");
+    if (isYearly) fallback.setUTCFullYear(fallback.getUTCFullYear() + 1);
+    else fallback.setUTCMonth(fallback.getUTCMonth() + 1);
+    return fallback;
+}
+
+async function getOrCreatePartnerStripeTestCustomer(partnerId, partnerEmail) {
+    const partnerRef = db.collection("partnersCollection").doc(partnerId);
+    const snap = await partnerRef.get();
+    const data = snap.exists ? snap.data() || {} : {};
+
+    let testClockId = data.stripeTestClockId || null;
+    let customerId = toStripeCustomerId(data.stripeCustomerId);
+
+    if (customerId) {
+        try {
+            const customer = await stripe.customers.retrieve(customerId);
+            if (customer.deleted) {
+                customerId = null;
+            } else if (customer.test_clock) {
+                testClockId =
+                    typeof customer.test_clock === "string"
+                        ? customer.test_clock
+                        : customer.test_clock?.id || testClockId;
+                return { customerId, testClockId };
+            } else if (!STRIPE_TEST_CLOCKS_ENABLED) {
+                return { customerId, testClockId: null };
+            } else {
+                customerId = null;
+            }
+        } catch {
+            customerId = null;
+        }
+    }
+
+    if (!testClockId) {
+        const clock = await stripe.testHelpers.testClocks.create({
+            frozen_time: Math.floor(Date.now() / 1000),
+            name: `pharmasocii-${String(partnerId).slice(0, 12)}`,
+        });
+        testClockId = clock.id;
+        await partnerRef.set({ stripeTestClockId: testClockId }, { merge: true });
+    }
+
+    if (!customerId) {
+        const customer = await stripe.customers.create({
+            email: partnerEmail || undefined,
+            test_clock: testClockId,
+            metadata: { partnerId },
+        });
+        customerId = customer.id;
+        await partnerRef.set(
+            {
+                stripeCustomerId: customerId,
+                stripeTestClockId: testClockId,
+            },
+            { merge: true },
+        );
+    }
+
+    return { customerId, testClockId };
+}
+
+async function applyTestCheckoutCustomer(sessionParams, partnerId, partnerEmail) {
+    if (!STRIPE_TEST_CLOCKS_ENABLED || !partnerId) return sessionParams;
+    const { customerId } = await getOrCreatePartnerStripeTestCustomer(partnerId, partnerEmail);
+    delete sessionParams.customer_email;
+    sessionParams.customer = customerId;
+    return sessionParams;
+}
+
+async function advancePartnerTestClock(partnerId, advanceDays = STRIPE_TEST_BILLING_DAYS) {
+    if (!STRIPE_IS_TEST) {
+        return { error: "Test clocks are only available with Stripe test keys." };
+    }
+    const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
+    if (!partnerSnap.exists) {
+        return { error: "Partner not found." };
+    }
+    const data = partnerSnap.data() || {};
+    let testClockId = data.stripeTestClockId || null;
+    const customerId = toStripeCustomerId(data.stripeCustomerId);
+
+    if (!testClockId && customerId) {
+        try {
+            const customer = await stripe.customers.retrieve(customerId);
+            testClockId =
+                typeof customer.test_clock === "string"
+                    ? customer.test_clock
+                    : customer.test_clock?.id || null;
+        } catch {
+            testClockId = null;
+        }
+    }
+
+    if (!testClockId) {
+        return { error: "No Stripe test clock found for this partner. Create a new subscription first." };
+    }
+
+    const clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+    const currentFrozen = Number(clock.frozen_time || Math.floor(Date.now() / 1000));
+    const advanceSeconds = Math.max(1, Number(advanceDays) || STRIPE_TEST_BILLING_DAYS) * 86400;
+    const advanced = await stripe.testHelpers.testClocks.advance(testClockId, {
+        frozen_time: currentFrozen + advanceSeconds,
+    });
+
+    return {
+        ok: true,
+        testClockId,
+        previousFrozenTime: new Date(currentFrozen * 1000).toISOString(),
+        newFrozenTime: advanced.frozen_time
+            ? new Date(advanced.frozen_time * 1000).toISOString()
+            : null,
+        status: advanced.status,
+        advanceDays: Number(advanceDays) || STRIPE_TEST_BILLING_DAYS,
+    };
+}
+
 // ─── Firebase Admin ───
 // Recommended: export GOOGLE_APPLICATION_CREDENTIALS="path/to/serviceAccountKey.json"
 // Or place serviceAccountKey.json in server/ and we'll try to load it.
@@ -274,15 +430,10 @@ async function resolvePlanBillingPeriodEndFromCheckout(session, planId, startDat
         if (fromStripe) return fromStripe;
     }
     const isYearly = String(planId || "").includes("_yr");
-    const fallback = new Date(startDate);
-    if (isYearly) {
-        fallback.setUTCFullYear(fallback.getUTCFullYear() + 1);
-    } else {
-        fallback.setUTCMonth(fallback.getUTCMonth() + 1);
-    }
+    const fallback = addBillingPeriodFallback(startDate, planId);
     console.warn(
         "resolvePlanBillingPeriodEndFromCheckout: Stripe period end unavailable; using fallback",
-        { planId, fallback: fallback.toISOString() },
+        { planId, fallback: fallback.toISOString(), testBillingDays: STRIPE_IS_TEST ? STRIPE_TEST_BILLING_DAYS : null },
     );
     return fallback;
 }
@@ -1149,9 +1300,10 @@ function resolveTierRank({ planId = null, amount = null, interval = null }) {
     if (tierFromId) return tierFromId;
 
     if (amount != null) {
-        const matched = Object.entries(PLAN_PRICES).find(([, p]) => p.amount === amount && p.interval === interval);
-        if (matched) {
-            return PLAN_TIER_RANK[matched[0]] || 0;
+        for (const [pid, p] of Object.entries(PLAN_PRICES)) {
+            if (p.amount !== amount) continue;
+            if (STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0) return PLAN_TIER_RANK[pid] || 0;
+            if (p.interval === interval) return PLAN_TIER_RANK[pid] || 0;
         }
     }
 
@@ -1161,13 +1313,20 @@ function resolveTierRank({ planId = null, amount = null, interval = null }) {
 function inferCurrentPlanIdFromSubscription(subscription, subscriptionItem) {
     const metaId = subscription?.metadata?.planId;
     const recurringInterval = subscriptionItem?.price?.recurring?.interval || null;
+    const recurringIntervalCount = subscriptionItem?.price?.recurring?.interval_count || null;
     const ua = subscriptionItem?.price?.unit_amount;
     const iv = recurringInterval;
 
     // Prefer explicit Stripe subscription metadata (e.g. standard_job vs premium_mo both $400/mo).
     if (metaId && PLAN_PRICES[metaId]) {
         const planFromMeta = PLAN_PRICES[metaId];
-        if (!iv || planFromMeta.interval === iv) {
+        if (
+            !iv ||
+            stripeRecurringMatchesCatalog(
+                { interval: iv, interval_count: recurringIntervalCount },
+                planFromMeta.interval,
+            )
+        ) {
             return metaId;
         }
     }
@@ -1175,12 +1334,22 @@ function inferCurrentPlanIdFromSubscription(subscription, subscriptionItem) {
     const normalizedMetaId = normalizePlanId(metaId, recurringInterval);
     if (normalizedMetaId && PLAN_PRICES[normalizedMetaId]) {
         const normalizedMetaPlan = PLAN_PRICES[normalizedMetaId];
-        if (!iv || normalizedMetaPlan.interval === iv) return normalizedMetaId;
+        if (
+            !iv ||
+            stripeRecurringMatchesCatalog(
+                { interval: iv, interval_count: recurringIntervalCount },
+                normalizedMetaPlan.interval,
+            )
+        ) {
+            return normalizedMetaId;
+        }
     }
 
     if (ua != null) {
         for (const [pid, p] of Object.entries(PLAN_PRICES)) {
-            if (p.amount === ua && p.interval === iv) return pid;
+            if (p.amount !== ua) continue;
+            if (STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0) return pid;
+            if (p.interval === iv) return pid;
         }
     }
 
@@ -1216,6 +1385,17 @@ function isAllowedSubscriptionUpgrade({
         return normalizedNewPlanId.includes("_job") && newTier > curTier;
     }
     if (normalizedNewPlanId.includes("_event") || normalizedNewPlanId.includes("_job")) return false;
+
+    if (STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0) {
+        const curMo = normalizedCurrentPlanId.includes("_mo");
+        const curYr = normalizedCurrentPlanId.includes("_yr");
+        const newMo = normalizedNewPlanId.includes("_mo");
+        const newYr = normalizedNewPlanId.includes("_yr");
+        if (curMo && newMo) return newTier > curTier;
+        if (curMo && newYr) return newTier >= curTier;
+        if (curYr && newYr) return newTier > curTier;
+        return false;
+    }
 
     const normalizedCurrentInterval = currentInterval || PLAN_PRICES[normalizedCurrentPlanId]?.interval || null;
     const normalizedNewInterval = PLAN_PRICES[normalizedNewPlanId]?.interval || null;
@@ -2615,7 +2795,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
                         description: `${group.replace(/_/g, " ")} listing plan`,
                     },
                     unit_amount: plan.amount,
-                    recurring: { interval: plan.interval },
+                    recurring: getStripeSubscriptionRecurring(plan.interval),
                 },
                 quantity: 1,
             });
@@ -2674,6 +2854,8 @@ app.post("/api/create-checkout-session", async (req, res) => {
         if (partnerEmail) {
             sessionParams.customer_email = partnerEmail;
         }
+
+        await applyTestCheckoutCustomer(sessionParams, partnerId, partnerEmail);
 
         const session = await stripe.checkout.sessions.create(sessionParams);
 
@@ -2776,7 +2958,7 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             const newPrice = await stripe.prices.create({
                 currency: "usd",
                 unit_amount: feature.amount,
-                recurring: { interval: feature.interval || "month" },
+                recurring: getStripeSubscriptionRecurring(feature.interval || "month"),
                 product_data: { name: `Pharma Socii — ${feature.name}` },
             });
 
@@ -2847,7 +3029,7 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             const newPrice = await stripe.prices.create({
                 currency: "usd",
                 unit_amount: feature.amount,
-                recurring: { interval: feature.interval || "month" },
+                recurring: getStripeSubscriptionRecurring(feature.interval || "month"),
                 product_data: { name: `Pharma Socii — ${feature.name}` },
             });
             if (existingSubId && existingItemId) {
@@ -2903,7 +3085,7 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             });
         }
 
-        const session = await stripe.checkout.sessions.create({
+        const featureSessionParams = {
             mode: "subscription",
             line_items: [
                 {
@@ -2914,7 +3096,7 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                             description: productDescription,
                         },
                         unit_amount: feature.amount,
-                        recurring: { interval: feature.interval || "month" },
+                        recurring: getStripeSubscriptionRecurring(feature.interval || "month"),
                     },
                     quantity: 1,
                 },
@@ -2944,7 +3126,11 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                     featureUpgrade: pricing.isUpgrade ? "true" : "false",
                 },
             },
-        });
+        };
+
+        await applyTestCheckoutCustomer(featureSessionParams, partnerId, partnerEmail);
+
+        const session = await stripe.checkout.sessions.create(featureSessionParams);
 
         console.log(
             `✓ Feature subscription checkout created: ${session.id} for ${featureId}${pricing.isUpgrade ? ` (upgrade from ${pricing.previousFeatureId})` : ""}`
@@ -2958,7 +3144,71 @@ app.post("/api/create-feature-checkout", async (req, res) => {
 
 // Health check
 app.get("/api/health", (_req, res) => {
-    res.json({ status: "ok", stripe: "connected" });
+    res.json({
+        status: "ok",
+        stripe: "connected",
+        testMode: STRIPE_IS_TEST,
+        testBillingDays: STRIPE_IS_TEST ? STRIPE_TEST_BILLING_DAYS : null,
+        testClocksEnabled: STRIPE_TEST_CLOCKS_ENABLED,
+    });
+});
+
+/**
+ * POST /api/advance-test-billing
+ * Test keys only: advance a partner's Stripe test clock to trigger subscription renewal.
+ * Body: { partnerId, advanceDays? }
+ */
+app.post("/api/advance-test-billing", async (req, res) => {
+    if (!STRIPE_IS_TEST) {
+        return res.status(403).json({ error: "Only available with Stripe test keys (sk_test_)." });
+    }
+    try {
+        const partnerId = String(req.body?.partnerId || "").trim();
+        if (!partnerId) {
+            return res.status(400).json({ error: "partnerId is required." });
+        }
+        const result = await advancePartnerTestClock(partnerId, req.body?.advanceDays);
+        if (result.error) {
+            return res.status(400).json(result);
+        }
+        return res.json({
+            ...result,
+            note: "Stripe will generate renewal invoices as the test clock advances. Webhooks should update billingPeriodEnd.",
+        });
+    } catch (err) {
+        console.error("advance-test-billing:", err);
+        return res.status(500).json({ error: err.message || "Advance failed" });
+    }
+});
+
+/**
+ * POST /api/cron/advance-test-clock
+ * Test keys only: advance test clock by STRIPE_TEST_BILLING_DAYS (default 5).
+ * Header: x-cron-secret: process.env.CRON_SECRET
+ * Body: { partnerId, advanceDays? }
+ */
+app.post("/api/cron/advance-test-clock", async (req, res) => {
+    const expected = process.env.CRON_SECRET;
+    if (!expected || req.headers["x-cron-secret"] !== expected) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (!STRIPE_IS_TEST) {
+        return res.status(403).json({ error: "Only available with Stripe test keys (sk_test_)." });
+    }
+    try {
+        const partnerId = String(req.body?.partnerId || "").trim();
+        if (!partnerId) {
+            return res.status(400).json({ error: "partnerId is required." });
+        }
+        const result = await advancePartnerTestClock(partnerId, req.body?.advanceDays);
+        if (result.error) {
+            return res.status(400).json(result);
+        }
+        return res.json({ ok: true, ...result });
+    } catch (err) {
+        console.error("advance-test-clock:", err);
+        return res.status(500).json({ error: err.message || "Advance failed" });
+    }
 });
 
 /**
@@ -3213,7 +3463,11 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                         const item = sub.items?.data?.[0];
                         const amt = item?.price?.unit_amount ?? null;
                         const iv = item?.price?.recurring?.interval || null;
-                        return amt === expectedCurrentPlan.amount && iv === expectedCurrentPlan.interval;
+                        return amt === expectedCurrentPlan.amount &&
+                            stripeRecurringMatchesCatalog(
+                                item?.price?.recurring,
+                                expectedCurrentPlan.interval,
+                            );
                     })
                     : null;
 
@@ -3361,7 +3615,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             const newPrice = await stripe.prices.create({
                 currency: "usd",
                 unit_amount: newPlan.amount,
-                recurring: newPlan.interval ? { interval: newPlan.interval } : undefined,
+                recurring: newPlan.interval ? getStripeSubscriptionRecurring(newPlan.interval) : undefined,
                 product_data: {
                     name: `Pharma Socii — ${newPlan.name}`,
                 },
