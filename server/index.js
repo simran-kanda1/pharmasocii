@@ -936,6 +936,13 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
             break;
         }
 
+        case "customer.subscription.updated": {
+            const subscription = event.data.object;
+            console.log(`🔄 Subscription updated: ${subscription.id} (status: ${subscription.status})`);
+            await syncPlansAndListingsFromStripeSubscription(subscription, { reason: "subscription_updated" });
+            break;
+        }
+
         case "customer.subscription.deleted": {
             const subscription = event.data.object;
             console.log(`❌ Subscription deleted: ${subscription.id}`);
@@ -1892,6 +1899,196 @@ async function tryProcessSpotlightAddonInvoicePaid({
     }
 }
 
+const STRIPE_LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due"]);
+
+function isStripeSubscriptionBillingLive(status) {
+    return STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(String(status || "").toLowerCase());
+}
+
+/**
+ * Keep Firestore plan + listing dates aligned with Stripe subscription auto-renewal.
+ * Used by webhooks, cron, and dashboard refresh when invoice.paid is missed.
+ */
+async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, options = {}) {
+    const subId = toStripeSubscriptionId(subscriptionInput?.id || subscriptionInput);
+    if (!subId) return { updatedPlans: 0, updatedListings: 0, subscriptionId: null };
+
+    let subscription = subscriptionInput;
+    if (!subscription?.current_period_end || typeof subscription?.status !== "string") {
+        try {
+            subscription = await stripe.subscriptions.retrieve(subId);
+        } catch (err) {
+            console.warn("syncPlansAndListingsFromStripeSubscription:", err?.message || err);
+            return { updatedPlans: 0, updatedListings: 0, subscriptionId: subId, error: err?.message || "retrieve failed" };
+        }
+    }
+
+    const status = String(subscription.status || "").toLowerCase();
+    const isLive = isStripeSubscriptionBillingLive(status);
+    const billingPeriodEnd = subscription.current_period_end
+        ? new Date(subscription.current_period_end * 1000)
+        : null;
+    const customerId = toStripeCustomerId(subscription.customer);
+
+    const planSnap = await db.collectionGroup("planCollection")
+        .where("stripeSubscriptionId", "==", subId)
+        .get();
+
+    if (planSnap.empty) {
+        return { updatedPlans: 0, updatedListings: 0, subscriptionId: subId, status };
+    }
+
+    const partnerIds = new Set();
+    let updatedPlans = 0;
+    let updatedListings = 0;
+
+    for (const planDoc of planSnap.docs) {
+        const planData = planDoc.data() || {};
+        const partnerId = partnerIdFromPartnersPlanRef(planDoc.ref);
+        if (partnerId) partnerIds.add(partnerId);
+
+        const planUpdate = {
+            stripeSubscriptionId: subId,
+            ...(customerId ? { stripeCustomerId: customerId } : {}),
+        };
+
+        if (isLive) {
+            planUpdate.active = true;
+            planUpdate.expiredAt = admin.firestore.FieldValue.delete();
+            if (billingPeriodEnd) planUpdate.billingPeriodEnd = billingPeriodEnd;
+            planUpdate.lastPaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
+            if (subscription.cancel_at_period_end) {
+                planUpdate.cancelAtPeriodEnd = true;
+                if (subscription.cancel_at) {
+                    planUpdate.cancelAt = new Date(subscription.cancel_at * 1000);
+                } else if (billingPeriodEnd) {
+                    planUpdate.cancelAt = billingPeriodEnd;
+                }
+            } else {
+                planUpdate.cancelAtPeriodEnd = false;
+                planUpdate.cancelAt = admin.firestore.FieldValue.delete();
+            }
+        } else if (["canceled", "unpaid", "incomplete_expired"].includes(status)) {
+            planUpdate.active = false;
+            planUpdate.expiredAt = admin.firestore.FieldValue.serverTimestamp();
+        }
+
+        await planDoc.ref.set(planUpdate, { merge: true });
+        updatedPlans += 1;
+
+        if (!isLive || !partnerId || !planData.listingId || !planData.collectionName) continue;
+
+        const listingRef = await resolveListingDocRef(partnerId, planData.collectionName, planData.listingId);
+        if (!listingRef) continue;
+
+        const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[planData.planId] || null;
+        const listingUpdate = {
+            active: true,
+            status: "Approved",
+            stripeSubscriptionId: subId,
+            lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            ...(customerId ? { stripeCustomerId: customerId } : {}),
+        };
+        if (includedSpotlight && billingPeriodEnd) {
+            listingUpdate.selectedAddon = includedSpotlight;
+            listingUpdate.featuredPlacement = includedSpotlight;
+            listingUpdate.isFeatured = true;
+            listingUpdate.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
+            listingUpdate.featureSpotlightPaidThrough = billingPeriodEnd;
+        }
+
+        await listingRef.set(listingUpdate, { merge: true });
+        updatedListings += 1;
+
+        if (includedSpotlight && billingPeriodEnd) {
+            const partnerRef = db.collection("partnersCollection").doc(partnerId);
+            await upsertIncludedPlanFeature(partnerRef, {
+                featureId: includedSpotlight,
+                listingId: planData.listingId,
+                collectionName: planData.collectionName,
+                planId: planData.planId,
+                sessionId: planData.sessionId || options.reason || "subscription_sync",
+                accessThrough: billingPeriodEnd,
+            });
+        }
+    }
+
+    for (const partnerId of partnerIds) {
+        await db.collection("partnersCollection").doc(partnerId).set({
+            partnerStatus: "Approved",
+            lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            stripeSubscriptionId: subId,
+            ...(customerId ? { stripeCustomerId: customerId } : {}),
+        }, { merge: true });
+    }
+
+    if (options.log !== false) {
+        console.log(
+            `   ✓ Synced subscription ${subId} (${status}) → ${updatedPlans} plan(s), ${updatedListings} listing(s)`,
+        );
+    }
+
+    return { updatedPlans, updatedListings, subscriptionId: subId, status };
+}
+
+async function syncPartnerPlansFromStripe(partnerId) {
+    if (!partnerId) return { ok: false, error: "partnerId is required", synced: 0 };
+
+    const planSnap = await db.collection("partnersCollection")
+        .doc(partnerId)
+        .collection("planCollection")
+        .get();
+
+    const subIds = new Set();
+    for (const planDoc of planSnap.docs) {
+        const subId = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
+        if (subId) subIds.add(subId);
+    }
+
+    let synced = 0;
+    const results = [];
+    for (const subId of subIds) {
+        const result = await syncPlansAndListingsFromStripeSubscription(subId, {
+            reason: "partner_sync",
+            log: false,
+        });
+        if (result.updatedPlans > 0) synced += 1;
+        results.push(result);
+    }
+
+    return { ok: true, synced, subscriptions: results };
+}
+
+async function syncAllPlansFromStripe() {
+    const plansSnap = await db.collectionGroup("planCollection").get();
+    const subIds = new Set();
+    for (const planDoc of plansSnap.docs) {
+        const subId = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
+        if (subId) subIds.add(subId);
+    }
+
+    let synced = 0;
+    let updatedPlans = 0;
+    let updatedListings = 0;
+    const errors = [];
+
+    for (const subId of subIds) {
+        const result = await syncPlansAndListingsFromStripeSubscription(subId, {
+            reason: "cron_sync",
+            log: false,
+        });
+        if (result.error) {
+            errors.push({ subscriptionId: subId, error: result.error });
+            continue;
+        }
+        if (result.updatedPlans > 0) synced += 1;
+        updatedPlans += result.updatedPlans;
+        updatedListings += result.updatedListings;
+    }
+
+    return { synced, updatedPlans, updatedListings, scanned: subIds.size, errors };
+}
+
 /**
  * Shared handler for subscription invoice.paid (webhook) and test-only forced billing.
  * Updates planCollection, listing, partner, transactionsCollection (renewals), and audit.
@@ -2783,6 +2980,47 @@ app.post("/api/cron/cleanup-expired-spotlights", async (req, res) => {
     } catch (err) {
         console.error("cleanup-expired-spotlights:", err);
         return res.status(500).json({ error: err.message || "Cleanup failed" });
+    }
+});
+
+/**
+ * POST /api/sync-partner-billing
+ * Refresh plan renewal dates from Stripe for one partner (dashboard load / manual fix).
+ * Body: { partnerId }
+ */
+app.post("/api/sync-partner-billing", async (req, res) => {
+    try {
+        const partnerId = String(req.body?.partnerId || "").trim();
+        if (!partnerId) {
+            return res.status(400).json({ error: "partnerId is required." });
+        }
+        const result = await syncPartnerPlansFromStripe(partnerId);
+        return res.json(result);
+    } catch (err) {
+        console.error("sync-partner-billing:", err);
+        return res.status(500).json({ error: err.message || "Sync failed" });
+    }
+});
+
+/**
+ * POST /api/cron/sync-subscription-billing
+ * Refresh all plan renewal dates from Stripe (safety net when webhooks are missed).
+ * Header: x-cron-secret: process.env.CRON_SECRET
+ */
+app.post("/api/cron/sync-subscription-billing", async (req, res) => {
+    const expected = process.env.CRON_SECRET;
+    if (!expected || req.headers["x-cron-secret"] !== expected) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (!admin.apps?.length) {
+        return res.status(503).json({ error: "Firebase Admin not initialized" });
+    }
+    try {
+        const result = await syncAllPlansFromStripe();
+        return res.json({ ok: true, ...result });
+    } catch (err) {
+        console.error("sync-subscription-billing:", err);
+        return res.status(500).json({ error: err.message || "Sync failed" });
     }
 });
 

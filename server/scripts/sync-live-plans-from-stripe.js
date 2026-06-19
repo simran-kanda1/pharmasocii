@@ -80,6 +80,29 @@ async function resolveListingDocRef(db, partnerId, collectionName, listingId) {
 
 const LIVE_STATUSES = new Set(["active", "trialing", "past_due"]);
 
+function toDateValue(value) {
+    if (!value) return null;
+    if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
+    if (typeof value?.toDate === "function") {
+        const converted = value.toDate();
+        return converted instanceof Date && !Number.isNaN(converted.getTime()) ? converted : null;
+    }
+    if (typeof value === "number") {
+        const millis = value > 1e12 ? value : value * 1000;
+        const converted = new Date(millis);
+        return Number.isNaN(converted.getTime()) ? null : converted;
+    }
+    if (typeof value === "string") {
+        const converted = new Date(value);
+        return Number.isNaN(converted.getTime()) ? null : converted;
+    }
+    if (typeof value?.seconds === "number") {
+        const converted = new Date(value.seconds * 1000);
+        return Number.isNaN(converted.getTime()) ? null : converted;
+    }
+    return null;
+}
+
 async function main() {
     const stripeKey = process.env.STRIPE_SECRET_KEY;
     if (!stripeKey) {
@@ -120,7 +143,10 @@ async function main() {
         const listingId = plan.listingId;
         const collectionName = plan.collectionName;
 
-        const needsPlan = plan.active === false || !plan.billingPeriodEnd;
+        const needsPlan =
+            plan.active === false ||
+            !plan.billingPeriodEnd ||
+            (toDateValue(plan.billingPeriodEnd)?.getTime() || 0) < Date.now();
 
         let needsListing = false;
         let listingRef = null;

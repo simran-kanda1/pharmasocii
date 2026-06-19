@@ -569,6 +569,13 @@ export default function Dashboard() {
                     const data = docSnap.data();
                     setPartnerData(data);
 
+                    // Refresh renewal dates from Stripe so auto-renewed subs stay active in the dashboard.
+                    fetch(`${API_BASE_URL}/api/sync-partner-billing`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ partnerId: user.uid }),
+                    }).catch((err) => console.warn("Partner billing sync:", err?.message || err));
+
                     const [fName, ...lNames] = (data.primaryName || "").split(" ");
                     setProfileForm({
                         firstName: fName || "", lastName: lNames.join(" ") || "",
