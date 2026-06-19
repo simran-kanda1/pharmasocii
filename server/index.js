@@ -1523,10 +1523,10 @@ function resolveFeatureCheckoutAmount(
         return { error: "You already have this spotlight tier." };
     }
 
-    if (isEventOrJob && targetFeatureId !== "both") {
+    if (isEventOrJob) {
         return {
             error:
-                "For event and job listings, spotlight add-ons are available as Both (Landing + Home Page) only.",
+                "Spotlight add-ons and upgrades are not available for event and job listings. Upgrade your plan for higher spotlight visibility.",
         };
     }
 

@@ -238,7 +238,7 @@ const getFeatureUpgradeTargets = (
         spotlightTierFromId(planId ? PLAN_CONFIGS[planId]?.featurePlan : null),
     );
     if (effectiveTier >= 3) return [];
-    if (isEventOrJobListing(planId, listing)) return ["both"];
+    if (isEventOrJobListing(planId, listing)) return [];
 
     const c = (currentId || "").trim();
     if (c === "landing_page") return ["home_page", "both"];
@@ -254,7 +254,7 @@ const getFeaturePurchaseTargets = (planId?: string | null, listing?: any): strin
     if (effectiveTier >= 3) return [];
     if (hasStandaloneSpotlightAddon(listing, planId)) return [];
 
-    if (isEventOrJobListing(planId, listing)) return ["both"];
+    if (isEventOrJobListing(planId, listing)) return [];
 
     if (effectiveTier === 0) return ["landing_page", "home_page", "both"];
     return getFeatureUpgradeTargets(getSpotlightAddonTierId(listing), planId, listing);
