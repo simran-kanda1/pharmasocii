@@ -138,6 +138,11 @@ export function isPartnerListingPublic(
 
     if (hasLiveListingKey(liveKeys, partnerId, collectionName, listingId)) return true;
 
+    // Allow partners on the "none" (free/pending) plan to be publicly visible if approved
+    if (String(listing.selectedPlan || "").trim().toLowerCase() === "none") {
+        return true;
+    }
+
     // Plans could not be loaded (e.g. rules not deployed yet) — fall back to listing fields.
     if (liveKeys.size === 0) {
         const status = String(listing.status || "").trim().toLowerCase();

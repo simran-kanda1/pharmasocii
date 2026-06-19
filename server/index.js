@@ -4497,29 +4497,17 @@ app.post("/api/admin/create-partner", async (req, res) => {
 
         await db.collection("partnersCollection").doc(uid).set(partnerData);
 
-        // Handle Plan Selection (Free Grant by Admin)
-        if (selectedPlan && selectedPlan !== "none") {
+        // Handle Plan Selection (Free/None or Paid Grant by Admin)
+        if (selectedPlan) {
             const isYearly = selectedPlan.endsWith("_yr");
             const startDate = new Date();
             const billingPeriodEnd = new Date();
             let isTrial = false;
 
-            if (trialPeriod && trialPeriod !== "none") {
-                isTrial = true;
-                if (trialPeriod === "7_days") billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 7);
-                else if (trialPeriod === "30_days") billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 30);
-                else if (trialPeriod === "3_months") billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 3);
-            } else {
-                if (isYearly) billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
-                else billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
-            }
-
-            await db.collection("partnersCollection").doc(uid).collection("planCollection").add({
+            const planPayload = {
                 planId: selectedPlan,
                 planName: selectedPlan.replace(/_/g, " "),
                 startDate,
-                billingPeriodEnd,
-                billingInterval: isYearly ? "year" : "month",
                 active: true,
                 lastPaymentReceivedAt: startDate,
                 partnerId: uid,
@@ -4527,7 +4515,26 @@ app.post("/api/admin/create-partner", async (req, res) => {
                 source: "admin_granted",
                 isTrial: isTrial || false,
                 listingId: listingDocId
-            });
+            };
+
+            if (selectedPlan !== "none") {
+                if (trialPeriod && trialPeriod !== "none") {
+                    isTrial = true;
+                    if (trialPeriod === "7_days") billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 7);
+                    else if (trialPeriod === "30_days") billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 30);
+                    else if (trialPeriod === "3_months") billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 3);
+                } else {
+                    if (isYearly) billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+                    else billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+                }
+                planPayload.billingPeriodEnd = billingPeriodEnd;
+                planPayload.billingInterval = isYearly ? "year" : "month";
+                planPayload.isTrial = isTrial;
+            } else {
+                planPayload.billingInterval = "month";
+            }
+
+            await db.collection("partnersCollection").doc(uid).collection("planCollection").add(planPayload);
         }
 
         // Handle Featured Plan
