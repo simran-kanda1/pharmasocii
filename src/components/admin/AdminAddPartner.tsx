@@ -167,7 +167,6 @@ const FEATURE_OPTIONS = [
   { value: "home_page", label: "Home Page Spotlight (Monthly)" },
   { value: "landing_page", label: "Landing Page Spotlight (Monthly)" },
   { value: "both", label: "Landing + Home Page Spotlight (Monthly)" },
-  { value: "spotlight_addon", label: "Spotlight Addon (Legacy - Both)" },
 ];
 
 export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
