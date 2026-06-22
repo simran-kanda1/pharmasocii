@@ -3873,6 +3873,9 @@ app.post("/api/cancel-plan", async (req, res) => {
             return res.status(404).json({ error: "Plan not found." });
         }
 
+        const cancelFeatureOnly = cancelScope === "feature";
+        const cancelPlan = cancelScope === "plan" || cancelScope === "plan_and_feature";
+
         const plan = planSnap.data() || {};
         if (cancelPlan && plan.cancelAtPeriodEnd) {
             return res.status(409).json({ error: "This plan is already scheduled to cancel at period end." });
@@ -3881,9 +3884,6 @@ app.post("/api/cancel-plan", async (req, res) => {
         let cancelledFeature = false;
         let stripeCancelAt = null;
         let linkedFeatureId = null;
-
-        const cancelFeatureOnly = cancelScope === "feature";
-        const cancelPlan = cancelScope === "plan" || cancelScope === "plan_and_feature";
 
         const resolveAccessEndDate = async () => {
             let end = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
