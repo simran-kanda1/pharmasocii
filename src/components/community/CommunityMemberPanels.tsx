@@ -229,6 +229,8 @@ export function CommunityMemberPanels({
                         <Link
                           to={`/community/post/${c.postId}?highlight=${c.commentId}`}
                           className="text-xs text-primary underline mt-2 inline-block"
+                          target="_blank"
+                          rel="noopener noreferrer"
                           onClick={() => saveCommunityFeedScroll(c.postId)}
                         >
                           Open post

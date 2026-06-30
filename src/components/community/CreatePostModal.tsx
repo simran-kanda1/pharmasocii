@@ -13,14 +13,16 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   CategoryPicker,
   emptyCategorySelection,
+  postFieldsToCategorySelection,
   type CategorySelectionState,
 } from "@/components/community/CategoryPicker";
 import { CountryMultiSelect } from "@/components/community/CountryMultiSelect";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { POST_BODY_MAX, POST_COUNTRIES_MAX, POST_TITLE_MAX, normalizeExternalLinks } from "@/lib/community";
-import { publishCommunityPost, POST_IMAGE_ACCEPT } from "@/lib/publishCommunityPost";
+import { publishCommunityPost, updateCommunityPost, POST_IMAGE_ACCEPT } from "@/lib/publishCommunityPost";
 import { Globe, Link2, Send, Tag, ImageIcon, X } from "lucide-react";
 import { selectionToPostFields } from "@/components/community/CategoryPicker";
+import type { PostCardPost } from "@/components/community/PostCard";
 
 export type CreatePostModalAction = "category" | "country" | "link" | "photo" | null;
 
@@ -32,6 +34,7 @@ type CreatePostModalProps = {
   bio?: string;
   initialAction?: CreatePostModalAction;
   onPublished?: () => void;
+  postToEdit?: PostCardPost | null;
 };
 
 export function CreatePostModal({
@@ -42,6 +45,7 @@ export function CreatePostModal({
   bio,
   initialAction = null,
   onPublished,
+  postToEdit = null,
 }: CreatePostModalProps) {
   const { categoryDoc } = useCommunityCategories();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -52,9 +56,37 @@ export function CreatePostModal({
   const [showLinkFields, setShowLinkFields] = useState(false);
   const [catSel, setCatSel] = useState<CategorySelectionState>(emptyCategorySelection());
   const [file, setFile] = useState<File | null>(null);
+  const [keepExistingImage, setKeepExistingImage] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [nested, setNested] = useState<CreatePostModalAction>(null);
+
+  useEffect(() => {
+    if (open) {
+      if (postToEdit) {
+        setTitle(postToEdit.title || "");
+        setText(postToEdit.text || "");
+        setCountries(postToEdit.countries || []);
+        setLinks(postToEdit.externalLinks || []);
+        setShowLinkFields((postToEdit.externalLinks || []).length > 0);
+        setKeepExistingImage(!!postToEdit.imageStoragePath);
+        if (categoryDoc) {
+          setCatSel(
+            postFieldsToCategorySelection(
+              categoryDoc,
+              postToEdit.mainCategories || [],
+              postToEdit.subCategories || [],
+              postToEdit.subSubCategories || [],
+            ),
+          );
+        } else {
+          setCatSel(emptyCategorySelection());
+        }
+      } else {
+        reset();
+      }
+    }
+  }, [open, postToEdit, categoryDoc]);
 
   useEffect(() => {
     if (open && initialAction) {
@@ -77,6 +109,7 @@ export function CreatePostModal({
     setShowLinkFields(false);
     setCatSel(emptyCategorySelection());
     setFile(null);
+    setKeepExistingImage(true);
     setError("");
     setNested(null);
   };
@@ -94,19 +127,33 @@ export function CreatePostModal({
     const externalLinks = normalizeExternalLinks(links);
     try {
       setSaving(true);
-      await publishCommunityPost({
-        categoryDoc,
-        catSel,
-        title,
-        text,
-        countries,
-        externalLinks,
-        imageFile: file,
-      });
+      if (postToEdit) {
+        await updateCommunityPost({
+          postId: postToEdit.id,
+          categoryDoc,
+          catSel,
+          title,
+          text,
+          countries,
+          externalLinks,
+          imageFile: file,
+          keepExistingImage,
+        });
+      } else {
+        await publishCommunityPost({
+          categoryDoc,
+          catSel,
+          title,
+          text,
+          countries,
+          externalLinks,
+          imageFile: file,
+        });
+      }
       closeAll();
       onPublished?.();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not publish.");
+      setError(e instanceof Error ? e.message : "Could not save.");
     } finally {
       setSaving(false);
     }
@@ -117,7 +164,7 @@ export function CreatePostModal({
       <Dialog open={open} onOpenChange={(v) => (v ? onOpenChange(true) : closeAll())}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
           <DialogHeader className="px-5 pt-5 pb-3 border-b">
-            <DialogTitle>Create a post</DialogTitle>
+            <DialogTitle>{postToEdit ? "Edit post" : "Create a post"}</DialogTitle>
           </DialogHeader>
 
           <div className="px-5 py-4 space-y-4">
@@ -188,6 +235,15 @@ export function CreatePostModal({
               </div>
             )}
 
+            {postToEdit && postToEdit.imageStoragePath && keepExistingImage && !file && (
+              <p className="text-xs text-muted-foreground">
+                Existing photo will be kept.
+                <Button type="button" variant="link" className="h-auto p-0 ml-2 text-xs" onClick={() => setKeepExistingImage(false)}>
+                  Remove photo
+                </Button>
+              </p>
+            )}
+
             {file && (
               <p className="text-xs text-muted-foreground">
                 Photo: <span className="font-medium text-foreground">{file.name}</span>
@@ -237,7 +293,7 @@ export function CreatePostModal({
                 </Button>
               </div>
               <Button type="button" size="sm" disabled={!canPublish || saving} onClick={submit} className="gap-1">
-                <Send className="h-4 w-4" /> {saving ? "Posting…" : "Post"}
+                <Send className="h-4 w-4" /> {saving ? (postToEdit ? "Saving…" : "Posting…") : (postToEdit ? "Save" : "Post")}
               </Button>
             </div>
 

@@ -38,10 +38,12 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink } from "@/lib/community";
-import { ArrowLeft, Link2, MessageSquare } from "lucide-react";
+import { ArrowLeft, Link2, MessageSquare, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
 import { syncPostCommentCount } from "@/lib/communityCallables";
+import { CreatePostModal } from "@/components/community/CreatePostModal";
+import type { PostCardPost } from "@/components/community/PostCard";
 
 const MAX_COMMENT_IMAGE_BYTES = 1.5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -88,6 +90,9 @@ export default function CommunityPostDetail() {
   const [hasMemberProfile, setHasMemberProfile] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState("");
+  const [memberUserName, setMemberUserName] = useState<string | null>(null);
+  const [memberBio, setMemberBio] = useState("");
+  const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -97,6 +102,8 @@ export default function CommunityPostDetail() {
         setVerified(u.emailVerified);
         const m = await getDoc(doc(db, "membersCollection", u.uid));
         setHasMemberProfile(m.exists());
+        setMemberUserName(m.exists() ? String(m.data()?.userName ?? "") : null);
+        setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
         const st = m.data()?.accountStatus;
         setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
         if (postId && m.exists()) {
@@ -117,6 +124,8 @@ export default function CommunityPostDetail() {
         setSaved(false);
         setSavedCommentIds(new Set());
         setHasMemberProfile(false);
+        setMemberUserName(null);
+        setMemberBio("");
       }
       setAuthReady(true);
     });
@@ -432,6 +441,13 @@ export default function CommunityPostDetail() {
   ).segments;
   const created = (post.createdAt as { toDate?: () => Date } | undefined)?.toDate?.() ?? new Date();
 
+  const welcomeName = memberUserName || user?.displayName || user?.email?.split("@")[0] || "Guest";
+  const profileInitials = (welcomeName || "G").slice(0, 2).toUpperCase();
+
+  const isAuthor = postAuthorId && user?.uid && postAuthorId === user.uid;
+  const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
+  const isEditable = isAuthor && hoursSinceCreation <= 6;
+
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl">
       <Button
@@ -466,6 +482,14 @@ export default function CommunityPostDetail() {
           </div>
           {!archived && (
             <div className="flex flex-wrap gap-1 shrink-0 justify-end items-center">
+              {isEditable && (
+                <CommunityIconAction
+                  label="Edit"
+                  icon={Pencil}
+                  title="Edit post (available for 6 hours after posting)"
+                  onClick={() => setEditOpen(true)}
+                />
+              )}
               <CommunityIconAction
                 label="Save"
                 icon={communityActionIcons.save}
@@ -547,7 +571,7 @@ export default function CommunityPostDetail() {
         </p>
         {memberRestricted && (
           <p className="text-sm text-muted-foreground">
-            Your account is temporarily restricted to read-only access.
+            Your account is currently paused. You have view-only access.
           </p>
         )}
         {!archived && !replyTo && (
@@ -717,6 +741,18 @@ export default function CommunityPostDetail() {
       </section>
 
       <CommunityReportDialog open={reportOpen} onOpenChange={setReportOpen} onSubmit={submitReport} />
+
+      <CreatePostModal
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        displayName={welcomeName}
+        profileInitials={profileInitials}
+        bio={memberBio}
+        onPublished={() => {
+          setEditOpen(false);
+        }}
+        postToEdit={post as PostCardPost}
+      />
     </div>
   );
 }

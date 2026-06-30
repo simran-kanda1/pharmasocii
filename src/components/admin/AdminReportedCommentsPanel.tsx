@@ -63,7 +63,9 @@ export function AdminReportedCommentsPanel() {
         (r.reporterLabel || "").toLowerCase().includes(q) ||
         (r.commentOwnerLabel || "").toLowerCase().includes(q) ||
         (r.postTitle || "").toLowerCase().includes(q) ||
-        (r.reason || "").toLowerCase().includes(q),
+        (r.reason || "").toLowerCase().includes(q) ||
+        (r.commentPreview || "").toLowerCase().includes(q) ||
+        (r.commentText || "").toLowerCase().includes(q),
     );
   }, [rows, search]);
 
@@ -133,7 +135,7 @@ export function AdminReportedCommentsPanel() {
           </SelectContent>
         </Select>
         <Input
-          placeholder="Search reporter, owner, post, reason…"
+          placeholder="Search reporter, owner, post, reason, comment…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm h-10 bg-white"

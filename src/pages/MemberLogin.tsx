@@ -72,7 +72,7 @@ export default function MemberLogin() {
       }
 
       if (!u.emailVerified) {
-        setError("Please verify your email before continuing. Check your inbox or resend below.");
+        setError("Please verify your email for active participation in the community. Check your inbox or click resend below.");
         return;
       }
 

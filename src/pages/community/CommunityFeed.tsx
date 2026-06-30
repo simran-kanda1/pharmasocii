@@ -20,7 +20,7 @@ import { PostCard, type PostCardPost } from "@/components/community/PostCard";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { auth } from "@/firebase";
 import { onAuthStateChanged } from "firebase/auth";
-import { Search, Tag, Globe, Link2, ImageIcon, MessageSquarePlus } from "lucide-react";
+import { Search, Tag, Globe, Link2, ImageIcon, MessageSquarePlus, X } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { CommunityFilterSidebar } from "@/components/community/CommunityFilterSidebar";
 import { postMatchesFilterKeys } from "@/lib/communityCategoryDisplay";
@@ -45,20 +45,20 @@ import {
 } from "@/lib/communityAccess";
 import { CommunityViewHeader } from "@/components/community/CommunityViewHeader";
 
-const FEED_PAGE_SIZE = 100;
+const FEED_PAGE_SIZE = 20;
 
 export default function CommunityFeed() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { categoryDoc, categoriesLoading } = useCommunityCategories();
   const [posts, setPosts] = useState<Array<{ id: string; [k: string]: unknown }>>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
   const [qInput, setQInput] = useState(() => searchParams.get("search") || "");
   const [user, setUser] = useState<import("firebase/auth").User | null>(null);
   const [verified, setVerified] = useState(false);
   const [hasMemberProfile, setHasMemberProfile] = useState(false);
   const [memberUserName, setMemberUserName] = useState<string | null>(null);
-  const [currentPage, setCurrentPage] = useState(1);
   const [hasNextPage, setHasNextPage] = useState(false);
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [selectedFilterKeys, setSelectedFilterKeys] = useState<string[]>([]);
@@ -69,10 +69,11 @@ export default function CommunityFeed() {
   const [notificationUnread, setNotificationUnread] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [createAction, setCreateAction] = useState<CreatePostModalAction>(null);
+  const [postToEdit, setPostToEdit] = useState<PostCardPost | null>(null);
   const [refreshPostsKey, setRefreshPostsKey] = useState(0);
   const filtersHydratedRef = useRef(false);
   const skipNextFilterSaveRef = useRef(false);
-  const pageCursorsRef = useRef<Map<number, QueryDocumentSnapshot<DocumentData>>>(new Map());
+  const lastVisibleDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
 
   const communityView = (searchParams.get("view") as CommunityView) || "home";
   const setCommunityView = useCallback(
@@ -171,6 +172,51 @@ export default function CommunityFeed() {
     }
   }, [user, verified, hasMemberProfile, communityView, setCommunityView]);
 
+  const loadMore = useCallback(async () => {
+    if (loading || loadingMore || !hasNextPage || !lastVisibleDocRef.current) return;
+    setLoadingMore(true);
+    try {
+      const base = [
+        collection(db, "postsCollection"),
+        where("archived", "==", false),
+        orderBy("createdAt", "desc"),
+      ] as const;
+
+      const q = query(...base, startAfter(lastVisibleDocRef.current), limit(FEED_PAGE_SIZE));
+      const snap = await getDocs(q);
+      const newPosts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+      setPosts((prev) => {
+        const ids = new Set(prev.map((p) => p.id));
+        return [...prev, ...newPosts.filter((p) => !ids.has(p.id))];
+      });
+
+      setHasNextPage(snap.docs.length === FEED_PAGE_SIZE);
+      lastVisibleDocRef.current = snap.docs[snap.docs.length - 1] || null;
+    } catch (e) {
+      console.error("Error loading more posts:", e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loading, loadingMore, hasNextPage]);
+
+  const observerRef = useRef<IntersectionObserver | null>(null);
+  const bottomRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      if (loading) return;
+      if (observerRef.current) observerRef.current.disconnect();
+
+      observerRef.current = new IntersectionObserver((entries) => {
+        if (entries[0].isIntersecting && hasNextPage && !loadingMore) {
+          loadMore();
+        }
+      });
+
+      if (node) observerRef.current.observe(node);
+    },
+    [loading, loadingMore, hasNextPage, loadMore]
+  );
+
   useEffect(() => {
     (async () => {
       try {
@@ -180,29 +226,19 @@ export default function CommunityFeed() {
           where("archived", "==", false),
           orderBy("createdAt", "desc"),
         ] as const;
-        const cursor = currentPage > 1 ? pageCursorsRef.current.get(currentPage - 1) : undefined;
-        const q = cursor
-          ? query(...base, startAfter(cursor), limit(FEED_PAGE_SIZE))
-          : query(...base, limit(FEED_PAGE_SIZE));
+        const q = query(...base, limit(FEED_PAGE_SIZE));
         const snap = await getDocs(q);
-        setPosts(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        const newPosts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setPosts(newPosts);
         setHasNextPage(snap.docs.length === FEED_PAGE_SIZE);
-        const lastDoc = snap.docs[snap.docs.length - 1];
-        if (lastDoc) {
-          pageCursorsRef.current.set(currentPage, lastDoc);
-        }
+        lastVisibleDocRef.current = snap.docs[snap.docs.length - 1] || null;
       } catch (e) {
-        console.error(e);
+        console.error("Error fetching posts:", e);
       } finally {
         setLoading(false);
       }
     })();
-  }, [refreshPostsKey, currentPage]);
-
-  useEffect(() => {
-    if (communityView !== "home") return;
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [currentPage, communityView]);
+  }, [refreshPostsKey]);
 
   useEffect(() => {
     const q = searchParams.get("search") || "";
@@ -213,10 +249,14 @@ export default function CommunityFeed() {
   const textFiltered = useMemo(() => {
     const s = search.trim().toLowerCase();
     if (!s) return posts;
-    return posts.filter(
-      (p) =>
-        String(p.title).toLowerCase().includes(s) || String(p.text).toLowerCase().includes(s),
-    );
+    return posts.filter((p) => {
+      const matchTitle = String(p.title || "").toLowerCase().includes(s);
+      const matchMain = ((p.mainCategories as string[] | undefined) || []).some((c) => String(c).toLowerCase().includes(s));
+      const matchSub = ((p.subCategories as string[] | undefined) || []).some((c) => String(c).toLowerCase().includes(s));
+      const matchSubSub = ((p.subSubCategories as string[] | undefined) || []).some((c) => String(c).toLowerCase().includes(s));
+      const matchCountry = ((p.countries as string[] | undefined) || []).some((c) => String(c).toLowerCase().includes(s));
+      return matchTitle || matchMain || matchSub || matchSubSub || matchCountry;
+    });
   }, [posts, search]);
 
   const sidebarFiltered = useMemo(() => {
@@ -302,15 +342,22 @@ export default function CommunityFeed() {
   };
 
   const reloadPosts = () => {
-    pageCursorsRef.current.clear();
-    setCurrentPage(1);
+    lastVisibleDocRef.current = null;
+    setPosts([]);
     setRefreshPostsKey((k) => k + 1);
   };
 
-  const goToPage = (page: number) => {
-    if (page < 1 || page === currentPage) return;
-    if (page > currentPage && !hasNextPage) return;
-    setCurrentPage(page);
+  const handleClearSearch = () => {
+    setQInput("");
+    setSearch("");
+    setSelectedCountries([]);
+    setSelectedFilterKeys([]);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete("search");
+      next.delete("view");
+      return next;
+    });
   };
   const showMemberPanels = Boolean(canAccess && communityView !== "home");
   const displayName = memberBio ? `${welcomeName} (${memberBio})` : welcomeName;
@@ -413,13 +460,56 @@ export default function CommunityFeed() {
           <main className="xl:col-span-6 order-1 xl:order-2 space-y-5">
             {memberRestricted && user && (
               <p className="text-sm text-muted-foreground rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-                Your account is view-only. You cannot post or comment until restrictions are lifted.
+                Your account is currently paused. You have view-only access.
               </p>
             )}
 
             {(communityView === "home" || communityView === "my-space") && (
-              <div className="sticky top-16 z-30 -mx-1 px-1 pb-3 bg-slate-100/95 backdrop-blur-md dark:bg-background/95">
+              <div className="sticky top-16 z-30 space-y-4 -mx-1 px-1 pb-3 bg-slate-100/95 backdrop-blur-md dark:bg-background/95">
                 {composerBlock}
+                {communityView === "home" && (
+                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
+                    <form
+                      className="flex gap-2"
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        setSearch(qInput);
+                        setSearchParams((prev) => {
+                          const next = new URLSearchParams(prev);
+                          if (qInput.trim()) {
+                            next.set("search", qInput.trim());
+                          } else {
+                            next.delete("search");
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                        <Input
+                          value={qInput}
+                          onChange={(e) => setQInput(e.target.value)}
+                          placeholder="Search here"
+                          className="pl-9 pr-10 h-11 bg-slate-50 border-slate-200 dark:bg-muted/30"
+                        />
+                        {qInput && (
+                          <button
+                            type="button"
+                            onClick={handleClearSearch}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                            aria-label="Clear search"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                      <Button type="submit" variant="secondary" className="h-11">
+                        Search
+                      </Button>
+                    </form>
+                  </div>
+                )}
               </div>
             )}
 
@@ -445,40 +535,13 @@ export default function CommunityFeed() {
               />
             ) : communityView === "home" ? (
               <>
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
-                  <form
-                    className="flex gap-2 mb-4"
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      setSearch(qInput);
-                    }}
-                  >
-                    <div className="relative flex-1">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        value={qInput}
-                        onChange={(e) => setQInput(e.target.value)}
-                        placeholder="Search here"
-                        className="pl-9 h-11 bg-slate-50 border-slate-200 dark:bg-muted/30"
-                      />
-                    </div>
-                    <Button type="submit" variant="secondary" className="h-11">
-                      Search
-                    </Button>
-                  </form>
-
-                  <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-100 pb-2 dark:border-foreground/10">
-                    <p className="pb-2 text-sm font-medium text-foreground">All updates</p>
+                <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200/80 pb-2 mb-4 dark:border-foreground/15">
+                  <p className="text-sm font-semibold text-foreground">All updates</p>
+                  {sidebarFiltered.length > 0 && (
                     <p className="text-sm text-muted-foreground tabular-nums">
-                      Page {currentPage}
-                      {sidebarFiltered.length > 0 && (
-                        <>
-                          {" "}
-                          · {sidebarFiltered.length} post{sidebarFiltered.length === 1 ? "" : "s"}
-                        </>
-                      )}
+                      {sidebarFiltered.length} post{sidebarFiltered.length === 1 ? "" : "s"}
                     </p>
-                  </div>
+                  )}
                 </div>
 
                 {loading || categoriesLoading ? (
@@ -509,31 +572,24 @@ export default function CommunityFeed() {
                             helpful={helpfulPostIds.has(p.id)}
                             onToggleSave={() => toggleSavePost(p.id)}
                             onToggleHelpful={() => toggleHelpfulPost(p.id)}
+                            onEdit={() => {
+                              setPostToEdit(p as PostCardPost);
+                              setCreateOpen(true);
+                            }}
                           />
                         </li>
                       ))}
                     </ul>
-                    {(currentPage > 1 || hasNextPage) && (
-                      <div className="flex items-center justify-center gap-3 pt-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={currentPage <= 1 || loading}
-                          onClick={() => goToPage(currentPage - 1)}
-                        >
-                          Previous
-                        </Button>
-                        <span className="text-sm text-muted-foreground tabular-nums">Page {currentPage}</span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={!hasNextPage || loading}
-                          onClick={() => goToPage(currentPage + 1)}
-                        >
-                          Next
-                        </Button>
+                    {hasNextPage && (
+                      <div ref={bottomRef} className="py-6 flex items-center justify-center">
+                        {loadingMore ? (
+                          <div className="flex items-center gap-2 text-muted-foreground text-sm">
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                            Loading more posts...
+                          </div>
+                        ) : (
+                          <div className="h-2 w-full" />
+                        )}
                       </div>
                     )}
                   </>
@@ -558,12 +614,19 @@ export default function CommunityFeed() {
 
       <CreatePostModal
         open={createOpen}
-        onOpenChange={setCreateOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) setPostToEdit(null);
+        }}
         displayName={displayName}
         profileInitials={profileInitials}
         bio={memberBio}
         initialAction={createAction}
-        onPublished={reloadPosts}
+        onPublished={() => {
+          reloadPosts();
+          setPostToEdit(null);
+        }}
+        postToEdit={postToEdit}
       />
     </div>
   );
