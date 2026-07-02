@@ -866,7 +866,7 @@ export default function Dashboard() {
                 await logActivity({
                     partnerId: user.uid,
                     partnerName: partnerData?.businessName || "Unnamed Business",
-                    action: "ACCOUNT_UPDATED",
+                    action: "PASSWORD_UPDATED",
                     details: `Partner password changed.`,
                     category: "account"
                 });

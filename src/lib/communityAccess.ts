@@ -37,14 +37,14 @@ export function canReportCommunitySpam(
   return canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
 }
 
-/** Save posts/comments — active members only. */
+/** Save posts/comments — verified members (including view-only). */
 export function canSaveCommunityContent(
   user: { uid: string } | null | undefined,
   verified: boolean,
   hasMemberProfile: boolean,
-  memberRestricted: boolean,
+  _memberRestricted: boolean,
 ): boolean {
-  return canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
+  return canAccessCommunity(user, verified, hasMemberProfile);
 }
 
 export function communityAccessHint(

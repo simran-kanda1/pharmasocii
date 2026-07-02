@@ -155,7 +155,6 @@ async function archiveAllCommentsForPost(postId) {
         n += 1;
     }
     if (n > 0) await batch.commit();
-    await recountActiveCommentCount(postId);
     return n;
 }
 
@@ -349,6 +348,52 @@ async function getMemberEmailAndName(userId) {
     return { email: d.email || null, userName: d.userName || d.name || null };
 }
 
+async function deliverCommentNotification({ postId, commentId, authorId, text, fromUserName }) {
+    const postSnap = await db.collection("postsCollection").doc(postId).get();
+    if (!postSnap.exists) return { skipped: true, reason: "post_missing" };
+    const postAuthor = postSnap.data()?.authorId;
+    if (!postAuthor || !authorId || postAuthor === authorId) {
+        return { skipped: true, reason: "self_or_missing_author" };
+    }
+
+    const existing = await db
+        .collection("membersCollection")
+        .doc(postAuthor)
+        .collection("notificationsCollection")
+        .where("type", "==", "comment")
+        .where("postId", "==", postId)
+        .where("commentId", "==", commentId)
+        .limit(1)
+        .get();
+    if (!existing.empty) return { skipped: true, reason: "exists" };
+
+    let resolvedName = String(fromUserName || "").trim();
+    if (!resolvedName) {
+        const memberSnap = await db.collection("membersCollection").doc(authorId).get();
+        if (memberSnap.exists) {
+            resolvedName =
+                String(memberSnap.data()?.userName || memberSnap.data()?.name || "") ||
+                "A member";
+        }
+    }
+
+    await db
+        .collection("membersCollection")
+        .doc(postAuthor)
+        .collection("notificationsCollection")
+        .add({
+            type: "comment",
+            isRead: false,
+            createdAt: FieldValue.serverTimestamp(),
+            postId,
+            commentId,
+            fromUserId: authorId,
+            fromUserName: resolvedName || "A member",
+            preview: String(text || "").slice(0, 200),
+        });
+    return { created: true };
+}
+
 exports.onCommunityCommentCreated = onDocumentCreated(
     {
         document: "postsCollection/{postId}/commentsCollection/{commentId}",
@@ -369,33 +414,43 @@ exports.onCommunityCommentCreated = onDocumentCreated(
         const postSnap = await postRef.get();
         const postAuthor = postSnap.data()?.authorId;
         if (postAuthor && authorId && postAuthor !== authorId) {
-            const text = String(data.text || "").slice(0, 200);
-            let fromUserName = String(data.userName || "");
-            if (!fromUserName) {
-                const memberSnap = await db.collection("membersCollection").doc(authorId).get();
-                if (memberSnap.exists) {
-                    fromUserName =
-                        String(memberSnap.data()?.userName || memberSnap.data()?.name || "") ||
-                        "A member";
-                }
-            }
-            await db
-                .collection("membersCollection")
-                .doc(postAuthor)
-                .collection("notificationsCollection")
-                .add({
-                    type: "comment",
-                    isRead: false,
-                    createdAt: FieldValue.serverTimestamp(),
-                    postId,
-                    commentId,
-                    fromUserId: authorId,
-                    fromUserName,
-                    preview: text,
-                });
+            await deliverCommentNotification({
+                postId,
+                commentId,
+                authorId,
+                text: data.text,
+                fromUserName: data.userName,
+            });
         }
     }
 );
+
+exports.recordCommentNotification = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
+    const member = await db.collection("membersCollection").doc(request.auth.uid).get();
+    if (!member.exists) throw new HttpsError("permission-denied", "Member profile required.");
+    const { postId, commentId, text, fromUserName } = request.data || {};
+    if (!postId || !commentId) throw new HttpsError("invalid-argument", "postId and commentId required.");
+    const commentSnap = await db
+        .collection("postsCollection")
+        .doc(postId)
+        .collection("commentsCollection")
+        .doc(commentId)
+        .get();
+    if (!commentSnap.exists) throw new HttpsError("not-found", "Comment not found.");
+    const commentData = commentSnap.data() || {};
+    if (commentData.authorId !== request.auth.uid) {
+        throw new HttpsError("permission-denied", "Not your comment.");
+    }
+    const result = await deliverCommentNotification({
+        postId,
+        commentId,
+        authorId: request.auth.uid,
+        text: text ?? commentData.text,
+        fromUserName: fromUserName ?? commentData.userName,
+    });
+    return { ok: true, ...result };
+});
 
 exports.onSpamReportCreated = onDocumentCreated(
     {
@@ -529,7 +584,7 @@ exports.onSpamReportCreated = onDocumentCreated(
                 });
             }
         }
-        if (email && contentArchived) {
+        if (email && contentArchived && !memberWasRestricted) {
             await sendCommunityEmail({
                 type: "content_archived_spam",
                 toEmail: email,
@@ -667,6 +722,27 @@ exports.adminRestoreComment = onCall({ region: "us-central1", cors: true }, asyn
     return { ok: true };
 });
 
+exports.adminArchiveComment = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
+    await assertAdmin(request.auth.uid);
+    const { postId, commentId, reason } = request.data || {};
+    if (!postId || !commentId) throw new HttpsError("invalid-argument", "postId and commentId required.");
+    const cref = db.collection("postsCollection").doc(postId).collection("commentsCollection").doc(commentId);
+    const c = await cref.get();
+    if (!c.exists) throw new HttpsError("not-found", "Comment not found.");
+    if (c.data()?.archived === true) return { ok: true, alreadyArchived: true };
+    await cref.update({
+        archived: true,
+        archivedReason: reason || "admin",
+        archivedAt: FieldValue.serverTimestamp(),
+    });
+    const postSnap = await db.collection("postsCollection").doc(postId).get();
+    if (postSnap.exists && postSnap.data()?.archived !== true) {
+        await recountActiveCommentCount(postId);
+    }
+    return { ok: true };
+});
+
 exports.syncPostCommentCount = onCall({ region: "us-central1", cors: true }, async (request) => {
     if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
     const member = await db.collection("membersCollection").doc(request.auth.uid).get();
@@ -687,6 +763,11 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     if (!userId || !status) throw new HttpsError("invalid-argument", "userId and status required.");
     const allowed = ["active", "spam_blocked", "admin_hold"];
     if (!allowed.includes(status)) throw new HttpsError("invalid-argument", "Invalid status.");
+    const memberRef = db.collection("membersCollection").doc(userId);
+    const beforeSnap = await memberRef.get();
+    const beforeData = beforeSnap.exists ? beforeSnap.data() || {} : {};
+    const wasAlreadySpamBlocked = beforeData.accountStatus === "spam_blocked";
+    const wasAlreadyOnHold = beforeData.accountStatus === "admin_hold";
     const update = { accountStatus: status };
     if (status === "active") {
         update.spamBlockUntil = FieldValue.delete();
@@ -702,17 +783,17 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
         update.spamBlockStartedAt = FieldValue.delete();
     }
     if (reason) update.adminHoldReason = reason;
-    await db.collection("membersCollection").doc(userId).update(update);
+    await memberRef.update(update);
 
     const { email, userName } = await getMemberEmailAndName(userId);
     if (email) {
-        if (status === "admin_hold") {
+        if (status === "admin_hold" && !wasAlreadyOnHold) {
             await sendCommunityEmail({
                 type: "account_on_hold",
                 toEmail: email,
                 payload: { userName, reason: reason || "" },
             });
-        } else if (status === "spam_blocked") {
+        } else if (status === "spam_blocked" && !wasAlreadySpamBlocked) {
             const until = update.spamBlockUntil?.toDate?.() || null;
             await sendCommunityEmail({
                 type: "spam_strike_3_account_archived",
@@ -722,7 +803,7 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
                     untilDate: until ? until.toLocaleDateString() : null,
                 },
             });
-        } else if (status === "active") {
+        } else if (status === "active" && beforeData.accountStatus !== "active") {
             await sendCommunityEmail({
                 type: "account_reenabled",
                 toEmail: email,

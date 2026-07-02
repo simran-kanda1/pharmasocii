@@ -82,6 +82,15 @@
       ]
     },
     {
+      "collectionGroup": "notificationsCollection",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "postId", "order": "ASCENDING" },
+        { "fieldPath": "commentId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "verificationMirrors",
       "queryScope": "COLLECTION",
       "fields": [

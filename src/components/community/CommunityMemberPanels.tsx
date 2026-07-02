@@ -11,7 +11,10 @@ import {
   where,
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { auth, db } from "@/firebase";
+import { logActivity } from "@/lib/auditLogger";
+import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -80,6 +83,12 @@ export function CommunityMemberPanels({
   const [spamActive, setSpamActive] = useState(0);
   const [accountStatus, setAccountStatus] = useState<string>("active");
   const [spamBlockUntil, setSpamBlockUntil] = useState<Date | null>(null);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordMsg, setPasswordMsg] = useState("");
+  const [passwordSaving, setPasswordSaving] = useState(false);
+  const passwordChecks = getPasswordPolicyChecks(newPassword);
 
   useEffect(() => {
     if (view === "home" || !userId) return;
@@ -397,6 +406,108 @@ export function CommunityMemberPanels({
           {profileMsg && <p className="text-sm text-muted-foreground">{profileMsg}</p>}
           <Button type="submit">Save</Button>
         </form>
+
+        <div className="mt-10 pt-8 border-t border-slate-200 dark:border-foreground/15 max-w-lg space-y-4">
+          <h3 className="font-semibold">Change password</h3>
+          <p className="text-xs text-muted-foreground">
+            Name, username, and email cannot be changed here. Password updates are recorded in the audit trail.
+          </p>
+          <form
+            className="space-y-4"
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setPasswordMsg("");
+              if (newPassword !== confirmPassword) {
+                setPasswordMsg("New passwords do not match.");
+                return;
+              }
+              if (!isPasswordPolicyValid(newPassword)) {
+                setPasswordMsg(PASSWORD_POLICY_ERROR_MESSAGE);
+                return;
+              }
+              const user = auth.currentUser;
+              if (!user?.email) {
+                setPasswordMsg("Sign in again to change your password.");
+                return;
+              }
+              setPasswordSaving(true);
+              try {
+                const credential = EmailAuthProvider.credential(user.email, currentPassword);
+                await reauthenticateWithCredential(user, credential);
+                await updatePassword(user, newPassword);
+                await logActivity({
+                  partnerId: user.uid,
+                  partnerName: userName || name || user.email,
+                  action: "PASSWORD_UPDATED",
+                  details: "Community member password changed.",
+                  category: "community",
+                });
+                setPasswordMsg("Password updated.");
+                setCurrentPassword("");
+                setNewPassword("");
+                setConfirmPassword("");
+              } catch (err: unknown) {
+                const code = (err as { code?: string })?.code;
+                if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
+                  setPasswordMsg("Current password is incorrect.");
+                } else {
+                  setPasswordMsg("Could not update password.");
+                }
+              } finally {
+                setPasswordSaving(false);
+              }
+            }}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="current-password">Current password</Label>
+              <Input
+                id="current-password"
+                type="password"
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-password">New password</Label>
+              <Input
+                id="new-password"
+                type="password"
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+              <ul className="text-xs text-muted-foreground space-y-0.5">
+                <li className={passwordChecks.minLength ? "text-emerald-600" : ""}>At least 8 characters</li>
+                <li className={passwordChecks.uppercase ? "text-emerald-600" : ""}>At least 1 uppercase letter</li>
+                <li className={passwordChecks.lowercase ? "text-emerald-600" : ""}>At least 1 lowercase letter</li>
+                <li className={passwordChecks.special ? "text-emerald-600" : ""}>At least 1 special character</li>
+              </ul>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-password">Confirm new password</Label>
+              <Input
+                id="confirm-password"
+                type="password"
+                autoComplete="new-password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
+            </div>
+            {passwordMsg && <p className="text-sm text-muted-foreground">{passwordMsg}</p>}
+            <Button
+              type="submit"
+              disabled={
+                passwordSaving ||
+                !currentPassword ||
+                !newPassword ||
+                !confirmPassword
+              }
+            >
+              {passwordSaving ? "Updating…" : "Update password"}
+            </Button>
+          </form>
+        </div>
       </div>
     );
   }

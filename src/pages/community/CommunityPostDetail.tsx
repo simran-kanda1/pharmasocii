@@ -41,7 +41,7 @@ import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normal
 import { ArrowLeft, Link2, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
-import { syncPostCommentCount } from "@/lib/communityCallables";
+import { syncPostCommentCount, recordCommentNotification } from "@/lib/communityCallables";
 
 const MAX_COMMENT_IMAGE_BYTES = 1.5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -321,7 +321,7 @@ export default function CommunityPostDetail() {
         imageStoragePath = path;
       }
 
-      await addDoc(collection(db, "postsCollection", postId, "commentsCollection"), {
+      const commentRef = await addDoc(collection(db, "postsCollection", postId, "commentsCollection"), {
         authorId: user.uid,
         userName,
         postId,
@@ -333,6 +333,12 @@ export default function CommunityPostDetail() {
         archived: false,
         spamReportCount: 0,
       });
+      recordCommentNotification({
+        postId,
+        commentId: commentRef.id,
+        text: t,
+        fromUserName: userName,
+      }).catch((notifyErr) => console.warn("Comment notification:", notifyErr));
       setCommentText("");
       setCommentFile(null);
       setCommentLink("");

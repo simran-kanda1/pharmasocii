@@ -22,6 +22,14 @@ export async function adminRestoreComment(postId: string, commentId: string) {
   return fn({ postId, commentId });
 }
 
+export async function adminArchiveComment(postId: string, commentId: string, reason?: string) {
+  const fn = httpsCallable<{ postId: string; commentId: string; reason?: string }, { ok: boolean }>(
+    fns,
+    "adminArchiveComment",
+  );
+  return fn({ postId, commentId, reason });
+}
+
 export async function adminSetMemberStatus(params: {
   userId: string;
   status: "active" | "spam_blocked" | "admin_hold";

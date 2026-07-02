@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { doc, serverTimestamp, updateDoc } from "firebase/firestore";
-import { auth, db } from "@/firebase";
+import { auth } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
 import { loadReportedComments, type AdminReportedCommentRow } from "@/lib/adminCommunityData";
-import { adminRestoreComment } from "@/lib/adminCommunityCallables";
+import { adminRestoreComment, adminArchiveComment } from "@/lib/adminCommunityCallables";
 import { formatAdminDate } from "@/lib/formatAdminDate";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -63,6 +62,7 @@ export function AdminReportedCommentsPanel() {
         (r.reporterLabel || "").toLowerCase().includes(q) ||
         (r.commentOwnerLabel || "").toLowerCase().includes(q) ||
         (r.postTitle || "").toLowerCase().includes(q) ||
+        (r.commentPreview || "").toLowerCase().includes(q) ||
         (r.reason || "").toLowerCase().includes(q),
     );
   }, [rows, search]);
@@ -80,10 +80,7 @@ export function AdminReportedCommentsPanel() {
       if (row.commentArchived) {
         await adminRestoreComment(row.postId, row.commentId);
       } else {
-        await updateDoc(doc(db, "postsCollection", row.postId, "commentsCollection", row.commentId), {
-          archived: true,
-          archivedAt: serverTimestamp(),
-        });
+        await adminArchiveComment(row.postId, row.commentId, "admin_deactivate");
       }
       const u = auth.currentUser;
       if (u) {
@@ -133,7 +130,7 @@ export function AdminReportedCommentsPanel() {
           </SelectContent>
         </Select>
         <Input
-          placeholder="Search reporter, owner, post, reason…"
+          placeholder="Search reporter, owner, comment, post, reason…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm h-10 bg-white"

@@ -4,6 +4,7 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 export type AuditLogAction =
     | "ACCOUNT_CREATED"
     | "ACCOUNT_UPDATED"
+    | "PASSWORD_UPDATED"
     | "LISTING_CREATED"
     | "LISTING_UPDATED"
     | "PAYMENT_SUCCESS"
@@ -17,7 +18,7 @@ export interface AuditLogData {
     partnerName: string;
     action: AuditLogAction;
     details: string;
-    category: "account" | "billing" | "listing" | "admin";
+    category: "account" | "billing" | "listing" | "admin" | "community";
     metadata?: any;
 }
 

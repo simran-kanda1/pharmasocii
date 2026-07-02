@@ -24,6 +24,15 @@ service cloud.firestore {
       return isSignedIn() && request.auth.token.email_verified == true;
     }
 
+    function memberEmailVerified() {
+      return emailVerifiedToken()
+        || (
+          memberExists()
+          && ('emailVerified' in memberData())
+          && memberData().emailVerified == true
+        );
+    }
+
     function memberCanWrite() {
       return memberExists()
         && (
@@ -33,11 +42,11 @@ service cloud.firestore {
     }
 
     function canUseCommunityWrites() {
-      return emailVerifiedToken() && memberCanWrite();
+      return memberEmailVerified() && memberCanWrite();
     }
 
     function canUseCommunitySaves() {
-      return emailVerifiedToken() && memberCanWrite();
+      return memberEmailVerified() && memberExists();
     }
 
     function canReportCommunitySpam() {
