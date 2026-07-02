@@ -264,8 +264,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       <div>
         <p className="text-sm font-medium">Categories</p>
         <p className="text-xs text-muted-foreground">
-          {POST_MAIN_CAT_MIN}–{POST_MAIN_CAT_MAX} main categories; up to {POST_SUB_PER_MAIN_MAX} subs per
-          main; up to {POST_SUBSUB_PER_SUB_MAX} sub-subs per sub (when available).
+          Select up to 3 main categories (with 2 subs each, when available) to keep discussions streamlined.
         </p>
       </div>
       {doc.mains.map((main) => {
@@ -293,6 +292,8 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
               {(main.subs ?? []).map((sub) => {
                 const subs = value.subsByMain.get(main.label);
                 const subOn = subs?.has(sub.label) ?? false;
+                const realSubsCount = subs ? [...subs].filter((x) => x !== "__main_only__").length : 0;
+                const mainActive = !!(subs && subs.size > 0);
                 return (
                   <div key={sub.id} className="space-y-2">
                     <div className="flex items-center gap-2">
@@ -300,6 +301,11 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                         id={`sub-${main.id}-${sub.id}`}
                         checked={subOn}
                         onCheckedChange={(c) => toggleSub(main.label, sub.label, c === true)}
+                        disabled={
+                          !subOn &&
+                          (realSubsCount >= POST_SUB_PER_MAIN_MAX ||
+                            (mainCount >= POST_MAIN_CAT_MAX && !mainActive))
+                        }
                       />
                       <Label htmlFor={`sub-${main.id}-${sub.id}`} className="cursor-pointer">
                         {sub.label}
@@ -310,6 +316,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                         {(sub.subSubs ?? []).map((ss) => {
                           const msKey = keyMainSub(main.label, sub.label);
                           const picked = value.subSubsByMainSub.get(msKey)?.has(ss.label) ?? false;
+                          const subSubCount = value.subSubsByMainSub.get(msKey)?.size ?? 0;
                           return (
                             <div key={ss.id} className="flex items-center gap-2">
                               <Checkbox
@@ -318,6 +325,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                                 onCheckedChange={(c) =>
                                   toggleSubSub(main.label, sub.label, ss.label, c === true)
                                 }
+                                disabled={!picked && subSubCount >= POST_SUBSUB_PER_SUB_MAX}
                               />
                               <Label htmlFor={`ss-${main.id}-${sub.id}-${ss.id}`} className="cursor-pointer text-sm">
                                 {ss.label}

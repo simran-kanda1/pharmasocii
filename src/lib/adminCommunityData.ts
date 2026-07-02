@@ -80,6 +80,7 @@ export type AdminReportedCommentRow = {
   commentOwnerLabel?: string;
   commentOwnerStatus?: string;
   commentPreview?: string;
+  commentText?: string;
   postId?: string;
   postTitle?: string;
   commentId?: string;
@@ -250,6 +251,7 @@ export async function loadReportedComments(): Promise<AdminReportedCommentRow[]>
         ? ((memberById.get(ownerId)?.accountStatus as string | undefined) || "active")
         : "—",
       commentPreview: (commentData?.text as string | undefined)?.slice(0, 120) || "—",
+      commentText: (commentData?.text as string | undefined) || "",
       postId,
       postTitle: (postData?.title as string | undefined) || postId,
       commentId,

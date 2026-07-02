@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ref, getDownloadURL } from "firebase/storage";
-import { storage } from "@/firebase";
+import { auth, storage } from "@/firebase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import { formatCategoryPlain, formatRelativeTime } from "@/lib/community";
-import { Bookmark } from "lucide-react";
+import { Bookmark, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { PostActionBar } from "@/components/community/PostActionBar";
@@ -16,6 +16,7 @@ export type PostCardPost = {
   id: string;
   authorId?: string;
   authorUserName: string;
+  authorTagline?: string;
   title: string;
   text: string;
   mainCategories: string[];
@@ -79,6 +80,7 @@ export function PostCard({
   onToggleSave,
   onToggleHelpful,
   rememberFeedScroll,
+  onEdit,
 }: {
   post: PostCardPost;
   categoryDoc: CommunityCategoryDoc | null;
@@ -95,12 +97,18 @@ export function PostCard({
   onToggleHelpful?: () => void;
   /** When true, saves scroll position before opening post (community feed). */
   rememberFeedScroll?: boolean;
+  onEdit?: () => void;
 }) {
   const beforeOpenPost = () => {
     if (rememberFeedScroll) saveCommunityFeedScroll(post.id);
   };
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const created = post.createdAt?.toDate?.() ?? new Date();
+  const currentUserId = auth.currentUser?.uid;
+  const isAuthor = post.authorId && currentUserId && post.authorId === currentUserId;
+  const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
+  const isEditable = isAuthor && hoursSinceCreation <= 6;
+
   const { segments } = formatCategoryPlain(
     categoryDoc,
     post.mainCategories ?? [],
@@ -148,27 +156,49 @@ export function PostCard({
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full">
               <span className="font-semibold text-foreground text-sm">{post.authorUserName}</span>
+              {post.authorTagline && (
+                <span className="text-xs text-muted-foreground font-normal">({post.authorTagline})</span>
+              )}
               {showAuthorEmail ? (
                 <span className="text-xs text-muted-foreground truncate max-w-[200px]">{showAuthorEmail}</span>
               ) : null}
               <span className="text-xs text-muted-foreground">{formatRelativeTime(created)}</span>
-              {!showActionBar && canSave && onToggleSave && (
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-7 w-7 ml-auto"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    onToggleSave();
-                  }}
-                  aria-label={saved ? "Unsave" : "Save"}
-                >
-                  <Bookmark className={cn("h-4 w-4", saved && "fill-current")} />
-                </Button>
-              )}
+              <div className="ml-auto flex items-center gap-1">
+                {isEditable && onEdit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onEdit();
+                    }}
+                    title="Edit post (available for 6 hours after posting)"
+                    aria-label="Edit post"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+                {!showActionBar && canSave && onToggleSave && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      onToggleSave();
+                    }}
+                    aria-label={saved ? "Unsave" : "Save"}
+                  >
+                    <Bookmark className={cn("h-4 w-4", saved && "fill-current")} />
+                  </Button>
+                )}
+              </div>
             </div>
             {categoryLine ? (
               <p className="text-xs text-muted-foreground mt-2 leading-relaxed line-clamp-2">{categoryLine}</p>
@@ -179,7 +209,7 @@ export function PostCard({
           </div>
         </div>
 
-        <Link to={`/community/post/${post.id}`} className="block group mt-4" onClick={beforeOpenPost}>
+        <Link to={`/community/post/${post.id}`} className="block group mt-4" target="_blank" rel="noopener noreferrer" onClick={beforeOpenPost}>
           <h2 className="text-lg font-bold text-foreground leading-snug group-hover:text-primary transition-colors">
             {post.title}
           </h2>
@@ -210,6 +240,8 @@ export function PostCard({
         <Link
           to={`/community/post/${post.id}`}
           className="block border-t border-slate-100 dark:border-foreground/10"
+          target="_blank"
+          rel="noopener noreferrer"
           onClick={beforeOpenPost}
         >
           <div className="relative w-full bg-slate-100 dark:bg-muted/40 aspect-[16/10] max-h-[420px]">

@@ -101,7 +101,7 @@ async function getOrCreatePartnerStripeTestCustomer(partnerId, partnerEmail) {
         }
     }
 
-    if (!testClockId) {
+    if (!testClockId && STRIPE_TEST_CLOCKS_ENABLED) {
         const clock = await stripe.testHelpers.testClocks.create({
             frozen_time: Math.floor(Date.now() / 1000),
             name: `pharmasocii-${String(partnerId).slice(0, 12)}`,
@@ -111,26 +111,27 @@ async function getOrCreatePartnerStripeTestCustomer(partnerId, partnerEmail) {
     }
 
     if (!customerId) {
-        const customer = await stripe.customers.create({
+        const customerParams = {
             email: partnerEmail || undefined,
-            test_clock: testClockId,
             metadata: { partnerId },
-        });
+        };
+        if (testClockId) {
+            customerParams.test_clock = testClockId;
+        }
+        const customer = await stripe.customers.create(customerParams);
         customerId = customer.id;
-        await partnerRef.set(
-            {
-                stripeCustomerId: customerId,
-                stripeTestClockId: testClockId,
-            },
-            { merge: true },
-        );
+        const updateData = { stripeCustomerId: customerId };
+        if (testClockId) {
+            updateData.stripeTestClockId = testClockId;
+        }
+        await partnerRef.set(updateData, { merge: true });
     }
 
     return { customerId, testClockId };
 }
 
 async function applyTestCheckoutCustomer(sessionParams, partnerId, partnerEmail) {
-    if (!STRIPE_TEST_CLOCKS_ENABLED || !partnerId) return sessionParams;
+    if (!partnerId) return sessionParams;
     const { customerId } = await getOrCreatePartnerStripeTestCustomer(partnerId, partnerEmail);
     delete sessionParams.customer_email;
     sessionParams.customer = customerId;

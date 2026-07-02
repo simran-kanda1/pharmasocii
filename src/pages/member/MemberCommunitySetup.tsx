@@ -9,6 +9,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { ensureVerificationPending } from "@/lib/ensureVerificationPending";
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { normalizeUserNameKey } from "@/lib/community";
+import { getAllCommunityCountries } from "@/lib/communityCountries";
 
 /**
  * Create a community (member) profile for an existing Firebase Auth user.
@@ -22,6 +23,12 @@ export default function MemberCommunitySetup() {
   const [emailDisplay, setEmailDisplay] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [country, setCountry] = useState("");
+  const [institution, setInstitution] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [aboutMe, setAboutMe] = useState("");
+
+  const countriesList = getAllCommunityCountries();
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user) => {
@@ -60,8 +67,12 @@ export default function MemberCommunitySetup() {
       setError("Username must be at least 2 characters (letters, numbers, underscore).");
       return;
     }
-    if (!name.trim()) {
-      setError("Name is required.");
+    if (!name.trim() || !country || !institution.trim() || !industry.trim() || !aboutMe.trim()) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+    if (aboutMe.length > 25) {
+      setError("Tagline cannot exceed 25 characters.");
       return;
     }
 
@@ -104,6 +115,10 @@ export default function MemberCommunitySetup() {
           accountStatus: "active",
           spamActiveReportCount: 0,
           spamTotalReportCount: 0,
+          country,
+          institution: institution.trim(),
+          industry: industry.trim(),
+          aboutMe: aboutMe.trim(),
         });
       });
 
@@ -168,6 +183,63 @@ export default function MemberCommunitySetup() {
               onChange={(e) => setUserName(e.target.value)}
               required
               autoComplete="username"
+              className="bg-foreground/5 border-foreground/10"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="country">Country</Label>
+              <select
+                id="country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                required
+                className="w-full bg-foreground/5 border border-foreground/10 h-10 px-3 rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm appearance-none"
+              >
+                <option value="" disabled className="bg-background">Select Country</option>
+                {countriesList.map((c) => (
+                  <option key={c} value={c} className="bg-background">{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="industry">Industry</Label>
+              <Input
+                id="industry"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                required
+                placeholder="e.g. Biotech, Pharma"
+                className="bg-foreground/5 border-foreground/10"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="institution">Institution / Company</Label>
+            <Input
+              id="institution"
+              value={institution}
+              onChange={(e) => setInstitution(e.target.value)}
+              required
+              placeholder="e.g. University of Toronto, Pfizer"
+              className="bg-foreground/5 border-foreground/10"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <Label htmlFor="aboutMe">About me (Tagline)</Label>
+              <span className="text-[11px] text-muted-foreground">{aboutMe.length}/25</span>
+            </div>
+            <Input
+              id="aboutMe"
+              value={aboutMe}
+              onChange={(e) => setAboutMe(e.target.value.slice(0, 25))}
+              required
+              maxLength={25}
+              placeholder="e.g. Clinical Pharmacist"
               className="bg-foreground/5 border-foreground/10"
             />
           </div>

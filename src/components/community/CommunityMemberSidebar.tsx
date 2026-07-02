@@ -72,7 +72,7 @@ export function CommunityMemberSidebar({
           <AvatarFallback className="bg-slate-800 text-white font-semibold dark:bg-primary">{profileInitials}</AvatarFallback>
         </Avatar>
         <div>
-          <p className="text-xs text-muted-foreground uppercase tracking-wide">Welcome</p>
+          <p className="text-sm font-semibold mb-0.5">Welcome</p>
           <p className="font-semibold leading-tight">{welcomeName}</p>
         </div>
       </div>
@@ -102,8 +102,8 @@ export function CommunityMemberSidebar({
       )}
 
       <div>
-        <div className="flex items-center justify-between gap-2 mb-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Interest(s)</p>
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <p className="text-sm font-semibold text-foreground">Interest(s)</p>
           {hasFilters && onClearAllFilters && signedIn && (
             <button
               type="button"

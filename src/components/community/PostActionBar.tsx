@@ -130,6 +130,8 @@ export function PostActionBar({
     ? engageHint || "Sign in with a verified member profile to share."
     : undefined;
 
+  const hoverWarningTitle = shareDisabledTitle || "May not work if this content is later archived due to spam activity";
+
   return (
     <>
       <div
@@ -143,6 +145,8 @@ export function PostActionBar({
         <Link
           to={`/community/post/${postId}#comments`}
           className="flex shrink-0 items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 dark:border-foreground/10 dark:hover:bg-card min-w-[6.5rem]"
+          target="_blank"
+          rel="noopener noreferrer"
           onClick={(e) => {
             e.stopPropagation();
             if (rememberFeedScroll) saveCommunityFeedScroll(postId);
@@ -179,14 +183,14 @@ export function PostActionBar({
         <ActionBtn
           label="LinkedIn"
           icon={Linkedin}
-          title={shareDisabledTitle}
+          title={hoverWarningTitle}
           onClick={linkedInShare}
           className="flex-1 min-w-[90px]"
         />
         <ActionBtn
           label={copyMsg || "Copy link"}
           icon={Copy}
-          title={shareDisabledTitle}
+          title={hoverWarningTitle}
           onClick={copyLink}
           className="flex-1 min-w-[100px]"
         />

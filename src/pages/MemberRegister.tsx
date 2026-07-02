@@ -14,6 +14,7 @@ import { doc, runTransaction, serverTimestamp } from "firebase/firestore";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import { normalizeUserNameKey } from "@/lib/community";
 import { ensureVerificationPending } from "@/lib/ensureVerificationPending";
+import { getAllCommunityCountries } from "@/lib/communityCountries";
 
 export default function MemberRegister() {
   const navigate = useNavigate();
@@ -27,7 +28,13 @@ export default function MemberRegister() {
     email: "",
     password: "",
     confirmPassword: "",
+    country: "",
+    institution: "",
+    industry: "",
+    aboutMe: "",
   });
+
+  const countriesList = getAllCommunityCountries();
 
   const passwordChecks = getPasswordPolicyChecks(form.password);
   const isPasswordValid = isPasswordPolicyValid(form.password);
@@ -51,8 +58,12 @@ export default function MemberRegister() {
       setError("Username must be at least 2 characters (letters, numbers, underscore).");
       return;
     }
-    if (!form.name.trim() || !form.email.trim()) {
+    if (!form.name.trim() || !form.email.trim() || !form.country || !form.institution.trim() || !form.industry.trim() || !form.aboutMe.trim()) {
       setError("Please fill in all required fields.");
+      return;
+    }
+    if (form.aboutMe.length > 25) {
+      setError("Tagline cannot exceed 25 characters.");
       return;
     }
 
@@ -100,6 +111,10 @@ export default function MemberRegister() {
           accountStatus: "active",
           spamActiveReportCount: 0,
           spamTotalReportCount: 0,
+          country: form.country,
+          institution: form.institution.trim(),
+          industry: form.industry.trim(),
+          aboutMe: form.aboutMe.trim(),
         });
       });
 
@@ -192,6 +207,63 @@ export default function MemberRegister() {
               }}
               required
               autoComplete="email"
+              className="bg-foreground/5 border-foreground/10"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="country">Country</Label>
+              <select
+                id="country"
+                value={form.country}
+                onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
+                required
+                className="w-full bg-foreground/5 border border-foreground/10 h-10 px-3 rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm appearance-none"
+              >
+                <option value="" disabled className="bg-background">Select Country</option>
+                {countriesList.map((c) => (
+                  <option key={c} value={c} className="bg-background">{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="industry">Industry</Label>
+              <Input
+                id="industry"
+                value={form.industry}
+                onChange={(e) => setForm((f) => ({ ...f, industry: e.target.value }))}
+                required
+                placeholder="e.g. Biotech, Pharma"
+                className="bg-foreground/5 border-foreground/10"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="institution">Institution / Company</Label>
+            <Input
+              id="institution"
+              value={form.institution}
+              onChange={(e) => setForm((f) => ({ ...f, institution: e.target.value }))}
+              required
+              placeholder="e.g. University of Toronto, Pfizer"
+              className="bg-foreground/5 border-foreground/10"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <Label htmlFor="aboutMe">About me (Tagline)</Label>
+              <span className="text-[11px] text-muted-foreground">{form.aboutMe.length}/25</span>
+            </div>
+            <Input
+              id="aboutMe"
+              value={form.aboutMe}
+              onChange={(e) => setForm((f) => ({ ...f, aboutMe: e.target.value.slice(0, 25) }))}
+              required
+              maxLength={25}
+              placeholder="e.g. Clinical Pharmacist"
               className="bg-foreground/5 border-foreground/10"
             />
           </div>
