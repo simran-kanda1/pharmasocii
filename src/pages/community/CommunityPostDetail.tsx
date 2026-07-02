@@ -820,7 +820,7 @@ function CommentComposer({
           !canEngage
             ? "Log in to comment…"
             : isReply
-              ? `Write your reply (max ${REPLY_MAX} characters)`
+              ? "Replies are limited to one level to keep discussions clear and focused."
               : `Comment (max ${COMMENT_MAX} characters)`
         }
         className="bg-foreground/5 border-foreground/10 disabled:cursor-not-allowed"
