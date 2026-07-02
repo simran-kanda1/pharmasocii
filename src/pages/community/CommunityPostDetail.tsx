@@ -92,6 +92,7 @@ export default function CommunityPostDetail() {
   const [copyFeedback, setCopyFeedback] = useState("");
   const [memberUserName, setMemberUserName] = useState<string | null>(null);
   const [memberBio, setMemberBio] = useState("");
+  const [memberAboutMe, setMemberAboutMe] = useState("");
   const [editOpen, setEditOpen] = useState(false);
 
   useEffect(() => {
@@ -104,6 +105,7 @@ export default function CommunityPostDetail() {
         setHasMemberProfile(m.exists());
         setMemberUserName(m.exists() ? String(m.data()?.userName ?? "") : null);
         setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
+        setMemberAboutMe(m.exists() ? String(m.data()?.aboutMe ?? "") : "");
         const st = m.data()?.accountStatus;
         setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
         if (postId && m.exists()) {
@@ -126,6 +128,7 @@ export default function CommunityPostDetail() {
         setHasMemberProfile(false);
         setMemberUserName(null);
         setMemberBio("");
+        setMemberAboutMe("");
       }
       setAuthReady(true);
     });
@@ -476,7 +479,12 @@ export default function CommunityPostDetail() {
               </AvatarFallback>
             </Avatar>
             <div>
-              <p className="font-semibold">{String(post.authorUserName)}</p>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <p className="font-semibold">{String(post.authorUserName)}</p>
+                {typeof post.authorTagline === "string" && post.authorTagline && (
+                  <span className="text-xs text-muted-foreground font-normal">({post.authorTagline})</span>
+                )}
+              </div>
               <p className="text-xs text-muted-foreground">{formatRelativeTime(created)}</p>
             </div>
           </div>
@@ -747,7 +755,7 @@ export default function CommunityPostDetail() {
         onOpenChange={setEditOpen}
         displayName={welcomeName}
         profileInitials={profileInitials}
-        bio={memberBio}
+        bio={memberAboutMe || memberBio}
         onPublished={() => {
           setEditOpen(false);
         }}

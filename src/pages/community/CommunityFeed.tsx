@@ -66,6 +66,7 @@ export default function CommunityFeed() {
   const [helpfulPostIds, setHelpfulPostIds] = useState<Set<string>>(new Set());
   const [memberRestricted, setMemberRestricted] = useState(false);
   const [memberBio, setMemberBio] = useState("");
+  const [memberAboutMe, setMemberAboutMe] = useState("");
   const [notificationUnread, setNotificationUnread] = useState(0);
   const [createOpen, setCreateOpen] = useState(false);
   const [createAction, setCreateAction] = useState<CreatePostModalAction>(null);
@@ -98,6 +99,7 @@ export default function CommunityFeed() {
         setHasMemberProfile(m.exists());
         setMemberUserName(m.exists() ? String(m.data()?.userName ?? "") : null);
         setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
+        setMemberAboutMe(m.exists() ? String(m.data()?.aboutMe ?? "") : "");
         const st = m.data()?.accountStatus;
         setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
         if (m.exists()) {
@@ -126,6 +128,7 @@ export default function CommunityFeed() {
         setHasMemberProfile(false);
         setMemberUserName(null);
         setMemberBio("");
+        setMemberAboutMe("");
         setMemberRestricted(false);
         setSavedPostIds(new Set());
         setHelpfulPostIds(new Set());
@@ -620,7 +623,7 @@ export default function CommunityFeed() {
         }}
         displayName={displayName}
         profileInitials={profileInitials}
-        bio={memberBio}
+        bio={memberAboutMe || memberBio}
         initialAction={createAction}
         onPublished={() => {
           reloadPosts();

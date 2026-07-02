@@ -57,6 +57,7 @@ export async function publishCommunityPost(params: {
   if (!memberSnap.exists()) throw new Error("Community profile required.");
   const member = memberSnap.data();
   const authorUserName = (member?.userName as string) || u.email?.split("@")[0] || "member";
+  const authorTagline = (member?.aboutMe as string) || "";
 
   let imageStoragePath: string | null = null;
   if (params.imageFile) {
@@ -78,6 +79,7 @@ export async function publishCommunityPost(params: {
   const docRef = await addDoc(collection(db, "postsCollection"), {
     authorId: u.uid,
     authorUserName,
+    authorTagline,
     title: params.title.trim(),
     text: params.text,
     mainCategories,
@@ -119,6 +121,10 @@ export async function updateCommunityPost(params: {
   if (!postSnap.exists()) throw new Error("Post not found.");
   const postData = postSnap.data();
   if (postData.authorId !== u.uid) throw new Error("You do not have permission to edit this post.");
+
+  const memberSnap = await getDoc(doc(db, "membersCollection", u.uid));
+  const member = memberSnap.exists() ? memberSnap.data() : null;
+  const authorTagline = (member?.aboutMe as string) || "";
 
   const createdTime = postData.createdAt?.toDate?.() || new Date();
   const diffHours = (Date.now() - createdTime.getTime()) / (1000 * 60 * 60);
@@ -170,6 +176,7 @@ export async function updateCommunityPost(params: {
     countries: params.countries,
     externalLinks: params.externalLinks.slice(0, EXTERNAL_LINKS_MAX),
     filterKeys,
+    authorTagline,
     updatedAt: serverTimestamp(),
   };
 

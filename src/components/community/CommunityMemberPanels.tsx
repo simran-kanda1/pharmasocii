@@ -23,6 +23,7 @@ import type { CommunityView } from "@/components/community/CommunityMemberSideba
 import type { CommunityPost } from "@/lib/communityTypes";
 import { X } from "lucide-react";
 import { saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
+import { getAllCommunityCountries } from "@/lib/communityCountries";
 import {
   deleteMemberNotification,
   filterNotificationsByAge,
@@ -80,6 +81,10 @@ export function CommunityMemberPanels({
   const [spamActive, setSpamActive] = useState(0);
   const [accountStatus, setAccountStatus] = useState<string>("active");
   const [spamBlockUntil, setSpamBlockUntil] = useState<Date | null>(null);
+  const [country, setCountry] = useState("");
+  const [institution, setInstitution] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [aboutMe, setAboutMe] = useState("");
 
   useEffect(() => {
     if (view === "home" || !userId) return;
@@ -95,6 +100,10 @@ export function CommunityMemberPanels({
           setEmail(String(d.email ?? ""));
           setBio(String(d.userBio ?? ""));
           setPicture(String(d.profilePicture ?? ""));
+          setCountry(String(d.country ?? ""));
+          setInstitution(String(d.institution ?? ""));
+          setIndustry(String(d.industry ?? ""));
+          setAboutMe(String(d.aboutMe ?? ""));
           setSpamTotal(Number(d.spamTotalReportCount ?? 0));
           setSpamActive(Number(d.spamActiveReportCount ?? 0));
           setAccountStatus(String(d.accountStatus ?? "active"));
@@ -343,7 +352,14 @@ export function CommunityMemberPanels({
             e.preventDefault();
             if (!auth.currentUser) return;
             try {
-              await updateDoc(doc(db, "membersCollection", userId), { userBio: bio, profilePicture: picture });
+              await updateDoc(doc(db, "membersCollection", userId), {
+                userBio: bio,
+                profilePicture: picture,
+                country,
+                institution: institution.trim(),
+                industry: industry.trim(),
+                aboutMe: aboutMe.trim(),
+              });
               setProfileMsg("Profile updated.");
             } catch {
               setProfileMsg("Could not save.");
@@ -363,9 +379,60 @@ export function CommunityMemberPanels({
             <Input value={email} disabled className="bg-muted/40" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="bio">About me</Label>
+            <Label htmlFor="bio">About me (Detailed Bio)</Label>
             <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={4} />
           </div>
+          
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="country">Country</Label>
+              <select
+                id="country"
+                value={country}
+                onChange={(e) => setCountry(e.target.value)}
+                className="w-full bg-background border border-slate-200 dark:border-foreground/10 h-10 px-3 rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm"
+              >
+                <option value="" disabled>Select Country</option>
+                {getAllCommunityCountries().map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="industry">Industry</Label>
+              <Input
+                id="industry"
+                value={industry}
+                onChange={(e) => setIndustry(e.target.value)}
+                placeholder="e.g. Biotech"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="institution">Institution / Company</Label>
+            <Input
+              id="institution"
+              value={institution}
+              onChange={(e) => setInstitution(e.target.value)}
+              placeholder="e.g. Pfizer"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex justify-between items-center">
+              <Label htmlFor="aboutMe">Tagline (About me tagline)</Label>
+              <span className="text-[11px] text-muted-foreground">{aboutMe.length}/25</span>
+            </div>
+            <Input
+              id="aboutMe"
+              value={aboutMe}
+              onChange={(e) => setAboutMe(e.target.value.slice(0, 25))}
+              maxLength={25}
+              placeholder="e.g. Biologist"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="pic">Profile picture URL</Label>
             <Input id="pic" value={picture} onChange={(e) => setPicture(e.target.value)} placeholder="https://…" />

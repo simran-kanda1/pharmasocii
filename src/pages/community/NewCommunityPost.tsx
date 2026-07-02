@@ -110,6 +110,7 @@ export default function NewCommunityPost() {
     const memberSnap = await getDoc(doc(db, "membersCollection", u.uid));
     const member = memberSnap.exists() ? memberSnap.data() : null;
     const authorUserName = (member?.userName as string) || u.email?.split("@")[0] || "member";
+    const authorTagline = (member?.aboutMe as string) || "";
 
     try {
       setSaving(true);
@@ -137,6 +138,7 @@ export default function NewCommunityPost() {
       await addDoc(collection(db, "postsCollection"), {
         authorId: u.uid,
         authorUserName,
+        authorTagline,
         title: title.trim(),
         text,
         mainCategories,
