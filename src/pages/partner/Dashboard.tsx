@@ -221,6 +221,39 @@ const isSpotlightCancelPending = (listing: any): boolean => {
     return end.getTime() > Date.now();
 };
 
+const mergeSpotlightListingFields = (preferred: any, other: any) => {
+    if (!preferred) return other;
+    if (!other) return preferred;
+    const merged = { ...preferred };
+    if (other.featureSpotlightCancelPending) merged.featureSpotlightCancelPending = true;
+    const pickLatestDate = (a: any, b: any) => {
+        const da = toDateValue(a);
+        const db = toDateValue(b);
+        if (!da) return b ?? a;
+        if (!db) return a;
+        return db.getTime() > da.getTime() ? b : a;
+    };
+    merged.featureSpotlightAccessEnd = pickLatestDate(preferred.featureSpotlightAccessEnd, other.featureSpotlightAccessEnd);
+    merged.featureSpotlightPaidThrough = pickLatestDate(preferred.featureSpotlightPaidThrough, other.featureSpotlightPaidThrough);
+    if (!merged.featureSpotlightStripeSubscriptionId && other.featureSpotlightStripeSubscriptionId) {
+        merged.featureSpotlightStripeSubscriptionId = other.featureSpotlightStripeSubscriptionId;
+    }
+    if (!merged.featureSpotlightSubscriptionItemId && other.featureSpotlightSubscriptionItemId) {
+        merged.featureSpotlightSubscriptionItemId = other.featureSpotlightSubscriptionItemId;
+    }
+    if (!merged.lastFeaturePaymentReceivedAt && other.lastFeaturePaymentReceivedAt) {
+        merged.lastFeaturePaymentReceivedAt = other.lastFeaturePaymentReceivedAt;
+    }
+    if (!merged.selectedAddon && other.selectedAddon) merged.selectedAddon = other.selectedAddon;
+    if (!merged.featuredPlacement && other.featuredPlacement) merged.featuredPlacement = other.featuredPlacement;
+    return merged;
+};
+
+const getStandaloneSpotlightFeatureId = (listing: any, planId?: string | null): string | null => {
+    if (!hasStandaloneSpotlightAddon(listing, planId)) return null;
+    return getSpotlightAddonTierId(listing);
+};
+
 const getSpotlightAddonTierId = (listing: any): string | null => {
     const raw = String(listing?.selectedAddon || listing?.featuredPlacement || "").trim();
     if (raw === "landing_page" || raw === "home_page" || raw === "both") return raw;
@@ -419,7 +452,7 @@ export default function Dashboard() {
     const [transactions, setTransactions] = useState<any[]>([]);
     const [transactionDetailRow, setTransactionDetailRow] = useState<PartnerTransactionRow | null>(null);
     const [activePlans, setActivePlans] = useState<any[]>([]);
-
+    const [partnerFeatures, setPartnerFeatures] = useState<any[]>([]);
 
     // Feature plan modal
     const [showFeatureModal, setShowFeatureModal] = useState(false);
@@ -431,6 +464,7 @@ export default function Dashboard() {
         firstName: "", lastName: "", email: "", phone: "",
         altName: "", altEmail: "", companyName: "", companyWebsite: "",
         businessPhone: "", linkedin: "", companyProfile: "", businessAddress: "", businessCountry: "",
+        billingEmail: "", businessId: "",
     });
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState("");
@@ -464,6 +498,31 @@ export default function Dashboard() {
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
     const [cancelModalError, setCancelModalError] = useState("");
     const profileCompanyProfileTooLong = (profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH;
+    const getStandaloneFeatureRecordForPlan = (plan: any) => {
+        if (!plan?.listingId) return null;
+        const matches = partnerFeatures.filter((feature) => {
+            if (feature.listingId !== plan.listingId) return false;
+            if (feature.source === "included_plan") return false;
+            if (plan.collectionName && feature.collectionName && feature.collectionName !== plan.collectionName) {
+                return false;
+            }
+            return feature.source === "spotlight_addon" || Boolean(feature.stripeSubscriptionId);
+        });
+        return matches.find((feature) => feature.source === "spotlight_addon") || matches[0] || null;
+    };
+
+    const enrichListingSpotlightFromFeatures = (listing: any, plan: any) => {
+        if (!listing || !plan) return listing;
+        const featureRecord = getStandaloneFeatureRecordForPlan(plan);
+        if (!featureRecord?.cancelPending) return listing;
+        return {
+            ...listing,
+            featureSpotlightCancelPending: true,
+            featureSpotlightAccessEnd: featureRecord.accessThrough || listing.featureSpotlightAccessEnd,
+            featureSpotlightPaidThrough: listing.featureSpotlightPaidThrough || featureRecord.accessThrough,
+        };
+    };
+
     const getLinkedListingForPlan = (plan: any) => {
         const matches = offerings.filter(
             (o) =>
@@ -471,22 +530,35 @@ export default function Dashboard() {
                 (!plan?.collectionName || o.__col === plan.collectionName),
         );
         if (matches.length === 0) {
-            return offerings.find((o) => o.id === plan?.listingId);
+            const fallback = offerings.find((o) => o.id === plan?.listingId);
+            return enrichListingSpotlightFromFeatures(fallback, plan);
         }
-        if (plan?.collectionName !== "businessOfferingsCollection") {
-            return matches.find((o) => o.__source === "global") || matches[0];
-        }
-        return matches.find((o) => o.__source === "partner") || matches[0];
+        const preferred =
+            plan?.collectionName !== "businessOfferingsCollection"
+                ? matches.find((o) => o.__source === "global") || matches[0]
+                : matches.find((o) => o.__source === "partner") || matches[0];
+        const merged = matches.reduce((acc, entry) => mergeSpotlightListingFields(acc, entry), preferred);
+        return enrichListingSpotlightFromFeatures(merged, plan);
+    };
+
+    const isSpotlightCancelPendingForPlan = (plan: any, listing?: any) => {
+        const linked = listing ?? getLinkedListingForPlan(plan);
+        return isSpotlightCancelPending(linked);
+    };
+    const arePlanActionsLocked = (plan: any, linkedListing?: any) => {
+        if (isPlanLockedForChanges(plan)) return true;
+        return isSpotlightCancelPendingForPlan(plan, linkedListing);
     };
     const hasStandaloneFeatureForPlan = (plan: any) => {
         const linkedListing = getLinkedListingForPlan(plan);
         return (
             hasStandaloneSpotlightAddon(linkedListing, plan?.planId) &&
-            !isSpotlightCancelPending(linkedListing)
+            !isSpotlightCancelPendingForPlan(plan, linkedListing)
         );
     };
     const isFeatureEligiblePlan = (plan: any) => {
         if (isPlanLockedForChanges(plan) || !plan.listingId || !plan.collectionName) return false;
+        if (isSpotlightCancelPendingForPlan(plan)) return false;
         const linkedListing = getLinkedListingForPlan(plan);
         if (!linkedListing) return false;
         return linkedListing.status !== "pending_payment" && linkedListing.active !== false;
@@ -498,6 +570,12 @@ export default function Dashboard() {
                 plan?.cancelAtPeriodEnd
                     ? "This plan is scheduled to end. Editing and upgrades are not available until you repurchase."
                     : "This plan is no longer active. Editing and upgrades are not available until you repurchase.",
+            );
+        }
+        const linkedListing = getLinkedListingForPlan(plan);
+        if (isSpotlightCancelPendingForPlan(plan, linkedListing)) {
+            throw new Error(
+                "This spotlight add-on is scheduled to end. Editing and plan changes are not available until that date passes.",
             );
         }
     };
@@ -585,6 +663,8 @@ export default function Dashboard() {
                         businessPhone: data.businessPhoneNumber || "", linkedin: data.linkedInProfileLink || "",
                         companyProfile: data.companyProfileText || "", businessAddress: data.businessAddress || "",
                         businessCountry: data.businessCountry || "",
+                        billingEmail: data.billingEmailAddress || "",
+                        businessId: data.VAT_ABN_EIN_businessId || "",
                     });
 
                     const sortAndDedupeOfferings = (items: any[]) => {
@@ -660,6 +740,15 @@ export default function Dashboard() {
                             setActivePlans(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.startDate?.seconds || 0) - (a.startDate?.seconds || 0)));
                         },
                         (err) => console.warn("Dashboard plans snapshot:", err?.message || err),
+                    );
+
+                    const featuresQ = query(collection(docRef, "featuresCollection"), where("active", "==", true));
+                    onSnapshot(
+                        featuresQ,
+                        (snap) => {
+                            setPartnerFeatures(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+                        },
+                        (err) => console.warn("Dashboard features snapshot:", err?.message || err),
                     );
                 } else {
                     navigate("/all-categories");
@@ -772,7 +861,24 @@ export default function Dashboard() {
                             setProfileSaving(false);
                             return;
                         }
-                        throw emailError;
+                        if (emailError?.code === "auth/invalid-email") {
+                            setProfileMsg("Enter a valid email address.");
+                            setProfileSaving(false);
+                            return;
+                        }
+                        if (emailError?.code === "auth/operation-not-allowed") {
+                            setProfileMsg("Email changes are not available for this account. Contact support if you need to update your sign-in email.");
+                            setProfileSaving(false);
+                            return;
+                        }
+                        if (emailError?.code === "auth/email-change-needs-verification") {
+                            setProfileMsg("Check your inbox to verify the new email address, then sign in again with that email.");
+                            setProfileSaving(false);
+                            return;
+                        }
+                        setProfileMsg(emailError?.message || "Could not update your sign-in email. Check your password and try again.");
+                        setProfileSaving(false);
+                        return;
                     }
                 }
 
@@ -786,23 +892,37 @@ export default function Dashboard() {
                     companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                     businessAddress: profileForm.businessAddress,
                     businessCountry: profileForm.businessCountry || "",
+                    billingEmailAddress: profileForm.billingEmail || "",
+                    VAT_ABN_EIN_businessId: profileForm.businessId || "",
                 });
 
                 const newBusinessName = (profileForm.companyName || "").trim();
                 const prevBusinessName = (partnerData?.businessName || "").trim();
-                if (newBusinessName && newBusinessName !== prevBusinessName && auth.currentUser) {
+                const profileListingPatch = {
+                    companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
+                    businessAddress: profileForm.businessAddress,
+                    businessCountry: profileForm.businessCountry || "",
+                    updatedAt: new Date(),
+                };
+                if (auth.currentUser) {
                     const uid = auth.currentUser.uid;
                     const batch = writeBatch(db);
                     const partnerRefPath = doc(db, "partnersCollection", uid);
                     const embeddedSnap = await getDocs(collection(partnerRefPath, "businessOfferingsCollection"));
                     embeddedSnap.docs.forEach((d) => {
-                        batch.update(d.ref, { businessName: newBusinessName, updatedAt: new Date() });
+                        batch.update(d.ref, {
+                            ...(newBusinessName && newBusinessName !== prevBusinessName ? { businessName: newBusinessName } : {}),
+                            ...profileListingPatch,
+                        });
                     });
                     const topCols = ["consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"] as const;
                     for (const col of topCols) {
                         const qSnap = await getDocs(query(collection(db, col), where("partnerId", "==", uid)));
                         qSnap.docs.forEach((d) => {
-                            batch.update(d.ref, { businessName: newBusinessName, updatedAt: new Date() });
+                            batch.update(d.ref, {
+                                ...(newBusinessName && newBusinessName !== prevBusinessName ? { businessName: newBusinessName } : {}),
+                                ...profileListingPatch,
+                            });
                         });
                     }
                     await batch.commit();
@@ -820,6 +940,8 @@ export default function Dashboard() {
                         companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                         businessAddress: profileForm.businessAddress,
                         businessCountry: profileForm.businessCountry || "",
+                        billingEmailAddress: profileForm.billingEmail || "",
+                        VAT_ABN_EIN_businessId: profileForm.businessId || "",
                     }
                 });
 
@@ -838,9 +960,20 @@ export default function Dashboard() {
                 setProfileMsg("Profile updated successfully!");
                 setTimeout(() => setProfileMsg(""), 3000);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Failed to update profile", err);
-            setProfileMsg("Failed to update profile. Please try again.");
+            const code = err?.code || "";
+            if (code === "auth/email-already-in-use") {
+                setProfileMsg("This email is already in use by another account.");
+            } else if (code === "auth/invalid-email") {
+                setProfileMsg("Enter a valid email address.");
+            } else if (code === "auth/requires-recent-login") {
+                setProfileMsg("For security, sign out and sign back in before changing your email.");
+            } else if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
+                setProfileMsg("Current password is incorrect. Your profile was not saved.");
+            } else {
+                setProfileMsg(err?.message || "Failed to update profile. Please try again.");
+            }
         } finally {
             setProfileSaving(false);
         }
@@ -892,6 +1025,12 @@ export default function Dashboard() {
                 const activeListingPlan = activePlans.filter(isPlanBillingLive).find(isFeatureEligiblePlan);
                 if (!activeListingPlan) {
                     throw new Error("You need a paid and active listing before buying a feature add-on.");
+                }
+                const linkedListing = getLinkedListingForPlan(activeListingPlan);
+                if (isSpotlightCancelPendingForPlan(activeListingPlan, linkedListing)) {
+                    throw new Error(
+                        "This spotlight add-on is already scheduled to end. You can purchase again after the current paid period ends.",
+                    );
                 }
                 const origin = window.location.origin;
                 const resp = await fetch(`${API_BASE_URL}/api/create-feature-checkout`, {
@@ -1079,12 +1218,6 @@ export default function Dashboard() {
                     if (updatedData.certifications !== undefined) {
                         updateObj.certifications = updatedData.certifications;
                     }
-                    if (updatedData.companyProfileText !== undefined) {
-                        updateObj.companyProfileText = updatedData.companyProfileText;
-                    }
-                    if (updatedData.businessAddress !== undefined) {
-                        updateObj.businessAddress = updatedData.businessAddress;
-                    }
                 }
 
                 const deferEventDatesForUpgrade =
@@ -1220,10 +1353,7 @@ export default function Dashboard() {
             setActionMessage({ type: "error", text: err.message || "This plan cannot be upgraded." });
             return;
         }
-        const linkedListing = offerings.find((o) =>
-            o.id === selectedPlanForAction.listingId &&
-            (!selectedPlanForAction.collectionName || o.__col === selectedPlanForAction.collectionName)
-        ) || offerings.find((o) => o.id === selectedPlanForAction.listingId);
+        const linkedListing = getLinkedListingForPlan(selectedPlanForAction);
 
         upgradeCheckoutContextRef.current = {
             targetPlanId: newPlanId,
@@ -1279,6 +1409,25 @@ export default function Dashboard() {
                 }
                 if (!response.ok || !payload?.success) {
                     const apiError = payload?.error;
+                    if (
+                        cancelScope === "feature" &&
+                        response.status === 409 &&
+                        typeof apiError === "string" &&
+                        apiError.toLowerCase().includes("already scheduled")
+                    ) {
+                        setActionMessage({
+                            type: "success",
+                            text: "Spotlight add-on is already scheduled to end at the close of your paid period.",
+                        });
+                        setShowCancelModal(false);
+                        setSelectedPlanForAction(null);
+                        setPendingUpgradePlanId(null);
+                        window.setTimeout(() => {
+                            setActionMessage({ type: "", text: "" });
+                            window.location.reload();
+                        }, 1200);
+                        return;
+                    }
                     if (!apiError && !response.ok) {
                         throw new Error(
                             response.status === 502
@@ -1289,8 +1438,8 @@ export default function Dashboard() {
                     throw new Error(apiError || "Cancellation request failed.");
                 }
 
-                if (cancelScope === "feature" && !payload?.cancelledFeature) {
-                    throw new Error("Spotlight cancellation could not be confirmed. Please refresh and try again.");
+                if (cancelScope === "feature" && payload?.cancelledFeature === false) {
+                    console.warn("Feature cancellation succeeded without cancelledFeature flag.");
                 }
 
                 const successText =
@@ -1325,7 +1474,7 @@ export default function Dashboard() {
                     throw new Error("Feature add-ons require a paid and active listing-backed plan.");
                 }
                 const linkedListing = getLinkedListingForPlan(selectedPlanForAction);
-                if (linkedListing && isSpotlightCancelPending(linkedListing)) {
+                if (linkedListing && isSpotlightCancelPendingForPlan(selectedPlanForAction, linkedListing)) {
                     throw new Error(
                         "This spotlight add-on is already scheduled to end. You can purchase again after the current paid period ends.",
                     );
@@ -1410,11 +1559,7 @@ export default function Dashboard() {
 
     const liveListingPlanForFeatures = livePlans.find(isFeatureEligiblePlan);
     const listingForGlobalFeatureModal = liveListingPlanForFeatures
-        ? offerings.find(
-            (o) =>
-                o.id === liveListingPlanForFeatures.listingId &&
-                (!liveListingPlanForFeatures.collectionName || o.__col === liveListingPlanForFeatures.collectionName)
-        ) || offerings.find((o) => o.id === liveListingPlanForFeatures.listingId)
+        ? getLinkedListingForPlan(liveListingPlanForFeatures)
         : null;
     const globalModalAddonTier = getEffectiveSpotlightFeatureId(
         listingForGlobalFeatureModal,
@@ -1655,6 +1800,10 @@ export default function Dashboard() {
                         planConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
                         linkedListing={getLinkedListingForPlan(selectedPlanForAction)}
                         hasFeature={hasStandaloneFeatureForPlan(selectedPlanForAction)}
+                        spotlightCancelPending={isSpotlightCancelPendingForPlan(
+                            selectedPlanForAction,
+                            getLinkedListingForPlan(selectedPlanForAction),
+                        )}
                         cancelError={cancelModalError}
                         onClose={() => {
                             setShowCancelModal(false);
@@ -1716,37 +1865,48 @@ export default function Dashboard() {
 
     // ─── DASHBOARD TAB ───
     function renderDashboard() {
-        const renderPlanSubscriptionCard = (plan: any, _mode: "ending" | "active") => {
+        const renderPlanSubscriptionCard = (plan: any, mode: "active" | "past" = "active") => {
+            const isPast = mode === "past";
             const planConfig = PLAN_CONFIGS[plan.planId];
             const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : plan.startDate ? new Date(plan.startDate) : null;
             const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null;
+            const cancelledAt = toDateValue(plan.cancelledAt);
             const isYearly = plan.billingInterval === "year" || plan.planId?.includes("_yr");
             const billingCycleLabel = isYearly ? "Annual" : "Monthly";
-            const linkedListing =
-                offerings.find((o) => o.id === plan.listingId && (!plan.collectionName || o.__col === plan.collectionName)) ||
-                offerings.find((o) => o.id === plan.listingId);
+            const linkedListing = getLinkedListingForPlan(plan);
             const planRepresentatives = linkedListing?.companyRepresentatives || plan.companyRepresentatives || [];
             const hasFeature = linkedListing?.selectedAddon && linkedListing?.selectedAddon !== "" && linkedListing?.selectedAddon !== "none";
             const includedPlanFeature = planConfig?.featurePlan;
             const effectiveSpotlightId = getEffectiveSpotlightFeatureId(linkedListing, plan.planId);
             const effectiveSpotlightTier = getEffectiveSpotlightTier(linkedListing, plan.planId);
+            const spotlightCancelPending = isSpotlightCancelPendingForPlan(plan, linkedListing);
+            const hasStandaloneAddon = hasStandaloneSpotlightAddon(linkedListing, plan.planId);
+            const standaloneSpotlightId = getStandaloneSpotlightFeatureId(linkedListing, plan.planId);
+            const standaloneSpotlightPlan = FEATURE_PLANS.find((f) => f.id === standaloneSpotlightId);
+            const standaloneSpotlightStart = toDateValue(linkedListing?.lastFeaturePaymentReceivedAt);
+            const standaloneSpotlightRenewal =
+                toDateValue(linkedListing?.featureSpotlightPaidThrough) ||
+                toDateValue(linkedListing?.featureSpotlightAccessEnd);
             const purchaseTargets = getFeaturePurchaseTargets(plan.planId, linkedListing);
             const upgradeTargets = getFeatureUpgradeTargets(effectiveSpotlightId, plan.planId, linkedListing);
             const canAddFeature =
                 purchaseTargets.length > 0 &&
                 isFeatureEligiblePlan(plan) &&
                 effectiveSpotlightTier === 0 &&
-                !isSpotlightCancelPending(linkedListing);
+                !spotlightCancelPending;
             const canUpgradeFeature =
                 upgradeTargets.length > 0 &&
                 isFeatureEligiblePlan(plan) &&
                 effectiveSpotlightTier > 0 &&
-                !isSpotlightCancelPending(linkedListing);
-            const isEnding = Boolean(plan.cancelAtPeriodEnd);
-            const actionsLocked = isPlanLockedForChanges(plan);
+                !spotlightCancelPending;
+            const isEnding = Boolean(plan.cancelAtPeriodEnd) && !isPast;
+            const actionsLocked = isPast || arePlanActionsLocked(plan, linkedListing);
             const canListingPlanUpgradeAction =
-                getAvailablePlanUpgradeIds(plan.planId).length > 0 && !actionsLocked;
-            const cardShell = isEnding
+                !isPast && getAvailablePlanUpgradeIds(plan.planId).length > 0 && !actionsLocked;
+            const pastStatusLabel = plan.cancelAtPeriodEnd ? "Cancelled" : plan.active === false ? "Expired" : "Ended";
+            const cardShell = isPast
+                ? "rounded-xl border border-foreground/15 bg-muted/25 p-5 opacity-95"
+                : isEnding
                 ? "rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-5"
                 : "rounded-xl border border-foreground/10 bg-muted/40 p-5";
             const planGroupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
@@ -1763,7 +1923,22 @@ export default function Dashboard() {
                                     <h4 className="text-lg font-bold text-foreground">
                                         {listingName || planSummaryParts.join(" · ") || planTierLabel}
                                     </h4>
-                                    {isEnding ? (
+                                    {isPast ? (
+                                        <>
+                                            <Badge className="bg-foreground/15 text-muted-foreground border-foreground/25">{pastStatusLabel}</Badge>
+                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
+                                            {cancelledAt && (
+                                                <span className="text-xs font-medium text-muted-foreground">
+                                                    Cancelled on {cancelledAt.toLocaleDateString()}
+                                                </span>
+                                            )}
+                                            {billingEnd && (
+                                                <span className="text-xs font-medium text-muted-foreground">
+                                                    Access ended {billingEnd.toLocaleDateString()}
+                                                </span>
+                                            )}
+                                        </>
+                                    ) : isEnding ? (
                                         <>
                                             <Badge className="bg-amber-500/15 text-amber-900 dark:text-amber-100 border-amber-500/50">Scheduled to end</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
@@ -1783,10 +1958,22 @@ export default function Dashboard() {
                                 {listingName && planSummaryParts.length > 0 && (
                                     <p className="text-sm text-muted-foreground mb-2">{planSummaryParts.join(" · ")}</p>
                                 )}
+                                {isPast && (
+                                    <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
+                                        This plan is no longer active. To subscribe again, use Add Listing on the dashboard when your account is eligible.
+                                    </p>
+                                )}
                                 {isEnding && (
                                     <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
                                         This plan is still active and accessible until the end date below. It is scheduled not to renew after that date.
                                         Editing, plan upgrades, and spotlight changes are disabled while cancellation is scheduled.
+                                    </p>
+                                )}
+                                {spotlightCancelPending && !isEnding && (
+                                    <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
+                                        Your spotlight add-on is scheduled to end on{" "}
+                                        {standaloneSpotlightRenewal?.toLocaleDateString() || "the end of your paid period"}.
+                                        Add-ons and upgrades are disabled until that date passes; you can purchase again afterward.
                                     </p>
                                 )}
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
@@ -1795,7 +1982,7 @@ export default function Dashboard() {
                                         <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">{isEnding ? "Ends on" : "Renewal date"}</p>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">{isPast ? "Ended on" : isEnding ? "Ends on" : "Renewal date"}</p>
                                         <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
                                     </div>
                                     <div>
@@ -1807,7 +1994,54 @@ export default function Dashboard() {
                                         <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
                                     </div>
                                 </div>
+                                {hasStandaloneAddon && (
+                                    <div className="mt-4 pt-4 border-t border-foreground/10">
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-3">
+                                            Spotlight add-on subscription
+                                        </p>
+                                        <div className="flex items-center gap-3 mb-3 flex-wrap">
+                                            <h5 className="text-sm font-semibold text-foreground">
+                                                {standaloneSpotlightPlan?.label || "Spotlight add-on"}
+                                            </h5>
+                                            {spotlightCancelPending ? (
+                                                <Badge className="bg-amber-500/15 text-amber-900 dark:text-amber-100 border-amber-500/50">
+                                                    Scheduled to end
+                                                </Badge>
+                                            ) : (
+                                                <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>
+                                            )}
+                                            <Badge variant="outline" className="border-foreground/20">Monthly</Badge>
+                                        </div>
+                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                            <div>
+                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Start date</p>
+                                                <p className="text-sm text-foreground font-medium">
+                                                    {standaloneSpotlightStart ? standaloneSpotlightStart.toLocaleDateString() : "N/A"}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">
+                                                    {spotlightCancelPending ? "Ends on" : "Renewal date"}
+                                                </p>
+                                                <p className="text-sm text-foreground font-medium">
+                                                    {standaloneSpotlightRenewal ? standaloneSpotlightRenewal.toLocaleDateString() : "N/A"}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Billing cycle</p>
+                                                <p className="text-sm text-foreground font-medium">Monthly</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Price</p>
+                                                <p className="text-sm text-foreground font-medium">
+                                                    {standaloneSpotlightPlan?.price || "N/A"}/month
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
+                            {!isPast && (
                             <div className="flex flex-wrap gap-2 shrink-0">
                                 {linkedListing && (
                                     <Button
@@ -1817,7 +2051,11 @@ export default function Dashboard() {
                                         disabled={actionsLocked}
                                         title={
                                             actionsLocked
-                                                ? "Editing is unavailable while this plan is cancelled or ended."
+                                                ? plan.cancelAtPeriodEnd
+                                                    ? "Editing is unavailable while this plan is scheduled to end."
+                                                    : spotlightCancelPending
+                                                        ? "Editing is unavailable while spotlight cancellation is scheduled."
+                                                        : "Editing is unavailable while this plan is cancelled or ended."
                                                 : undefined
                                         }
                                         onClick={() => {
@@ -1837,7 +2075,7 @@ export default function Dashboard() {
                                     disabled={actionsLocked || !canListingPlanUpgradeAction}
                                     title={
                                         actionsLocked
-                                            ? "Upgrades are unavailable while this plan is cancelled or ended."
+                                            ? "Upgrades are unavailable while this plan or spotlight add-on is scheduled to end."
                                             : !canListingPlanUpgradeAction
                                                 ? "No higher plan available."
                                                 : undefined
@@ -1897,30 +2135,20 @@ export default function Dashboard() {
                                     </Button>
                                 )}
                             </div>
+                            )}
                         </div>
                         {(includedPlanFeature || hasFeature) && (
                             <div className="pt-3 border-t border-foreground/10">
                                 <p className="text-sm text-foreground flex items-center gap-2">
                                     <Sparkles className="w-4 h-4 text-primary" />
-                                    {includedPlanFeature && !hasStandaloneSpotlightAddon(linkedListing)
+                                    {includedPlanFeature && !hasStandaloneAddon
                                         ? `Included: ${includedPlanFeature === "home_page" ? "Home page" : "Landing page"} spotlight`
                                         : `Active spotlight: ${FEATURE_PLANS.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label}`}
                                 </p>
-                                {linkedListing?.featureSpotlightCancelPending && linkedListing?.featureSpotlightAccessEnd && (
+                                {spotlightCancelPending && standaloneSpotlightRenewal && (
                                     <p className="text-xs text-amber-700 dark:text-amber-200 mt-1">
-                                        Spotlight add-on scheduled to end on{" "}
-                                        {linkedListing.featureSpotlightAccessEnd?.seconds
-                                            ? new Date(linkedListing.featureSpotlightAccessEnd.seconds * 1000).toLocaleDateString()
-                                            : new Date(linkedListing.featureSpotlightAccessEnd).toLocaleDateString()}
-                                        . It will not renew; you can purchase again after that date.
-                                    </p>
-                                )}
-                                {linkedListing?.featureSpotlightPaidThrough && (
-                                    <p className="text-xs text-muted-foreground mt-1">
-                                        Spotlight paid-through:{" "}
-                                        {linkedListing.featureSpotlightPaidThrough?.seconds
-                                            ? new Date(linkedListing.featureSpotlightPaidThrough.seconds * 1000).toLocaleDateString()
-                                            : new Date(linkedListing.featureSpotlightPaidThrough).toLocaleDateString()}
+                                        Spotlight add-on scheduled to end on {standaloneSpotlightRenewal.toLocaleDateString()}.
+                                        It will not renew; you can purchase again after that date.
                                     </p>
                                 )}
                             </div>
@@ -2118,49 +2346,7 @@ export default function Dashboard() {
                                         Cancelled, expired, or replaced — no longer billing. Labels reflect subscription state in Stripe and your account.
                                     </p>
                                     <div className="space-y-4">
-                                        {expiredPlans.map((plan) => {
-                                            const planConfig = PLAN_CONFIGS[plan.planId];
-                                            const linkedListing = getLinkedListingForPlan(plan);
-                                            const planGroupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
-                                            const listingName = getListingDisplayName(linkedListing, plan);
-                                            const planTierLabel = formatPlanTierLabel(plan, planConfig);
-                                            const planSummaryParts = [planGroupLabel, planTierLabel].filter(Boolean);
-                                            const endedAt =
-                                                getPlanPeriodEndDate(plan) ||
-                                                (plan.expiredAt?.seconds ? new Date(plan.expiredAt.seconds * 1000) : null);
-                                            const addType = addListingRouteTypeForPlan(plan);
-                                            const pastLabel = plan.active === false ? "Expired" : "Ended";
-                                            return (
-                                                <div key={plan.id} className="bg-muted/20 border border-foreground/10 rounded-xl p-5 opacity-90">
-                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                                                        <div>
-                                                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                                                                <h4 className="text-lg font-bold text-foreground">
-                                                                    {listingName || planSummaryParts.join(" · ") || planTierLabel}
-                                                                </h4>
-                                                                <Badge className="bg-foreground/15 text-muted-foreground border-foreground/25">{pastLabel}</Badge>
-                                                            </div>
-                                                            {listingName && planSummaryParts.length > 0 && (
-                                                                <p className="text-sm text-muted-foreground mb-1">{planSummaryParts.join(" · ")}</p>
-                                                            )}
-                                                            {endedAt && (
-                                                                <p className="text-sm text-muted-foreground">Billing ended {endedAt.toLocaleDateString()}</p>
-                                                            )}
-                                                        </div>
-                                                        {addType && (
-                                                            <Button
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="border-primary/50 text-primary shrink-0"
-                                                                onClick={() => handleAddPlan(addType)}
-                                                            >
-                                                                Repurchase plan
-                                                            </Button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
+                                        {expiredPlans.map((plan) => renderPlanSubscriptionCard(plan, "past"))}
                                     </div>
                                 </div>
                             )}
@@ -2283,6 +2469,14 @@ export default function Dashboard() {
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Linkedin profile</Label>
                         <Input value={profileForm.linkedin} onChange={e => setProfileForm({ ...profileForm, linkedin: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" placeholder="https://linkedin.com/company/..." />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-foreground/80">Billing / finance email</Label>
+                        <Input type="email" value={profileForm.billingEmail} onChange={e => setProfileForm({ ...profileForm, billingEmail: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
+                    </div>
+                    <div className="space-y-2">
+                        <Label className="text-foreground/80">VAT / ABN / EIN / Business ID</Label>
+                        <Input value={profileForm.businessId} onChange={e => setProfileForm({ ...profileForm, businessId: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" placeholder="Recommended for invoicing and taxes" />
                     </div>
                 </div>
 
@@ -2752,9 +2946,6 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
     ]);
     const [otherCertText, setOtherCertText] = useState(parsedOtherCert);
     const [showOtherCertInput, setShowOtherCertInput] = useState(Boolean(parsedOtherCert || existingCertifications.includes(OTHER_CERT_OPTION)));
-    const [companyProfile, setCompanyProfile] = useState(listing.companyProfileText || "");
-    const companyProfileTooLong = companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH;
-    const [businessAddress, setBusinessAddress] = useState(listing.businessAddress || "");
     const [representatives, setRepresentatives] = useState<Array<{ firstName: string; lastName: string; email: string }>>(
         Array.isArray(listing.companyRepresentatives) && listing.companyRepresentatives.length > 0
             ? listing.companyRepresentatives.map((rep: any) => ({
@@ -3114,7 +3305,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between shrink-0">
                     <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <Edit3 className="w-5 h-5 text-primary" /> Edit Listing
+                        <Edit3 className="w-5 h-5 text-primary" /> {isUpgradeFlow ? "Update listing for upgrade" : "Edit listing"}
                     </h2>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
@@ -3492,23 +3683,6 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                         </div>
                     )}
 
-                    {/* Company Profile */}
-                    {isBusinessOffering && (
-                        <div>
-                            <Label className="text-foreground/80 mb-2 block">Company Profile</Label>
-                            <Textarea
-                                value={companyProfile}
-                                onChange={e => setCompanyProfile(e.target.value)}
-                                placeholder="Describe your company's services and capabilities..."
-                                className={`h-32 bg-foreground/5 resize-none ${companyProfileTooLong ? "border-red-500 focus-visible:ring-red-500" : "border-foreground/10"}`}
-                            />
-                            {companyProfileTooLong && (
-                                <p className="text-xs text-red-500 mt-2">Company profile cannot exceed {COMPANY_PROFILE_MAX_LENGTH} characters.</p>
-                            )}
-                            <p className="text-xs text-muted-foreground mt-2">{companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
-                        </div>
-                    )}
-
                     <div>
                         <div className="flex items-center justify-between mb-3">
                             <Label className="text-foreground/80">Company representative(s)</Label>
@@ -3566,19 +3740,6 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             ))}
                         </div>
                     </div>
-
-                    {/* Business Address */}
-                    {isBusinessOffering && (
-                        <div>
-                            <Label className="text-foreground/80 mb-2 block">Business Address</Label>
-                            <Textarea
-                                value={businessAddress}
-                                onChange={e => setBusinessAddress(e.target.value)}
-                                placeholder="Enter your business address..."
-                                className="h-20 bg-foreground/5 border-foreground/10 resize-none"
-                            />
-                        </div>
-                    )}
                 </div>
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3 shrink-0">
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
@@ -3672,8 +3833,6 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                             .filter((cert) => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"))
                                     )
                                 ),
-                                companyProfileText: (companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
-                                businessAddress: businessAddress,
                                 companyRepresentatives: representatives
                                     .map((rep) => ({
                                         firstName: rep.firstName.trim(),
@@ -3724,7 +3883,6 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             processing ||
                             jobPdfUploading ||
                             eventAgendaPdfUploading ||
-                            companyProfileTooLong ||
                             (showOtherCertInput && !otherCertText.trim()) ||
                             representatives
                                 .map((rep) => ({
@@ -3921,22 +4079,24 @@ interface CancelPlanModalProps {
     planConfig: any;
     linkedListing?: any;
     hasFeature: boolean;
+    spotlightCancelPending?: boolean;
     cancelError?: string;
     onClose: () => void;
     onCancel: (scope: CancelScope) => void;
     processing: boolean;
 }
 
-function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, cancelError, onClose, onCancel, processing }: CancelPlanModalProps) {
+function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotlightCancelPending, cancelError, onClose, onCancel, processing }: CancelPlanModalProps) {
     const billingEnd =
         plan.billingPeriodEnd?.seconds
             ? new Date(plan.billingPeriodEnd.seconds * 1000)
             : getPlanPeriodEndDate(plan);
     const spotlightEnd =
-        toDateValue(linkedListing?.featureSpotlightPaidThrough) ||
         toDateValue(linkedListing?.featureSpotlightAccessEnd) ||
+        toDateValue(linkedListing?.featureSpotlightPaidThrough) ||
         billingEnd;
-    const [cancelChoice, setCancelChoice] = useState<CancelScope | null>(hasFeature ? null : "plan");
+    const showFeatureCancelChoice = hasFeature && !spotlightCancelPending;
+    const [cancelChoice, setCancelChoice] = useState<CancelScope | null>(showFeatureCancelChoice ? null : "plan");
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -3951,11 +4111,22 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, cancelEr
                 </div>
                 <div className="p-6 space-y-4">
                     <p className="text-foreground">
-                        {hasFeature
+                        {showFeatureCancelChoice
                             ? <>You have an active <span className="font-semibold">spotlight add-on</span> on this listing, plus your <span className="font-semibold">{planConfig?.label}</span> plan. Choose what to cancel.</>
                             : <>Cancel your <span className="font-semibold">{planConfig?.label}</span> subscription?</>}
                     </p>
-                    {hasFeature && (
+                    {spotlightCancelPending && (
+                        <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
+                            <p className="text-sm text-amber-800 dark:text-amber-100">
+                                Your spotlight add-on is already scheduled to end on{" "}
+                                <span className="font-semibold">
+                                    {spotlightEnd?.toLocaleDateString() || "the end of your paid period"}
+                                </span>
+                                . You can cancel the plan subscription below if needed.
+                            </p>
+                        </div>
+                    )}
+                    {showFeatureCancelChoice && (
                         <div className="space-y-2">
                             <p className="text-sm font-medium text-foreground">Choose one option</p>
                             <button
@@ -3984,7 +4155,7 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, cancelEr
                     )}
                     <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
                         <p className="text-sm text-yellow-400">
-                            {hasFeature && cancelChoice === "feature" ? (
+                            {showFeatureCancelChoice && cancelChoice === "feature" ? (
                                 <>
                                     Spotlight stays active until{" "}
                                     <span className="font-semibold">
@@ -3992,7 +4163,7 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, cancelEr
                                     </span>
                                     , then won&apos;t renew.
                                 </>
-                            ) : !hasFeature || cancelChoice === "plan" ? (
+                            ) : !showFeatureCancelChoice || cancelChoice === "plan" ? (
                                 <>
                                     Your subscription stays active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>.
                                     After that, access tied to this plan ends unless you purchase again.
@@ -4010,12 +4181,12 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, cancelEr
                     <Button variant="ghost" onClick={onClose}>Keep subscription</Button>
                     <Button
                         variant="destructive"
-                        onClick={() => onCancel(hasFeature ? (cancelChoice as CancelScope) : "plan")}
-                        disabled={processing || (hasFeature && !cancelChoice)}
+                        onClick={() => onCancel(showFeatureCancelChoice ? (cancelChoice as CancelScope) : "plan")}
+                        disabled={processing || (showFeatureCancelChoice && !cancelChoice)}
                     >
                         {processing
                             ? "Cancelling..."
-                            : hasFeature && cancelChoice === "feature"
+                            : showFeatureCancelChoice && cancelChoice === "feature"
                                 ? "Cancel spotlight"
                                 : "Cancel subscription"}
                     </Button>

@@ -695,6 +695,7 @@ export default function CompleteProfile() {
                 VAT_ABN_EIN_businessId: formData.businessId,
                 companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                 businessAddress: formData.businessAddress.trim(),
+                businessCountry: formData.businessCountry || "",
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,
                 // Feature add-ons can only be purchased after base plan payment.
@@ -742,13 +743,17 @@ export default function CompleteProfile() {
                 Object.assign(listingData, {
                     bioSafetyLevel: selectedBSL, certifications: normalizedCertifications,
                     serviceRegions: selectedRegions, serviceCountries: selectedCountries,
-                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: formData.businessAddress.trim(),
+                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
+                    businessAddress: formData.businessAddress.trim(),
+                    businessCountry: formData.businessCountry || "",
                 });
             } else if (formData.group === "consulting") {
                 Object.assign(updateData, { serviceRegions: selectedRegions, serviceCountries: selectedCountries });
                 Object.assign(listingData, {
                     serviceRegions: selectedRegions, serviceCountries: selectedCountries,
-                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH), businessAddress: formData.businessAddress.trim(),
+                    companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
+                    businessAddress: formData.businessAddress.trim(),
+                    businessCountry: formData.businessCountry || "",
                 });
             } else if (formData.group === "events") {
                 const highlights = eventData.agendaHighlights.trim();
