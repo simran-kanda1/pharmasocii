@@ -223,21 +223,28 @@ export default function CommunityFeed() {
     },
     [loading, loadingMore, hasNextPage, loadMore]
   );
-
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
+        const isSearchingOrFiltering = !!(
+          search.trim() ||
+          selectedCountries.length > 0 ||
+          selectedFilterKeys.length > 0
+        );
+
         const base = [
           collection(db, "postsCollection"),
           where("archived", "==", false),
           orderBy("createdAt", "desc"),
         ] as const;
-        const q = query(...base, limit(FEED_PAGE_SIZE));
+
+        const limitCount = isSearchingOrFiltering ? 1000 : FEED_PAGE_SIZE;
+        const q = query(...base, limit(limitCount));
         const snap = await getDocs(q);
         const newPosts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setPosts(newPosts);
-        setHasNextPage(snap.docs.length === FEED_PAGE_SIZE);
+        setHasNextPage(!isSearchingOrFiltering && snap.docs.length === FEED_PAGE_SIZE);
         lastVisibleDocRef.current = snap.docs[snap.docs.length - 1] || null;
       } catch (e) {
         console.error("Error fetching posts:", e);
@@ -245,7 +252,7 @@ export default function CommunityFeed() {
         setLoading(false);
       }
     })();
-  }, [refreshPostsKey]);
+  }, [refreshPostsKey, search, selectedCountries, selectedFilterKeys]);
 
   useEffect(() => {
     const q = searchParams.get("search") || "";
