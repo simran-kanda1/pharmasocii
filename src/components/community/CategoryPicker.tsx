@@ -14,7 +14,6 @@ import {
   canAddSubInPicker,
   canAddSubSubInPicker,
   categoryLimitHelpText,
-  countActiveMainsInPicker,
   summarizePickerSelection,
 } from "@/lib/communityCategoryLimits";
 

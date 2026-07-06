@@ -358,14 +358,6 @@ const inferPlanGroup = (plan: any): string => {
     return "";
 };
 
-const addListingRouteTypeForPlan = (plan: any): "offerings" | "consulting" | "events" | "jobs" | null => {
-    const g = inferPlanGroup(plan);
-    if (g === "business_offerings") return "offerings";
-    if (g === "consulting") return "consulting";
-    if (g === "events") return "events";
-    if (g === "jobs") return "jobs";
-    return null;
-};
 
 const inferListingGroup = (listing: any): string => {
     if (listing?.selectedGroup) return listing.selectedGroup;
