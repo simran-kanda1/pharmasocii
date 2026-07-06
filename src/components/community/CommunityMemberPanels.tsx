@@ -143,17 +143,22 @@ export function CommunityMemberPanels({
           const savedSnap = await getDocs(collection(db, "membersCollection", userId, "savedPostsCollection"));
           const loaded: Array<{ id: string; unavailable?: boolean } & CommunityPost> = [];
           for (const d of savedSnap.docs) {
-            const pr = await getDoc(doc(db, "postsCollection", d.id));
-            if (!pr.exists()) {
+            try {
+              const pr = await getDoc(doc(db, "postsCollection", d.id));
+              if (!pr.exists()) {
+                loaded.push({ id: d.id, unavailable: true } as { id: string; unavailable?: boolean } & CommunityPost);
+                continue;
+              }
+              const data = pr.data() as CommunityPost;
+              loaded.push({
+                id: pr.id,
+                ...data,
+                unavailable: data.archived === true,
+              });
+            } catch (err) {
+              console.warn(`Failed to fetch saved post ${d.id}:`, err);
               loaded.push({ id: d.id, unavailable: true } as { id: string; unavailable?: boolean } & CommunityPost);
-              continue;
             }
-            const data = pr.data() as CommunityPost;
-            loaded.push({
-              id: pr.id,
-              ...data,
-              unavailable: data.archived === true,
-            });
           }
           setSavedPosts(loaded);
 
@@ -164,11 +169,16 @@ export function CommunityMemberPanels({
           for (const d of savedCommentsSnap.docs) {
             const postId = String(d.data().postId || "");
             if (!postId) continue;
-            const cref = await getDoc(doc(db, "postsCollection", postId, "commentsCollection", d.id));
-            if (!cref.exists() || cref.data()?.archived === true) {
+            try {
+              const cref = await getDoc(doc(db, "postsCollection", postId, "commentsCollection", d.id));
+              if (!cref.exists() || cref.data()?.archived === true) {
+                rows.push({ commentId: d.id, postId, unavailable: true });
+              } else {
+                rows.push({ commentId: d.id, postId, preview: String(cref.data()?.text || "").slice(0, 120) });
+              }
+            } catch (err) {
+              console.warn(`Failed to fetch saved comment ${d.id}:`, err);
               rows.push({ commentId: d.id, postId, unavailable: true });
-            } else {
-              rows.push({ commentId: d.id, postId, preview: String(cref.data()?.text || "").slice(0, 120) });
             }
           }
           setSavedComments(rows);
@@ -295,26 +305,30 @@ export function CommunityMemberPanels({
                 )}
               </TabsContent>
               <TabsContent value="saved-comments" className="space-y-2 mt-0">
-                {savedComments.map((c) => (
-                  <div key={c.commentId} className="border rounded-lg p-3 text-sm">
-                    {c.unavailable ? (
-                      <p className="text-muted-foreground">Saved comment temporarily unavailable</p>
-                    ) : (
-                      <>
-                        <p className="line-clamp-2">{c.preview}</p>
-                        <Link
-                          to={`/community/post/${c.postId}?highlight=${c.commentId}`}
-                          className="text-xs text-primary underline mt-2 inline-block"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => saveCommunityFeedScroll(c.postId)}
-                        >
-                          Open post
-                        </Link>
-                      </>
-                    )}
-                  </div>
-                ))}
+                {savedComments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground px-2">No saved comments yet.</p>
+                ) : (
+                  savedComments.map((c) => (
+                    <div key={c.commentId} className="border rounded-lg p-3 text-sm">
+                      {c.unavailable ? (
+                        <p className="text-muted-foreground">Saved comment temporarily unavailable</p>
+                      ) : (
+                        <>
+                          <p className="line-clamp-2">{c.preview}</p>
+                          <Link
+                            to={`/community/post/${c.postId}?highlight=${c.commentId}`}
+                            className="text-xs text-primary underline mt-2 inline-block"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => saveCommunityFeedScroll(c.postId)}
+                          >
+                            Open post
+                          </Link>
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
               </TabsContent>
             </>
           )}

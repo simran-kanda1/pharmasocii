@@ -172,7 +172,7 @@ service cloud.firestore {
 
     // --- Community posts ---
     match /postsCollection/{postId} {
-      allow read: if (resource.data.archived != true) || isAdmin();
+      allow read: if resource == null || (resource.data.archived != true) || isAdmin();
 
       allow create: if canUseCommunityWrites()
         && request.resource.data.authorId == request.auth.uid
@@ -223,7 +223,7 @@ service cloud.firestore {
 
       match /commentsCollection/{commentId} {
         // Public read; UI hides archived comments.
-        allow read: if (!('archived' in resource.data) || resource.data.archived != true) || isAdmin();
+        allow read: if resource == null || (!('archived' in resource.data) || resource.data.archived != true) || isAdmin();
 
         allow create: if canUseCommunityWrites()
           && request.resource.data.authorId == request.auth.uid
