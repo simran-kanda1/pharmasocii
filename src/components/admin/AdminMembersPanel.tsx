@@ -196,7 +196,6 @@ export function AdminMembersPanel() {
               <TableHead>Institution</TableHead>
               <TableHead>Industry</TableHead>
               <TableHead>Posts</TableHead>
-              <TableHead>Spam reports</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Verified</TableHead>
               <TableHead>Joined</TableHead>
@@ -209,13 +208,13 @@ export function AdminMembersPanel() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={17} className="text-muted-foreground">
+                <TableCell colSpan={16} className="text-muted-foreground">
                   Loading…
                 </TableCell>
               </TableRow>
             ) : pageRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={17} className="text-muted-foreground">
+                <TableCell colSpan={16} className="text-muted-foreground">
                   No community members found.
                 </TableCell>
               </TableRow>
@@ -231,7 +230,6 @@ export function AdminMembersPanel() {
                   <TableCell>{m.institution || "—"}</TableCell>
                   <TableCell>{m.industry || "—"}</TableCell>
                   <TableCell>{m.postCount}</TableCell>
-                  <TableCell>{m.spamTotalReportCount ?? 0}</TableCell>
                   <TableCell>{statusBadge(m.accountStatus)}</TableCell>
                   <TableCell>{m.emailVerified ? "Yes" : "No"}</TableCell>
                   <TableCell>{formatAdminDate(m.createdAt?.toDate?.())}</TableCell>

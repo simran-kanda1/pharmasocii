@@ -27,7 +27,7 @@ import { postMatchesFilterKeys } from "@/lib/communityCategoryDisplay";
 import { CommunityMemberSidebar, type CommunityView } from "@/components/community/CommunityMemberSidebar";
 import { CommunityMemberPanels } from "@/components/community/CommunityMemberPanels";
 import { CreatePostModal, type CreatePostModalAction } from "@/components/community/CreatePostModal";
-import { purgeExpiredNotifications } from "@/lib/communityNotifications";
+import { loadUnreadNotificationCount } from "@/lib/communityNotifications";
 import {
   loadMemberEngagementIds,
   togglePostHelpful,
@@ -111,13 +111,7 @@ export default function CommunityFeed() {
           const engagement = await loadMemberEngagementIds(u.uid);
           setSavedPostIds(engagement.savedPostIds);
           setHelpfulPostIds(engagement.helpfulPostIds);
-          await purgeExpiredNotifications(u.uid);
-          const nq = query(
-            collection(db, "membersCollection", u.uid, "notificationsCollection"),
-            where("isRead", "==", false),
-          );
-          const ns = await getDocs(nq);
-          setNotificationUnread(ns.size);
+          setNotificationUnread(await loadUnreadNotificationCount(u.uid));
         } else {
           setSavedPostIds(new Set());
           setHelpfulPostIds(new Set());
@@ -140,6 +134,16 @@ export default function CommunityFeed() {
     });
     return () => unsub();
   }, []);
+
+  useEffect(() => {
+    if (!user?.uid || !hasMemberProfile) return;
+    const refreshNotifications = () => {
+      loadUnreadNotificationCount(user.uid).then(setNotificationUnread).catch(() => {});
+    };
+    refreshNotifications();
+    window.addEventListener("focus", refreshNotifications);
+    return () => window.removeEventListener("focus", refreshNotifications);
+  }, [user?.uid, hasMemberProfile]);
 
   useEffect(() => {
     if (!user?.uid || !hasMemberProfile || !filtersHydratedRef.current) return;
@@ -353,12 +357,23 @@ export default function CommunityFeed() {
   const handleClearSearch = () => {
     setQInput("");
     setSearch("");
-    setSelectedCountries([]);
-    setSelectedFilterKeys([]);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.delete("search");
-      next.delete("view");
+      return next;
+    });
+  };
+
+  const applySearchFromInput = (value: string) => {
+    const trimmed = value.trim();
+    setSearch(trimmed);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (trimmed) {
+        next.set("search", trimmed);
+      } else {
+        next.delete("search");
+      }
       return next;
     });
   };
@@ -476,23 +491,20 @@ export default function CommunityFeed() {
                       className="flex gap-2"
                       onSubmit={(e) => {
                         e.preventDefault();
-                        setSearch(qInput);
-                        setSearchParams((prev) => {
-                          const next = new URLSearchParams(prev);
-                          if (qInput.trim()) {
-                            next.set("search", qInput.trim());
-                          } else {
-                            next.delete("search");
-                          }
-                          return next;
-                        });
+                        applySearchFromInput(qInput);
                       }}
                     >
                       <div className="relative flex-1">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                         <Input
                           value={qInput}
-                          onChange={(e) => setQInput(e.target.value)}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setQInput(value);
+                            if (!value.trim()) {
+                              applySearchFromInput("");
+                            }
+                          }}
                           placeholder="Search here"
                           className="pl-9 pr-10 h-11 bg-slate-50 border-slate-200 dark:bg-muted/30"
                         />
@@ -532,6 +544,8 @@ export default function CommunityFeed() {
                 engageHint={engageHint}
                 savedPostIds={savedPostIds}
                 helpfulPostIds={helpfulPostIds}
+                selectedCountries={selectedCountries}
+                selectedFilterKeys={selectedFilterKeys}
                 onToggleSave={toggleSavePost}
                 onToggleHelpful={toggleHelpfulPost}
                 onUnreadChange={setNotificationUnread}

@@ -10,7 +10,7 @@ import {
   updateDoc,
   where,
 } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { auth, db } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
@@ -30,10 +30,12 @@ import { getAllCommunityCountries } from "@/lib/communityCountries";
 import {
   deleteMemberNotification,
   filterNotificationsByAge,
+  countUnreadNotificationsFromList,
   notificationTargetUrl,
   purgeExpiredNotifications,
   type MemberNotification,
 } from "@/lib/communityNotifications";
+import { postMatchesFilterKeys } from "@/lib/communityCategoryDisplay";
 
 type Props = {
   view: CommunityView;
@@ -46,6 +48,8 @@ type Props = {
   engageHint?: string;
   savedPostIds: Set<string>;
   helpfulPostIds: Set<string>;
+  selectedCountries?: string[];
+  selectedFilterKeys?: string[];
   onToggleSave: (postId: string) => void;
   onToggleHelpful: (postId: string) => void;
   onUnreadChange?: (count: number) => void;
@@ -62,6 +66,8 @@ export function CommunityMemberPanels({
   engageHint,
   savedPostIds,
   helpfulPostIds,
+  selectedCountries = [],
+  selectedFilterKeys = [],
   onToggleSave,
   onToggleHelpful,
   onUnreadChange,
@@ -84,19 +90,16 @@ export function CommunityMemberPanels({
   const [spamActive, setSpamActive] = useState(0);
   const [accountStatus, setAccountStatus] = useState<string>("active");
   const [spamBlockUntil, setSpamBlockUntil] = useState<Date | null>(null);
-<<<<<<< HEAD
+  const [country, setCountry] = useState("");
+  const [institution, setInstitution] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [aboutMe, setAboutMe] = useState("");
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMsg, setPasswordMsg] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const passwordChecks = getPasswordPolicyChecks(newPassword);
-=======
-  const [country, setCountry] = useState("");
-  const [institution, setInstitution] = useState("");
-  const [industry, setIndustry] = useState("");
-  const [aboutMe, setAboutMe] = useState("");
->>>>>>> 014f65933c9589db4da5600ba4f6c012d02ecb60
 
   useEffect(() => {
     if (view === "home" || !userId) return;
@@ -183,7 +186,7 @@ export function CommunityMemberPanels({
             ns.docs.map((d) => ({ id: d.id, ...d.data() })) as MemberNotification[],
           );
           setNotifications(list);
-          onUnreadChange?.(list.filter((n) => !n.isRead).length);
+          onUnreadChange?.(countUnreadNotificationsFromList(list));
         }
       } catch (e) {
         console.error(e);
@@ -192,6 +195,43 @@ export function CommunityMemberPanels({
       }
     })();
   }, [view, userId, onUnreadChange]);
+
+  const filteredMyPosts = useMemo(() => {
+    return myPosts.filter((p) => {
+      if (selectedCountries.length > 0) {
+        const countries = p.countries || [];
+        if (!countries.some((c) => selectedCountries.includes(c))) return false;
+      }
+      if (selectedFilterKeys.length > 0) {
+        return postMatchesFilterKeys(p.filterKeys, selectedFilterKeys, {
+          mainCategories: p.mainCategories,
+          subCategories: p.subCategories,
+          subSubCategories: p.subSubCategories,
+        });
+      }
+      return true;
+    });
+  }, [myPosts, selectedCountries, selectedFilterKeys]);
+
+  const filteredSavedPosts = useMemo(() => {
+    return savedPosts.filter((p) => {
+      if (p.unavailable) return true;
+      if (selectedCountries.length > 0) {
+        const countries = p.countries || [];
+        if (!countries.some((c) => selectedCountries.includes(c))) return false;
+      }
+      if (selectedFilterKeys.length > 0) {
+        return postMatchesFilterKeys(p.filterKeys, selectedFilterKeys, {
+          mainCategories: p.mainCategories,
+          subCategories: p.subCategories,
+          subSubCategories: p.subSubCategories,
+        });
+      }
+      return true;
+    });
+  }, [savedPosts, selectedCountries, selectedFilterKeys]);
+
+  const hasActiveFilters = selectedCountries.length > 0 || selectedFilterKeys.length > 0;
 
   const postCardProps = (p: { id: string } & CommunityPost) => ({
     post: p as never,
@@ -223,20 +263,35 @@ export function CommunityMemberPanels({
           ) : (
             <>
               <TabsContent value="my-posts" className="space-y-4 mt-0">
-                <p className="text-sm text-muted-foreground">{myPosts.length} posts</p>
-                {myPosts.map((p) => (
-                  <PostCard key={p.id} {...postCardProps(p)} />
-                ))}
+                <p className="text-sm text-muted-foreground">
+                  {filteredMyPosts.length} post{filteredMyPosts.length === 1 ? "" : "s"}
+                  {hasActiveFilters && filteredMyPosts.length !== myPosts.length
+                    ? ` (of ${myPosts.length})`
+                    : ""}
+                </p>
+                {filteredMyPosts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground px-2">
+                    {hasActiveFilters ? "No posts match your filters." : "No posts yet."}
+                  </p>
+                ) : (
+                  filteredMyPosts.map((p) => <PostCard key={p.id} {...postCardProps(p)} />)
+                )}
               </TabsContent>
               <TabsContent value="saved-posts" className="space-y-4 mt-0">
-                {savedPosts.map((p) =>
-                  p.unavailable ? (
-                    <div key={p.id} className="border rounded-lg p-3 text-sm text-muted-foreground">
-                      Saved post temporarily unavailable
-                    </div>
-                  ) : (
-                    <PostCard key={p.id} {...postCardProps(p)} />
-                  ),
+                {filteredSavedPosts.length === 0 ? (
+                  <p className="text-sm text-muted-foreground px-2">
+                    {hasActiveFilters ? "No saved posts match your filters." : "No saved posts yet."}
+                  </p>
+                ) : (
+                  filteredSavedPosts.map((p) =>
+                    p.unavailable ? (
+                      <div key={p.id} className="border rounded-lg p-3 text-sm text-muted-foreground">
+                        Saved post temporarily unavailable
+                      </div>
+                    ) : (
+                      <PostCard key={p.id} {...postCardProps(p)} />
+                    ),
+                  )
                 )}
               </TabsContent>
               <TabsContent value="saved-comments" className="space-y-2 mt-0">
@@ -279,7 +334,7 @@ export function CommunityMemberPanels({
           });
           setNotifications((prev) => {
             const next = prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x));
-            onUnreadChange?.(next.filter((x) => !x.isRead).length);
+            onUnreadChange?.(countUnreadNotificationsFromList(next));
             return next;
           });
         } catch (e) {
@@ -294,7 +349,7 @@ export function CommunityMemberPanels({
         await deleteMemberNotification(userId, n.id);
         const next = notifications.filter((x) => x.id !== n.id);
         setNotifications(next);
-        onUnreadChange?.(next.filter((x) => !x.isRead).length);
+        onUnreadChange?.(countUnreadNotificationsFromList(next));
       } catch (e) {
         console.error(e);
       }

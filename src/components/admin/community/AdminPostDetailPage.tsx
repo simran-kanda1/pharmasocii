@@ -88,7 +88,7 @@ export function AdminPostDetailPage({
             ),
           },
           { label: "Likes", value: String(post.likeCount ?? 0) },
-          { label: "Comments", value: String(post.commentCount ?? 0) },
+          { label: "Comments", value: `${post.activeCommentCount ?? post.commentCount ?? 0} active · ${post.totalCommentCount ?? post.commentCount ?? 0} total` },
           { label: "Countries", value: (post.countries || []).join(", ") || "—" },
           {
             label: "Categories",

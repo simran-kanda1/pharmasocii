@@ -91,6 +91,13 @@
       ]
     },
     {
+      "collectionGroup": "planCollection",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        { "fieldPath": "stripeSubscriptionId", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "verificationMirrors",
       "queryScope": "COLLECTION",
       "fields": [

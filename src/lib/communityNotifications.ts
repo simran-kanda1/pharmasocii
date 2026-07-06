@@ -28,7 +28,7 @@ export async function purgeExpiredNotifications(userId: string): Promise<number>
   const snap = await getDocs(collection(db, "membersCollection", userId, "notificationsCollection"));
   const stale = snap.docs.filter((d) => {
     const created = d.data().createdAt?.toDate?.();
-    return created && created < cutoff;
+    return !created || created < cutoff;
   });
   if (stale.length === 0) return 0;
   const batch = writeBatch(db);
@@ -46,7 +46,19 @@ export async function deleteMemberNotification(userId: string, notificationId: s
 export function filterNotificationsByAge(list: MemberNotification[]): MemberNotification[] {
   const cutoff = Date.now() - NOTIFICATION_MAX_AGE_MS;
   return list.filter((n) => {
-    const ts = n.createdAt?.toDate?.()?.getTime() ?? Date.now();
-    return ts >= cutoff;
+    const ts = n.createdAt?.toDate?.()?.getTime();
+    return ts != null && ts >= cutoff;
   });
+}
+
+export function countUnreadNotificationsFromList(list: MemberNotification[]): number {
+  return filterNotificationsByAge(list).filter((n) => !n.isRead).length;
+}
+
+/** Purge stale notifications and return unread count for notifications still within the retention window. */
+export async function loadUnreadNotificationCount(userId: string): Promise<number> {
+  await purgeExpiredNotifications(userId);
+  const snap = await getDocs(collection(db, "membersCollection", userId, "notificationsCollection"));
+  const list = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as MemberNotification[];
+  return countUnreadNotificationsFromList(list);
 }

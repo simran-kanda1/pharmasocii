@@ -41,13 +41,9 @@ import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normal
 import { ArrowLeft, Link2, MessageSquare, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
-<<<<<<< HEAD
 import { syncPostCommentCount, recordCommentNotification } from "@/lib/communityCallables";
-=======
-import { syncPostCommentCount } from "@/lib/communityCallables";
 import { CreatePostModal } from "@/components/community/CreatePostModal";
 import type { PostCardPost } from "@/components/community/PostCard";
->>>>>>> 014f65933c9589db4da5600ba4f6c012d02ecb60
 
 const MAX_COMMENT_IMAGE_BYTES = 1.5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -69,6 +65,7 @@ export default function CommunityPostDetail() {
   const { postId } = useParams<{ postId: string }>();
   const [searchParams] = useSearchParams();
   const highlightCommentId = searchParams.get("highlight");
+  const returnTo = searchParams.get("return");
   const { categoryDoc } = useCommunityCategories();
   const commentRefs = useRef<Record<string, HTMLLIElement | null>>({});
   const syncCommentCountBusy = useRef(false);
@@ -432,7 +429,7 @@ export default function CommunityPostDetail() {
     return (
       <div className="container mx-auto px-4 py-16 max-w-2xl">
         <p className="text-muted-foreground">Post not found.</p>
-        <Button type="button" variant="link" className="mt-4 px-0" onClick={() => goBackToCommunityFeed(navigate)}>
+        <Button type="button" variant="link" className="mt-4 px-0" onClick={() => goBackToCommunityFeed(navigate, returnTo)}>
           Back to feed
         </Button>
       </div>
@@ -467,7 +464,7 @@ export default function CommunityPostDetail() {
         type="button"
         variant="ghost"
         className="mb-6 gap-2"
-        onClick={() => goBackToCommunityFeed(navigate)}
+        onClick={() => goBackToCommunityFeed(navigate, returnTo)}
       >
         <ArrowLeft className="w-4 h-4" /> Back
       </Button>
@@ -519,8 +516,8 @@ export default function CommunityPostDetail() {
               <CommunityIconAction
                 label="Spam"
                 icon={communityActionIcons.report}
-                disabled={!canReport}
-                title={!canReport ? reportHint : "Report content"}
+                disabled={!canReport || Boolean(isAuthor)}
+                title={isAuthor ? "You cannot report your own content." : !canReport ? reportHint : "Report content"}
                 onClick={() => openReport("post")}
               />
               <CommunityIconAction
@@ -582,7 +579,10 @@ export default function CommunityPostDetail() {
 
       <section id="comments" className="mt-10 space-y-4 scroll-mt-24">
         <h2 className="text-lg font-semibold">
-          Comments{comments.length > 0 ? ` (${comments.length})` : ""}
+          Comments
+          {(Number(post.commentCount ?? 0) > 0 || comments.length > 0)
+            ? ` (${Number(post.commentCount ?? comments.length)})`
+            : ""}
         </h2>
         <p className="text-xs text-muted-foreground">
           You can comment on a post and reply once to a comment. Replies to replies are not allowed.
@@ -645,6 +645,7 @@ export default function CommunityPostDetail() {
                   }}
                   onReport={() => openReport("comment", c)}
                   onToggleSave={() => toggleSaveComment(c.id)}
+                  isOwnComment={Boolean(user?.uid && c.authorId === user.uid)}
                 />
                 {replyTo?.id === c.id && (
                   <CommentComposer
@@ -745,6 +746,7 @@ export default function CommunityPostDetail() {
                               }}
                               onReport={() => openReport("comment", r)}
                               onToggleSave={() => toggleSaveComment(r.id)}
+                              isOwnComment={Boolean(user?.uid && r.authorId === user.uid)}
                             />
                           ))}
                         </ul>
@@ -918,6 +920,7 @@ function CommentItem({
   onReply,
   onReport,
   onToggleSave,
+  isOwnComment = false,
 }: {
   postId: string;
   comment: CommentRow;
@@ -938,6 +941,7 @@ function CommentItem({
   onReply?: () => void;
   onReport: () => void;
   onToggleSave: () => void;
+  isOwnComment?: boolean;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [copyMsg, setCopyMsg] = useState("");
@@ -1001,8 +1005,8 @@ function CommentItem({
             <CommunityIconAction
               label="Spam"
               icon={communityActionIcons.report}
-              disabled={!canReport}
-              title={!canReport ? reportHint : "Report content"}
+              disabled={!canReport || isOwnComment}
+              title={isOwnComment ? "You cannot report your own content." : !canReport ? reportHint : "Report content"}
               onClick={onReport}
             />
             <CommunityIconAction

@@ -141,6 +141,77 @@ async function recountActiveCommentCount(postId) {
     return count;
 }
 
+async function archiveCommentWithReplies(postId, commentId, reason, archivedAt) {
+    const commentsSnap = await db
+        .collection("postsCollection")
+        .doc(postId)
+        .collection("commentsCollection")
+        .get();
+    let batch = db.batch();
+    let batchOps = 0;
+    let archived = 0;
+    const archivedAtValue = archivedAt || FieldValue.serverTimestamp();
+    for (const c of commentsSnap.docs) {
+        const data = c.data();
+        if (data.archived === true) continue;
+        const isParent = c.id === commentId;
+        const isReply = data.parentCommentId === commentId;
+        if (!isParent && !isReply) continue;
+        const update = {
+            archived: true,
+            archivedAt: archivedAtValue,
+            archivedReason: isReply ? "parent_archived" : reason || "admin",
+        };
+        batch.update(c.ref, update);
+        batchOps += 1;
+        archived += 1;
+        if (batchOps >= 450) {
+            await batch.commit();
+            batch = db.batch();
+            batchOps = 0;
+        }
+    }
+    if (batchOps > 0) await batch.commit();
+    return archived;
+}
+
+async function restoreCommentWithReplies(postId, commentId) {
+    const commentsSnap = await db
+        .collection("postsCollection")
+        .doc(postId)
+        .collection("commentsCollection")
+        .get();
+    let batch = db.batch();
+    let batchOps = 0;
+    let restored = 0;
+    for (const c of commentsSnap.docs) {
+        const data = c.data();
+        if (data.archived !== true) continue;
+        const isParent = c.id === commentId;
+        const isReply = data.parentCommentId === commentId && data.archivedReason === "parent_archived";
+        if (!isParent && !isReply) continue;
+        const update = {
+            archived: false,
+            archivedReason: FieldValue.delete(),
+            archivedAt: FieldValue.delete(),
+        };
+        if (isParent) {
+            update.spamReportCount = 0;
+            update.reportedBy = [];
+        }
+        batch.update(c.ref, update);
+        batchOps += 1;
+        restored += 1;
+        if (batchOps >= 450) {
+            await batch.commit();
+            batch = db.batch();
+            batchOps = 0;
+        }
+    }
+    if (batchOps > 0) await batch.commit();
+    return restored;
+}
+
 async function archiveAllCommentsForPost(postId) {
     const commentsSnap = await db
         .collection("postsCollection")
@@ -522,6 +593,14 @@ exports.onSpamReportCreated = onDocumentCreated(
                 }
                 tx.update(cref, update);
             });
+            if (contentArchived) {
+                await archiveCommentWithReplies(
+                    postId,
+                    commentId,
+                    "spam_reports",
+                    admin.firestore.Timestamp.fromDate(reportCreatedAt),
+                );
+            }
             if (shouldRecount) await recountActiveCommentCount(postId);
         }
 
@@ -702,13 +781,7 @@ exports.adminRestoreComment = onCall({ region: "us-central1", cors: true }, asyn
         });
         await restoreCommentsArchivedForPost(postId);
     } else {
-        await cref.update({
-            archived: false,
-            archivedReason: FieldValue.delete(),
-            archivedAt: FieldValue.delete(),
-            spamReportCount: 0,
-            reportedBy: [],
-        });
+        await restoreCommentWithReplies(postId, commentId);
     }
     await recountActiveCommentCount(postId);
     const { email, userName } = await getMemberEmailAndName(authorId);
@@ -731,11 +804,7 @@ exports.adminArchiveComment = onCall({ region: "us-central1", cors: true }, asyn
     const c = await cref.get();
     if (!c.exists) throw new HttpsError("not-found", "Comment not found.");
     if (c.data()?.archived === true) return { ok: true, alreadyArchived: true };
-    await cref.update({
-        archived: true,
-        archivedReason: reason || "admin",
-        archivedAt: FieldValue.serverTimestamp(),
-    });
+    await archiveCommentWithReplies(postId, commentId, reason || "admin");
     const postSnap = await db.collection("postsCollection").doc(postId).get();
     if (postSnap.exists && postSnap.data()?.archived !== true) {
         await recountActiveCommentCount(postId);

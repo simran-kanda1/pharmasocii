@@ -79,8 +79,24 @@ export function restoreCommunityFeedScroll(): boolean {
   return true;
 }
 
+/** Build post detail URL, preserving feed search/filters for back navigation. */
+export function communityPostDetailPath(postId: string, rememberFeedScroll?: boolean, hash?: string): string {
+  const suffix = hash ? `#${hash}` : "";
+  if (!rememberFeedScroll || typeof window === "undefined") {
+    return `/community/post/${postId}${suffix}`;
+  }
+  const returnTo = encodeURIComponent(`${window.location.pathname}${window.location.search}`);
+  return `/community/post/${postId}?return=${returnTo}${suffix}`;
+}
+
 /** Back from post detail — return to saved feed URL/scroll when possible. */
-export function goBackToCommunityFeed(navigate: NavigateFunction): void {
+export function goBackToCommunityFeed(navigate: NavigateFunction, returnTo?: string | null): void {
+  const decoded = returnTo ? decodeURIComponent(returnTo) : null;
+  if (decoded && isCommunityFeedPath(decoded.split("?")[0] || decoded)) {
+    navigate(decoded);
+    return;
+  }
+
   const snap = peekCommunityFeedScroll();
   if (snap && isCommunityFeedPath(snap.pathname)) {
     navigate(`${snap.pathname}${snap.search}`);

@@ -13,7 +13,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
+import { saveCommunityFeedScroll, communityPostDetailPath } from "@/lib/communityScrollRestore";
 
 type PostActionBarProps = {
   postId: string;
@@ -125,10 +125,13 @@ export function PostActionBar({
     });
   };
 
+  const currentUserId = auth.currentUser?.uid;
+  const isOwnContent = Boolean(currentUserId && targetAuthorId && currentUserId === targetAuthorId);
   const disabledTitle = engageHint || "Sign in with a verified member profile to use this.";
   const shareDisabledTitle = !canShare
     ? engageHint || "Sign in with a verified member profile to share."
     : undefined;
+  const ownContentTitle = "You cannot use this on your own post.";
 
   const hoverWarningTitle = shareDisabledTitle || "May not work if this content is later archived due to spam activity";
 
@@ -143,10 +146,11 @@ export function PostActionBar({
         onPointerDown={(e) => e.stopPropagation()}
       >
         <Link
-          to={`/community/post/${postId}#comments`}
+          to={communityPostDetailPath(postId, rememberFeedScroll, "comments")}
           className="flex shrink-0 items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 dark:border-foreground/10 dark:hover:bg-card min-w-[6.5rem]"
-          target="_blank"
-          rel="noopener noreferrer"
+          {...(rememberFeedScroll
+            ? {}
+            : { target: "_blank" as const, rel: "noopener noreferrer" })}
           onClick={(e) => {
             e.stopPropagation();
             if (rememberFeedScroll) saveCommunityFeedScroll(postId);
@@ -161,7 +165,8 @@ export function PostActionBar({
           label={`Helpful (${Math.max(0, helpfulCount)})`}
           icon={CheckSquare}
           active={helpful}
-          title={!canEngage ? disabledTitle : helpful ? "Remove helpful" : "Mark as helpful"}
+          disabled={isOwnContent}
+          title={isOwnContent ? ownContentTitle : !canEngage ? disabledTitle : helpful ? "Remove helpful" : "Mark as helpful"}
           onClick={() => requireEngage(onToggleHelpful)}
           className="flex-1 min-w-[100px]"
         />
@@ -176,7 +181,8 @@ export function PostActionBar({
         <ActionBtn
           label="Spam"
           icon={ShieldAlert}
-          title={!canReport ? disabledTitle : "Report content"}
+          disabled={isOwnContent}
+          title={isOwnContent ? ownContentTitle : !canReport ? disabledTitle : "Report content"}
           onClick={() => requireReport(() => setReportOpen(true))}
           className="flex-1 min-w-[80px]"
         />
@@ -211,6 +217,7 @@ function ActionBtn({
   icon: Icon,
   onClick,
   active,
+  disabled,
   title,
   className,
 }: {
@@ -218,15 +225,18 @@ function ActionBtn({
   icon: React.ComponentType<{ className?: string }>;
   onClick?: () => void;
   active?: boolean;
+  disabled?: boolean;
   title?: string;
   className?: string;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       className={cn(
         "flex items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 last:border-r-0 dark:border-foreground/10 dark:hover:bg-card",
         active && "text-primary bg-white dark:bg-card",
+        disabled && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground",
         className,
       )}
       onClick={(e) => {

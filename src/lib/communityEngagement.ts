@@ -53,6 +53,9 @@ export async function togglePostHelpful(userId: string, postId: string, helpful:
   await runTransaction(db, async (tx) => {
     const postSnap = await tx.get(postRef);
     if (!postSnap.exists()) throw new Error("Post not found.");
+    if (postSnap.data().authorId === userId) {
+      throw new Error("You cannot mark your own post as helpful.");
+    }
     const likeCount = Number(postSnap.data().likeCount ?? 0);
     if (helpful) {
       tx.delete(helpfulRef);

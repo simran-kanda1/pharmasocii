@@ -173,16 +173,139 @@ async function advancePartnerTestClock(partnerId, advanceDays = STRIPE_TEST_BILL
         frozen_time: currentFrozen + advanceSeconds,
     });
 
+    const readyClock = await waitForTestClockReady(testClockId);
+    const billingSync = await syncPartnerPlansFromStripe(partnerId, { waitForClock: false });
+    const invoiceSync = await processPartnerPaidSubscriptionInvoices(partnerId);
+    const intervalWarnings = await collectPartnerSubscriptionIntervalWarnings(partnerId);
+
     return {
         ok: true,
         testClockId,
         previousFrozenTime: new Date(currentFrozen * 1000).toISOString(),
-        newFrozenTime: advanced.frozen_time
-            ? new Date(advanced.frozen_time * 1000).toISOString()
-            : null,
-        status: advanced.status,
+        newFrozenTime: readyClock?.frozen_time
+            ? new Date(readyClock.frozen_time * 1000).toISOString()
+            : advanced.frozen_time
+                ? new Date(advanced.frozen_time * 1000).toISOString()
+                : null,
+        status: readyClock?.status || advanced.status,
         advanceDays: Number(advanceDays) || STRIPE_TEST_BILLING_DAYS,
+        billingSync,
+        invoiceSync,
+        warnings: intervalWarnings,
     };
+}
+
+async function resolvePartnerTestClockId(partnerId) {
+    const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
+    if (!partnerSnap.exists) return null;
+    const data = partnerSnap.data() || {};
+    let testClockId = data.stripeTestClockId || null;
+    const customerId = toStripeCustomerId(data.stripeCustomerId);
+    if (!testClockId && customerId) {
+        try {
+            const customer = await stripe.customers.retrieve(customerId);
+            testClockId =
+                typeof customer.test_clock === "string"
+                    ? customer.test_clock
+                    : customer.test_clock?.id || null;
+        } catch {
+            testClockId = null;
+        }
+    }
+    return testClockId;
+}
+
+async function waitForTestClockReady(testClockId, maxWaitMs = 180000) {
+    const started = Date.now();
+    let clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+    while (clock.status === "advancing" && Date.now() - started < maxWaitMs) {
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+        clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+    }
+    if (clock.status === "internal_failure") {
+        throw new Error(`Stripe test clock ${testClockId} failed while advancing.`);
+    }
+    if (clock.status === "advancing") {
+        throw new Error(`Stripe test clock ${testClockId} is still advancing after ${maxWaitMs}ms.`);
+    }
+    return clock;
+}
+
+async function ensurePartnerTestClockReady(partnerId) {
+    if (!STRIPE_IS_TEST) return { ready: true, skipped: true };
+    const testClockId = await resolvePartnerTestClockId(partnerId);
+    if (!testClockId) return { ready: true, skipped: true };
+    const clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+    if (clock.status === "advancing") {
+        const readyClock = await waitForTestClockReady(testClockId);
+        return { ready: true, testClockId, status: readyClock.status, waited: true };
+    }
+    return { ready: true, testClockId, status: clock.status, waited: false };
+}
+
+function describeStripeRecurring(recurring) {
+    if (!recurring?.interval) return "unknown";
+    const count = Number(recurring.interval_count || 1);
+    return count === 1 ? recurring.interval : `${count} ${recurring.interval}s`;
+}
+
+async function collectPartnerSubscriptionIntervalWarnings(partnerId) {
+    if (!STRIPE_IS_TEST || STRIPE_TEST_BILLING_DAYS <= 0) return [];
+    const planSnap = await db.collection("partnersCollection")
+        .doc(partnerId)
+        .collection("planCollection")
+        .get();
+    const subIds = new Set();
+    for (const planDoc of planSnap.docs) {
+        const subId = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
+        if (subId) subIds.add(subId);
+    }
+
+    const warnings = [];
+    for (const subId of subIds) {
+        try {
+            const sub = await stripe.subscriptions.retrieve(subId);
+            const recurring = sub.items?.data?.[0]?.price?.recurring;
+            if (!stripeRecurringMatchesCatalog(recurring, "month")) {
+                warnings.push(
+                    `Subscription ${subId} bills every ${describeStripeRecurring(recurring)}, not every ${STRIPE_TEST_BILLING_DAYS} day(s). Advancing ${STRIPE_TEST_BILLING_DAYS} day(s) may not trigger renewal — recreate the subscription in test mode or advance further.`,
+                );
+            }
+        } catch (err) {
+            warnings.push(`Could not inspect subscription ${subId}: ${err?.message || err}`);
+        }
+    }
+    return warnings;
+}
+
+async function processPartnerPaidSubscriptionInvoices(partnerId) {
+    const planSnap = await db.collection("partnersCollection")
+        .doc(partnerId)
+        .collection("planCollection")
+        .get();
+    const subIds = new Set();
+    for (const planDoc of planSnap.docs) {
+        const subId = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
+        if (subId) subIds.add(subId);
+    }
+
+    let processed = 0;
+    const invoiceIds = [];
+    for (const subId of subIds) {
+        try {
+            const invoices = await stripe.invoices.list({ subscription: subId, limit: 12 });
+            for (const invoice of invoices.data) {
+                if (invoice.status !== "paid") continue;
+                if (invoice.billing_reason !== "subscription_cycle") continue;
+                await processSubscriptionInvoicePaid(invoice, { partnerId });
+                processed += 1;
+                invoiceIds.push(invoice.id);
+            }
+        } catch (err) {
+            console.warn(`processPartnerPaidSubscriptionInvoices ${subId}:`, err?.message || err);
+        }
+    }
+    return { processed, invoiceIds };
 }
 
 // ─── Firebase Admin ───
@@ -2111,9 +2234,15 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
         : null;
     const customerId = toStripeCustomerId(subscription.customer);
 
-    const planSnap = await db.collectionGroup("planCollection")
-        .where("stripeSubscriptionId", "==", subId)
-        .get();
+    const planSnap = options.partnerId
+        ? await db.collection("partnersCollection")
+            .doc(options.partnerId)
+            .collection("planCollection")
+            .where("stripeSubscriptionId", "==", subId)
+            .get()
+        : await db.collectionGroup("planCollection")
+            .where("stripeSubscriptionId", "==", subId)
+            .get();
 
     if (planSnap.empty) {
         return { updatedPlans: 0, updatedListings: 0, subscriptionId: subId, status };
@@ -2212,8 +2341,13 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
     return { updatedPlans, updatedListings, subscriptionId: subId, status };
 }
 
-async function syncPartnerPlansFromStripe(partnerId) {
+async function syncPartnerPlansFromStripe(partnerId, options = {}) {
     if (!partnerId) return { ok: false, error: "partnerId is required", synced: 0 };
+
+    let clockState = null;
+    if (options.waitForClock !== false) {
+        clockState = await ensurePartnerTestClockReady(partnerId);
+    }
 
     const planSnap = await db.collection("partnersCollection")
         .doc(partnerId)
@@ -2232,12 +2366,20 @@ async function syncPartnerPlansFromStripe(partnerId) {
         const result = await syncPlansAndListingsFromStripeSubscription(subId, {
             reason: "partner_sync",
             log: false,
+            partnerId,
         });
         if (result.updatedPlans > 0) synced += 1;
         results.push(result);
     }
 
-    return { ok: true, synced, subscriptions: results };
+    let invoiceSync = { processed: 0, invoiceIds: [] };
+    if (options.processInvoices) {
+        invoiceSync = await processPartnerPaidSubscriptionInvoices(partnerId);
+    }
+
+    const warnings = await collectPartnerSubscriptionIntervalWarnings(partnerId);
+
+    return { ok: true, synced, subscriptions: results, clockState, invoiceSync, warnings };
 }
 
 async function syncAllPlansFromStripe() {
@@ -2274,7 +2416,7 @@ async function syncAllPlansFromStripe() {
  * Shared handler for subscription invoice.paid (webhook) and test-only forced billing.
  * Updates planCollection, listing, partner, transactionsCollection (renewals), and audit.
  */
-async function processSubscriptionInvoicePaid(invoice) {
+async function processSubscriptionInvoicePaid(invoice, options = {}) {
     const subscriptionId = getInvoiceSubscriptionId(invoice);
     const customerId = getInvoiceCustomerId(invoice);
     const billingReason = invoice.billing_reason || "unknown";
@@ -2287,9 +2429,15 @@ async function processSubscriptionInvoicePaid(invoice) {
         return;
     }
 
-    const planSnap = await db.collectionGroup("planCollection")
-        .where("stripeSubscriptionId", "==", subscriptionId)
-        .get();
+    const planSnap = options.partnerId
+        ? await db.collection("partnersCollection")
+            .doc(options.partnerId)
+            .collection("planCollection")
+            .where("stripeSubscriptionId", "==", subscriptionId)
+            .get()
+        : await db.collectionGroup("planCollection")
+            .where("stripeSubscriptionId", "==", subscriptionId)
+            .get();
 
     if (planSnap.empty) {
         await tryProcessSpotlightAddonInvoicePaid({
@@ -3174,7 +3322,7 @@ app.post("/api/advance-test-billing", async (req, res) => {
         }
         return res.json({
             ...result,
-            note: "Stripe will generate renewal invoices as the test clock advances. Webhooks should update billingPeriodEnd.",
+            note: "Test clock advanced, Stripe finished processing, and partner plans were synced from Stripe.",
         });
     } catch (err) {
         console.error("advance-test-billing:", err);
@@ -3235,6 +3383,41 @@ app.post("/api/cron/cleanup-expired-spotlights", async (req, res) => {
 });
 
 /**
+ * POST /api/sync-all-test-billing
+ * Test keys only: wait for test clocks, refresh all partner plans from Stripe, and apply paid renewal invoices.
+ */
+async function runSyncAllTestBilling() {
+    if (!STRIPE_IS_TEST) {
+        return { error: "Only available with Stripe test keys (sk_test_)." };
+    }
+    const partnersSnap = await db.collection("partnersCollection").get();
+    const results = [];
+    for (const partnerDoc of partnersSnap.docs) {
+        const data = partnerDoc.data() || {};
+        if (!data.stripeTestClockId && !data.stripeCustomerId) continue;
+        const result = await syncPartnerPlansFromStripe(partnerDoc.id, {
+            waitForClock: true,
+            processInvoices: true,
+        });
+        results.push({ partnerId: partnerDoc.id, ...result });
+    }
+    return { ok: true, partners: results };
+}
+
+app.post("/api/sync-all-test-billing", async (req, res) => {
+    try {
+        const result = await runSyncAllTestBilling();
+        if (result.error) {
+            return res.status(403).json(result);
+        }
+        return res.json(result);
+    } catch (err) {
+        console.error("sync-all-test-billing:", err);
+        return res.status(500).json({ error: err.message || "Sync failed" });
+    }
+});
+
+/**
  * POST /api/sync-partner-billing
  * Refresh plan renewal dates from Stripe for one partner (dashboard load / manual fix).
  * Body: { partnerId }
@@ -3245,7 +3428,10 @@ app.post("/api/sync-partner-billing", async (req, res) => {
         if (!partnerId) {
             return res.status(400).json({ error: "partnerId is required." });
         }
-        const result = await syncPartnerPlansFromStripe(partnerId);
+        const result = await syncPartnerPlansFromStripe(partnerId, {
+            waitForClock: true,
+            processInvoices: Boolean(req.body?.processInvoices),
+        });
         return res.json(result);
     } catch (err) {
         console.error("sync-partner-billing:", err);
@@ -5072,7 +5258,55 @@ if (existsSync(distPath)) {
 }
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, "0.0.0.0", () => {
-    console.log(`\n🚀 Pharma Socii API server running at port ${PORT}`);
-    console.log(`   Stripe test mode connected\n`);
+const cliCommand = process.argv[2];
+
+async function runBillingCli() {
+    if (cliCommand === "sync-all-test-billing") {
+        const result = await runSyncAllTestBilling();
+        console.log(JSON.stringify(result, null, 2));
+        if (result.error) process.exit(1);
+        return;
+    }
+
+    if (cliCommand === "advance-test-billing") {
+        const partnerId = String(process.argv[3] || "").trim();
+        const advanceDays = Number(process.argv[4] || STRIPE_TEST_BILLING_DAYS);
+        if (!partnerId) {
+            console.error("Usage: node index.js advance-test-billing <partnerId> [advanceDays]");
+            process.exit(1);
+        }
+        const result = await advancePartnerTestClock(partnerId, advanceDays);
+        console.log(JSON.stringify(result, null, 2));
+        if (result.error) process.exit(1);
+        if (Array.isArray(result.warnings) && result.warnings.length > 0) {
+            console.warn("\nWarnings:");
+            for (const warning of result.warnings) console.warn(`- ${warning}`);
+        }
+        return;
+    }
+
+    if (cliCommand === "sync-partner-billing") {
+        const partnerId = String(process.argv[3] || "").trim();
+        if (!partnerId) {
+            console.error("Usage: node index.js sync-partner-billing <partnerId>");
+            process.exit(1);
+        }
+        const result = await syncPartnerPlansFromStripe(partnerId, {
+            waitForClock: true,
+            processInvoices: true,
+        });
+        console.log(JSON.stringify(result, null, 2));
+        if (!result.ok) process.exit(1);
+        return;
+    }
+
+    app.listen(PORT, "0.0.0.0", () => {
+        console.log(`\n🚀 Pharma Socii API server running at port ${PORT}`);
+        console.log(`   Stripe test mode connected\n`);
+    });
+}
+
+runBillingCli().catch((err) => {
+    console.error(err);
+    process.exit(1);
 });

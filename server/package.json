@@ -4,7 +4,10 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "start": "node index.js"
+        "start": "node index.js",
+        "sync-all-test-billing": "node index.js sync-all-test-billing",
+        "advance-test-billing": "node index.js advance-test-billing",
+        "sync-partner-billing": "node index.js sync-partner-billing"
     },
     "dependencies": {
         "cors": "^2.8.5",

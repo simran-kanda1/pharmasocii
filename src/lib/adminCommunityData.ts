@@ -70,6 +70,8 @@ export type AdminPostDetail = AdminPostRow & {
   subSubCategories?: string[];
   countries?: string[];
   archivedReason?: string;
+  totalCommentCount?: number;
+  activeCommentCount?: number;
 };
 
 export type AdminReportedCommentRow = {
@@ -364,9 +366,14 @@ export async function loadMemberDetail(memberId: string): Promise<AdminMemberDet
 }
 
 export async function loadPostDetail(postId: string): Promise<AdminPostDetail | null> {
-  const snap = await getDoc(doc(db, "postsCollection", postId));
+  const [snap, commentsSnap] = await Promise.all([
+    getDoc(doc(db, "postsCollection", postId)),
+    getDocs(collection(db, "postsCollection", postId, "commentsCollection")),
+  ]);
   if (!snap.exists()) return null;
   const data = snap.data();
+  const totalCommentCount = commentsSnap.size;
+  const activeCommentCount = commentsSnap.docs.filter((d) => d.data().archived !== true).length;
   const authorId = data.authorId as string | undefined;
   let authorEmail: string | undefined;
   let authorAccountStatus = "active";
@@ -397,5 +404,7 @@ export async function loadPostDetail(postId: string): Promise<AdminPostDetail | 
     subCategories: (data.subCategories as string[] | undefined) || [],
     subSubCategories: (data.subSubCategories as string[] | undefined) || [],
     countries: (data.countries as string[] | undefined) || [],
+    totalCommentCount,
+    activeCommentCount,
   };
 }

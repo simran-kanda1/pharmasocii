@@ -10,7 +10,7 @@ import { Bookmark, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { PostActionBar } from "@/components/community/PostActionBar";
-import { saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
+import { saveCommunityFeedScroll, communityPostDetailPath } from "@/lib/communityScrollRestore";
 
 export type PostCardPost = {
   id: string;
@@ -145,6 +145,11 @@ export function PostCard({
 
   const links = Array.isArray(post.externalLinks) ? post.externalLinks : [];
 
+  const postHref = communityPostDetailPath(post.id, rememberFeedScroll);
+  const postLinkProps = rememberFeedScroll
+    ? { to: postHref, onClick: beforeOpenPost }
+    : { to: postHref, target: "_blank" as const, rel: "noopener noreferrer", onClick: beforeOpenPost };
+
   return (
     <article className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow dark:border-foreground/15 dark:bg-card">
       <div className="p-4 sm:p-5">
@@ -209,7 +214,7 @@ export function PostCard({
           </div>
         </div>
 
-        <Link to={`/community/post/${post.id}`} className="block group mt-4" target="_blank" rel="noopener noreferrer" onClick={beforeOpenPost}>
+        <Link {...postLinkProps} className="block group mt-4">
           <h2 className="text-lg font-bold text-foreground leading-snug group-hover:text-primary transition-colors">
             {post.title}
           </h2>
@@ -238,11 +243,8 @@ export function PostCard({
 
       {imageUrl && (
         <Link
-          to={`/community/post/${post.id}`}
+          {...postLinkProps}
           className="block border-t border-slate-100 dark:border-foreground/10"
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={beforeOpenPost}
         >
           <div className="relative w-full bg-slate-100 dark:bg-muted/40 aspect-[16/10] max-h-[420px]">
             <img
