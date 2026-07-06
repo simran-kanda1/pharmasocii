@@ -31,7 +31,7 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const STRIPE_IS_TEST = Boolean(STRIPE_SECRET_KEY?.startsWith("sk_test_"));
 const STRIPE_TEST_BILLING_DAYS = Math.max(
     1,
-    parseInt(process.env.STRIPE_TEST_BILLING_DAYS || "5", 10) || 5,
+    parseInt(process.env.STRIPE_TEST_BILLING_DAYS || "1", 10) || 1,
 );
 const STRIPE_TEST_CLOCKS_ENABLED =
     STRIPE_IS_TEST && String(process.env.STRIPE_TEST_CLOCKS || "true").toLowerCase() !== "false";
@@ -569,6 +569,24 @@ function isSpotlightCancelPending(listingData) {
         toDateValue(listingData.featureSpotlightPaidThrough);
     if (!end) return true;
     return end.getTime() > Date.now();
+}
+
+function isFeatureDocCancelPending(featureData) {
+    if (!featureData?.cancelPending) return false;
+    const end = toDateValue(featureData.accessThrough);
+    if (!end) return true;
+    return end.getTime() > Date.now();
+}
+
+async function isStandaloneSpotlightCancelPending(partnerRef, listingId, collectionName, listingData) {
+    if (isSpotlightCancelPending(listingData)) return true;
+    const spotlightCtx = await resolveStandaloneSpotlightForCancel(
+        partnerRef,
+        listingId,
+        collectionName,
+        listingData,
+    );
+    return spotlightCtx.featureDocs.some((doc) => isFeatureDocCancelPending(doc.data() || {}));
 }
 
 async function resolveSpotlightAddonAccessEndDate(listingData, plan) {
@@ -1820,6 +1838,13 @@ function resolveFeatureCheckoutAmount(
         return { error: `Unknown feature: ${targetFeatureId}` };
     }
 
+    if (listingData && isSpotlightCancelPending(listingData)) {
+        return {
+            error:
+                "This spotlight add-on is already scheduled to end. You can purchase again after the current paid period ends.",
+        };
+    }
+
     const { planId = null, planIncludedSpotlight = null, collectionName = null } = options;
     const isEventOrJob =
         isEventOrJobCollection(collectionName) || isEventOrJobPlanId(planId);
@@ -3053,6 +3078,18 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             });
         }
 
+        const spotlightCancelPending = await isStandaloneSpotlightCancelPending(
+            partnerRef,
+            listingId,
+            collectionName,
+            listingData,
+        );
+        if (spotlightCancelPending) {
+            return res.status(409).json({
+                error: "This spotlight add-on is already scheduled to end. You can purchase again after the current paid period ends.",
+            });
+        }
+
         const activePlanSnap = await partnerRef
             .collection("planCollection")
             .where("listingId", "==", listingId)
@@ -3332,7 +3369,7 @@ app.post("/api/advance-test-billing", async (req, res) => {
 
 /**
  * POST /api/cron/advance-test-clock
- * Test keys only: advance test clock by STRIPE_TEST_BILLING_DAYS (default 5).
+ * Test keys only: advance test clock by STRIPE_TEST_BILLING_DAYS (default 1).
  * Header: x-cron-secret: process.env.CRON_SECRET
  * Body: { partnerId, advanceDays? }
  */
