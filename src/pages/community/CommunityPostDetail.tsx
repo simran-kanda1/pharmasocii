@@ -15,6 +15,7 @@ import { auth, db, storage } from "@/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CommunityReportDialog } from "@/components/community/CommunityReportDialog";
 import { CommunityIconAction, communityActionIcons } from "@/components/community/CommunityIconAction";
 import { submitCommunitySpamReport } from "@/lib/submitCommunityReport";
@@ -72,29 +73,31 @@ export default function CommunityPostDetail() {
   const [post, setPost] = useState<Record<string, unknown> | null>(null);
   const [postMissing, setPostMissing] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [verified, setVerified] = useState(false);
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [user, setUser] = useState<import("firebase/auth").User | null>(null);
-  const [verified, setVerified] = useState(false);
   const [memberRestricted, setMemberRestricted] = useState(false);
   const [commentText, setCommentText] = useState("");
   const [commentFile, setCommentFile] = useState<File | null>(null);
-  const [commentLink, setCommentLink] = useState("");
   const [replyTo, setReplyTo] = useState<CommentRow | null>(null);
+  const [commentLink, setCommentLink] = useState("");
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
   const [savedCommentIds, setSavedCommentIds] = useState<Set<string>>(new Set());
   const [reportOpen, setReportOpen] = useState(false);
-  const [reportTarget, setReportTarget] = useState<"post" | "comment">("post");
   const [reportComment, setReportComment] = useState<CommentRow | null>(null);
+  const [reportTarget, setReportTarget] = useState<"post" | "comment">("post");
   const [error, setError] = useState("");
   const [commentsLoadError, setCommentsLoadError] = useState("");
   const [hasMemberProfile, setHasMemberProfile] = useState(false);
   const [authReady, setAuthReady] = useState(false);
-  const [copyFeedback, setCopyFeedback] = useState("");
   const [memberUserName, setMemberUserName] = useState<string | null>(null);
-  const [memberBio, setMemberBio] = useState("");
+  const [copyFeedback, setCopyFeedback] = useState("");
   const [memberAboutMe, setMemberAboutMe] = useState("");
+  const [memberBio, setMemberBio] = useState("");
+  const [accountStatus, setAccountStatus] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [restrictionModalOpen, setRestrictionModalOpen] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -108,7 +111,12 @@ export default function CommunityPostDetail() {
         setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
         setMemberAboutMe(m.exists() ? String(m.data()?.aboutMe ?? "") : "");
         const st = m.data()?.accountStatus;
-        setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
+        setAccountStatus(st || "active");
+        const restricted = st === "spam_blocked" || st === "admin_hold";
+        setMemberRestricted(restricted);
+        if (restricted) {
+          setRestrictionModalOpen(true);
+        }
         if (postId && m.exists()) {
           const sref = doc(db, "membersCollection", u.uid, "savedPostsCollection", postId);
           const ss = await getDoc(sref);
@@ -124,6 +132,8 @@ export default function CommunityPostDetail() {
       } else {
         setVerified(false);
         setMemberRestricted(false);
+        setAccountStatus(null);
+        setRestrictionModalOpen(false);
         setSaved(false);
         setSavedCommentIds(new Set());
         setHasMemberProfile(false);
@@ -257,12 +267,15 @@ export default function CommunityPostDetail() {
   const canSave = canSaveCommunityContent(user, verified, hasMemberProfile, memberRestricted);
   const postAuthorId = post?.authorId as string | undefined;
   const archived = post?.archived === true;
-
   const engageHint = archived
     ? "This post is archived."
     : communityAccessHint(memberRestricted, user, verified, hasMemberProfile);
-  const shareHint = "Share on LinkedIn";
-  const reportHint = !canReport ? engageHint : "Report content";
+  const shareHint = !canShare
+    ? (engageHint || "Sign in with a verified member profile to share.")
+    : "May not work if this content is later archived due to spam activity";
+  const reportHint = !canReport
+    ? (engageHint || "Sign in with a verified member profile to report.")
+    : "";
 
   const shareLinkedIn = () => {
     if (!canShare || !postId) return;
@@ -531,7 +544,7 @@ export default function CommunityPostDetail() {
                 label={copyFeedback || "Copy link"}
                 icon={communityActionIcons.copyLink}
                 disabled={!canShare}
-                title={!canShare ? shareHint : "Copy link"}
+                title={shareHint}
                 onClick={copyPostLinkAction}
               />
             </div>
@@ -598,6 +611,7 @@ export default function CommunityPostDetail() {
             user={user}
             verified={verified}
             hasMemberProfile={hasMemberProfile}
+            memberRestricted={memberRestricted}
             isReply={false}
             commentText={commentText}
             setCommentText={setCommentText}
@@ -653,6 +667,7 @@ export default function CommunityPostDetail() {
                     user={user}
                     verified={verified}
                     hasMemberProfile={hasMemberProfile}
+                    memberRestricted={memberRestricted}
                     isReply
                     replyToName={c.userName}
                     onCancel={() => {
@@ -773,6 +788,26 @@ export default function CommunityPostDetail() {
         }}
         postToEdit={post as PostCardPost}
       />
+
+      <Dialog open={restrictionModalOpen} onOpenChange={setRestrictionModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-amber-600 dark:text-amber-500">
+              {accountStatus === "spam_blocked" ? "Account Paused" : "Administrative Hold"}
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-foreground/90">
+              {accountStatus === "spam_blocked" ? (
+                "Your account is currently paused for 30 days due to spam activity. You can browse the community feed, but you cannot create posts, comment, like, or report content until the pause period expires."
+              ) : (
+                "Your account is currently on administrative hold. You can browse the community feed, but you cannot create posts, comment, like, or report content until the hold is lifted by an administrator."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end pt-4">
+            <Button onClick={() => setRestrictionModalOpen(false)}>Acknowledge</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -782,6 +817,7 @@ function CommentComposer({
   user,
   verified,
   hasMemberProfile,
+  memberRestricted = false,
   isReply,
   replyToName,
   onCancel,
@@ -796,6 +832,7 @@ function CommentComposer({
   user: import("firebase/auth").User | null;
   verified: boolean;
   hasMemberProfile: boolean;
+  memberRestricted?: boolean;
   isReply: boolean;
   replyToName?: string;
   onCancel?: () => void;
@@ -837,11 +874,13 @@ function CommentComposer({
         rows={isReply ? 3 : 4}
         disabled={!canEngage}
         placeholder={
-          !canEngage
-            ? "Log in to comment…"
-            : isReply
-              ? "Replies are limited to one level to keep discussions clear and focused."
-              : `Comment (max ${COMMENT_MAX} characters)`
+          memberRestricted
+            ? "Account Restricted. You have view-only access."
+            : !canEngage
+              ? "Log in to comment…"
+              : isReply
+                ? "Replies are limited to one level to keep discussions clear and focused."
+                : `Comment (max ${COMMENT_MAX} characters)`
         }
         className="bg-foreground/5 border-foreground/10 disabled:cursor-not-allowed"
       />
@@ -878,7 +917,9 @@ function CommentComposer({
         </Button>
         {!canEngage && (
           <p className="text-xs text-muted-foreground">
-            {user && verified && !hasMemberProfile ? (
+            {memberRestricted ? (
+              <span>Your account is currently paused. You have view-only access.</span>
+            ) : user && verified && !hasMemberProfile ? (
               <>
                 <Link to="/member/setup" className="text-primary underline">
                   Create your community profile
@@ -1027,9 +1068,9 @@ function CommentItem({
               label={copyMsg || "Copy link"}
               icon={communityActionIcons.copyLink}
               disabled={!canShare}
-              title={!canShare ? shareHint : "Copy link"}
+              title={shareHint}
               onClick={async () => {
-                if (!canShare) return;
+
                 const ok = await copyCommentLink(postId, comment.id);
                 setCopyMsg(ok ? "Copied" : "Failed");
                 window.setTimeout(() => setCopyMsg(""), 2000);

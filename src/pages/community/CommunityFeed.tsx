@@ -12,6 +12,7 @@ import {
   getDoc,
   type QueryDocumentSnapshot,
   type DocumentData,
+  type QueryConstraint,
 } from "firebase/firestore";
 import { db } from "@/firebase";
 import { Button } from "@/components/ui/button";
@@ -44,6 +45,8 @@ import {
   communityAccessHint,
 } from "@/lib/communityAccess";
 import { CommunityViewHeader } from "@/components/community/CommunityViewHeader";
+import { cn } from "@/lib/utils";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const FEED_PAGE_SIZE = 20;
 
@@ -72,6 +75,9 @@ export default function CommunityFeed() {
   const [createAction, setCreateAction] = useState<CreatePostModalAction>(null);
   const [postToEdit, setPostToEdit] = useState<PostCardPost | null>(null);
   const [refreshPostsKey, setRefreshPostsKey] = useState(0);
+  const [feedTab, setFeedTab] = useState<"all" | "latest">("all");
+  const [accountStatus, setAccountStatus] = useState<string | null>(null);
+  const [restrictionModalOpen, setRestrictionModalOpen] = useState(false);
   const filtersHydratedRef = useRef(false);
   const skipNextFilterSaveRef = useRef(false);
   const lastVisibleDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
@@ -101,7 +107,12 @@ export default function CommunityFeed() {
         setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
         setMemberAboutMe(m.exists() ? String(m.data()?.aboutMe ?? "") : "");
         const st = m.data()?.accountStatus;
-        setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
+        setAccountStatus(st || "active");
+        const restricted = st === "spam_blocked" || st === "admin_hold";
+        setMemberRestricted(restricted);
+        if (restricted) {
+          setRestrictionModalOpen(true);
+        }
         if (m.exists()) {
           const saved = parseSavedFilters(m.data() as Record<string, unknown>);
           skipNextFilterSaveRef.current = true;
@@ -124,6 +135,8 @@ export default function CommunityFeed() {
         setMemberBio("");
         setMemberAboutMe("");
         setMemberRestricted(false);
+        setAccountStatus(null);
+        setRestrictionModalOpen(false);
         setSavedPostIds(new Set());
         setHelpfulPostIds(new Set());
         setNotificationUnread(0);
@@ -134,7 +147,6 @@ export default function CommunityFeed() {
     });
     return () => unsub();
   }, []);
-
   useEffect(() => {
     if (!user?.uid || !hasMemberProfile) return;
     const refreshNotifications = () => {
@@ -178,18 +190,27 @@ export default function CommunityFeed() {
       setCommunityView("home");
     }
   }, [user, verified, hasMemberProfile, communityView, setCommunityView]);
-
   const loadMore = useCallback(async () => {
     if (loading || loadingMore || !hasNextPage || !lastVisibleDocRef.current) return;
     setLoadingMore(true);
     try {
-      const base = [
-        collection(db, "postsCollection"),
+      const constraints: QueryConstraint[] = [
         where("archived", "==", false),
-        orderBy("createdAt", "desc"),
-      ] as const;
+      ];
 
-      const q = query(...base, startAfter(lastVisibleDocRef.current), limit(FEED_PAGE_SIZE));
+      if (feedTab === "latest") {
+        const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+        constraints.push(where("createdAt", ">=", cutoff));
+      }
+
+      constraints.push(orderBy("createdAt", "desc"));
+
+      const q = query(
+        collection(db, "postsCollection"),
+        ...constraints,
+        startAfter(lastVisibleDocRef.current),
+        limit(FEED_PAGE_SIZE),
+      );
       const snap = await getDocs(q);
       const newPosts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -205,8 +226,7 @@ export default function CommunityFeed() {
     } finally {
       setLoadingMore(false);
     }
-  }, [loading, loadingMore, hasNextPage]);
-
+  }, [loading, loadingMore, hasNextPage, feedTab]);
   const observerRef = useRef<IntersectionObserver | null>(null);
   const bottomRef = useCallback(
     (node: HTMLDivElement | null) => {
@@ -223,6 +243,7 @@ export default function CommunityFeed() {
     },
     [loading, loadingMore, hasNextPage, loadMore]
   );
+
   useEffect(() => {
     (async () => {
       try {
@@ -233,14 +254,23 @@ export default function CommunityFeed() {
           selectedFilterKeys.length > 0
         );
 
-        const base = [
-          collection(db, "postsCollection"),
+        const constraints: QueryConstraint[] = [
           where("archived", "==", false),
-          orderBy("createdAt", "desc"),
-        ] as const;
+        ];
+
+        if (feedTab === "latest") {
+          const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000);
+          constraints.push(where("createdAt", ">=", cutoff));
+        }
+
+        constraints.push(orderBy("createdAt", "desc"));
 
         const limitCount = isSearchingOrFiltering ? 1000 : FEED_PAGE_SIZE;
-        const q = query(...base, limit(limitCount));
+        const q = query(
+          collection(db, "postsCollection"),
+          ...constraints,
+          limit(limitCount),
+        );
         const snap = await getDocs(q);
         const newPosts = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
         setPosts(newPosts);
@@ -252,7 +282,7 @@ export default function CommunityFeed() {
         setLoading(false);
       }
     })();
-  }, [refreshPostsKey, search, selectedCountries, selectedFilterKeys]);
+  }, [refreshPostsKey, search, selectedCountries, selectedFilterKeys, feedTab]);
 
   useEffect(() => {
     const q = searchParams.get("search") || "";
@@ -426,31 +456,39 @@ export default function CommunityFeed() {
     <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center gap-3 dark:border-foreground/15 dark:bg-card">
       <MessageSquarePlus className="h-8 w-8 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-[200px]">
-        <p className="font-medium text-sm">Join the conversation</p>
-        <p className="text-xs text-muted-foreground">Sign in with a verified member profile to start a post.</p>
+        <p className="font-medium text-sm">
+          {memberRestricted ? "Account Restricted" : "Join the conversation"}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          {memberRestricted
+            ? "Your account is currently paused. You have view-only access."
+            : "Sign in with a verified member profile to start a post."}
+        </p>
       </div>
-      <div className="flex flex-wrap gap-2">
-        {!user && (
-          <Button size="sm" asChild>
-            <Link to="/member/login">Log in</Link>
-          </Button>
-        )}
-        {user && verified && !hasMemberProfile && (
-          <Button size="sm" asChild>
-            <Link to="/member/setup">Set up profile</Link>
-          </Button>
-        )}
-        {user && !verified && (
-          <Button size="sm" variant="outline" asChild>
-            <Link to="/member/login">Verify email</Link>
-          </Button>
-        )}
-        {!user && (
-          <Button size="sm" variant="outline" asChild>
-            <Link to="/member/register">Register</Link>
-          </Button>
-        )}
-      </div>
+      {!memberRestricted && (
+        <div className="flex flex-wrap gap-2">
+          {!user && (
+            <Button size="sm" asChild>
+              <Link to="/member/login">Log in</Link>
+            </Button>
+          )}
+          {user && verified && !hasMemberProfile && (
+            <Button size="sm" asChild>
+              <Link to="/member/setup">Set up profile</Link>
+            </Button>
+          )}
+          {user && !verified && (
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/member/login">Verify email</Link>
+            </Button>
+          )}
+          {!user && (
+            <Button size="sm" variant="outline" asChild>
+              <Link to="/member/register">Register</Link>
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 
@@ -560,14 +598,38 @@ export default function CommunityFeed() {
             ) : communityView === "home" ? (
               <>
                 <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-200/80 pb-2 mb-4 dark:border-foreground/15">
-                  <p className="text-sm font-semibold text-foreground">All updates</p>
+                  <div className="flex gap-4 text-sm font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setFeedTab("all")}
+                      className={cn(
+                        "pb-2 transition-colors relative",
+                        feedTab === "all"
+                          ? "text-primary border-b-2 border-primary font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      All updates
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeedTab("latest")}
+                      className={cn(
+                        "pb-2 transition-colors relative",
+                        feedTab === "latest"
+                          ? "text-primary border-b-2 border-primary font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      Latest Updates (48h)
+                    </button>
+                  </div>
                   {sidebarFiltered.length > 0 && (
-                    <p className="text-sm text-muted-foreground tabular-nums">
+                    <p className="text-sm text-muted-foreground pb-2 tabular-nums">
                       {sidebarFiltered.length} post{sidebarFiltered.length === 1 ? "" : "s"}
                     </p>
                   )}
                 </div>
-
                 {loading || categoriesLoading ? (
                   <p className="text-muted-foreground text-center py-12">Loading…</p>
                 ) : sidebarFiltered.length === 0 ? (
@@ -652,6 +714,26 @@ export default function CommunityFeed() {
         }}
         postToEdit={postToEdit}
       />
+
+      <Dialog open={restrictionModalOpen} onOpenChange={setRestrictionModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-amber-600 dark:text-amber-500">
+              {accountStatus === "spam_blocked" ? "Account Paused" : "Administrative Hold"}
+            </DialogTitle>
+            <DialogDescription className="pt-2 text-foreground/90">
+              {accountStatus === "spam_blocked" ? (
+                "Your account is currently paused for 30 days due to spam activity. You can browse the community feed, but you cannot create posts, comment, like, or report content until the pause period expires."
+              ) : (
+                "Your account is currently on administrative hold. You can browse the community feed, but you cannot create posts, comment, like, or report content until the hold is lifted by an administrator."
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end pt-4">
+            <Button onClick={() => setRestrictionModalOpen(false)}>Acknowledge</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

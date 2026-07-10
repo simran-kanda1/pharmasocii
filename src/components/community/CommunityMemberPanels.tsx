@@ -543,6 +543,11 @@ export function CommunityMemberPanels({
                 . You can browse but cannot post or comment until reactivated.
               </p>
             )}
+            {accountStatus === "admin_hold" && (
+              <p className="text-xs text-amber-800 dark:text-amber-200 font-medium">
+                Account on administrative hold. You can browse but cannot post or comment until the hold is lifted by an admin.
+              </p>
+            )}
           </div>
           {profileMsg && <p className="text-sm text-muted-foreground">{profileMsg}</p>}
           <Button type="submit">Save</Button>
