@@ -148,9 +148,8 @@ export function PostActionBar({
         <Link
           to={communityPostDetailPath(postId, rememberFeedScroll, "comments")}
           className="flex shrink-0 items-center justify-center gap-1.5 px-2 py-3 text-xs font-medium text-muted-foreground hover:bg-white hover:text-foreground transition-colors border-r border-slate-200 dark:border-foreground/10 dark:hover:bg-card min-w-[6.5rem]"
-          {...(rememberFeedScroll
-            ? {}
-            : { target: "_blank" as const, rel: "noopener noreferrer" })}
+          target="_blank"
+          rel="noopener noreferrer"
           onClick={(e) => {
             e.stopPropagation();
             if (rememberFeedScroll) saveCommunityFeedScroll(postId);

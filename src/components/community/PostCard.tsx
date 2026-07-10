@@ -146,9 +146,12 @@ export function PostCard({
   const links = Array.isArray(post.externalLinks) ? post.externalLinks : [];
 
   const postHref = communityPostDetailPath(post.id, rememberFeedScroll);
-  const postLinkProps = rememberFeedScroll
-    ? { to: postHref, onClick: beforeOpenPost }
-    : { to: postHref, target: "_blank" as const, rel: "noopener noreferrer", onClick: beforeOpenPost };
+  const postLinkProps = {
+    to: postHref,
+    target: "_blank" as const,
+    rel: "noopener noreferrer",
+    onClick: beforeOpenPost,
+  };
 
   return (
     <article className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow dark:border-foreground/15 dark:bg-card">
