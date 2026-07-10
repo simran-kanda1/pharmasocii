@@ -941,6 +941,46 @@ function CommentComposer({
   );
 }
 
+function CommentActionBtn({
+  label,
+  icon: Icon,
+  onClick,
+  active,
+  disabled,
+  title,
+  className,
+}: {
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  onClick?: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  title?: string;
+  className?: string;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      className={cn(
+        "flex-1 flex items-center justify-center gap-1.5 px-2 py-2.5 text-[11px] font-medium text-muted-foreground hover:bg-slate-100 hover:text-foreground transition-colors border-r border-slate-200 last:border-r-0 dark:border-foreground/10 dark:hover:bg-muted/40",
+        active && "text-primary bg-white dark:bg-card",
+        disabled && "opacity-50 cursor-not-allowed hover:bg-transparent hover:text-muted-foreground",
+        className,
+      )}
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick?.();
+      }}
+      title={title}
+    >
+      <Icon className={cn("h-3.5 w-3.5 shrink-0", active && "text-primary")} />
+      <span className="whitespace-nowrap">{label}</span>
+    </button>
+  );
+}
+
 function CommentItem({
   postId,
   comment,
@@ -1002,15 +1042,15 @@ function CommentItem({
     <li
       ref={commentRef}
       className={cn(
-        "border rounded-xl p-4 list-none",
+        "border rounded-xl list-none overflow-hidden",
         isReply
           ? "border-foreground/8 bg-background/80 shadow-none"
           : "border-foreground/10 bg-background/50",
         highlight && "ring-2 ring-primary ring-offset-2",
       )}
     >
-      <div className="flex justify-between gap-2">
-        <div className="min-w-0 flex-1">
+      <div className="p-4 pb-3">
+        <div className="min-w-0">
           {isReply && parentUserName && (
             <p className="text-[10px] text-muted-foreground mb-1.5 flex items-center gap-1.5">
               <span className="shrink-0 w-5 h-px bg-gradient-to-r from-primary/40 to-foreground/15" aria-hidden />
@@ -1024,74 +1064,74 @@ function CommentItem({
             {comment.createdAt?.toDate ? formatRelativeTime(comment.createdAt.toDate()) : ""}
           </p>
         </div>
-        {!archived && (
-          <div className="flex flex-wrap gap-0.5 justify-end max-w-[220px]">
-            <CommunityIconAction
-              label="Save"
-              icon={communityActionIcons.save}
-              active={saved}
-              disabled={!canSave}
-              title={!canSave ? engageHint : saved ? "Unsave" : "Save"}
-              onClick={onToggleSave}
-            />
-            {showReplyButton && onReply && (
-              <CommunityIconAction
-                label="Reply"
-                icon={MessageSquare}
-                disabled={!canEngage}
-                title={!canEngage ? engageHint : "Reply"}
-                onClick={onReply}
-              />
-            )}
-            <CommunityIconAction
-              label="Spam"
-              icon={communityActionIcons.report}
-              disabled={!canReport || isOwnComment}
-              title={isOwnComment ? "You cannot report your own content." : !canReport ? reportHint : "Report content"}
-              onClick={onReport}
-            />
-            <CommunityIconAction
-              label="LinkedIn"
-              icon={communityActionIcons.linkedIn}
-              disabled={!canShare}
-              title={shareHint}
-              onClick={() => {
-                if (!canShare) return;
-                window.open(
-                  buildLinkedInCommentShareUrl(postId, comment.id, comment.text),
-                  "_blank",
-                  "noopener,noreferrer",
-                );
-              }}
-            />
-            <CommunityIconAction
-              label={copyMsg || "Copy link"}
-              icon={communityActionIcons.copyLink}
-              disabled={!canShare}
-              title={shareHint}
-              onClick={async () => {
-
-                const ok = await copyCommentLink(postId, comment.id);
-                setCopyMsg(ok ? "Copied" : "Failed");
-                window.setTimeout(() => setCopyMsg(""), 2000);
-              }}
-            />
-          </div>
+        <p className="text-sm mt-2 whitespace-pre-wrap">{comment.text}</p>
+        {comment.externalLink && (
+          <a
+            href={comment.externalLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primary font-medium underline break-all mt-2 inline-block"
+          >
+            {comment.externalLink}
+          </a>
+        )}
+        {imageUrl && (
+          <img src={imageUrl} alt="" className="mt-2 rounded-lg max-h-48 border border-foreground/10" />
         )}
       </div>
-      <p className="text-sm mt-2 whitespace-pre-wrap">{comment.text}</p>
-      {comment.externalLink && (
-        <a
-          href={comment.externalLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm text-primary font-medium underline break-all mt-2 inline-block"
-        >
-          {comment.externalLink}
-        </a>
-      )}
-      {imageUrl && (
-        <img src={imageUrl} alt="" className="mt-2 rounded-lg max-h-48 border border-foreground/10" />
+
+      {!archived && (
+        <div className="relative z-20 flex flex-wrap items-stretch border-t border-slate-200 bg-slate-50/80 dark:border-foreground/10 dark:bg-muted/20">
+          <CommentActionBtn
+            label="Save"
+            icon={communityActionIcons.save}
+            active={saved}
+            disabled={!canSave}
+            title={!canSave ? engageHint : saved ? "Unsave" : "Save"}
+            onClick={onToggleSave}
+          />
+          {showReplyButton && onReply && (
+            <CommentActionBtn
+              label="Reply"
+              icon={MessageSquare}
+              disabled={!canEngage}
+              title={!canEngage ? engageHint : "Reply"}
+              onClick={onReply}
+            />
+          )}
+          <CommentActionBtn
+            label="Spam"
+            icon={communityActionIcons.report}
+            disabled={!canReport || isOwnComment}
+            title={isOwnComment ? "You cannot report your own content." : !canReport ? reportHint : "Report content"}
+            onClick={onReport}
+          />
+          <CommentActionBtn
+            label="LinkedIn"
+            icon={communityActionIcons.linkedIn}
+            disabled={!canShare}
+            title={shareHint}
+            onClick={() => {
+              if (!canShare) return;
+              window.open(
+                buildLinkedInCommentShareUrl(postId, comment.id, comment.text),
+                "_blank",
+                "noopener,noreferrer",
+              );
+            }}
+          />
+          <CommentActionBtn
+            label={copyMsg || "Copy link"}
+            icon={communityActionIcons.copyLink}
+            disabled={!canShare}
+            title={shareHint}
+            onClick={async () => {
+              const ok = await copyCommentLink(postId, comment.id);
+              setCopyMsg(ok ? "Copied" : "Failed");
+              window.setTimeout(() => setCopyMsg(""), 2000);
+            }}
+          />
+        </div>
       )}
     </li>
   );
