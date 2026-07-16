@@ -804,6 +804,7 @@ export default function AdminDashboard() {
   const [selectedPartner, setSelectedPartner] = useState<PartnerRecord | null>(null);
   const [partnerEditor, setPartnerEditor] = useState<Record<string, any>>({});
   const [partnerEditorOpen, setPartnerEditorOpen] = useState(false);
+  const [lastTrialEndMs, setLastTrialEndMs] = useState<number | null>(null); // for undo last extension
 
   const [selectedListing, setSelectedListing] = useState<ListingRecord | null>(null);
   const [listingEditor, setListingEditor] = useState<Record<string, string>>({});
@@ -1074,6 +1075,7 @@ export default function AdminDashboard() {
       jobDescriptionPdfUrl: partner.jobDescriptionPdfUrl || "",
     });
     setPartnerEditorOpen(true);
+    setLastTrialEndMs(null); // reset undo state for this partner
   };
 
   const savePartnerEdits = async () => {
@@ -1202,6 +1204,9 @@ export default function AdminDashboard() {
         endMs = Date.now();
       }
 
+      // Save the current end date before modifying — enables undo
+      setLastTrialEndMs(endMs);
+
       const baseMs = endMs < Date.now() ? Date.now() : endMs;
       const extensionMs = days * 24 * 60 * 60 * 1000;
       const newEnd = new Date(baseMs + extensionMs);
@@ -1222,10 +1227,42 @@ export default function AdminDashboard() {
         metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd }
       });
 
-      alert(`Successfully extended trial by ${days} days!`);
     } catch (err: any) {
       console.error("Error extending trial:", err);
       alert("Failed to extend trial: " + err.message);
+    }
+  };
+
+  const undoExtension = async () => {
+    if (!selectedPartner || lastTrialEndMs === null) return;
+    try {
+      const latestPlan = partnerPlans
+        .filter((plan) => plan.partnerId === selectedPartner.id)
+        .sort((a, b) => {
+          const aTs = a.startDate?.seconds || a.createdAt?.seconds || 0;
+          const bTs = b.startDate?.seconds || b.createdAt?.seconds || 0;
+          return bTs - aTs;
+        })[0];
+
+      if (!latestPlan) return;
+
+      const previousEnd = new Date(lastTrialEndMs);
+      const planDocRef = doc(db, "partnersCollection", selectedPartner.id, "planCollection", latestPlan.id);
+      await updateDoc(planDocRef, { billingPeriodEnd: previousEnd });
+
+      await logActivity({
+        partnerId: selectedPartner.id,
+        partnerName: selectedPartner.businessName || "Unnamed Business",
+        action: "ACCOUNT_UPDATED",
+        details: `Trial extension undone. Expiry reverted to ${previousEnd.toLocaleDateString()}. Admin: ${adminEmail}`,
+        category: "admin",
+        metadata: { adminEmail, revertedTo: previousEnd }
+      });
+
+      setLastTrialEndMs(null);
+    } catch (err: any) {
+      console.error("Error undoing extension:", err);
+      alert("Failed to undo: " + err.message);
     }
   };
 
@@ -2166,7 +2203,17 @@ export default function AdminDashboard() {
                       </Button>
                     </div>
                   </div>
-                  <div className="pt-1 border-t border-slate-200">
+                  <div className="pt-1 border-t border-slate-200 space-y-2">
+                    {lastTrialEndMs !== null && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full text-xs py-1 text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:border-amber-500"
+                        onClick={undoExtension}
+                      >
+                        ↩ Undo Last Extension (revert to {new Date(lastTrialEndMs).toLocaleDateString()})
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
