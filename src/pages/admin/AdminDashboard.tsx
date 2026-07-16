@@ -2658,7 +2658,7 @@ function PartnerList({
                 <TableHead className="pl-4 pr-2 py-3 text-xs">Business</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Email</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Phone</TableHead>
-                <TableHead className="px-2 py-3 text-xs">Status</TableHead>
+
                 <TableHead className="px-2 py-3 text-xs">User Plan</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Listings</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Featured</TableHead>
@@ -2712,7 +2712,7 @@ function PartnerList({
                     <TableCell className="px-2 py-2 text-sm max-w-[110px] truncate" title={partner.phoneNumber || ""}>
                       {partner.phoneNumber || "-"}
                     </TableCell>
-                    <TableCell className="px-2 py-2">{getStatusBadge(partner.partnerStatus)}</TableCell>
+
                     <TableCell className="px-2 py-2">
                       <div className="flex flex-col gap-1">
                         <span className="text-xs font-medium truncate max-w-[120px]" title={insight?.latestPlan || ""}>
