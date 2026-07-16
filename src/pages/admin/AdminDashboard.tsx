@@ -1333,16 +1333,55 @@ export default function AdminDashboard() {
   const openListingEditor = (listing: ListingRecord) => {
     setSelectedListing(listing);
     setListingEditor({
+      // Core
       businessName: listing.businessName || "",
       companyWebsite: listing.companyWebsite || "",
       selectedPlan: listing.selectedPlan || "",
+      selectedGroup: listing.selectedGroup || "",
       status: listing.status || "Pending Review",
       active: `${listing.active ?? true}`,
+      // Taxonomy
       selectedCategoriesCsv: (listing.selectedCategories || []).join(", "),
+      selectedSubcategoriesCsv: (listing.selectedSubcategories || []).join(", "),
+      selectedSubSubcategoriesCsv: (listing.selectedSubSubcategories || []).join(", "),
       serviceCountriesCsv: (listing.serviceCountries || []).join(", "),
       serviceRegionsCsv: (listing.serviceRegions || []).join(", "),
+      // Business/Consulting
       companyProfileText: listing.companyProfileText || "",
       businessAddress: listing.businessAddress || "",
+      businessCountry: listing.businessCountry || "",
+      bioSafetyLevelCsv: (listing.bioSafetyLevel || []).join(", "),
+      certificationsCsv: (listing.certifications || []).join(", "),
+      companyRepresentativesJson: listing.companyRepresentatives ? JSON.stringify(listing.companyRepresentatives, null, 2) : "",
+      // Event fields
+      eventName: listing.eventName || "",
+      eventLink: listing.eventLink || "",
+      startDate: listing.startDate || "",
+      endDate: listing.endDate || "",
+      eventCountry: listing.eventCountry || "",
+      stateRegion: listing.stateRegion || "",
+      city: listing.city || "",
+      location: listing.location || "",
+      eventProfile: listing.eventProfile || "",
+      agendaHighlights: listing.agendaHighlights || "",
+      agendaPdfUrl: listing.agendaPdfUrl || "",
+      // Job fields
+      jobTitle: listing.jobTitle || "",
+      industry: listing.industry || "",
+      positionType: listing.positionType || "",
+      experienceLevel: listing.experienceLevel || "",
+      positionLink: listing.positionLink || "",
+      jobCountry: listing.jobCountry || "",
+      jobStateRegion: listing.stateRegion || "",
+      jobCity: listing.city || "",
+      jobLocation: listing.location || "",
+      jobSummary: listing.jobSummary || "",
+      education: listing.education || "",
+      workModel: listing.workModel || "",
+      applicationDeadline: listing.applicationDeadline || "",
+      jobDescriptionPdfUrl: listing.jobDescriptionPdfUrl || "",
+      companyWebsiteLink: listing.companyWebsiteLink || "",
+      linkedInJob: listing.linkedInJob || "",
     });
     setListingEditorOpen(true);
   };
@@ -1380,17 +1419,56 @@ export default function AdminDashboard() {
   const saveListingEdits = async () => {
     if (!selectedListing) return;
     try {
-      const payload = {
+      const payload: Record<string, any> = {
+        // Core
         businessName: listingEditor.businessName || "",
         companyWebsite: listingEditor.companyWebsite || "",
         selectedPlan: listingEditor.selectedPlan || "",
+        selectedGroup: listingEditor.selectedGroup || "",
         status: listingEditor.status || "Pending Review",
         active: listingEditor.active === "true",
+        // Taxonomy
         selectedCategories: splitCsv(listingEditor.selectedCategoriesCsv || ""),
+        selectedSubcategories: splitCsv(listingEditor.selectedSubcategoriesCsv || ""),
+        selectedSubSubcategories: splitCsv(listingEditor.selectedSubSubcategoriesCsv || ""),
         serviceCountries: splitCsv(listingEditor.serviceCountriesCsv || ""),
         serviceRegions: splitCsv(listingEditor.serviceRegionsCsv || ""),
+        // Business/Consulting
         companyProfileText: (listingEditor.companyProfileText || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
         businessAddress: listingEditor.businessAddress || "",
+        businessCountry: listingEditor.businessCountry || "",
+        bioSafetyLevel: splitCsv(listingEditor.bioSafetyLevelCsv || ""),
+        certifications: splitCsv(listingEditor.certificationsCsv || ""),
+        companyRepresentatives: (() => {
+          try { return listingEditor.companyRepresentativesJson ? JSON.parse(listingEditor.companyRepresentativesJson) : []; }
+          catch { return []; }
+        })(),
+        // Event fields
+        eventName: listingEditor.eventName || "",
+        eventLink: listingEditor.eventLink || "",
+        startDate: listingEditor.startDate || "",
+        endDate: listingEditor.endDate || "",
+        eventCountry: listingEditor.eventCountry || "",
+        stateRegion: listingEditor.stateRegion || listingEditor.jobStateRegion || "",
+        city: listingEditor.city || listingEditor.jobCity || "",
+        location: listingEditor.location || listingEditor.jobLocation || "",
+        eventProfile: listingEditor.eventProfile || "",
+        agendaHighlights: listingEditor.agendaHighlights || "",
+        agendaPdfUrl: listingEditor.agendaPdfUrl || "",
+        // Job fields
+        jobTitle: listingEditor.jobTitle || "",
+        industry: listingEditor.industry || "",
+        positionType: listingEditor.positionType || "",
+        experienceLevel: listingEditor.experienceLevel || "",
+        positionLink: listingEditor.positionLink || "",
+        jobCountry: listingEditor.jobCountry || "",
+        jobSummary: listingEditor.jobSummary || "",
+        education: listingEditor.education || "",
+        workModel: listingEditor.workModel || "",
+        applicationDeadline: listingEditor.applicationDeadline || "",
+        jobDescriptionPdfUrl: listingEditor.jobDescriptionPdfUrl || "",
+        companyWebsiteLink: listingEditor.companyWebsiteLink || "",
+        linkedInJob: listingEditor.linkedInJob || "",
       };
 
       await updateDoc(doc(db, selectedListing.__path), payload);
@@ -2435,15 +2513,28 @@ export default function AdminDashboard() {
               View Profile History
             </Button>
           </SheetHeader>
-          <div className="mt-6 space-y-4">
-            <Field label="Business Name" value={listingEditor.businessName || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, businessName: v }))} />
-            <Field label="Company Website" value={listingEditor.companyWebsite || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, companyWebsite: v }))} />
-            <Field label="Plan" value={listingEditor.selectedPlan || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedPlan: v }))} />
+          <div className="mt-6 space-y-6 pb-6">
+
+            {/* Section 1: Listing Status & Plan */}
+            <div className="border-b pb-2 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Listing Status & Plan</h3>
+            </div>
             <Field label="Status (Approved, Pending Review, Disabled)" value={listingEditor.status || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, status: v }))} />
             <Field label="Active (true or false)" value={listingEditor.active || "true"} onChange={(v) => setListingEditor((prev) => ({ ...prev, active: v }))} />
-            <Field label="Categories (comma separated)" value={listingEditor.selectedCategoriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedCategoriesCsv: v }))} />
-            <Field label="Service Countries (comma separated)" value={listingEditor.serviceCountriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, serviceCountriesCsv: v }))} />
-            <Field label="Service Regions (comma separated)" value={listingEditor.serviceRegionsCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, serviceRegionsCsv: v }))} />
+            <Field label="Plan" value={listingEditor.selectedPlan || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedPlan: v }))} />
+            <Field label="Selected Group (business_offerings, consulting, events, jobs)" value={listingEditor.selectedGroup || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedGroup: v }))} />
+
+            {/* Section 2: Core Info */}
+            <div className="border-b pb-2 pt-2 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Core Information</h3>
+            </div>
+            <Field label="Business Name" value={listingEditor.businessName || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, businessName: v }))} />
+            <Field label="Company Website" value={listingEditor.companyWebsite || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, companyWebsite: v }))} />
+            <Field label="Business Country" value={listingEditor.businessCountry || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, businessCountry: v }))} />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Business Address</p>
+              <Textarea value={listingEditor.businessAddress || ""} onChange={(e) => setListingEditor((prev) => ({ ...prev, businessAddress: e.target.value }))} className="min-h-16" />
+            </div>
             <div className="space-y-1">
               <p className="text-sm font-medium">Company Profile</p>
               <Textarea
@@ -2454,15 +2545,91 @@ export default function AdminDashboard() {
               />
               <p className={`text-xs ${(listingEditor.companyProfileText || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-slate-500'}`}>{(listingEditor.companyProfileText || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
             </div>
+
+            {/* Section 3: Categories & Geography */}
+            <div className="border-b pb-2 pt-2 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Categories & Geography</h3>
+            </div>
+            <Field label="Categories (comma separated)" value={listingEditor.selectedCategoriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedCategoriesCsv: v }))} />
+            <Field label="Subcategories (comma separated)" value={listingEditor.selectedSubcategoriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedSubcategoriesCsv: v }))} />
+            <Field label="Sub-subcategories (comma separated)" value={listingEditor.selectedSubSubcategoriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedSubSubcategoriesCsv: v }))} />
+            <Field label="Service Regions (comma separated)" value={listingEditor.serviceRegionsCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, serviceRegionsCsv: v }))} />
+            <Field label="Service Countries (comma separated)" value={listingEditor.serviceCountriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, serviceCountriesCsv: v }))} />
+
+            {/* Section 4: Business Offering / Consulting specific */}
+            <div className="border-b pb-2 pt-2 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Business Offering / Consulting</h3>
+            </div>
+            <Field label="Bio Safety Level (comma separated, e.g. 1,2,3)" value={listingEditor.bioSafetyLevelCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, bioSafetyLevelCsv: v }))} />
+            <Field label="Certifications (comma separated, e.g. GMP,ISO 9001)" value={listingEditor.certificationsCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, certificationsCsv: v }))} />
             <div className="space-y-1">
-              <p className="text-sm font-medium">Business Address</p>
+              <p className="text-sm font-medium">Company Representatives (JSON)</p>
               <Textarea
-                value={listingEditor.businessAddress || ""}
-                onChange={(e) => setListingEditor((prev) => ({ ...prev, businessAddress: e.target.value }))}
-                className="min-h-24"
+                value={listingEditor.companyRepresentativesJson || ""}
+                onChange={(e) => setListingEditor((prev) => ({ ...prev, companyRepresentativesJson: e.target.value }))}
+                className="min-h-24 font-mono text-xs"
+                placeholder='[{"firstName":"","lastName":"","email":""}]'
               />
             </div>
-            <Button onClick={saveListingEdits} className="w-full">Save Listing Changes</Button>
+
+            {/* Section 5: Event Fields */}
+            <div className="border-b pb-2 pt-2 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Event Fields</h3>
+            </div>
+            <Field label="Event Name" value={listingEditor.eventName || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, eventName: v }))} />
+            <Field label="Event Link / Sign-up URL" value={listingEditor.eventLink || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, eventLink: v }))} />
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Start Date" value={listingEditor.startDate || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, startDate: v }))} />
+              <Field label="End Date" value={listingEditor.endDate || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, endDate: v }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Event Country" value={listingEditor.eventCountry || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, eventCountry: v }))} />
+              <Field label="State / Region" value={listingEditor.stateRegion || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, stateRegion: v }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="City" value={listingEditor.city || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, city: v }))} />
+              <Field label="Location / Venue" value={listingEditor.location || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, location: v }))} />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Event Profile</p>
+              <Textarea value={listingEditor.eventProfile || ""} onChange={(e) => setListingEditor((prev) => ({ ...prev, eventProfile: e.target.value }))} className="min-h-20" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Agenda Highlights</p>
+              <Textarea value={listingEditor.agendaHighlights || ""} onChange={(e) => setListingEditor((prev) => ({ ...prev, agendaHighlights: e.target.value }))} className="min-h-16" />
+            </div>
+            <Field label="Agenda PDF URL" value={listingEditor.agendaPdfUrl || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, agendaPdfUrl: v }))} />
+
+            {/* Section 6: Job Fields */}
+            <div className="border-b pb-2 pt-2 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Job Fields</h3>
+            </div>
+            <Field label="Job Title" value={listingEditor.jobTitle || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, jobTitle: v }))} />
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Industry" value={listingEditor.industry || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, industry: v }))} />
+              <Field label="Position Type" value={listingEditor.positionType || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, positionType: v }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Experience Level" value={listingEditor.experienceLevel || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, experienceLevel: v }))} />
+              <Field label="Work Model" value={listingEditor.workModel || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, workModel: v }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Job Country" value={listingEditor.jobCountry || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, jobCountry: v }))} />
+              <Field label="Education" value={listingEditor.education || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, education: v }))} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="Application Deadline" value={listingEditor.applicationDeadline || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, applicationDeadline: v }))} />
+              <Field label="Apply Link" value={listingEditor.positionLink || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, positionLink: v }))} />
+            </div>
+            <Field label="Company Website Link (Job)" value={listingEditor.companyWebsiteLink || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, companyWebsiteLink: v }))} />
+            <Field label="LinkedIn Job URL" value={listingEditor.linkedInJob || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, linkedInJob: v }))} />
+            <Field label="Job Description PDF URL" value={listingEditor.jobDescriptionPdfUrl || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, jobDescriptionPdfUrl: v }))} />
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Job Summary</p>
+              <Textarea value={listingEditor.jobSummary || ""} onChange={(e) => setListingEditor((prev) => ({ ...prev, jobSummary: e.target.value }))} className="min-h-20" />
+            </div>
+
+            <Button onClick={saveListingEdits} className="w-full mt-2">Save Listing Changes</Button>
           </div>
         </SheetContent>
       </Sheet>
