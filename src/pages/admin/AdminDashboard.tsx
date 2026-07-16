@@ -1229,6 +1229,45 @@ export default function AdminDashboard() {
     }
   };
 
+  const cancelTrial = async () => {
+    if (!selectedPartner) return;
+    if (!window.confirm("Are you sure you want to cancel this partner's trial? Their plan will be deactivated immediately.")) return;
+    try {
+      const latestPlan = partnerPlans
+        .filter((plan) => plan.partnerId === selectedPartner.id)
+        .sort((a, b) => {
+          const aTs = a.startDate?.seconds || a.createdAt?.seconds || 0;
+          const bTs = b.startDate?.seconds || b.createdAt?.seconds || 0;
+          return bTs - aTs;
+        })[0];
+
+      if (!latestPlan) {
+        alert("No plan document found for this partner.");
+        return;
+      }
+
+      const planDocRef = doc(db, "partnersCollection", selectedPartner.id, "planCollection", latestPlan.id);
+      await updateDoc(planDocRef, {
+        active: false,
+        billingPeriodEnd: new Date(),
+      });
+
+      await logActivity({
+        partnerId: selectedPartner.id,
+        partnerName: selectedPartner.businessName || "Unnamed Business",
+        action: "ACCOUNT_UPDATED",
+        details: `Trial cancelled immediately by admin: ${adminEmail}`,
+        category: "admin",
+        metadata: { adminEmail, cancelledAt: new Date() }
+      });
+
+      alert("Trial cancelled successfully.");
+    } catch (err: any) {
+      console.error("Error cancelling trial:", err);
+      alert("Failed to cancel trial: " + err.message);
+    }
+  };
+
   const setPartnerStatus = async (partner: PartnerRecord, status: string) => {
     try {
       await updateDoc(doc(db, "partnersCollection", partner.id), { partnerStatus: status });
@@ -2126,6 +2165,16 @@ export default function AdminDashboard() {
                         +90 Days
                       </Button>
                     </div>
+                  </div>
+                  <div className="pt-1 border-t border-slate-200">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full text-xs py-1 text-rose-600 border-rose-200 bg-white hover:bg-rose-50 hover:border-rose-400"
+                      onClick={cancelTrial}
+                    >
+                      Cancel Trial
+                    </Button>
                   </div>
                 </div>
               );
