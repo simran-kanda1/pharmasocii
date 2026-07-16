@@ -13,7 +13,6 @@ import {
   canActivateMainInPicker,
   canAddSubInPicker,
   canAddSubSubInPicker,
-  categoryLimitHelpText,
   summarizePickerSelection,
 } from "@/lib/communityCategoryLimits";
 
@@ -262,7 +261,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
     <div className="space-y-6 border border-foreground/10 rounded-xl p-4 bg-foreground/[0.02]">
       <div>
         <p className="text-sm font-medium">Categories</p>
-        <p className="text-xs text-muted-foreground">{categoryLimitHelpText()}</p>
+        <p className="text-xs text-muted-foreground">Select up to 3 main categories (with 2 subs each, when available) to keep discussions streamlined.</p>
         <p className="text-xs font-medium text-foreground/80 mt-1">
           {summarizePickerSelection(doc, value.subsByMain)}
         </p>

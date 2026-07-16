@@ -1380,7 +1380,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   <div className="md:col-span-2">
                     <Label className="text-slate-600 font-semibold">Agenda Highlights (Max 500 characters) *</Label>
                     <Textarea value={eventData.agendaHighlights} onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, 500) }))} className="mt-1.5 bg-white border-slate-200 resize-none h-[100px] text-sm" placeholder="List key speakers, workshops, topics..." />
-                    <p className="text-[10px] text-slate-400 mt-1">{eventData.agendaHighlights.length}/500 characters</p>
+                    <p className={`text-[10px] mt-1 ${eventData.agendaHighlights.length >= 500 ? 'text-red-500 font-bold' : 'text-slate-400'}`}>{eventData.agendaHighlights.length}/500 characters</p>
                   </div>
                   <div>
                     <Label className="text-slate-600 font-semibold block mb-2">Upload Event Agenda PDF</Label>

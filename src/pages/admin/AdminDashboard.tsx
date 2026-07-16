@@ -6,6 +6,9 @@ import {
   Ban,
   CheckCircle2,
   ChevronRight,
+  ChevronDown,
+  Check,
+  X,
   Clock,
   Download,
   ExternalLink,
@@ -68,7 +71,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES } from "../AllCategories";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES, type SubcategoryEntry } from "../AllCategories";
 import { DEFAULT_COMMUNITY_CATEGORIES } from "@/lib/defaultCommunityCategories";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import {
@@ -85,6 +89,12 @@ import { AdminReportedCommentsPanel } from "@/components/admin/AdminReportedComm
 import { AdminEmailLogPanel } from "@/components/admin/AdminEmailLogPanel";
 import { seedCommunityCategoriesIfMissing } from "@/lib/seedCommunityCategories";
 import { AdminAddPartner } from "@/components/admin/AdminAddPartner";
+
+const getSubLabel = (entry: SubcategoryEntry): string =>
+  typeof entry === "string" ? entry : entry.label;
+
+const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcategories: string[] } =>
+  typeof entry !== "string";
 import { AdminAddCategory } from "@/components/admin/AdminAddCategory";
 import { AdminAddPlan } from "@/components/admin/AdminAddPlan";
 import { AdminAddFeaturedPlan } from "@/components/admin/AdminAddFeaturedPlan";
@@ -143,7 +153,11 @@ type PartnerPlanRecord = {
   partnerId: string;
   planId?: string;
   planName?: string;
+  isTrial?: boolean;
+  startDate?: any;
+  billingPeriodEnd?: any;
   createdAt?: { seconds?: number };
+  active?: boolean;
 };
 
 type FeaturedPlanPurchase = {
@@ -171,6 +185,480 @@ const splitCsv = (value: string) =>
     .split(",")
     .map((v) => v.trim())
     .filter(Boolean);
+
+const SERVICE_REGIONS = [
+  "North America", "South America", "Europe", "Asia Pacific",
+  "Middle East", "Africa", "Australia & Oceania",
+];
+
+const SERVICE_COUNTRIES = [
+  "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
+  "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia",
+  "Bosnia", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
+  "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia",
+  "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
+  "Denmark", "Djibouti", "Dominican Republic",
+  "Ecuador", "Egypt", "El Salvador", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
+  "Fiji", "Finland", "France",
+  "Gabon", "Georgia", "Germany", "Ghana", "Greece", "Guatemala", "Guyana",
+  "Haiti", "Honduras", "Hong Kong", "Hungary",
+  "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
+  "Jamaica", "Japan", "Jordan",
+  "Kazakhstan", "Kenya", "Korea", "Kosovo", "Kuwait", "Kyrgyzstan",
+  "Laos", "Latvia", "Lebanon", "Liberia", "Libya", "Lithuania", "Luxembourg",
+  "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Mauritius",
+  "Mexico", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
+  "Namibia", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "Norway",
+  "Oman",
+  "Pakistan", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
+  "Qatar",
+  "Romania", "Russia", "Rwanda",
+  "Saudi Arabia", "Senegal", "Serbia", "Sierra Leone", "Singapore", "Slovak Republic", "Slovenia",
+  "Somalia", "South Africa", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
+  "Taiwan", "Tanzania", "Thailand", "Togo", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan",
+  "UAE", "Uganda", "UK", "Ukraine", "United States", "Uruguay", "Uzbekistan",
+  "Venezuela", "Vietnam",
+  "Yemen",
+  "Zambia", "Zimbabwe",
+];
+
+const BSL_LEVELS = ["1", "2", "3", "4"];
+const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+
+function MultiSelectDropdown({
+  label,
+  items,
+  selected,
+  onToggle,
+  placeholder,
+}: {
+  label: string;
+  items: string[];
+  selected: string[];
+  onToggle: (v: string) => void;
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const filteredItems = useMemo(() => {
+    return items.filter((item) =>
+      item.toLowerCase().includes(search.toLowerCase())
+    );
+  }, [items, search]);
+
+  return (
+    <div className="space-y-1 relative">
+      <p className="text-sm font-medium text-slate-700">{label}</p>
+      
+      {/* Selector Box */}
+      <div
+        onClick={() => setOpen(!open)}
+        className="flex min-h-[40px] w-full items-center justify-between gap-2 flex-wrap rounded-md border border-slate-200 bg-white px-3 py-2 text-sm cursor-pointer hover:border-slate-300 transition-colors"
+      >
+        <div className="flex flex-wrap gap-1 items-center">
+          {selected.length === 0 ? (
+            <span className="text-slate-400">{placeholder || `Select ${label.toLowerCase()}...`}</span>
+          ) : (
+            selected.map((item) => (
+              <span
+                key={item}
+                className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded border border-blue-100"
+              >
+                {item}
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggle(item);
+                  }}
+                  className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))
+          )}
+        </div>
+        <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+      </div>
+
+      {/* Dropdown Menu */}
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => {
+              setOpen(false);
+              setSearch("");
+            }}
+          />
+          <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg py-1">
+            <div className="px-2 py-1.5 border-b border-slate-100 sticky top-0 bg-white z-10">
+              <Input
+                placeholder="Search options..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="h-8 text-sm"
+                autoFocus
+              />
+            </div>
+            {filteredItems.length === 0 ? (
+              <div className="px-3 py-2 text-sm text-slate-400 text-center">No options found</div>
+            ) : (
+              filteredItems.map((item) => {
+                const isSelected = selected.includes(item);
+                return (
+                  <div
+                    key={item}
+                    onClick={() => onToggle(item)}
+                    className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between hover:bg-slate-50 transition-colors ${
+                      isSelected ? "bg-slate-50 text-blue-600 font-medium" : "text-slate-700"
+                    }`}
+                  >
+                    <span>{item}</span>
+                    {isSelected && <Check className="w-4 h-4 text-blue-600" />}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+function CategoryTreeDropdown({
+  selectedGroup,
+  selectedCategories = [],
+  selectedSubcategories = [],
+  selectedSubSubcategories = [],
+  onChange,
+}: {
+  selectedGroup: string;
+  selectedCategories?: string[];
+  selectedSubcategories?: string[];
+  selectedSubSubcategories?: string[];
+  onChange: (updates: {
+    selectedCategories: string[];
+    selectedSubcategories: string[];
+    selectedSubSubcategories: string[];
+  }) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [expandedCats, setExpandedCats] = useState<string[]>([]);
+  const [expandedSubs, setExpandedSubs] = useState<string[]>([]);
+
+  const catDict = useMemo(() => {
+    const gk = (selectedGroup || "").toLowerCase().replace(" ", "_");
+    if (gk === "business_offerings" || gk === "business") {
+      return BUSINESS_CATEGORIES;
+    } else if (gk === "consulting_services" || gk === "consulting") {
+      return CONSULTING_CATEGORIES;
+    } else if (gk === "events") {
+      return EVENTS_CATEGORIES;
+    } else if (gk === "jobs") {
+      return JOBS_CATEGORIES;
+    }
+    return null;
+  }, [selectedGroup]);
+
+  // Auto-expand parents based on initial selection when opening the dropdown
+  useEffect(() => {
+    if (open && catDict) {
+      const autoCats: string[] = [];
+      const autoSubs: string[] = [];
+      Object.entries(catDict).forEach(([cat, subs]) => {
+        const hasSubs = subs.length > 0;
+        if (hasSubs) {
+          const anySubSelected = subs.some((subEntry) => {
+            const subLabel = getSubLabel(subEntry);
+            const subSubSelected =
+              hasSubSub(subEntry) &&
+              subEntry.subSubcategories?.some((ss) => selectedSubSubcategories.includes(ss));
+            const subSelected = selectedSubcategories.includes(subLabel);
+            if (subSelected || subSubSelected) {
+              if (hasSubSub(subEntry) && subSubSelected) {
+                autoSubs.push(subLabel);
+              }
+              return true;
+            }
+            return false;
+          });
+          if (anySubSelected || selectedCategories.includes(cat)) {
+            autoCats.push(cat);
+          }
+        }
+      });
+      setExpandedCats(autoCats);
+      setExpandedSubs(autoSubs);
+    }
+  }, [open, catDict]);
+
+  if (!catDict) return null;
+
+  const isBusinessGroup =
+    selectedGroup.toLowerCase().replace(" ", "_") === "business_offerings" ||
+    selectedGroup.toLowerCase().replace(" ", "_") === "business";
+
+  const toggleCategorySelection = (cat: string, hasSubs: boolean) => {
+    if (hasSubs) {
+      setExpandedCats((prev) =>
+        prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+      );
+    } else {
+      const current = [...selectedCategories];
+      const updated = current.includes(cat)
+        ? current.filter((c) => c !== cat)
+        : [...current, cat];
+      onChange({
+        selectedCategories: updated,
+        selectedSubcategories,
+        selectedSubSubcategories,
+      });
+    }
+  };
+
+  const toggleSubcategorySelection = (sub: string, hasSubSubs: boolean) => {
+    if (hasSubSubs) {
+      setExpandedSubs((prev) =>
+        prev.includes(sub) ? prev.filter((s) => s !== sub) : [...prev, sub]
+      );
+    } else {
+      const current = [...selectedSubcategories];
+      const updated = current.includes(sub)
+        ? current.filter((s) => s !== sub)
+        : [...current, sub];
+      onChange({
+        selectedCategories,
+        selectedSubcategories: updated,
+        selectedSubSubcategories,
+      });
+    }
+  };
+
+  const toggleSubSubcategorySelection = (subSub: string) => {
+    const current = [...selectedSubSubcategories];
+    const updated = current.includes(subSub)
+      ? current.filter((ss) => ss !== subSub)
+      : [...current, subSub];
+    onChange({
+      selectedCategories,
+      selectedSubcategories,
+      selectedSubSubcategories: updated,
+    });
+  };
+
+  const hasAnySelection =
+    selectedCategories.length > 0 ||
+    selectedSubcategories.length > 0 ||
+    selectedSubSubcategories.length > 0;
+
+  return (
+    <div className="space-y-1 relative">
+      <p className="text-sm font-medium text-slate-700">Categories, Subcategories & Sub-Subcategories</p>
+
+      {/* Selector Box */}
+      <div
+        onClick={() => setOpen(!open)}
+        className="flex min-h-[40px] w-full items-center justify-between gap-2 flex-wrap rounded-md border border-slate-200 bg-white px-3 py-2 text-sm cursor-pointer hover:border-slate-300 transition-colors"
+      >
+        <div className="flex flex-wrap gap-1 items-center">
+          {!hasAnySelection ? (
+            <span className="text-slate-400">Select categories & specializations...</span>
+          ) : (
+            <>
+              {selectedCategories.map((c) => (
+                <span
+                  key={c}
+                  className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded border border-blue-100 animate-fadeIn"
+                >
+                  {c}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleCategorySelection(c, false);
+                    }}
+                    className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {selectedSubcategories.map((s) => (
+                <span
+                  key={s}
+                  className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-green-50 text-green-700 text-xs font-semibold rounded border border-green-100 animate-fadeIn"
+                >
+                  {s}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSubcategorySelection(s, false);
+                    }}
+                    className="hover:bg-green-100 rounded-full p-0.5 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+              {selectedSubSubcategories.map((ss) => (
+                <span
+                  key={ss}
+                  className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-purple-50 text-purple-700 text-xs font-semibold rounded border border-purple-100 animate-fadeIn"
+                >
+                  {ss}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toggleSubSubcategorySelection(ss);
+                    }}
+                    className="hover:bg-purple-100 rounded-full p-0.5 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </>
+          )}
+        </div>
+        <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+      </div>
+
+      {/* Dropdown Menu */}
+      {open && (
+        <>
+          <div
+            className="fixed inset-0 z-40"
+            onClick={() => setOpen(false)}
+          />
+          <div className="absolute z-50 mt-1 w-full max-h-[380px] overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg p-4 space-y-2">
+            {Object.entries(catDict).map(([cat, subs]) => {
+              const hasSubs = subs.length > 0;
+              const isExpanded = expandedCats.includes(cat);
+              const isParentSelected = selectedCategories.includes(cat);
+
+              return (
+                <div key={cat} className="flex flex-col">
+                  {/* Category Row */}
+                  <div className="flex items-start gap-2 py-1">
+                    {hasSubs ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleCategorySelection(cat, true);
+                        }}
+                        className="mt-0.5 flex-shrink-0 text-slate-500 hover:text-slate-900"
+                      >
+                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </button>
+                    ) : (
+                      <span className="w-4 h-4 flex-shrink-0" />
+                    )}
+
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id={`admin-cat-${cat}`}
+                        checked={hasSubs ? isExpanded : isParentSelected}
+                        onCheckedChange={() => toggleCategorySelection(cat, hasSubs)}
+                        className={hasSubs && isExpanded ? "border-blue-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500" : ""}
+                      />
+                      <label
+                        htmlFor={`admin-cat-${cat}`}
+                        className={`text-sm leading-none cursor-pointer select-none ${
+                          hasSubs ? "font-semibold text-slate-900" : "font-medium text-slate-700"
+                        }`}
+                      >
+                        {cat}
+                      </label>
+                    </div>
+                  </div>
+
+                  {/* Subcategories (Indented) */}
+                  {hasSubs && isExpanded && (
+                    <div className="ml-8 pl-3 border-l-2 border-green-500/30 space-y-1 mb-2">
+                      {subs.map((entry: SubcategoryEntry) => {
+                        const subLabel = getSubLabel(entry);
+                        const isNested = isBusinessGroup && hasSubSub(entry);
+                        const isSubChecked = selectedSubcategories.includes(subLabel);
+                        const isSubExpanded = expandedSubs.includes(subLabel);
+
+                        return (
+                          <div key={subLabel} className="flex flex-col">
+                            {/* Subcategory Row */}
+                            <div className="flex items-center gap-1.5 py-0.5">
+                              {isNested ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleSubcategorySelection(subLabel, true);
+                                  }}
+                                  className="flex-shrink-0 text-slate-500 hover:text-slate-900"
+                                >
+                                  {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                </button>
+                              ) : (
+                                <span className="w-3.5 h-3.5 flex-shrink-0" />
+                              )}
+
+                              <Checkbox
+                                id={`admin-sub-${cat}-${subLabel}`}
+                                checked={isNested ? isSubExpanded : isSubChecked}
+                                onCheckedChange={() => toggleSubcategorySelection(subLabel, isNested)}
+                                className={`${isSubChecked ? "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}`}
+                              />
+                              <label
+                                htmlFor={`admin-sub-${cat}-${subLabel}`}
+                                className="text-sm text-green-700 cursor-pointer select-none"
+                              >
+                                {subLabel}
+                              </label>
+                            </div>
+
+                            {/* Sub-Subcategories (Indented) */}
+                            {isNested && isSubExpanded && hasSubSub(entry) && (
+                              <div className="ml-6 pl-3 border-l border-blue-500/20 space-y-0.5 mb-1">
+                                {entry.subSubcategories.map((ssLabel: string) => {
+                                  const isSsChecked = selectedSubSubcategories.includes(ssLabel);
+                                  return (
+                                    <div key={ssLabel} className="flex items-center gap-2 py-0.5">
+                                      <Checkbox
+                                        id={`admin-ssub-${cat}-${subLabel}-${ssLabel}`}
+                                        checked={isSsChecked}
+                                        onCheckedChange={() => toggleSubSubcategorySelection(ssLabel)}
+                                        className={`${isSsChecked ? "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}`}
+                                      />
+                                      <label
+                                        htmlFor={`admin-ssub-${cat}-${subLabel}-${ssLabel}`}
+                                        className="text-xs text-slate-500 cursor-pointer select-none"
+                                      >
+                                        {ssLabel}
+                                      </label>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 const getCollectionLabel = (collectionName: string) => {
   switch (collectionName) {
@@ -314,7 +802,7 @@ export default function AdminDashboard() {
   const [communityCategoriesError, setCommunityCategoriesError] = useState("");
 
   const [selectedPartner, setSelectedPartner] = useState<PartnerRecord | null>(null);
-  const [partnerEditor, setPartnerEditor] = useState<Record<string, string>>({});
+  const [partnerEditor, setPartnerEditor] = useState<Record<string, any>>({});
   const [partnerEditorOpen, setPartnerEditorOpen] = useState(false);
 
   const [selectedListing, setSelectedListing] = useState<ListingRecord | null>(null);
@@ -360,13 +848,33 @@ export default function AdminDashboard() {
     const unsubPartnerPlans = onSnapshot(
       qPartnerPlans,
       (snap) => {
-        setPartnerPlans(
-          snap.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as Record<string, any>),
-            partnerId: d.ref.path.split("/")[1] || "",
-          })) as PartnerPlanRecord[],
-        );
+        const plans = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Record<string, any>),
+          partnerId: d.ref.path.split("/")[1] || "",
+        })) as PartnerPlanRecord[];
+
+        // Automatically cancel trials that have expired
+        const now = Date.now();
+        plans.forEach(async (plan) => {
+          if (plan.isTrial && plan.active !== false && plan.billingPeriodEnd) {
+            const endMs = typeof plan.billingPeriodEnd.toMillis === 'function'
+              ? plan.billingPeriodEnd.toMillis()
+              : (plan.billingPeriodEnd.seconds ? plan.billingPeriodEnd.seconds * 1000 : new Date(plan.billingPeriodEnd).getTime());
+            
+            if (endMs < now) {
+              try {
+                const planRef = doc(db, "partnersCollection", plan.partnerId, "planCollection", plan.id);
+                await updateDoc(planRef, { active: false });
+                console.log(`Auto-cancelled expired trial plan ${plan.id} for partner ${plan.partnerId}`);
+              } catch (e) {
+                console.error("Error auto-cancelling expired trial plan:", e);
+              }
+            }
+          }
+        });
+
+        setPartnerPlans(plans);
       },
       (error) => {
         console.error("Failed to fetch partnerPlans:", error);
@@ -505,13 +1013,65 @@ export default function AdminDashboard() {
   const openPartnerEditor = (partner: PartnerRecord) => {
     setSelectedPartner(partner);
     setPartnerEditor({
-      businessName: partner.businessName || "",
+      // Primary Info
+      firstName: partner.firstName || "",
+      lastName: partner.lastName || "",
       primaryName: partner.primaryName || "",
       primaryEmail: partner.primaryEmail || "",
-      companyWebsite: partner.companyWebsite || "",
       phoneNumber: partner.phoneNumber || "",
+      
+      // Company Info
+      businessName: partner.businessName || "",
+      companyWebsite: partner.companyWebsite || "",
+      businessPhone: partner.businessPhone || "",
+      linkedinProfile: partner.linkedinProfile || "",
       businessAddress: partner.businessAddress || "",
+      businessCountry: partner.businessCountry || "",
+      companyProfileText: partner.companyProfileText || "",
+      
+      // Billing & Admin
       partnerStatus: partner.partnerStatus || "Pending",
+      billingEmailAddress: partner.billingEmailAddress || "",
+      VAT_ABN_EIN_businessId: partner.VAT_ABN_EIN_businessId || "",
+      altContactName: partner.altContactName || "",
+      altEmail: partner.altEmail || "",
+      selectedGroup: partner.selectedGroup || "business_offerings",
+      selectedPlan: partner.selectedPlan || "none",
+      
+      // Taxonomy Arrays
+      selectedCategories: partner.selectedCategories || [],
+      selectedSubcategories: partner.selectedSubcategories || [],
+      selectedSubSubcategories: partner.selectedSubSubcategories || [],
+      serviceCountries: partner.serviceCountries || [],
+      serviceRegions: partner.serviceRegions || [],
+      certifications: partner.certifications || [],
+      bioSafetyLevel: partner.bioSafetyLevel || [],
+
+      // Event-specific
+      eventName: partner.eventName || "",
+      eventLink: partner.eventLink || "",
+      startDate: partner.startDate || "",
+      endDate: partner.endDate || "",
+      eventCountry: partner.eventCountry || "",
+      stateRegion: partner.stateRegion || "",
+      city: partner.city || "",
+      location: partner.location || "",
+      eventProfile: partner.eventProfile || "",
+      agendaHighlights: partner.agendaHighlights || "",
+      agendaPdfUrl: partner.agendaPdfUrl || "",
+
+      // Job-specific
+      jobTitle: partner.jobTitle || "",
+      industry: partner.industry || "",
+      positionType: partner.positionType || "",
+      experienceLevel: partner.experienceLevel || "",
+      positionLink: partner.positionLink || "",
+      jobCountry: partner.jobCountry || "",
+      jobSummary: partner.jobSummary || "",
+      education: partner.education || "",
+      workModel: partner.workModel || "",
+      applicationDeadline: partner.applicationDeadline || "",
+      jobDescriptionPdfUrl: partner.jobDescriptionPdfUrl || "",
     });
     setPartnerEditorOpen(true);
   };
@@ -519,33 +1079,153 @@ export default function AdminDashboard() {
   const savePartnerEdits = async () => {
     if (!selectedPartner) return;
     try {
-      await updateDoc(doc(db, "partnersCollection", selectedPartner.id), {
-        businessName: partnerEditor.businessName || "",
+      const payload: Record<string, any> = {
+        // Primary Info
+        firstName: partnerEditor.firstName || "",
+        lastName: partnerEditor.lastName || "",
         primaryName: partnerEditor.primaryName || "",
         primaryEmail: partnerEditor.primaryEmail || "",
-        companyWebsite: partnerEditor.companyWebsite || "",
         phoneNumber: partnerEditor.phoneNumber || "",
+        
+        // Company Info
+        businessName: partnerEditor.businessName || "",
+        companyName: partnerEditor.businessName || "", // sync companyName just in case
+        companyWebsite: partnerEditor.companyWebsite || "",
+        businessPhone: partnerEditor.businessPhone || "",
+        linkedinProfile: partnerEditor.linkedinProfile || "",
         businessAddress: partnerEditor.businessAddress || "",
+        addressHtml: partnerEditor.businessAddress || "", // sync addressHtml
+        businessCountry: partnerEditor.businessCountry || "",
+        companyProfileText: partnerEditor.companyProfileText || "",
+        profileHtml: partnerEditor.companyProfileText || "", // sync profileHtml
+        
+        // Billing & Admin
         partnerStatus: partnerEditor.partnerStatus || "Pending",
-      });
+        status: partnerEditor.partnerStatus || "Pending", // sync status
+        billingEmailAddress: partnerEditor.billingEmailAddress || "",
+        VAT_ABN_EIN_businessId: partnerEditor.VAT_ABN_EIN_businessId || "",
+        altContactName: partnerEditor.altContactName || "",
+        altEmail: partnerEditor.altEmail || "",
+        selectedGroup: partnerEditor.selectedGroup || "business_offerings",
+        selectedPlan: partnerEditor.selectedPlan || "none",
+        
+        // Taxonomy arrays
+        selectedCategories: partnerEditor.selectedCategories || [],
+        selectedSubcategories: partnerEditor.selectedSubcategories || [],
+        selectedSubSubcategories: partnerEditor.selectedSubSubcategories || [],
+        serviceCountries: partnerEditor.serviceCountries || [],
+        serviceRegions: partnerEditor.serviceRegions || [],
+        certifications: partnerEditor.certifications || [],
+        bioSafetyLevel: partnerEditor.bioSafetyLevel || [],
+      };
+
+      // Conditionally add Event fields
+      if (partnerEditor.selectedGroup === "events") {
+        Object.assign(payload, {
+          eventName: partnerEditor.eventName || "",
+          eventLink: partnerEditor.eventLink || "",
+          startDate: partnerEditor.startDate || "",
+          endDate: partnerEditor.endDate || "",
+          eventCountry: partnerEditor.eventCountry || "",
+          stateRegion: partnerEditor.stateRegion || "",
+          city: partnerEditor.city || "",
+          location: partnerEditor.location || "",
+          eventProfile: partnerEditor.eventProfile || "",
+          agendaHighlights: partnerEditor.agendaHighlights || "",
+          agendaPdfUrl: partnerEditor.agendaPdfUrl || "",
+        });
+      }
+
+      // Conditionally add Job fields
+      if (partnerEditor.selectedGroup === "jobs") {
+        Object.assign(payload, {
+          jobTitle: partnerEditor.jobTitle || "",
+          industry: partnerEditor.industry || "",
+          positionType: partnerEditor.positionType || "",
+          experienceLevel: partnerEditor.experienceLevel || "",
+          positionLink: partnerEditor.positionLink || "",
+          jobCountry: partnerEditor.jobCountry || "",
+          jobSummary: partnerEditor.jobSummary || "",
+          education: partnerEditor.education || "",
+          workModel: partnerEditor.workModel || "",
+          applicationDeadline: partnerEditor.applicationDeadline || "",
+          jobDescriptionPdfUrl: partnerEditor.jobDescriptionPdfUrl || "",
+        });
+      }
+
+      await updateDoc(doc(db, "partnersCollection", selectedPartner.id), payload);
       setPartners((prev) =>
-        prev.map((p) => (p.id === selectedPartner.id ? { ...p, ...partnerEditor } : p)),
+        prev.map((p) => (p.id === selectedPartner.id ? { ...p, ...payload } : p)),
       );
 
       // Log to Audit Trail
       await logActivity({
         partnerId: selectedPartner.id,
-        partnerName: partnerEditor.businessName || "Unnamed Business",
+        partnerName: payload.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
-        details: `Profile updated: ${partnerEditor.businessName} (Contact: ${partnerEditor.primaryName}). Updated by admin: ${adminEmail}`,
+        details: `Profile updated by admin: ${payload.businessName} (Contact: ${payload.primaryName}). Admin: ${adminEmail}`,
         category: "admin",
-        metadata: { adminEmail, updatedFields: partnerEditor }
+        metadata: { adminEmail, updatedFields: payload }
       });
 
       setSaveNotice("Partner profile updated.");
+      setPartnerEditorOpen(false);
     } catch (error) {
       console.error(error);
       setSaveNotice("Could not update partner profile.");
+    }
+  };
+
+  const extendTrial = async (days: number) => {
+    if (!selectedPartner) return;
+    try {
+      const latestPlan = partnerPlans
+        .filter((plan) => plan.partnerId === selectedPartner.id)
+        .sort((a, b) => {
+          const aTs = a.startDate?.seconds || a.createdAt?.seconds || 0;
+          const bTs = b.startDate?.seconds || b.createdAt?.seconds || 0;
+          return bTs - aTs;
+        })[0];
+
+      if (!latestPlan) {
+        alert("No plan document found for this partner to extend.");
+        return;
+      }
+
+      const currentEnd = latestPlan.billingPeriodEnd;
+      let endMs = 0;
+      if (currentEnd) {
+        endMs = typeof currentEnd.toMillis === 'function' 
+          ? currentEnd.toMillis() 
+          : (currentEnd.seconds ? currentEnd.seconds * 1000 : new Date(currentEnd).getTime());
+      } else {
+        endMs = Date.now();
+      }
+
+      const baseMs = endMs < Date.now() ? Date.now() : endMs;
+      const extensionMs = days * 24 * 60 * 60 * 1000;
+      const newEnd = new Date(baseMs + extensionMs);
+
+      const planDocRef = doc(db, "partnersCollection", selectedPartner.id, "planCollection", latestPlan.id);
+      await updateDoc(planDocRef, {
+        billingPeriodEnd: newEnd,
+        isTrial: true,
+        active: true
+      });
+
+      await logActivity({
+        partnerId: selectedPartner.id,
+        partnerName: selectedPartner.businessName || "Unnamed Business",
+        action: "ACCOUNT_UPDATED",
+        details: `Trial extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`,
+        category: "admin",
+        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd }
+      });
+
+      alert(`Successfully extended trial by ${days} days!`);
+    } catch (err: any) {
+      console.error("Error extending trial:", err);
+      alert("Failed to extend trial: " + err.message);
     }
   };
 
@@ -703,13 +1383,55 @@ export default function AdminDashboard() {
 
     return partners.reduce((acc, partner) => {
       const latestPlan = latestPlansByPartner.get(partner.id);
+      
+      let trialInfo = null;
+      if (partner.createdByAdmin && latestPlan && latestPlan.isTrial) {
+        const startDate = latestPlan.startDate;
+        const billingPeriodEnd = latestPlan.billingPeriodEnd;
+        if (startDate && billingPeriodEnd) {
+          const startMs = typeof startDate.toMillis === 'function' 
+            ? startDate.toMillis() 
+            : (startDate.seconds ? startDate.seconds * 1000 : new Date(startDate).getTime());
+          const endMs = typeof billingPeriodEnd.toMillis === 'function' 
+            ? billingPeriodEnd.toMillis() 
+            : (billingPeriodEnd.seconds ? billingPeriodEnd.seconds * 1000 : new Date(billingPeriodEnd).getTime());
+          const nowMs = Date.now();
+          
+          const durationDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+          const elapsedDays = Math.floor((nowMs - startMs) / (1000 * 60 * 60 * 24));
+          const currentDay = Math.max(1, elapsedDays + 1);
+          
+          trialInfo = {
+            durationDays,
+            currentDay: Math.min(currentDay, durationDays),
+            isExpired: nowMs > endMs,
+            daysLeft: Math.max(0, Math.round((endMs - nowMs) / (1000 * 60 * 60 * 24))),
+            startDate: startMs,
+            billingPeriodEnd: endMs,
+          };
+        }
+      }
+
       acc[partner.id] = {
         latestPlan: latestPlan?.planName || latestPlan?.planId || "-",
         listingCount: listingCountByPartner.get(partner.id) || 0,
         featuredCount: featuredCountByPartner.get(partner.id) || 0,
+        trialInfo,
       };
       return acc;
-    }, {} as Record<string, { latestPlan: string; listingCount: number; featuredCount: number }>);
+    }, {} as Record<string, { 
+      latestPlan: string; 
+      listingCount: number; 
+      featuredCount: number; 
+      trialInfo?: { 
+        durationDays: number; 
+        currentDay: number; 
+        isExpired: boolean; 
+        daysLeft: number; 
+        startDate: number;
+        billingPeriodEnd: number;
+      } | null;
+    }>);
   }, [partners, partnerPlans, listings, featuredPlans]);
 
   const listingInsights = useMemo(() => {
@@ -1027,7 +1749,7 @@ export default function AdminDashboard() {
           </div>
         </header>
 
-        <div className="p-8 max-w-7xl mx-auto space-y-6">
+        <div className="p-8 max-w-[1600px] mx-auto space-y-6">
           {saveNotice && (
             <div className="rounded-md border border-sky-200 bg-sky-50 px-4 py-2 text-sm text-sky-800">
               {saveNotice}
@@ -1350,21 +2072,244 @@ export default function AdminDashboard() {
               View History
             </Button>
           </SheetHeader>
-          <div className="mt-6 space-y-4">
-            <Field label="Business Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} />
+          <div className="mt-6 space-y-6">
+            {/* Section 1: Account Status & Plan */}
+            <div className="border-b pb-2 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Account Status & Plan</h3>
+            </div>
+            <Field label="Account Status (Approved, Pending, Disabled)" value={partnerEditor.partnerStatus || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, partnerStatus: v }))} />
+            <Field label="Selected Group (business_offerings, consulting, events, jobs)" value={partnerEditor.selectedGroup || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, selectedGroup: v }))} />
+            <Field label="Selected Plan" value={partnerEditor.selectedPlan || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, selectedPlan: v }))} />
+
+            {selectedPartner && partnerInsights[selectedPartner.id]?.trialInfo && (() => {
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+              const trial = partnerInsights[selectedPartner.id].trialInfo!;
+              return (
+                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3 mt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Trial Period Status</span>
+                    {trial.isExpired ? (
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">Expired</Badge>
+                    ) : (
+                      <Badge className="bg-blue-50 text-blue-700 border-blue-200">Active ({trial.currentDay}/{trial.durationDays} Days)</Badge>
+                    )}
+                  </div>
+                  <div className="text-sm text-slate-600 space-y-1">
+                    <p><strong>Start Date:</strong> {new Date(trial.startDate).toLocaleDateString()}</p>
+                    <p><strong>Expiration:</strong> {new Date(trial.billingPeriodEnd).toLocaleDateString()}</p>
+                  </div>
+                  <div className="space-y-1.5 pt-1">
+                    <p className="text-xs font-medium text-slate-500">Extend Trial Period:</p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 bg-white hover:bg-slate-100 text-xs py-1"
+                        onClick={() => extendTrial(7)}
+                      >
+                        +7 Days
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 bg-white hover:bg-slate-100 text-xs py-1"
+                        onClick={() => extendTrial(30)}
+                      >
+                        +30 Days
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 bg-white hover:bg-slate-100 text-xs py-1"
+                        onClick={() => extendTrial(90)}
+                      >
+                        +90 Days
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Section 2: Contact Information */}
+            <div className="border-b pb-2 pt-4 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Contact Information</h3>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Field label="First Name" value={partnerEditor.firstName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, firstName: v }))} />
+              <Field label="Last Name" value={partnerEditor.lastName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, lastName: v }))} />
+            </div>
             <Field label="Primary Contact Name" value={partnerEditor.primaryName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryName: v }))} />
             <Field label="Primary Email" value={partnerEditor.primaryEmail || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryEmail: v }))} />
-            <Field label="Company Website" value={partnerEditor.companyWebsite || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, companyWebsite: v }))} />
             <Field label="Phone Number" value={partnerEditor.phoneNumber || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, phoneNumber: v }))} />
-            <Field label="Account Status (Approved, Pending, Disabled)" value={partnerEditor.partnerStatus || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, partnerStatus: v }))} />
+
+            {/* Section 3: Company Details */}
+            <div className="border-b pb-2 pt-4 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Company Details</h3>
+            </div>
+            <Field label="Business Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} />
+            <Field label="Company Website" value={partnerEditor.companyWebsite || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, companyWebsite: v }))} />
+            <Field label="Business Phone" value={partnerEditor.businessPhone || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessPhone: v }))} />
+            <Field label="LinkedIn Profile" value={partnerEditor.linkedinProfile || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, linkedinProfile: v }))} />
+            <Field label="Business Country" value={partnerEditor.businessCountry || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessCountry: v }))} />
             <div className="space-y-1">
               <p className="text-sm font-medium">Business Address</p>
               <Textarea
                 value={partnerEditor.businessAddress || ""}
                 onChange={(e) => setPartnerEditor((prev) => ({ ...prev, businessAddress: e.target.value }))}
-                className="min-h-24"
+                className="min-h-20"
               />
             </div>
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Company Profile Description</p>
+              <Textarea
+                value={partnerEditor.companyProfileText || ""}
+                onChange={(e) => setPartnerEditor((prev) => ({ ...prev, companyProfileText: e.target.value }))}
+                className="min-h-20"
+              />
+            </div>
+
+            {/* Section 4: Billing & Registration */}
+            <div className="border-b pb-2 pt-4 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Billing & Registration</h3>
+            </div>
+            <Field label="Billing Email Address" value={partnerEditor.billingEmailAddress || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, billingEmailAddress: v }))} />
+            <Field label="VAT / ABN / EIN / Business ID" value={partnerEditor.VAT_ABN_EIN_businessId || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, VAT_ABN_EIN_businessId: v }))} />
+            <Field label="Alternate Contact Name" value={partnerEditor.altContactName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, altContactName: v }))} />
+            <Field label="Alternate Contact Email" value={partnerEditor.altEmail || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, altEmail: v }))} />
+
+            {/* Section 5: Taxonomy & Scope */}
+            <div className="border-b pb-2 pt-4 mb-2">
+              <h3 className="font-semibold text-slate-900 text-sm">Scope & Taxonomy</h3>
+            </div>
+            
+            <MultiSelectDropdown
+              label="Service Countries"
+              items={SERVICE_COUNTRIES}
+              selected={partnerEditor.serviceCountries || []}
+              onToggle={(v) => {
+                const current = partnerEditor.serviceCountries || [];
+                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
+                setPartnerEditor((prev) => ({ ...prev, serviceCountries: updated }));
+              }}
+              placeholder="Select countries..."
+            />
+
+            <MultiSelectDropdown
+              label="Service Regions"
+              items={SERVICE_REGIONS}
+              selected={partnerEditor.serviceRegions || []}
+              onToggle={(v) => {
+                const current = partnerEditor.serviceRegions || [];
+                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
+                setPartnerEditor((prev) => ({ ...prev, serviceRegions: updated }));
+              }}
+              placeholder="Select regions..."
+            />
+
+            <CategoryTreeDropdown
+              selectedGroup={partnerEditor.selectedGroup || "business_offerings"}
+              selectedCategories={partnerEditor.selectedCategories || []}
+              selectedSubcategories={partnerEditor.selectedSubcategories || []}
+              selectedSubSubcategories={partnerEditor.selectedSubSubcategories || []}
+              onChange={(updates) => {
+                setPartnerEditor((prev) => ({
+                  ...prev,
+                  ...updates,
+                }));
+              }}
+            />
+
+            <MultiSelectDropdown
+              label="Certifications"
+              items={CERTIFICATIONS}
+              selected={partnerEditor.certifications || []}
+              onToggle={(v) => {
+                const current = partnerEditor.certifications || [];
+                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
+                setPartnerEditor((prev) => ({ ...prev, certifications: updated }));
+              }}
+              placeholder="Select certifications..."
+            />
+
+            <MultiSelectDropdown
+              label="Biosafety Levels"
+              items={BSL_LEVELS}
+              selected={partnerEditor.bioSafetyLevel || []}
+              onToggle={(v) => {
+                const current = partnerEditor.bioSafetyLevel || [];
+                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
+                setPartnerEditor((prev) => ({ ...prev, bioSafetyLevel: updated }));
+              }}
+              placeholder="Select biosafety levels..."
+            />
+
+            {/* Section 6: Event Specific Details */}
+            {partnerEditor.selectedGroup === "events" && (
+              <>
+                <div className="border-b pb-2 pt-4 mb-2">
+                  <h3 className="font-semibold text-slate-900 text-sm">Event Details</h3>
+                </div>
+                <Field label="Event Name" value={partnerEditor.eventName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, eventName: v }))} />
+                <Field label="Event Link" value={partnerEditor.eventLink || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, eventLink: v }))} />
+                <div className="grid grid-cols-2 gap-4">
+                  <Field label="Start Date" value={partnerEditor.startDate || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, startDate: v }))} />
+                  <Field label="End Date" value={partnerEditor.endDate || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, endDate: v }))} />
+                </div>
+                <Field label="Event Country" value={partnerEditor.eventCountry || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, eventCountry: v }))} />
+                <Field label="State / Region" value={partnerEditor.stateRegion || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, stateRegion: v }))} />
+                <Field label="City" value={partnerEditor.city || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, city: v }))} />
+                <Field label="Location" value={partnerEditor.location || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, location: v }))} />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Event Profile</p>
+                  <Textarea
+                    value={partnerEditor.eventProfile || ""}
+                    onChange={(e) => setPartnerEditor((prev) => ({ ...prev, eventProfile: e.target.value }))}
+                    className="min-h-20"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Agenda Highlights</p>
+                  <Textarea
+                    value={partnerEditor.agendaHighlights || ""}
+                    onChange={(e) => setPartnerEditor((prev) => ({ ...prev, agendaHighlights: e.target.value }))}
+                    className="min-h-20"
+                  />
+                </div>
+                <Field label="Agenda PDF URL" value={partnerEditor.agendaPdfUrl || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, agendaPdfUrl: v }))} />
+              </>
+            )}
+
+            {/* Section 7: Job Specific Details */}
+            {partnerEditor.selectedGroup === "jobs" && (
+              <>
+                <div className="border-b pb-2 pt-4 mb-2">
+                  <h3 className="font-semibold text-slate-900 text-sm">Job Details</h3>
+                </div>
+                <Field label="Job Title" value={partnerEditor.jobTitle || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobTitle: v }))} />
+                <Field label="Industry" value={partnerEditor.industry || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, industry: v }))} />
+                <Field label="Position Type" value={partnerEditor.positionType || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, positionType: v }))} />
+                <Field label="Experience Level" value={partnerEditor.experienceLevel || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, experienceLevel: v }))} />
+                <Field label="Position Link" value={partnerEditor.positionLink || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, positionLink: v }))} />
+                <Field label="Job Country" value={partnerEditor.jobCountry || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobCountry: v }))} />
+                <Field label="State / Region" value={partnerEditor.stateRegion || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, stateRegion: v }))} />
+                <Field label="City" value={partnerEditor.city || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, city: v }))} />
+                <Field label="Location" value={partnerEditor.location || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, location: v }))} />
+                <div className="space-y-1">
+                  <p className="text-sm font-medium">Job Summary</p>
+                  <Textarea
+                    value={partnerEditor.jobSummary || ""}
+                    onChange={(e) => setPartnerEditor((prev) => ({ ...prev, jobSummary: e.target.value }))}
+                    className="min-h-20"
+                  />
+                </div>
+                <Field label="Education Required" value={partnerEditor.education || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, education: v }))} />
+                <Field label="Work Model" value={partnerEditor.workModel || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, workModel: v }))} />
+                <Field label="Application Deadline" value={partnerEditor.applicationDeadline || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, applicationDeadline: v }))} />
+                <Field label="Job Description PDF URL" value={partnerEditor.jobDescriptionPdfUrl || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobDescriptionPdfUrl: v }))} />
+              </>
+            )}
+
             <Button onClick={savePartnerEdits} className="w-full">Save Partner Changes</Button>
           </div>
         </SheetContent>
@@ -1580,7 +2525,20 @@ function PartnerList({
   onSetStatus,
 }: {
   partners: PartnerRecord[];
-  partnerInsights: Record<string, { latestPlan: string; listingCount: number; featuredCount: number }>;
+  partnerInsights: Record<
+    string,
+    {
+      latestPlan: string;
+      listingCount: number;
+      featuredCount: number;
+      trialInfo?: {
+        durationDays: number;
+        currentDay: number;
+        isExpired: boolean;
+        daysLeft: number;
+      } | null;
+    }
+  >;
   onView: (partner: PartnerRecord) => void;
   onSetStatus: (partner: PartnerRecord, status: string) => void;
 }) {
@@ -1597,67 +2555,117 @@ function PartnerList({
   return (
     <Card className="bg-white border-slate-200 shadow-sm">
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-6">Business</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>User Plan</TableHead>
-              <TableHead>Listings</TableHead>
-              <TableHead>Featured</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>By Admin</TableHead>
-              <TableHead className="text-right pr-6">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {partners.map((partner) => (
-              <TableRow key={partner.id}>
-                <TableCell className="pl-6">
-                  <p className="font-medium">{partner.businessName || "Unnamed Business"}</p>
-                  <p className="text-xs text-slate-500">{partner.companyWebsite || "-"}</p>
-                </TableCell>
-                <TableCell className="text-sm">{partner.primaryEmail || "-"}</TableCell>
-                <TableCell className="text-sm">{partner.phoneNumber || "-"}</TableCell>
-                <TableCell>{getStatusBadge(partner.partnerStatus)}</TableCell>
-                <TableCell className="text-sm">{partnerInsights[partner.id]?.latestPlan || "-"}</TableCell>
-                <TableCell>{partnerInsights[partner.id]?.listingCount || 0}</TableCell>
-                <TableCell>{partnerInsights[partner.id]?.featuredCount || 0}</TableCell>
-                <TableCell>
-                  <p className="text-sm">{partner.primaryName || "-"}</p>
-                  <p className="text-xs text-slate-500">{partner.businessAddress || "-"}</p>
-                </TableCell>
-                <TableCell>
-                  {(partner as any).createdByAdmin ? "Yes" : "No"}
-                </TableCell>
-                <TableCell className="text-right pr-6">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[190px]">
-                      <DropdownMenuLabel>Partner Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => onView(partner)}>
-                        <Eye className="w-4 h-4 mr-2" /> View / Edit profile
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => onSetStatus(partner, "Pending")}>
-                        <Clock className="w-4 h-4 mr-2 text-amber-600" /> Unapprove (set pending)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onSetStatus(partner, "Disabled")}>
-                        <Ban className="w-4 h-4 mr-2 text-rose-600" /> Disable account
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-4 pr-2 py-3 text-xs">Business</TableHead>
+                <TableHead className="px-2 py-3 text-xs">Email</TableHead>
+                <TableHead className="px-2 py-3 text-xs">Phone</TableHead>
+                <TableHead className="px-2 py-3 text-xs">Status</TableHead>
+                <TableHead className="px-2 py-3 text-xs">User Plan</TableHead>
+                <TableHead className="px-2 py-3 text-xs">Listings</TableHead>
+                <TableHead className="px-2 py-3 text-xs">Featured</TableHead>
+                <TableHead className="px-2 py-3 text-xs">Contact</TableHead>
+                <TableHead className="px-2 py-3 text-xs">By Admin</TableHead>
+                <TableHead className="pl-2 pr-4 py-3 text-xs text-right">Actions</TableHead>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHeader>
+            <TableBody>
+              {partners.map((partner) => {
+                const insight = partnerInsights[partner.id];
+                const trial = insight?.trialInfo;
+
+                let trialBadge = null;
+                if (trial) {
+                  if (trial.isExpired) {
+                    trialBadge = (
+                      <Badge className="w-fit bg-slate-100 text-slate-600 border-slate-200 text-[10px] px-1.5 py-0 font-normal">
+                        Trial: Expired
+                      </Badge>
+                    );
+                  } else {
+                    const percentage = (trial.currentDay / trial.durationDays) * 100;
+                    let colorClass = "bg-blue-50 text-blue-700 border-blue-200";
+                    if (percentage >= 90) {
+                      colorClass = "bg-rose-50 text-rose-700 border-rose-200";
+                    } else if (percentage >= 50) {
+                      colorClass = "bg-amber-50 text-amber-700 border-amber-200";
+                    }
+                    trialBadge = (
+                      <Badge className={`w-fit border text-[10px] px-1.5 py-0 font-normal ${colorClass}`}>
+                        Trial: {trial.currentDay}/{trial.durationDays}
+                      </Badge>
+                    );
+                  }
+                }
+
+                return (
+                  <TableRow key={partner.id}>
+                    <TableCell className="pl-4 pr-2 py-2">
+                      <p className="font-medium max-w-[130px] truncate text-sm" title={partner.businessName || "Unnamed Business"}>
+                        {partner.businessName || "Unnamed Business"}
+                      </p>
+                      <p className="text-xs text-slate-500 max-w-[130px] truncate" title={partner.companyWebsite || ""}>
+                        {partner.companyWebsite || "-"}
+                      </p>
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-sm max-w-[110px] truncate" title={partner.primaryEmail || ""}>
+                      {partner.primaryEmail || "-"}
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-sm max-w-[110px] truncate" title={partner.phoneNumber || ""}>
+                      {partner.phoneNumber || "-"}
+                    </TableCell>
+                    <TableCell className="px-2 py-2">{getStatusBadge(partner.partnerStatus)}</TableCell>
+                    <TableCell className="px-2 py-2">
+                      <div className="flex flex-col gap-1">
+                        <span className="text-xs font-medium truncate max-w-[120px]" title={insight?.latestPlan || ""}>
+                          {insight?.latestPlan || "-"}
+                        </span>
+                        {trialBadge}
+                      </div>
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">{insight?.listingCount || 0}</TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">{insight?.featuredCount || 0}</TableCell>
+                    <TableCell className="px-2 py-2">
+                      <p className="text-sm max-w-[110px] truncate" title={partner.primaryName || ""}>
+                        {partner.primaryName || "-"}
+                      </p>
+                      <p className="text-xs text-slate-500 max-w-[130px] truncate" title={partner.businessAddress || ""}>
+                        {partner.businessAddress || "-"}
+                      </p>
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">
+                      {(partner as any).createdByAdmin ? "Yes" : "No"}
+                    </TableCell>
+                    <TableCell className="pl-2 pr-4 py-2 text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[190px]">
+                          <DropdownMenuLabel>Partner Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => onView(partner)}>
+                            <Eye className="w-4 h-4 mr-2" /> View / Edit profile
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onClick={() => onSetStatus(partner, "Pending")}>
+                            <Clock className="w-4 h-4 mr-2 text-amber-600" /> Unapprove (set pending)
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onSetStatus(partner, "Disabled")}>
+                            <Ban className="w-4 h-4 mr-2 text-rose-600" /> Disable account
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );

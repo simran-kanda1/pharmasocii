@@ -185,7 +185,7 @@ export function CreatePostModal({
                 maxLength={POST_TITLE_MAX}
                 onChange={(e) => setTitle(e.target.value)}
               />
-              <p className="text-xs text-muted-foreground text-right">
+              <p className={`text-xs text-right ${title.length >= POST_TITLE_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
                 {title.length}/{POST_TITLE_MAX}
               </p>
             </div>
@@ -198,7 +198,7 @@ export function CreatePostModal({
                 onChange={(e) => setText(e.target.value)}
                 rows={6}
               />
-              <p className="text-xs text-muted-foreground text-right">
+              <p className={`text-xs text-right ${text.length >= POST_BODY_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
                 {text.length}/{POST_BODY_MAX}
               </p>
             </div>

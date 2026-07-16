@@ -105,13 +105,16 @@ export function AdminPostEditPage({ postId, onBack, onSaved, backLabel = "Back T
       >
         <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-3 items-start">
           <Label className="pt-2">Title</Label>
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} />
+          <div>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={100} />
+            <p className={`text-xs mt-1 ${title.length >= 100 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{title.length} / 100 characters</p>
+          </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-3 items-start">
           <Label className="pt-2">Description</Label>
           <div>
             <Textarea value={text} onChange={(e) => setText(e.target.value)} rows={6} maxLength={800} />
-            <p className="text-xs text-muted-foreground mt-1">{text.length} / 800 characters</p>
+            <p className={`text-xs mt-1 ${text.length >= 800 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{text.length} / 800 characters</p>
           </div>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-3 items-start">

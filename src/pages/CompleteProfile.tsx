@@ -1455,7 +1455,7 @@ export default function CompleteProfile() {
                                                             className="min-h-[120px] bg-muted/40 border-foreground/10 resize-none text-sm"
                                                             placeholder="Short summary of sessions, themes, and speakers…"
                                                         />
-                                                        <p className="text-xs text-muted-foreground">{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
+                                                        <p className={`text-xs ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>

@@ -500,10 +500,7 @@ export default function CommunityPostDetail() {
             </Avatar>
             <div>
               <div className="flex flex-wrap items-center gap-1.5">
-                <p className="font-semibold">{String(post.authorUserName)}</p>
-                {typeof post.authorTagline === "string" && post.authorTagline && (
-                  <span className="text-xs text-muted-foreground font-normal">({post.authorTagline})</span>
-                )}
+                <p className="font-semibold">{String(post.authorTagline || "Anonymous")}</p>
               </div>
               <p className="text-xs text-muted-foreground">{formatRelativeTime(created)}</p>
             </div>
@@ -598,7 +595,7 @@ export default function CommunityPostDetail() {
             : ""}
         </h2>
         <p className="text-xs text-muted-foreground">
-          You can comment on a post and reply once to a comment. Replies to replies are not allowed.
+          You can comment on a post and reply once to a comment. Replies are limited to one level to keep discussions clear and focused.
         </p>
         {memberRestricted && (
           <p className="text-sm text-muted-foreground">
@@ -721,7 +718,7 @@ export default function CommunityPostDetail() {
                           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                             <span className="inline-block w-3 h-px align-middle bg-foreground/25 mr-1.5" aria-hidden />
                             Replies to{" "}
-                            <span className="font-semibold normal-case text-foreground/80">{c.userName}</span>
+                            <span className="font-semibold normal-case text-foreground/80">Anonymous</span>
                           </p>
                           <Button
                             type="button"
@@ -859,7 +856,7 @@ function CommentComposer({
     >
       {isReply && replyToName && (
         <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
-          Replying to <span className="font-medium text-foreground">{replyToName}</span>
+          Replying to <span className="font-medium text-foreground">Anonymous</span>
           {onCancel && (
             <Button type="button" variant="link" className="text-xs h-auto p-0" disabled={!canEngage} onClick={onCancel}>
               Cancel
@@ -1055,11 +1052,11 @@ function CommentItem({
             <p className="text-[10px] text-muted-foreground mb-1.5 flex items-center gap-1.5">
               <span className="shrink-0 w-5 h-px bg-gradient-to-r from-primary/40 to-foreground/15" aria-hidden />
               <span>
-                Reply to <span className="font-medium text-foreground/75">{parentUserName}</span>
+                Reply to <span className="font-medium text-foreground/75">Anonymous</span>
               </span>
             </p>
           )}
-          <p className="text-sm font-semibold">{comment.userName}</p>
+          <p className="text-sm font-semibold">Anonymous</p>
           <p className="text-xs text-muted-foreground">
             {comment.createdAt?.toDate ? formatRelativeTime(comment.createdAt.toDate()) : ""}
           </p>

@@ -165,10 +165,7 @@ export function PostCard({
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full">
-              <span className="font-semibold text-foreground text-sm">{post.authorUserName}</span>
-              {post.authorTagline && (
-                <span className="text-xs text-muted-foreground font-normal">({post.authorTagline})</span>
-              )}
+              <span className="font-semibold text-foreground text-sm">{post.authorTagline || "Anonymous"}</span>
               {showAuthorEmail ? (
                 <span className="text-xs text-muted-foreground truncate max-w-[200px]">{showAuthorEmail}</span>
               ) : null}

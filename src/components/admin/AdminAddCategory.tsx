@@ -109,7 +109,7 @@ export function AdminAddCategory({ onCancel, onSuccess }: { onCancel: () => void
                   onChange={(e) => handleChange("metaDescription", e.target.value)} 
                   maxLength={160}
                 />
-                <p className="text-xs text-right text-slate-400 mt-1">({formData.metaDescription.length}/160 characters)</p>
+                <p className={`text-xs text-right mt-1 ${formData.metaDescription.length >= 160 ? 'text-red-500 font-bold' : 'text-slate-400'}`}>({formData.metaDescription.length}/160 characters)</p>
               </div>
             </div>
 

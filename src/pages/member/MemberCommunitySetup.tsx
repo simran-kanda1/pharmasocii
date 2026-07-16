@@ -67,6 +67,10 @@ export default function MemberCommunitySetup() {
       setError("Username must be at least 2 characters (letters, numbers, underscore).");
       return;
     }
+    if (userName.length > 12) {
+      setError("Username cannot exceed 12 characters.");
+      return;
+    }
     if (!name.trim() || !country || !institution.trim() || !industry.trim() || !aboutMe.trim()) {
       setError("Please fill in all required fields.");
       return;
@@ -150,21 +154,19 @@ export default function MemberCommunitySetup() {
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground relative overflow-hidden min-h-[80vh] px-4">
+      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[128px] pointer-events-none" />
+      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-[128px] pointer-events-none" />
+
       <div className="relative z-10 w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
         <div className="inline-flex py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
-          <Activity className="w-4 h-4 mr-2 text-primary" /> Community profile
+          <Activity className="w-4 h-4 mr-2 text-primary" /> Member account
         </div>
-        <h1 className="text-2xl font-bold tracking-tight mb-2">Create your community profile</h1>
-        <p className="text-muted-foreground text-sm mb-6">
-          Partner accounts stay separate from community until you add a profile here. Name and username
-          cannot be changed later. You need a verified email to post and comment.
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
+        <p className="text-muted-foreground text-sm mb-8">
+          To support a trusted professional community, names and usernames cannot be changed after signup. Please verify your email before posting or commenting.
         </p>
 
         <form onSubmit={submit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" value={emailDisplay} disabled className="bg-muted/40" />
-          </div>
           <div className="space-y-2">
             <Label htmlFor="name">Full name</Label>
             <Input
@@ -176,15 +178,23 @@ export default function MemberCommunitySetup() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="userName">Username</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="userName">Username</Label>
+              <span className={`text-[11px] ${userName.length >= 12 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{userName.length}/12</span>
+            </div>
             <Input
               id="userName"
               value={userName}
               onChange={(e) => setUserName(e.target.value)}
               required
               autoComplete="username"
+              maxLength={12}
               className="bg-foreground/5 border-foreground/10"
             />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
+            <Input id="email" value={emailDisplay} disabled className="bg-muted/40" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -231,7 +241,7 @@ export default function MemberCommunitySetup() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label htmlFor="aboutMe">About me (Tagline)</Label>
-              <span className="text-[11px] text-muted-foreground">{aboutMe.length}/25</span>
+              <span className={`text-[11px] ${aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{aboutMe.length}/25</span>
             </div>
             <Input
               id="aboutMe"

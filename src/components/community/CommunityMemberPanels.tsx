@@ -24,7 +24,7 @@ import { PostCard } from "@/components/community/PostCard";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import type { CommunityView } from "@/components/community/CommunityMemberSidebar";
 import type { CommunityPost } from "@/lib/communityTypes";
-import { X } from "lucide-react";
+import { Search, X } from "lucide-react";
 import { saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
 import { getAllCommunityCountries } from "@/lib/communityCountries";
 import {
@@ -86,10 +86,6 @@ export function CommunityMemberPanels({
   const [bio, setBio] = useState("");
   const [picture, setPicture] = useState("");
   const [profileMsg, setProfileMsg] = useState("");
-  const [spamTotal, setSpamTotal] = useState(0);
-  const [spamActive, setSpamActive] = useState(0);
-  const [accountStatus, setAccountStatus] = useState<string>("active");
-  const [spamBlockUntil, setSpamBlockUntil] = useState<Date | null>(null);
   const [country, setCountry] = useState("");
   const [institution, setInstitution] = useState("");
   const [industry, setIndustry] = useState("");
@@ -99,9 +95,17 @@ export function CommunityMemberPanels({
   const [confirmPassword, setConfirmPassword] = useState("");
   const [passwordMsg, setPasswordMsg] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState("my-posts");
+  const [myPostsSearch, setMyPostsSearch] = useState("");
+  const [savedPostsSearch, setSavedPostsSearch] = useState("");
+  const [savedCommentsSearch, setSavedCommentsSearch] = useState("");
   const passwordChecks = getPasswordPolicyChecks(newPassword);
 
   useEffect(() => {
+    setMyPostsSearch("");
+    setSavedPostsSearch("");
+    setSavedCommentsSearch("");
+    setActiveTab("my-posts");
     if (view === "home" || !userId) return;
     (async () => {
       setLoading(true);
@@ -119,15 +123,6 @@ export function CommunityMemberPanels({
           setInstitution(String(d.institution ?? ""));
           setIndustry(String(d.industry ?? ""));
           setAboutMe(String(d.aboutMe ?? ""));
-          setSpamTotal(Number(d.spamTotalReportCount ?? 0));
-          setSpamActive(Number(d.spamActiveReportCount ?? 0));
-          setAccountStatus(String(d.accountStatus ?? "active"));
-          const until = d.spamBlockUntil;
-          if (until && typeof until.toDate === "function") {
-            setSpamBlockUntil(until.toDate());
-          } else {
-            setSpamBlockUntil(null);
-          }
         }
 
         if (view === "my-space" || view === "notifications") {
@@ -213,15 +208,24 @@ export function CommunityMemberPanels({
         if (!countries.some((c) => selectedCountries.includes(c))) return false;
       }
       if (selectedFilterKeys.length > 0) {
-        return postMatchesFilterKeys(p.filterKeys, selectedFilterKeys, {
+        if (!postMatchesFilterKeys(p.filterKeys, selectedFilterKeys, {
           mainCategories: p.mainCategories,
           subCategories: p.subCategories,
           subSubCategories: p.subSubCategories,
-        });
+        })) return false;
+      }
+      if (myPostsSearch.trim()) {
+        const s = myPostsSearch.toLowerCase().trim();
+        const matchTitle = String(p.title || "").toLowerCase().includes(s);
+        const matchText = String(p.text || "").toLowerCase().includes(s);
+        const matchMain = (p.mainCategories || []).some((c) => String(c).toLowerCase().includes(s));
+        const matchSub = (p.subCategories || []).some((c) => String(c).toLowerCase().includes(s));
+        const matchSubSub = (p.subSubCategories || []).some((c) => String(c).toLowerCase().includes(s));
+        if (!matchTitle && !matchText && !matchMain && !matchSub && !matchSubSub) return false;
       }
       return true;
     });
-  }, [myPosts, selectedCountries, selectedFilterKeys]);
+  }, [myPosts, selectedCountries, selectedFilterKeys, myPostsSearch]);
 
   const filteredSavedPosts = useMemo(() => {
     return savedPosts.filter((p) => {
@@ -231,15 +235,33 @@ export function CommunityMemberPanels({
         if (!countries.some((c) => selectedCountries.includes(c))) return false;
       }
       if (selectedFilterKeys.length > 0) {
-        return postMatchesFilterKeys(p.filterKeys, selectedFilterKeys, {
+        if (!postMatchesFilterKeys(p.filterKeys, selectedFilterKeys, {
           mainCategories: p.mainCategories,
           subCategories: p.subCategories,
           subSubCategories: p.subSubCategories,
-        });
+        })) return false;
+      }
+      if (savedPostsSearch.trim()) {
+        const s = savedPostsSearch.toLowerCase().trim();
+        const matchTitle = String(p.title || "").toLowerCase().includes(s);
+        const matchText = String(p.text || "").toLowerCase().includes(s);
+        const matchMain = (p.mainCategories || []).some((c) => String(c).toLowerCase().includes(s));
+        const matchSub = (p.subCategories || []).some((c) => String(c).toLowerCase().includes(s));
+        const matchSubSub = (p.subSubCategories || []).some((c) => String(c).toLowerCase().includes(s));
+        if (!matchTitle && !matchText && !matchMain && !matchSub && !matchSubSub) return false;
       }
       return true;
     });
-  }, [savedPosts, selectedCountries, selectedFilterKeys]);
+  }, [savedPosts, selectedCountries, selectedFilterKeys, savedPostsSearch]);
+
+  const filteredSavedComments = useMemo(() => {
+    if (!savedCommentsSearch.trim()) return savedComments;
+    const s = savedCommentsSearch.toLowerCase().trim();
+    return savedComments.filter((c) => {
+      if (c.unavailable) return false;
+      return String(c.preview || "").toLowerCase().includes(s);
+    });
+  }, [savedComments, savedCommentsSearch]);
 
   const hasActiveFilters = selectedCountries.length > 0 || selectedFilterKeys.length > 0;
 
@@ -260,9 +282,56 @@ export function CommunityMemberPanels({
   });
 
   if (view === "my-space") {
+    const currentSearchQuery =
+      activeTab === "my-posts"
+        ? myPostsSearch
+        : activeTab === "saved-posts"
+        ? savedPostsSearch
+        : savedCommentsSearch;
+
+    const handleSearchChange = (val: string) => {
+      if (activeTab === "my-posts") setMyPostsSearch(val);
+      else if (activeTab === "saved-posts") setSavedPostsSearch(val);
+      else setSavedCommentsSearch(val);
+    };
+
+    const handleSearchClear = () => {
+      if (activeTab === "my-posts") setMyPostsSearch("");
+      else if (activeTab === "saved-posts") setSavedPostsSearch("");
+      else setSavedCommentsSearch("");
+    };
+
+    const searchPlaceholder =
+      activeTab === "my-posts"
+        ? "Search my posts..."
+        : activeTab === "saved-posts"
+        ? "Search saved posts..."
+        : "Search saved comments...";
+
     return (
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-foreground/15 dark:bg-card">
-        <Tabs defaultValue="my-posts" className="p-4">
+        <div className="p-4 border-b border-slate-100 dark:border-foreground/10">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              value={currentSearchQuery}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder={searchPlaceholder}
+              className="pl-9 pr-10 bg-slate-50 dark:bg-muted/30"
+            />
+            {currentSearchQuery && (
+              <button
+                type="button"
+                onClick={handleSearchClear}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors p-1"
+                aria-label="Clear search"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="p-4">
           <TabsList className="mb-4">
             <TabsTrigger value="my-posts">My posts</TabsTrigger>
             <TabsTrigger value="saved-posts">Saved posts</TabsTrigger>
@@ -275,13 +344,17 @@ export function CommunityMemberPanels({
               <TabsContent value="my-posts" className="space-y-4 mt-0">
                 <p className="text-sm text-muted-foreground">
                   {filteredMyPosts.length} post{filteredMyPosts.length === 1 ? "" : "s"}
-                  {hasActiveFilters && filteredMyPosts.length !== myPosts.length
+                  {(hasActiveFilters || myPostsSearch.trim()) && filteredMyPosts.length !== myPosts.length
                     ? ` (of ${myPosts.length})`
                     : ""}
                 </p>
                 {filteredMyPosts.length === 0 ? (
                   <p className="text-sm text-muted-foreground px-2">
-                    {hasActiveFilters ? "No posts match your filters." : "No posts yet."}
+                    {myPostsSearch.trim()
+                      ? "No posts match your search query."
+                      : hasActiveFilters
+                      ? "No posts match your filters."
+                      : "No posts yet."}
                   </p>
                 ) : (
                   filteredMyPosts.map((p) => <PostCard key={p.id} {...postCardProps(p)} />)
@@ -290,7 +363,11 @@ export function CommunityMemberPanels({
               <TabsContent value="saved-posts" className="space-y-4 mt-0">
                 {filteredSavedPosts.length === 0 ? (
                   <p className="text-sm text-muted-foreground px-2">
-                    {hasActiveFilters ? "No saved posts match your filters." : "No saved posts yet."}
+                    {savedPostsSearch.trim()
+                      ? "No saved posts match your search query."
+                      : hasActiveFilters
+                      ? "No saved posts match your filters."
+                      : "No saved posts yet."}
                   </p>
                 ) : (
                   filteredSavedPosts.map((p) =>
@@ -305,10 +382,12 @@ export function CommunityMemberPanels({
                 )}
               </TabsContent>
               <TabsContent value="saved-comments" className="space-y-2 mt-0">
-                {savedComments.length === 0 ? (
-                  <p className="text-sm text-muted-foreground px-2">No saved comments yet.</p>
+                {filteredSavedComments.length === 0 ? (
+                  <p className="text-sm text-muted-foreground px-2">
+                    {savedCommentsSearch.trim() ? "No saved comments match your search query." : "No saved comments yet."}
+                  </p>
                 ) : (
-                  savedComments.map((c) => (
+                  filteredSavedComments.map((c) => (
                     <div key={c.commentId} className="border rounded-lg p-3 text-sm">
                       {c.unavailable ? (
                         <p className="text-muted-foreground">Saved comment temporarily unavailable</p>
@@ -316,11 +395,11 @@ export function CommunityMemberPanels({
                         <>
                           <p className="line-clamp-2">{c.preview}</p>
                           <Link
-                            to={`/community/post/${c.postId}?highlight=${c.commentId}`}
-                            className="text-xs text-primary underline mt-2 inline-block"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            onClick={() => saveCommunityFeedScroll(c.postId)}
+                             to={`/community/post/${c.postId}?highlight=${c.commentId}`}
+                             className="text-xs text-primary underline mt-2 inline-block"
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             onClick={() => saveCommunityFeedScroll(c.postId)}
                           >
                             Open post
                           </Link>
@@ -427,6 +506,9 @@ export function CommunityMemberPanels({
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-foreground/15 dark:bg-card">
         <h2 className="font-semibold mb-4">Update profile</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          To support a trusted professional community, names and usernames cannot be changed after signup. Please verify your email before posting or commenting.
+        </p>
         <form
           className="space-y-4 max-w-lg"
           onSubmit={async (e) => {
@@ -503,7 +585,7 @@ export function CommunityMemberPanels({
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label htmlFor="aboutMe">Tagline (About me tagline)</Label>
-              <span className="text-[11px] text-muted-foreground">{aboutMe.length}/25</span>
+              <span className={`text-[11px] ${aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{aboutMe.length}/25</span>
             </div>
             <Input
               id="aboutMe"
@@ -514,41 +596,8 @@ export function CommunityMemberPanels({
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="pic">Profile picture URL</Label>
-            <Input id="pic" value={picture} onChange={(e) => setPicture(e.target.value)} placeholder="https://…" />
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4 space-y-2 dark:border-foreground/15 dark:bg-muted/30">
-            <p className="text-sm font-medium">Community standing</p>
-            <p className="text-xs text-muted-foreground">
-              Spam reports on your posts and comments are tracked per active cycle. After three unique
-              reports in a cycle, your account is paused for 30 days starting from that third report. While
-              paused, new reports are logged but do not extend the pause or increase your counts. The cycle
-              resets when you are reactivated.
-            </p>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
-              <dt className="text-muted-foreground">Lifetime spam reports</dt>
-              <dd className="font-medium">{spamTotal}</dd>
-              <dt className="text-muted-foreground">Current cycle</dt>
-              <dd className="font-medium">
-                {spamActive} / 3
-              </dd>
-            </dl>
-            {accountStatus === "spam_blocked" && (
-              <p className="text-xs text-amber-800 dark:text-amber-200">
-                Account paused
-                {spamBlockUntil
-                  ? ` until ${spamBlockUntil.toLocaleDateString(undefined, { dateStyle: "medium" })}`
-                  : " (30-day reactivation applies)"}
-                . You can browse but cannot post or comment until reactivated.
-              </p>
-            )}
-            {accountStatus === "admin_hold" && (
-              <p className="text-xs text-amber-800 dark:text-amber-200 font-medium">
-                Account on administrative hold. You can browse but cannot post or comment until the hold is lifted by an admin.
-              </p>
-            )}
-          </div>
+
+
           {profileMsg && <p className="text-sm text-muted-foreground">{profileMsg}</p>}
           <Button type="submit">Save</Button>
         </form>
@@ -589,6 +638,7 @@ export function CommunityMemberPanels({
                   category: "community",
                 });
                 setPasswordMsg("Password updated.");
+                alert("Password updated successfully.");
                 setCurrentPassword("");
                 setNewPassword("");
                 setConfirmPassword("");

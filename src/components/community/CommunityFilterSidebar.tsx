@@ -6,13 +6,6 @@ import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import { buildFilterKeys } from "@/lib/community";
 import { getAllCommunityCountries } from "@/lib/communityCountries";
 import { cn } from "@/lib/utils";
-import {
-  activeMainLabelsFromFilterKeys,
-  canEnableMainFilterKey,
-  canEnableSubFilterKey,
-  canEnableSubSubFilterKey,
-  categoryLimitHelpText,
-} from "@/lib/communityCategoryLimits";
 
 export type FilterSelection = {
   countries: string[];
@@ -73,7 +66,6 @@ export function CommunityFilterSidebar({
   const onMainCheck = (mainLabel: string, checked: boolean) => {
     const key = `main:${mainLabel}`;
     if (checked) {
-      if (!canEnableMainFilterKey(selectedFilterKeys, mainLabel)) return;
       const prefix = `sub:${mainLabel}:`;
       const ssPrefix = `ss:${mainLabel}:`;
       const next = selectedFilterKeys.filter(
@@ -89,7 +81,6 @@ export function CommunityFilterSidebar({
     const key = `sub:${mainLabel}:${subLabel}`;
     const mainKey = `main:${mainLabel}`;
     if (checked) {
-      if (!canEnableSubFilterKey(selectedFilterKeys, mainLabel, subLabel)) return;
       const next = selectedFilterKeys.filter((k) => k !== mainKey);
       if (!next.includes(key)) next.push(key);
       setFilterKeys(next);
@@ -104,12 +95,6 @@ export function CommunityFilterSidebar({
     const mainKey = `main:${mainLabel}`;
     const subKey = `sub:${mainLabel}:${subLabel}`;
     if (checked) {
-      const subNode = (categoryDoc.mains ?? [])
-        .find((m) => m.label === mainLabel)
-        ?.subs?.find((s) => s.label === subLabel);
-      if (!subNode || !canEnableSubSubFilterKey(selectedFilterKeys, mainLabel, subNode, subSubLabel)) {
-        return;
-      }
       let next = selectedFilterKeys.filter((k) => k !== mainKey && k !== subKey);
       if (!next.includes(key)) next.push(key);
       setFilterKeys(next);
@@ -146,7 +131,6 @@ export function CommunityFilterSidebar({
         </p>
       )}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
-        <p className="text-sm font-semibold mb-3">Select country(ies)</p>
         <Button
           variant="outline"
           className="w-full justify-between h-10 font-normal text-left"
@@ -167,7 +151,7 @@ export function CommunityFilterSidebar({
           <div className="mt-2 border border-slate-200 rounded-lg p-2 dark:border-foreground/15">
             <input
               type="search"
-              placeholder="Search countries…"
+              placeholder="Search Countries…"
               className="w-full text-sm px-2 py-1.5 mb-2 rounded border border-slate-200 dark:border-foreground/15 bg-background"
               value={countrySearch}
               onChange={(e) => setCountrySearch(e.target.value)}
@@ -198,24 +182,19 @@ export function CommunityFilterSidebar({
             className="mt-2 h-8 px-2 text-xs"
             onClick={() => onCountriesChange([])}
           >
-            Clear countries
+            Clear Countries
           </Button>
         )}
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
-        <p className="text-sm font-semibold mb-1">Categories</p>
-        <p className="text-xs text-muted-foreground mb-3">{categoryLimitHelpText()}</p>
-        <p className="text-xs font-medium text-foreground/80 mb-3">
-          {activeMainLabelsFromFilterKeys(selectedFilterKeys).size}/3 main categories selected
-        </p>
+        <p className="text-sm font-semibold mb-3">Categories</p>
         <div className="max-h-[min(60vh,420px)] overflow-y-auto space-y-1 pr-1">
           {(categoryDoc.mains ?? []).map((main) => {
             const hasSubs = (main.subs?.length ?? 0) > 0;
             const mainKey = `main:${main.label}`;
             const mainExpanded = expandedMains.has(main.label);
             const mainChecked = selectedFilterKeys.includes(mainKey);
-            const canPickMain = canEnableMainFilterKey(selectedFilterKeys, main.label);
             return (
               <div key={main.id}>
                 <div className="flex items-start gap-1">
@@ -239,7 +218,6 @@ export function CommunityFilterSidebar({
                     <Checkbox
                       className="mt-0.5"
                       checked={mainChecked}
-                      disabled={!mainChecked && !canPickMain}
                       onCheckedChange={(v) => onMainCheck(main.label, v === true)}
                     />
                     <span className="leading-snug">{main.label}</span>
@@ -253,7 +231,6 @@ export function CommunityFilterSidebar({
                       const subExpanded = expandedSubs.has(msKey);
                       const subKey = `sub:${main.label}:${sub.label}`;
                       const subChecked = selectedFilterKeys.includes(subKey);
-                      const canPickSub = canEnableSubFilterKey(selectedFilterKeys, main.label, sub.label);
                       return (
                         <div key={sub.id}>
                           <div className="flex items-start gap-1">
@@ -276,7 +253,6 @@ export function CommunityFilterSidebar({
                               <Checkbox
                                 className="mt-0.5"
                                 checked={subChecked}
-                                disabled={!subChecked && !canPickSub}
                                 onCheckedChange={(v) => onSubCheck(main.label, sub.label, v === true)}
                               />
                               <span className="text-muted-foreground leading-snug">{sub.label}</span>
@@ -287,12 +263,6 @@ export function CommunityFilterSidebar({
                               {(sub.subSubs ?? []).map((ss) => {
                                 const ssKey = `ss:${main.label}:${ss.label}`;
                                 const ssChecked = selectedFilterKeys.includes(ssKey);
-                                const canPickSubSub = canEnableSubSubFilterKey(
-                                  selectedFilterKeys,
-                                  main.label,
-                                  sub,
-                                  ss.label,
-                                );
                                 return (
                                   <label
                                     key={ss.id}
@@ -301,7 +271,6 @@ export function CommunityFilterSidebar({
                                     <Checkbox
                                       className="mt-0.5"
                                       checked={ssChecked}
-                                      disabled={!ssChecked && !canPickSubSub}
                                       onCheckedChange={(v) =>
                                         onSubSubCheck(main.label, sub.label, ss.label, v === true)
                                       }

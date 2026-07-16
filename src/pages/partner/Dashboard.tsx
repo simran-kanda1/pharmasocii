@@ -729,7 +729,28 @@ export default function Dashboard() {
                     onSnapshot(
                         plansQ,
                         (snap) => {
-                            setActivePlans(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a: any, b: any) => (b.startDate?.seconds || 0) - (a.startDate?.seconds || 0)));
+                            const now = Date.now();
+                            const loadedPlans = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+                            loadedPlans.forEach(async (plan: any) => {
+                                if (plan.isTrial && plan.active !== false && plan.billingPeriodEnd) {
+                                    const endMs = typeof plan.billingPeriodEnd.toMillis === 'function'
+                                        ? plan.billingPeriodEnd.toMillis()
+                                        : (plan.billingPeriodEnd.seconds ? plan.billingPeriodEnd.seconds * 1000 : new Date(plan.billingPeriodEnd).getTime());
+                                    
+                                    if (endMs < now) {
+                                        try {
+                                            const planRef = doc(db, "partnersCollection", user.uid, "planCollection", plan.id);
+                                            await updateDoc(planRef, { active: false });
+                                            console.log(`Auto-cancelled expired trial plan ${plan.id}`);
+                                        } catch (e) {
+                                            console.error("Error auto-cancelling expired trial plan:", e);
+                                        }
+                                    }
+                                }
+                            });
+
+                            setActivePlans(loadedPlans.sort((a: any, b: any) => (b.startDate?.seconds || 0) - (a.startDate?.seconds || 0)));
                         },
                         (err) => console.warn("Dashboard plans snapshot:", err?.message || err),
                     );
@@ -997,6 +1018,7 @@ export default function Dashboard() {
                 });
 
                 setPasswordMsg({ type: "success", text: "Password changed successfully!" });
+                alert("Password changed successfully!");
                 setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
             }
         } catch (err: any) {
@@ -2495,7 +2517,7 @@ export default function Dashboard() {
                         {profileCompanyProfileTooLong && (
                             <p className="text-xs text-red-500">Company profile cannot exceed {COMPANY_PROFILE_MAX_LENGTH} characters.</p>
                         )}
-                        <p className="text-xs text-muted-foreground">{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
+                        <p className={`text-xs ${(profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-2">

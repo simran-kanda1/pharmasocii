@@ -58,6 +58,10 @@ export default function MemberRegister() {
       setError("Username must be at least 2 characters (letters, numbers, underscore).");
       return;
     }
+    if (form.userName.length > 12) {
+      setError("Username cannot exceed 12 characters.");
+      return;
+    }
     if (!form.name.trim() || !form.email.trim() || !form.country || !form.institution.trim() || !form.industry.trim() || !form.aboutMe.trim()) {
       setError("Please fill in all required fields.");
       return;
@@ -169,8 +173,7 @@ export default function MemberRegister() {
         </div>
         <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
         <p className="text-muted-foreground text-sm mb-8">
-          Name and username cannot be changed after signup. You will need to verify your email before
-          posting or commenting.
+          To support a trusted professional community, names and usernames cannot be changed after signup. Please verify your email before posting or commenting.
         </p>
 
         <form onSubmit={handleRegister} className="space-y-4">
@@ -185,13 +188,17 @@ export default function MemberRegister() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="userName">Username</Label>
+            <div className="flex justify-between items-center">
+              <Label htmlFor="userName">Username</Label>
+              <span className={`text-[11px] ${form.userName.length >= 12 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/12</span>
+            </div>
             <Input
               id="userName"
               value={form.userName}
               onChange={(e) => setForm((f) => ({ ...f, userName: e.target.value }))}
               required
               autoComplete="username"
+              maxLength={12}
               className="bg-foreground/5 border-foreground/10"
             />
           </div>
@@ -255,7 +262,7 @@ export default function MemberRegister() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label htmlFor="aboutMe">About me (Tagline)</Label>
-              <span className="text-[11px] text-muted-foreground">{form.aboutMe.length}/25</span>
+              <span className={`text-[11px] ${form.aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.aboutMe.length}/25</span>
             </div>
             <Input
               id="aboutMe"

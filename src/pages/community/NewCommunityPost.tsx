@@ -186,7 +186,10 @@ export default function NewCommunityPost() {
         <CategoryPicker doc={categoryDoc} value={catSel} onChange={setCatSel} />
 
         <div className="space-y-2">
-          <Label htmlFor="title">Title ({POST_TITLE_MAX} max)</Label>
+          <div className="flex justify-between items-center">
+            <Label htmlFor="title">Title</Label>
+            <span className={`text-xs ${title.length >= POST_TITLE_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{title.length}/{POST_TITLE_MAX}</span>
+          </div>
           <Input
             id="title"
             value={title}
@@ -207,7 +210,7 @@ export default function NewCommunityPost() {
             className="bg-foreground/5 border-foreground/10"
             required
           />
-          <p className="text-xs text-muted-foreground text-right">{text.length}/{POST_BODY_MAX}</p>
+          <p className={`text-xs text-right ${text.length >= POST_BODY_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{text.length}/{POST_BODY_MAX}</p>
         </div>
 
         <CountryMultiSelect value={countries} onChange={setCountries} max={POST_COUNTRIES_MAX} />
