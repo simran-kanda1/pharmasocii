@@ -2153,7 +2153,7 @@ export default function AdminDashboard() {
             <div className="border-b pb-2 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Account Status & Plan</h3>
             </div>
-            <Field label="Account Status (Approved, Pending, Disabled)" value={partnerEditor.partnerStatus || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, partnerStatus: v }))} />
+
             <Field label="Selected Group (business_offerings, consulting, events, jobs)" value={partnerEditor.selectedGroup || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, selectedGroup: v }))} />
             <Field label="Selected Plan" value={partnerEditor.selectedPlan || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, selectedPlan: v }))} />
 
