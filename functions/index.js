@@ -1,5 +1,6 @@
 /**
  * Scheduled cleanup: remove spotlight fields after featureSpotlightAccessEnd.
+ * Daily advanceStaleTestClocks: calls Render /api/cron/advance-stale-test-clocks for 1-day test renewals.
  * Community: comment counts, spam thresholds, spam-block release.
  * Community-only email testing: onMemberDocumentCreatedVerificationMirror (Firestore) +
  * requestVerificationEmailCc (resend) mirror links to verificationMirrors and optional SMTP
@@ -80,6 +81,53 @@ exports.cleanupExpiredSpotlights = onSchedule(
     },
     async () => {
         await runCleanup();
+    }
+);
+
+/**
+ * Daily: ask the billing server to advance stale Stripe test clocks so 1-day test
+ * subscriptions renew. Keeps Stripe/test-clock logic on Render; Firebase only schedules.
+ *
+ * Env (functions/.env.pharmasocii or Cloud Console):
+ *   BILLING_API_URL=https://pharmasocii.onrender.com
+ *   CRON_SECRET=<same value as server CRON_SECRET>
+ */
+exports.advanceStaleTestClocks = onSchedule(
+    {
+        schedule: "every 24 hours",
+        timeZone: "Etc/UTC",
+        retryCount: 1,
+        timeoutSeconds: 540,
+        region: "us-central1",
+    },
+    async () => {
+        const baseUrl = String(process.env.BILLING_API_URL || "https://pharmasocii.onrender.com").replace(/\/$/, "");
+        const cronSecret = process.env.CRON_SECRET;
+        if (!cronSecret) {
+            console.warn("advanceStaleTestClocks: CRON_SECRET not set; skipping.");
+            return;
+        }
+        const url = `${baseUrl}/api/cron/advance-stale-test-clocks`;
+        const res = await fetch(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-cron-secret": cronSecret,
+            },
+            body: "{}",
+        });
+        const text = await res.text();
+        let body = text;
+        try {
+            body = JSON.parse(text);
+        } catch {
+            /* keep text */
+        }
+        if (!res.ok) {
+            console.error("advanceStaleTestClocks failed", res.status, body);
+            throw new Error(`advance-stale-test-clocks HTTP ${res.status}`);
+        }
+        console.log("advanceStaleTestClocks ok", body);
     }
 );
 
@@ -321,10 +369,20 @@ async function sendAccountActivationEmail(userId, userEmail, userName, verifyLin
     }
 
     try {
+        let firstName = null;
+        let displayName = userName;
+        if (userId) {
+            const profile = await getMemberEmailAndName(userId);
+            firstName = profile.firstName;
+            displayName = profile.userName || userName;
+        } else if (userName) {
+            const trimmed = String(userName).trim();
+            firstName = trimmed.includes(" ") ? trimmed.split(/\s+/)[0] : trimmed;
+        }
         await sendCommunityEmail({
             type: "account_activation",
             toEmail: userEmail,
-            payload: { userName, verifyLink },
+            payload: { userName: displayName, firstName, verifyLink },
             link: verifyLink,
         });
         if (userId) {
@@ -414,9 +472,33 @@ async function generateVerificationLinkForEmail(userEmail) {
 
 async function getMemberEmailAndName(userId) {
     const m = await db.collection("membersCollection").doc(userId).get();
-    if (!m.exists) return { email: null, userName: null };
+    if (!m.exists) return { email: null, userName: null, firstName: null, name: null };
     const d = m.data();
-    return { email: d.email || null, userName: d.userName || d.name || null };
+    const name = String(d.name || "").trim();
+    const firstName = name ? name.split(/\s+/)[0] : String(d.userName || "").trim() || null;
+    return {
+        email: d.email || null,
+        userName: d.userName || name || null,
+        firstName,
+        name: name || null,
+    };
+}
+
+async function getMemberProfileByEmail(email) {
+    const normalized = String(email || "").trim().toLowerCase();
+    if (!normalized) return { firstName: null, userName: null };
+    const qs = await db
+        .collection("membersCollection")
+        .where("email", "==", normalized)
+        .limit(1)
+        .get();
+    if (qs.empty) return { firstName: null, userName: null };
+    const d = qs.docs[0].data() || {};
+    const name = String(d.name || "").trim();
+    return {
+        firstName: name ? name.split(/\s+/)[0] : String(d.userName || "").trim() || null,
+        userName: d.userName || name || null,
+    };
 }
 
 async function deliverCommentNotification({ postId, commentId, authorId, text, fromUserName }) {
@@ -646,18 +728,19 @@ exports.onSpamReportCreated = onDocumentCreated(
             tx.update(memberRef, update);
         });
 
-        const { email, userName } = await getMemberEmailAndName(targetAuthorId);
+        const { email, userName, firstName } = await getMemberEmailAndName(targetAuthorId);
         if (email && !memberWasRestricted) {
+            const memberPayload = { userName, firstName };
             if (newActive === 1) {
-                await sendCommunityEmail({ type: "spam_strike_1", toEmail: email, payload: { userName } });
+                await sendCommunityEmail({ type: "spam_strike_1", toEmail: email, payload: memberPayload });
             } else if (newActive === 2) {
-                await sendCommunityEmail({ type: "spam_strike_2", toEmail: email, payload: { userName } });
+                await sendCommunityEmail({ type: "spam_strike_2", toEmail: email, payload: memberPayload });
             } else if (newActive >= SPAM_THRESHOLD) {
                 await sendCommunityEmail({
                     type: "spam_strike_3_account_archived",
                     toEmail: email,
                     payload: {
-                        userName,
+                        ...memberPayload,
                         untilDate: blockedUntil ? blockedUntil.toLocaleDateString() : null,
                     },
                 });
@@ -667,7 +750,7 @@ exports.onSpamReportCreated = onDocumentCreated(
             await sendCommunityEmail({
                 type: "content_archived_spam",
                 toEmail: email,
-                payload: { userName, contentType: contentTypeLabel },
+                payload: { userName, firstName, contentType: contentTypeLabel },
             });
         }
     }
@@ -695,12 +778,12 @@ exports.releaseExpiredSpamBlocks = onSchedule(
                 spamBlockUntil: FieldValue.delete(),
                 spamBlockStartedAt: FieldValue.delete(),
             });
-            const { email, userName } = await getMemberEmailAndName(docSnap.id);
+            const { email, userName, firstName } = await getMemberEmailAndName(docSnap.id);
             if (email) {
                 await sendCommunityEmail({
                     type: "account_reactivated",
                     toEmail: email,
-                    payload: { userName },
+                    payload: { userName, firstName },
                 });
             }
             n += 1;
@@ -728,6 +811,17 @@ exports.adminArchivePost = onCall({ region: "us-central1", cors: true }, async (
         archivedAt: FieldValue.serverTimestamp(),
     });
     await archiveAllCommentsForPost(postId);
+    const authorId = p.data().authorId;
+    if (authorId) {
+        const { email, userName, firstName } = await getMemberEmailAndName(authorId);
+        if (email) {
+            await sendCommunityEmail({
+                type: "content_archived_admin",
+                toEmail: email,
+                payload: { userName, firstName },
+            });
+        }
+    }
     return { ok: true };
 });
 
@@ -749,12 +843,12 @@ exports.adminRestorePost = onCall({ region: "us-central1", cors: true }, async (
     });
     await restoreCommentsArchivedForPost(postId);
     await recountActiveCommentCount(postId);
-    const { email, userName } = await getMemberEmailAndName(authorId);
+    const { email, userName, firstName } = await getMemberEmailAndName(authorId);
     if (email) {
         await sendCommunityEmail({
             type: "admin_content_restored",
             toEmail: email,
-            payload: { userName, contentType: "post" },
+            payload: { userName, firstName, contentType: "post" },
         });
     }
     return { ok: true };
@@ -784,12 +878,12 @@ exports.adminRestoreComment = onCall({ region: "us-central1", cors: true }, asyn
         await restoreCommentWithReplies(postId, commentId);
     }
     await recountActiveCommentCount(postId);
-    const { email, userName } = await getMemberEmailAndName(authorId);
+    const { email, userName, firstName } = await getMemberEmailAndName(authorId);
     if (email) {
         await sendCommunityEmail({
             type: "admin_content_restored",
             toEmail: email,
-            payload: { userName, contentType: "comment" },
+            payload: { userName, firstName, contentType: "comment" },
         });
     }
     return { ok: true };
@@ -805,6 +899,17 @@ exports.adminArchiveComment = onCall({ region: "us-central1", cors: true }, asyn
     if (!c.exists) throw new HttpsError("not-found", "Comment not found.");
     if (c.data()?.archived === true) return { ok: true, alreadyArchived: true };
     await archiveCommentWithReplies(postId, commentId, reason || "admin");
+    const authorId = c.data()?.authorId;
+    if (authorId) {
+        const { email, userName, firstName } = await getMemberEmailAndName(authorId);
+        if (email) {
+            await sendCommunityEmail({
+                type: "content_archived_admin",
+                toEmail: email,
+                payload: { userName, firstName },
+            });
+        }
+    }
     const postSnap = await db.collection("postsCollection").doc(postId).get();
     if (postSnap.exists && postSnap.data()?.archived !== true) {
         await recountActiveCommentCount(postId);
@@ -854,13 +959,13 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     if (reason) update.adminHoldReason = reason;
     await memberRef.update(update);
 
-    const { email, userName } = await getMemberEmailAndName(userId);
+    const { email, userName, firstName } = await getMemberEmailAndName(userId);
     if (email) {
         if (status === "admin_hold" && !wasAlreadyOnHold) {
             await sendCommunityEmail({
                 type: "account_on_hold",
                 toEmail: email,
-                payload: { userName, reason: reason || "" },
+                payload: { userName, firstName, reason: reason || "" },
             });
         } else if (status === "spam_blocked" && !wasAlreadySpamBlocked) {
             const until = update.spamBlockUntil?.toDate?.() || null;
@@ -869,14 +974,15 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
                 toEmail: email,
                 payload: {
                     userName,
+                    firstName,
                     untilDate: until ? until.toLocaleDateString() : null,
                 },
             });
         } else if (status === "active" && beforeData.accountStatus !== "active") {
             await sendCommunityEmail({
-                type: "account_reenabled",
+                type: "account_reactivated",
                 toEmail: email,
-                payload: { userName },
+                payload: { userName, firstName },
             });
         }
     }
@@ -888,6 +994,7 @@ exports.mirrorPasswordResetEmail = onCall({ region: "us-central1", cors: true },
     if (!email) throw new HttpsError("invalid-argument", "email required.");
     try {
         const resetLink = await admin.auth().generatePasswordResetLink(email);
+        const profile = await getMemberProfileByEmail(email);
         await db.collection("emailLogCollection").add({
             type: "password_reset",
             toEmail: email,
@@ -901,7 +1008,7 @@ exports.mirrorPasswordResetEmail = onCall({ region: "us-central1", cors: true },
             await sendCommunityEmail({
                 type: "password_reset",
                 toEmail: email,
-                payload: { resetLink },
+                payload: { resetLink, ...profile },
                 link: resetLink,
             });
         }

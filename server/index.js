@@ -138,72 +138,12 @@ async function applyTestCheckoutCustomer(sessionParams, partnerId, partnerEmail)
     return sessionParams;
 }
 
-async function advancePartnerTestClock(partnerId, advanceDays = STRIPE_TEST_BILLING_DAYS) {
-    if (!STRIPE_IS_TEST) {
-        return { error: "Test clocks are only available with Stripe test keys." };
-    }
-    const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
-    if (!partnerSnap.exists) {
-        return { error: "Partner not found." };
-    }
-    const data = partnerSnap.data() || {};
+async function resolvePartnerTestClockIdFromData(data = {}, customerId = null) {
     let testClockId = data.stripeTestClockId || null;
-    const customerId = toStripeCustomerId(data.stripeCustomerId);
-
-    if (!testClockId && customerId) {
+    const resolvedCustomerId = customerId || toStripeCustomerId(data.stripeCustomerId);
+    if (!testClockId && resolvedCustomerId) {
         try {
-            const customer = await stripe.customers.retrieve(customerId);
-            testClockId =
-                typeof customer.test_clock === "string"
-                    ? customer.test_clock
-                    : customer.test_clock?.id || null;
-        } catch {
-            testClockId = null;
-        }
-    }
-
-    if (!testClockId) {
-        return { error: "No Stripe test clock found for this partner. Create a new subscription first." };
-    }
-
-    const clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
-    const currentFrozen = Number(clock.frozen_time || Math.floor(Date.now() / 1000));
-    const advanceSeconds = Math.max(1, Number(advanceDays) || STRIPE_TEST_BILLING_DAYS) * 86400;
-    const advanced = await stripe.testHelpers.testClocks.advance(testClockId, {
-        frozen_time: currentFrozen + advanceSeconds,
-    });
-
-    const readyClock = await waitForTestClockReady(testClockId);
-    const billingSync = await syncPartnerPlansFromStripe(partnerId, { waitForClock: false });
-    const invoiceSync = await processPartnerPaidSubscriptionInvoices(partnerId);
-    const intervalWarnings = await collectPartnerSubscriptionIntervalWarnings(partnerId);
-
-    return {
-        ok: true,
-        testClockId,
-        previousFrozenTime: new Date(currentFrozen * 1000).toISOString(),
-        newFrozenTime: readyClock?.frozen_time
-            ? new Date(readyClock.frozen_time * 1000).toISOString()
-            : advanced.frozen_time
-                ? new Date(advanced.frozen_time * 1000).toISOString()
-                : null,
-        status: readyClock?.status || advanced.status,
-        advanceDays: Number(advanceDays) || STRIPE_TEST_BILLING_DAYS,
-        billingSync,
-        invoiceSync,
-        warnings: intervalWarnings,
-    };
-}
-
-async function resolvePartnerTestClockId(partnerId) {
-    const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
-    if (!partnerSnap.exists) return null;
-    const data = partnerSnap.data() || {};
-    let testClockId = data.stripeTestClockId || null;
-    const customerId = toStripeCustomerId(data.stripeCustomerId);
-    if (!testClockId && customerId) {
-        try {
-            const customer = await stripe.customers.retrieve(customerId);
+            const customer = await stripe.customers.retrieve(resolvedCustomerId);
             testClockId =
                 typeof customer.test_clock === "string"
                     ? customer.test_clock
@@ -213,6 +153,180 @@ async function resolvePartnerTestClockId(partnerId) {
         }
     }
     return testClockId;
+}
+
+async function getTestClockShortestIntervalSeconds(testClockId) {
+    try {
+        const subs = await stripe.subscriptions.list({
+            test_clock: testClockId,
+            status: "all",
+            limit: 20,
+        });
+        let shortest = Math.max(1, STRIPE_TEST_BILLING_DAYS) * 86400;
+        for (const sub of subs.data || []) {
+            const rec = sub.items?.data?.[0]?.price?.recurring;
+            if (!rec) continue;
+            const count = Math.max(1, Number(rec.interval_count) || 1);
+            let seconds = count * 86400;
+            if (rec.interval === "week") seconds = count * 7 * 86400;
+            else if (rec.interval === "month") seconds = count * 30 * 86400;
+            else if (rec.interval === "year") seconds = count * 365 * 86400;
+            else if (rec.interval === "day") seconds = count * 86400;
+            if (seconds > 0 && seconds < shortest) shortest = seconds;
+        }
+        return shortest;
+    } catch {
+        return Math.max(1, STRIPE_TEST_BILLING_DAYS) * 86400;
+    }
+}
+
+/**
+ * Advance a partner's Stripe test clock, then sync Firestore billing.
+ * Options:
+ * - advanceDays: days to move forward (default STRIPE_TEST_BILLING_DAYS)
+ * - catchUpToNow: keep advancing (max 2 intervals per Stripe step) until >= wall clock + 1 period
+ */
+async function advancePartnerTestClock(partnerId, advanceDays = STRIPE_TEST_BILLING_DAYS, options = {}) {
+    if (!STRIPE_IS_TEST) {
+        return { error: "Test clocks are only available with Stripe test keys." };
+    }
+    const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
+    if (!partnerSnap.exists) {
+        return { error: "Partner not found." };
+    }
+    const data = partnerSnap.data() || {};
+    const customerId = toStripeCustomerId(data.stripeCustomerId);
+    const testClockId = await resolvePartnerTestClockIdFromData(data, customerId);
+
+    if (!testClockId) {
+        return { error: "No Stripe test clock found for this partner. Create a new subscription first." };
+    }
+
+    const catchUpToNow = Boolean(options.catchUpToNow);
+    const intervalSeconds = await getTestClockShortestIntervalSeconds(testClockId);
+    const maxStepSeconds = 2 * intervalSeconds; // Stripe hard limit
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const catchUpTarget = nowSeconds + intervalSeconds;
+
+    let clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+    let currentFrozen = Number(clock.frozen_time || Math.floor(Date.now() / 1000));
+    const previousFrozenTime = new Date(currentFrozen * 1000).toISOString();
+    let steps = 0;
+    let lastAdvanced = null;
+
+    if (catchUpToNow && currentFrozen >= catchUpTarget) {
+        const billingSync = await syncPartnerPlansFromStripe(partnerId, { waitForClock: false });
+        const invoiceSync = await processPartnerPaidSubscriptionInvoices(partnerId);
+        return {
+            ok: true,
+            skipped: "already_current",
+            testClockId,
+            previousFrozenTime,
+            newFrozenTime: previousFrozenTime,
+            status: clock.status,
+            billingSync,
+            invoiceSync,
+            warnings: await collectPartnerSubscriptionIntervalWarnings(partnerId),
+        };
+    }
+
+    const maxSteps = catchUpToNow ? 60 : 1;
+    while (steps < maxSteps) {
+        let targetFrozen;
+        if (catchUpToNow) {
+            targetFrozen = Math.min(currentFrozen + maxStepSeconds, catchUpTarget);
+            if (targetFrozen <= currentFrozen) break;
+        } else {
+            const requestedSeconds = Math.max(1, Number(advanceDays) || STRIPE_TEST_BILLING_DAYS) * 86400;
+            targetFrozen = currentFrozen + Math.min(requestedSeconds, maxStepSeconds);
+        }
+
+        lastAdvanced = await stripe.testHelpers.testClocks.advance(testClockId, {
+            frozen_time: targetFrozen,
+        });
+        const readyClock = await waitForTestClockReady(testClockId);
+        clock = readyClock || lastAdvanced;
+        currentFrozen = Number(clock.frozen_time || targetFrozen);
+        steps += 1;
+
+        await syncPartnerPlansFromStripe(partnerId, { waitForClock: false });
+        await processPartnerPaidSubscriptionInvoices(partnerId);
+
+        if (!catchUpToNow) break;
+        if (currentFrozen >= catchUpTarget) break;
+    }
+
+    // Final pass: invoices first, then subscription sync so period ends match Stripe (not older invoices).
+    const intervalWarnings = await collectPartnerSubscriptionIntervalWarnings(partnerId);
+    const invoiceSync = await processPartnerPaidSubscriptionInvoices(partnerId);
+    const billingSync = await syncPartnerPlansFromStripe(partnerId, { waitForClock: false });
+
+    return {
+        ok: true,
+        testClockId,
+        previousFrozenTime,
+        newFrozenTime: new Date(currentFrozen * 1000).toISOString(),
+        status: clock?.status || lastAdvanced?.status || null,
+        advanceDays: Math.ceil((currentFrozen - Math.floor(new Date(previousFrozenTime).getTime() / 1000)) / 86400),
+        steps,
+        catchUpToNow,
+        intervalSeconds,
+        billingSync,
+        invoiceSync,
+        warnings: intervalWarnings,
+    };
+}
+
+/** Advance every partner test clock that has fallen behind wall clock (1-day renewals). */
+async function runAdvanceAllStaleTestClocks(options = {}) {
+    if (!STRIPE_IS_TEST) {
+        return { error: "Only available with Stripe test keys (sk_test_)." };
+    }
+    const partnersSnap = await db.collection("partnersCollection").get();
+    const results = [];
+    let advanced = 0;
+    let skipped = 0;
+    let errors = 0;
+    for (const partnerDoc of partnersSnap.docs) {
+        const data = partnerDoc.data() || {};
+        if (!data.stripeTestClockId && !data.stripeCustomerId) continue;
+        const testClockId = await resolvePartnerTestClockIdFromData(data);
+        if (!testClockId) continue;
+        try {
+            const clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+            const currentFrozen = Number(clock.frozen_time || 0);
+            const nowSeconds = Math.floor(Date.now() / 1000);
+            // Only catch up clocks that are behind (or about to leave plans as "Past").
+            if (currentFrozen >= nowSeconds && !options.force) {
+                skipped += 1;
+                results.push({ partnerId: partnerDoc.id, skipped: "already_current", frozenTime: new Date(currentFrozen * 1000).toISOString() });
+                continue;
+            }
+            const result = await advancePartnerTestClock(partnerDoc.id, STRIPE_TEST_BILLING_DAYS, {
+                catchUpToNow: true,
+            });
+            if (result.error) {
+                errors += 1;
+                results.push({ partnerId: partnerDoc.id, error: result.error });
+            } else if (result.skipped) {
+                skipped += 1;
+                results.push({ partnerId: partnerDoc.id, ...result });
+            } else {
+                advanced += 1;
+                results.push({ partnerId: partnerDoc.id, ...result });
+            }
+        } catch (err) {
+            errors += 1;
+            results.push({ partnerId: partnerDoc.id, error: err?.message || String(err) });
+        }
+    }
+    return { ok: true, advanced, skipped, errors, partners: results };
+}
+
+async function resolvePartnerTestClockId(partnerId) {
+    const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
+    if (!partnerSnap.exists) return null;
+    return resolvePartnerTestClockIdFromData(partnerSnap.data() || {});
 }
 
 async function waitForTestClockReady(testClockId, maxWaitMs = 180000) {
@@ -526,20 +640,20 @@ function getInvoicePeriodEndDate(invoice) {
 }
 
 /**
- * Stripe sometimes omits line-item period on invoice webhooks; subscription.current_period_end is reliable.
+ * Prefer subscription.current_period_end — replaying older paid invoices must not
+ * overwrite a newer renewal window with the invoice line period.
  */
 async function resolveBillingPeriodEndFromStripe(stripeClient, invoice, subscriptionId) {
-    const fromInvoice = getInvoicePeriodEndDate(invoice);
-    if (fromInvoice) return fromInvoice;
     const subId = toStripeSubscriptionId(subscriptionId);
-    if (!subId || !stripeClient) return null;
-    try {
-        const sub = await stripeClient.subscriptions.retrieve(subId);
-        if (sub?.current_period_end) return new Date(sub.current_period_end * 1000);
-    } catch (err) {
-        console.error("resolveBillingPeriodEndFromStripe:", err?.message || err);
+    if (subId && stripeClient) {
+        try {
+            const sub = await stripeClient.subscriptions.retrieve(subId);
+            if (sub?.current_period_end) return new Date(sub.current_period_end * 1000);
+        } catch (err) {
+            console.error("resolveBillingPeriodEndFromStripe:", err?.message || err);
+        }
     }
-    return null;
+    return getInvoicePeriodEndDate(invoice);
 }
 
 /** Prefer Stripe subscription period end on initial checkout (handles month-end anchors). */
@@ -2284,6 +2398,7 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
 
         const planUpdate = {
             stripeSubscriptionId: subId,
+            stripeSubscriptionStatus: status,
             ...(customerId ? { stripeCustomerId: customerId } : {}),
         };
 
@@ -2490,8 +2605,12 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
             lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
             stripeSubscriptionId: subscriptionId,
             ...(customerId ? { stripeCustomerId: customerId } : {}),
-            ...(billingPeriodEnd ? { billingPeriodEnd } : {}),
         };
+        // Never shrink the paid window when replaying older invoices.
+        const existingEnd = toDateValue(planData.billingPeriodEnd);
+        if (billingPeriodEnd && (!existingEnd || billingPeriodEnd.getTime() >= existingEnd.getTime())) {
+            planUpdate.billingPeriodEnd = billingPeriodEnd;
+        }
         await planDoc.ref.set(planUpdate, { merge: true });
 
         if (!primaryPlanContext) {
@@ -2800,6 +2919,15 @@ async function finalizeJobListingPlanUpgradeWrites({
 
 const isFirestorePlanBillingLive = (plan) => {
     if (plan?.active === false) return false;
+    const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
+    if (["active", "trialing", "past_due"].includes(stripeStatus) && !plan?.cancelAtPeriodEnd) {
+        return true;
+    }
+    if (["active", "trialing", "past_due"].includes(stripeStatus) && plan?.cancelAtPeriodEnd) {
+        const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
+        if (!end || end.getTime() >= Date.now()) return true;
+        return false;
+    }
     const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
     if (end && end.getTime() < Date.now()) return false;
     return true;
@@ -3383,16 +3511,43 @@ app.post("/api/cron/advance-test-clock", async (req, res) => {
     }
     try {
         const partnerId = String(req.body?.partnerId || "").trim();
+        // No partnerId → catch up every stale test clock (1-day renewals on always-on instance).
         if (!partnerId) {
-            return res.status(400).json({ error: "partnerId is required." });
+            const result = await runAdvanceAllStaleTestClocks({ force: Boolean(req.body?.force) });
+            return res.json(result);
         }
-        const result = await advancePartnerTestClock(partnerId, req.body?.advanceDays);
+        const result = await advancePartnerTestClock(partnerId, req.body?.advanceDays, {
+            catchUpToNow: Boolean(req.body?.catchUpToNow),
+        });
         if (result.error) {
             return res.status(400).json(result);
         }
         return res.json({ ok: true, ...result });
     } catch (err) {
         console.error("advance-test-clock:", err);
+        return res.status(500).json({ error: err.message || "Advance failed" });
+    }
+});
+
+/**
+ * POST /api/cron/advance-stale-test-clocks
+ * Test keys only: catch up every partner test clock behind wall clock, then sync renewals.
+ * Enables 1-day test billing on a paid always-on Render instance without manual CLI.
+ * Header: x-cron-secret: process.env.CRON_SECRET
+ */
+app.post("/api/cron/advance-stale-test-clocks", async (req, res) => {
+    const expected = process.env.CRON_SECRET;
+    if (!expected || req.headers["x-cron-secret"] !== expected) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+    if (!STRIPE_IS_TEST) {
+        return res.status(403).json({ error: "Only available with Stripe test keys (sk_test_)." });
+    }
+    try {
+        const result = await runAdvanceAllStaleTestClocks({ force: Boolean(req.body?.force) });
+        return res.json(result);
+    } catch (err) {
+        console.error("advance-stale-test-clocks:", err);
         return res.status(500).json({ error: err.message || "Advance failed" });
     }
 });
@@ -5312,13 +5467,24 @@ async function runBillingCli() {
             console.error("Usage: node index.js advance-test-billing <partnerId> [advanceDays]");
             process.exit(1);
         }
-        const result = await advancePartnerTestClock(partnerId, advanceDays);
+        const result = await advancePartnerTestClock(partnerId, advanceDays, {
+            catchUpToNow: process.argv.includes("--catch-up"),
+        });
         console.log(JSON.stringify(result, null, 2));
         if (result.error) process.exit(1);
         if (Array.isArray(result.warnings) && result.warnings.length > 0) {
             console.warn("\nWarnings:");
             for (const warning of result.warnings) console.warn(`- ${warning}`);
         }
+        return;
+    }
+
+    if (cliCommand === "advance-stale-test-clocks") {
+        const result = await runAdvanceAllStaleTestClocks({
+            force: process.argv.includes("--force"),
+        });
+        console.log(JSON.stringify(result, null, 2));
+        if (result.error) process.exit(1);
         return;
     }
 

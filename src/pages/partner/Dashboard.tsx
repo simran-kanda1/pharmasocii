@@ -337,6 +337,17 @@ const getPlanPeriodEndDate = (plan: any): Date | null =>
 /** Paid access still in effect (not lapsed / not deactivated). */
 const isPlanBillingLive = (plan: any): boolean => {
     if (plan?.active === false) return false;
+    const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
+    // Test-clock lag: Stripe can still be live while billingPeriodEnd is behind wall clock.
+    if (["active", "trialing", "past_due"].includes(stripeStatus) && !plan?.cancelAtPeriodEnd) {
+        return true;
+    }
+    if (["active", "trialing", "past_due"].includes(stripeStatus) && plan?.cancelAtPeriodEnd) {
+        const end = getPlanPeriodEndDate(plan);
+        // Still within the paid cancel window.
+        if (!end || end.getTime() >= Date.now()) return true;
+        return false;
+    }
     const end = getPlanPeriodEndDate(plan);
     if (end && end.getTime() < Date.now()) return false;
     return true;
