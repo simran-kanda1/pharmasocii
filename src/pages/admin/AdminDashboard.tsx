@@ -776,6 +776,7 @@ export default function AdminDashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [listingSearchTerm, setListingSearchTerm] = useState("");
   const [listingFilter, setListingFilter] = useState<ListingFilter>("all");
+  const [listingTypeFilter, setListingTypeFilter] = useState<string>("all");
   const [isAddingPartner, setIsAddingPartner] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
   const [isAddingPlan, setIsAddingPlan] = useState(false);
@@ -1585,9 +1586,20 @@ export default function AdminDashboard() {
     [partners, searchTerm],
   );
 
-  const pendingListings = listings.filter((l) => l.status === "Pending Review");
-  const approvedListings = listings.filter((l) => l.status === "Approved");
-  const disabledListings = listings.filter((l) => l.status === "Disabled");
+  const typeFilteredListings = useMemo(() => {
+    if (listingTypeFilter === "all") return listings;
+    return listings.filter((l) => {
+      if (listingTypeFilter === "business_offerings") return l.__col === "businessOfferingsCollection";
+      if (listingTypeFilter === "consulting") return l.__col === "consultingServicesCollection" || l.__col === "consultingCollection";
+      if (listingTypeFilter === "jobs") return l.__col === "jobsCollection";
+      if (listingTypeFilter === "events") return l.__col === "eventsCollection";
+      return true;
+    });
+  }, [listings, listingTypeFilter]);
+
+  const pendingListings = typeFilteredListings.filter((l) => l.status === "Pending Review");
+  const approvedListings = typeFilteredListings.filter((l) => l.status === "Approved");
+  const disabledListings = typeFilteredListings.filter((l) => l.status === "Disabled");
 
   const partnerInsights = useMemo(() => {
     const latestPlansByPartner = new Map<string, PartnerPlanRecord>();
@@ -1875,7 +1887,7 @@ export default function AdminDashboard() {
   };
 
   const filteredListings = useMemo(() => {
-    return listings.filter((l) => {
+    return typeFilteredListings.filter((l) => {
       if (listingFilter === "pending" && l.status !== "Pending Review") return false;
       if (listingFilter === "approved" && l.status !== "Approved") return false;
       if (listingFilter === "disabled" && l.status !== "Disabled") return false;
@@ -1889,7 +1901,7 @@ export default function AdminDashboard() {
         l.selectedPlan?.toLowerCase().includes(q)
       );
     });
-  }, [listingFilter, listingSearchTerm, listings]);
+  }, [listingFilter, listingSearchTerm, typeFilteredListings]);
 
   const stats = {
     totalRevenue: transactions.reduce((acc, t) => acc + (t.amount || 0), 0),
@@ -2049,20 +2061,33 @@ export default function AdminDashboard() {
 
           {activeTab === "listings" && (
             <div className="space-y-4">
-              <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center">
-                <div className="relative w-full md:w-96">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    placeholder="Search listings by business, category, or plan..."
-                    value={listingSearchTerm}
-                    onChange={(e) => setListingSearchTerm(e.target.value)}
-                    className="pl-10 h-11 bg-white border-slate-200"
-                  />
+              <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center w-full">
+                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                  <div className="relative w-full md:w-80">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Search listings by business, category, or plan..."
+                      value={listingSearchTerm}
+                      onChange={(e) => setListingSearchTerm(e.target.value)}
+                      className="pl-10 h-11 bg-white border-slate-200"
+                    />
+                  </div>
+                  <select
+                    value={listingTypeFilter}
+                    onChange={(e) => setListingTypeFilter(e.target.value)}
+                    className="flex h-11 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-w-[180px] text-slate-700"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="business_offerings">Business Offering</option>
+                    <option value="consulting">Consulting Service</option>
+                    <option value="jobs">Job</option>
+                    <option value="events">Event</option>
+                  </select>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Button variant={listingFilter === "all" ? "default" : "outline"} onClick={() => setListingFilter("all")}>
-                    All ({listings.length})
+                    All ({typeFilteredListings.length})
                   </Button>
                   <Button variant={listingFilter === "approved" ? "default" : "outline"} onClick={() => setListingFilter("approved")}>
                     <CheckCircle2 className="w-4 h-4 mr-2" /> Approved ({approvedListings.length})
