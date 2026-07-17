@@ -1,10 +1,18 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { MapPin, ChevronDown, ChevronRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import { buildFilterKeys } from "@/lib/community";
 import { getAllCommunityCountries } from "@/lib/communityCountries";
+import {
+  canEnableMainFilterKey,
+  canEnableSubFilterKey,
+  canEnableSubSubFilterKey,
+  categoryLimitHelpText,
+  filterLimitBlockReason,
+  summarizeFilterSelection,
+} from "@/lib/communityCategoryLimits";
 import { cn } from "@/lib/utils";
 
 export type FilterSelection = {
@@ -38,6 +46,13 @@ export function CommunityFilterSidebar({
   const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set());
   const [countryOpen, setCountryOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
+  const [limitError, setLimitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!limitError) return;
+    const t = window.setTimeout(() => setLimitError(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [limitError]);
 
   const toggleCountry = (c: string) => {
     if (locked) return;
@@ -60,12 +75,18 @@ export function CommunityFilterSidebar({
   };
 
   const setFilterKeys = (next: string[]) => {
+    setLimitError(null);
     onFilterKeysChange([...new Set(next)]);
   };
 
   const onMainCheck = (mainLabel: string, checked: boolean) => {
     const key = `main:${mainLabel}`;
     if (checked) {
+      const reason = filterLimitBlockReason(selectedFilterKeys, "main", mainLabel);
+      if (reason) {
+        setLimitError(reason);
+        return;
+      }
       const prefix = `sub:${mainLabel}:`;
       const ssPrefix = `ss:${mainLabel}:`;
       const next = selectedFilterKeys.filter(
@@ -73,28 +94,64 @@ export function CommunityFilterSidebar({
       );
       setFilterKeys([...next, key]);
     } else {
-      toggleFilterKey(key, false);
+      const prefix = `sub:${mainLabel}:`;
+      const ssPrefix = `ss:${mainLabel}:`;
+      setFilterKeys(
+        selectedFilterKeys.filter(
+          (k) => k !== key && !k.startsWith(prefix) && !k.startsWith(ssPrefix),
+        ),
+      );
     }
   };
 
-  const onSubCheck = (mainLabel: string, subLabel: string, checked: boolean) => {
+  const onSubCheck = (mainLabel: string, subLabel: string, checked: boolean, mainSubs: typeof categoryDoc.mains[0]["subs"]) => {
     const key = `sub:${mainLabel}:${subLabel}`;
     const mainKey = `main:${mainLabel}`;
+    const ssPrefixForSub = (sub: NonNullable<typeof mainSubs>[number]) =>
+      (sub.subSubs ?? []).map((ss) => `ss:${mainLabel}:${ss.label}`);
+
     if (checked) {
+      const reason = filterLimitBlockReason(selectedFilterKeys, "sub", mainLabel, {
+        subLabel,
+        mainSubs: mainSubs ?? [],
+      });
+      if (reason) {
+        setLimitError(reason);
+        return;
+      }
       const next = selectedFilterKeys.filter((k) => k !== mainKey);
       if (!next.includes(key)) next.push(key);
       setFilterKeys(next);
       setExpandedMains((prev) => new Set(prev).add(mainLabel));
     } else {
-      toggleFilterKey(key, false);
+      const subNode = (mainSubs ?? []).find((s) => s.label === subLabel);
+      const ssKeys = new Set(subNode ? ssPrefixForSub(subNode) : []);
+      setFilterKeys(selectedFilterKeys.filter((k) => k !== key && !ssKeys.has(k)));
     }
   };
 
-  const onSubSubCheck = (mainLabel: string, subLabel: string, subSubLabel: string, checked: boolean) => {
+  const onSubSubCheck = (
+    mainLabel: string,
+    subLabel: string,
+    subSubLabel: string,
+    checked: boolean,
+    sub: NonNullable<typeof categoryDoc.mains[0]["subs"]>[number],
+    mainSubs: typeof categoryDoc.mains[0]["subs"],
+  ) => {
     const key = `ss:${mainLabel}:${subSubLabel}`;
     const mainKey = `main:${mainLabel}`;
     const subKey = `sub:${mainLabel}:${subLabel}`;
     if (checked) {
+      const reason = filterLimitBlockReason(selectedFilterKeys, "subsub", mainLabel, {
+        subLabel,
+        subSubLabel,
+        sub,
+        mainSubs: mainSubs ?? [],
+      });
+      if (reason) {
+        setLimitError(reason);
+        return;
+      }
       let next = selectedFilterKeys.filter((k) => k !== mainKey && k !== subKey);
       if (!next.includes(key)) next.push(key);
       setFilterKeys(next);
@@ -102,6 +159,7 @@ export function CommunityFilterSidebar({
       setExpandedSubs((prev) => new Set(prev).add(keyMainSub(mainLabel, subLabel)));
     } else {
       toggleFilterKey(key, false);
+      setLimitError(null);
     }
   };
 
@@ -188,13 +246,26 @@ export function CommunityFilterSidebar({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
-        <p className="text-sm font-semibold mb-3">Categories</p>
+        <p className="text-sm font-semibold mb-1">Categories</p>
+        <p className="text-xs text-muted-foreground mb-1">{categoryLimitHelpText()}</p>
+        <p className="text-xs font-medium text-foreground/80 mb-3">
+          {summarizeFilterSelection(categoryDoc, selectedFilterKeys)}
+        </p>
+        {limitError && (
+          <p
+            role="alert"
+            className="mb-3 text-sm text-red-600 dark:text-red-400 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2"
+          >
+            {limitError}
+          </p>
+        )}
         <div className="max-h-[min(60vh,420px)] overflow-y-auto space-y-1 pr-1">
           {(categoryDoc.mains ?? []).map((main) => {
             const hasSubs = (main.subs?.length ?? 0) > 0;
             const mainKey = `main:${main.label}`;
             const mainExpanded = expandedMains.has(main.label);
             const mainChecked = selectedFilterKeys.includes(mainKey);
+            const canMain = canEnableMainFilterKey(selectedFilterKeys, main.label);
             return (
               <div key={main.id}>
                 <div className="flex items-start gap-1">
@@ -214,7 +285,12 @@ export function CommunityFilterSidebar({
                   ) : (
                     <span className="w-5 shrink-0" />
                   )}
-                  <label className="flex items-start gap-2 text-sm cursor-pointer flex-1 py-0.5">
+                  <label
+                    className={cn(
+                      "flex items-start gap-2 text-sm cursor-pointer flex-1 py-0.5",
+                      !mainChecked && !canMain && "opacity-60",
+                    )}
+                  >
                     <Checkbox
                       className="mt-0.5"
                       checked={mainChecked}
@@ -231,6 +307,12 @@ export function CommunityFilterSidebar({
                       const subExpanded = expandedSubs.has(msKey);
                       const subKey = `sub:${main.label}:${sub.label}`;
                       const subChecked = selectedFilterKeys.includes(subKey);
+                      const canSub = canEnableSubFilterKey(
+                        selectedFilterKeys,
+                        main.label,
+                        sub.label,
+                        main.subs ?? [],
+                      );
                       return (
                         <div key={sub.id}>
                           <div className="flex items-start gap-1">
@@ -249,11 +331,18 @@ export function CommunityFilterSidebar({
                             ) : (
                               <span className="w-4 shrink-0" />
                             )}
-                            <label className="flex items-start gap-2 text-sm cursor-pointer flex-1">
+                            <label
+                              className={cn(
+                                "flex items-start gap-2 text-sm cursor-pointer flex-1",
+                                !subChecked && !canSub && "opacity-60",
+                              )}
+                            >
                               <Checkbox
                                 className="mt-0.5"
                                 checked={subChecked}
-                                onCheckedChange={(v) => onSubCheck(main.label, sub.label, v === true)}
+                                onCheckedChange={(v) =>
+                                  onSubCheck(main.label, sub.label, v === true, main.subs)
+                                }
                               />
                               <span className="text-muted-foreground leading-snug">{sub.label}</span>
                             </label>
@@ -263,16 +352,33 @@ export function CommunityFilterSidebar({
                               {(sub.subSubs ?? []).map((ss) => {
                                 const ssKey = `ss:${main.label}:${ss.label}`;
                                 const ssChecked = selectedFilterKeys.includes(ssKey);
+                                const canSs = canEnableSubSubFilterKey(
+                                  selectedFilterKeys,
+                                  main.label,
+                                  sub,
+                                  ss.label,
+                                  main.subs ?? [],
+                                );
                                 return (
                                   <label
                                     key={ss.id}
-                                    className="flex items-start gap-2 text-xs cursor-pointer pl-1"
+                                    className={cn(
+                                      "flex items-start gap-2 text-xs cursor-pointer pl-1",
+                                      !ssChecked && !canSs && "opacity-60",
+                                    )}
                                   >
                                     <Checkbox
                                       className="mt-0.5"
                                       checked={ssChecked}
                                       onCheckedChange={(v) =>
-                                        onSubSubCheck(main.label, sub.label, ss.label, v === true)
+                                        onSubSubCheck(
+                                          main.label,
+                                          sub.label,
+                                          ss.label,
+                                          v === true,
+                                          sub,
+                                          main.subs,
+                                        )
                                       }
                                     />
                                     <span className="text-muted-foreground">{ss.label}</span>
@@ -296,7 +402,10 @@ export function CommunityFilterSidebar({
             variant="ghost"
             size="sm"
             className={cn("mt-3 h-8 px-2 text-xs")}
-            onClick={() => onFilterKeysChange([])}
+            onClick={() => {
+              setLimitError(null);
+              onFilterKeysChange([]);
+            }}
           >
             Clear categories
           </Button>

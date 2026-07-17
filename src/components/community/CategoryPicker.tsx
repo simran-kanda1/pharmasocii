@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
@@ -13,6 +14,8 @@ import {
   canActivateMainInPicker,
   canAddSubInPicker,
   canAddSubSubInPicker,
+  categoryLimitHelpText,
+  pickerLimitBlockReason,
   summarizePickerSelection,
 } from "@/lib/communityCategoryLimits";
 
@@ -172,13 +175,29 @@ type Props = {
 };
 
 export function CategoryPicker({ doc, value, onChange }: Props) {
+  const [limitError, setLimitError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!limitError) return;
+    const t = window.setTimeout(() => setLimitError(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [limitError]);
+
+  const softValidation = (() => {
+    const mains = [...value.subsByMain.values()].filter((s) => s.size > 0).length;
+    if (mains === 0) return null; // don't nag before any selection
+    return validateCategorySelection(doc, value);
+  })();
+
   const toggleMainOnly = (mainLabel: string, checked: boolean) => {
     const next = {
       subsByMain: new Map(value.subsByMain),
       subSubsByMainSub: new Map(value.subSubsByMainSub),
     };
     if (checked) {
-      if (!canActivateMainInPicker(next.subsByMain, mainLabel)) {
+      const reason = pickerLimitBlockReason("main", next.subsByMain, next.subSubsByMainSub, mainLabel);
+      if (reason) {
+        setLimitError(reason);
         return;
       }
       next.subsByMain.set(mainLabel, new Set(["__main_only__"]));
@@ -188,6 +207,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         if (k.startsWith(`${mainLabel}|||`)) next.subSubsByMainSub.delete(k);
       }
     }
+    setLimitError(null);
     onChange(next);
   };
 
@@ -204,7 +224,13 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
     const hasSubSubs = (subNode?.subSubs?.length ?? 0) > 0;
 
     if (checked) {
-      if (!canAddSubInPicker(next.subsByMain, mainLabel, subLabel)) return;
+      const reason = pickerLimitBlockReason("sub", next.subsByMain, next.subSubsByMainSub, mainLabel, {
+        subLabel,
+      });
+      if (reason) {
+        setLimitError(reason);
+        return;
+      }
 
       set.add(subLabel);
       next.subsByMain.set(mainLabel, set);
@@ -218,6 +244,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       else next.subsByMain.set(mainLabel, set);
       next.subSubsByMainSub.delete(keyMainSub(mainLabel, subLabel));
     }
+    setLimitError(null);
     onChange(next);
   };
 
@@ -230,15 +257,15 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
     let ss = next.subSubsByMainSub.get(msKey) ?? new Set<string>();
     ss = new Set(ss);
     if (checked) {
-      if (
-        !canAddSubSubInPicker(
-          next.subsByMain,
-          next.subSubsByMainSub,
-          mainLabel,
-          subLabel,
-          subSubLabel,
-        )
-      ) {
+      const reason = pickerLimitBlockReason(
+        "subsub",
+        next.subsByMain,
+        next.subSubsByMainSub,
+        mainLabel,
+        { subLabel, subSubLabel },
+      );
+      if (reason) {
+        setLimitError(reason);
         return;
       }
       ss.add(subSubLabel);
@@ -254,17 +281,28 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
     subs.add(subLabel);
     next.subsByMain.set(mainLabel, subs);
 
+    setLimitError(null);
     onChange(next);
   };
+
+  const displayError = limitError || softValidation;
 
   return (
     <div className="space-y-6 border border-foreground/10 rounded-xl p-4 bg-foreground/[0.02]">
       <div>
         <p className="text-sm font-medium">Categories</p>
-        <p className="text-xs text-muted-foreground">Select up to 3 main categories (with 2 subs each, when available) to keep discussions streamlined.</p>
+        <p className="text-xs text-muted-foreground">{categoryLimitHelpText()}</p>
         <p className="text-xs font-medium text-foreground/80 mt-1">
           {summarizePickerSelection(doc, value.subsByMain)}
         </p>
+        {displayError && (
+          <p
+            role="alert"
+            className="mt-2 text-sm text-red-600 dark:text-red-400 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2"
+          >
+            {displayError}
+          </p>
+        )}
       </div>
       {doc.mains.map((main) => {
         const active = value.subsByMain.get(main.label);
@@ -280,9 +318,11 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                   id={`main-${main.id}`}
                   checked={mainChecked}
                   onCheckedChange={(c) => toggleMainOnly(main.label, c === true)}
-                  disabled={!mainChecked && !canActivateMain}
                 />
-                <Label htmlFor={`main-${main.id}`} className="font-semibold cursor-pointer">
+                <Label
+                  htmlFor={`main-${main.id}`}
+                  className={`font-semibold cursor-pointer ${!mainChecked && !canActivateMain ? "opacity-60" : ""}`}
+                >
                   {main.label}
                 </Label>
               </div>
@@ -294,9 +334,11 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                     id={`main-only-${main.id}`}
                     checked={onlyMain}
                     onCheckedChange={(c) => toggleMainOnly(main.label, c === true)}
-                    disabled={!onlyMain && !canActivateMain}
                   />
-                  <Label htmlFor={`main-only-${main.id}`} className="text-xs text-muted-foreground cursor-pointer">
+                  <Label
+                    htmlFor={`main-only-${main.id}`}
+                    className={`text-xs text-muted-foreground cursor-pointer ${!onlyMain && !canActivateMain ? "opacity-60" : ""}`}
+                  >
                     Entire category (no specific sub-categories)
                   </Label>
                 </div>
@@ -313,17 +355,29 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                       <Checkbox
                         id={`sub-${main.id}-${sub.id}`}
                         checked={subOn}
-                        onCheckedChange={(c) => toggleSub(main.label, sub.label, c === true)}
-                        disabled={!subOn && (!canPickSub || onlyMain)}
+                        onCheckedChange={(c) => {
+                          if (c === true && onlyMain) {
+                            setLimitError(
+                              `Uncheck “Entire category” for “${main.label}” before choosing specific sub-categories.`,
+                            );
+                            return;
+                          }
+                          toggleSub(main.label, sub.label, c === true);
+                        }}
                       />
-                      <Label htmlFor={`sub-${main.id}-${sub.id}`} className="cursor-pointer">
+                      <Label
+                        htmlFor={`sub-${main.id}-${sub.id}`}
+                        className={`cursor-pointer ${!subOn && (!canPickSub || onlyMain) ? "opacity-60" : ""}`}
+                      >
                         {sub.label}
                       </Label>
                     </div>
                     {subOn && (sub.subSubs?.length ?? 0) > 0 && (
                       <div className="pl-6 space-y-2 border-l border-foreground/10 ml-2">
                         {(sub.subSubs ?? []).map((ss) => {
-                          const picked = value.subSubsByMainSub.get(keyMainSub(main.label, sub.label))?.has(ss.label) ?? false;
+                          const picked =
+                            value.subSubsByMainSub.get(keyMainSub(main.label, sub.label))?.has(ss.label) ??
+                            false;
                           const canPickSubSub = canAddSubSubInPicker(
                             value.subsByMain,
                             value.subSubsByMainSub,
@@ -339,9 +393,11 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                                 onCheckedChange={(c) =>
                                   toggleSubSub(main.label, sub.label, ss.label, c === true)
                                 }
-                                disabled={!picked && !canPickSubSub}
                               />
-                              <Label htmlFor={`ss-${main.id}-${sub.id}-${ss.id}`} className="cursor-pointer text-sm">
+                              <Label
+                                htmlFor={`ss-${main.id}-${sub.id}-${ss.id}`}
+                                className={`cursor-pointer text-sm ${!picked && !canPickSubSub ? "opacity-60" : ""}`}
+                              >
                                 {ss.label}
                               </Label>
                             </div>
