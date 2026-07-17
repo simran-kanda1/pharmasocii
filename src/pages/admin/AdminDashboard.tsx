@@ -701,8 +701,10 @@ const getStatusBadge = (status?: string) => {
       return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Pending Review</Badge>;
     case "Disabled":
       return <Badge className="bg-slate-200 text-slate-700 border-slate-300">Disabled</Badge>;
-    case "Rejected":
-      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Rejected</Badge>;
+    case "Cancelled":
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Cancelled</Badge>;
+    case "Extended":
+      return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Extended</Badge>;
     default:
       return <Badge variant="outline">{status || "Unknown"}</Badge>;
   }
@@ -2519,7 +2521,20 @@ export default function AdminDashboard() {
             <div className="border-b pb-2 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Listing Status & Plan</h3>
             </div>
-            <Field label="Status (Approved, Pending Review, Disabled)" value={listingEditor.status || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, status: v }))} />
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-slate-700">Status</p>
+              <select
+                value={listingEditor.status || ""}
+                onChange={(e) => setListingEditor((prev) => ({ ...prev, status: e.target.value }))}
+                className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="Approved">Approved</option>
+                <option value="Pending Review">Pending Review</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Extended">Extended</option>
+                <option value="Disabled">Disabled</option>
+              </select>
+            </div>
             <Field label="Active (true or false)" value={listingEditor.active || "true"} onChange={(v) => setListingEditor((prev) => ({ ...prev, active: v }))} />
             <Field label="Plan" value={listingEditor.selectedPlan || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedPlan: v }))} />
             <Field label="Selected Group (business_offerings, consulting, events, jobs)" value={listingEditor.selectedGroup || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedGroup: v }))} />
