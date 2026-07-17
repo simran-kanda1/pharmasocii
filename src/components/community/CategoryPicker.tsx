@@ -20,9 +20,9 @@ import {
 } from "@/lib/communityCategoryLimits";
 
 export type CategorySelectionState = {
-  /** main label -> Set of sub labels (or "__main_only__" when only main selected) */
+  /** main label -> Set of sub labels (or "__main_only__" when main selected with no specific subs) */
   subsByMain: Map<string, Set<string>>;
-  /** "main|subLabel" -> Set of sub-sub labels */
+  /** "main|||subLabel" -> Set of sub-sub labels */
   subSubsByMainSub: Map<string, Set<string>>;
 };
 
@@ -56,6 +56,17 @@ export function postFieldsToCategorySelection(
           if (subSubCategories.includes(ss.label)) ssSet.add(ss.label);
         }
         if (ssSet.size > 0) sel.subSubsByMainSub.set(msKey, ssSet);
+      }
+      // Also restore subs that only have sub-subs selected (stored as sub-subs without sub label).
+      const msKey = keyMainSub(main.label, sub.label);
+      const ssSet = new Set<string>();
+      for (const ss of sub.subSubs ?? []) {
+        if (subSubCategories.includes(ss.label)) ssSet.add(ss.label);
+      }
+      if (ssSet.size > 0) {
+        subsSet.add(sub.label);
+        hasSpecific = true;
+        sel.subSubsByMainSub.set(msKey, ssSet);
       }
     }
     if (!hasSpecific) subsSet.add("__main_only__");
@@ -185,11 +196,21 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
 
   const softValidation = (() => {
     const mains = [...value.subsByMain.values()].filter((s) => s.size > 0).length;
-    if (mains === 0) return null; // don't nag before any selection
+    if (mains === 0) return null;
     return validateCategorySelection(doc, value);
   })();
 
-  const toggleMainOnly = (mainLabel: string, checked: boolean) => {
+  const clearMain = (
+    next: CategorySelectionState,
+    mainLabel: string,
+  ) => {
+    next.subsByMain.delete(mainLabel);
+    for (const k of [...next.subSubsByMainSub.keys()]) {
+      if (k.startsWith(`${mainLabel}|||`)) next.subSubsByMainSub.delete(k);
+    }
+  };
+
+  const toggleMain = (mainLabel: string, checked: boolean) => {
     const next = {
       subsByMain: new Map(value.subsByMain),
       subSubsByMainSub: new Map(value.subSubsByMainSub),
@@ -200,12 +221,10 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         setLimitError(reason);
         return;
       }
+      // Main selected with no specific subs yet = whole main.
       next.subsByMain.set(mainLabel, new Set(["__main_only__"]));
     } else {
-      next.subsByMain.delete(mainLabel);
-      for (const k of [...next.subSubsByMainSub.keys()]) {
-        if (k.startsWith(`${mainLabel}|||`)) next.subSubsByMainSub.delete(k);
-      }
+      clearMain(next, mainLabel);
     }
     setLimitError(null);
     onChange(next);
@@ -216,14 +235,19 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       subsByMain: new Map(value.subsByMain),
       subSubsByMainSub: new Map(value.subSubsByMainSub),
     };
-    let set = next.subsByMain.get(mainLabel) ?? new Set<string>();
-    set = new Set(set);
-    set.delete("__main_only__");
-
-    const subNode = doc.mains.find((m) => m.label === mainLabel)?.subs?.find((s) => s.label === subLabel);
-    const hasSubSubs = (subNode?.subSubs?.length ?? 0) > 0;
+    const mainActive = (next.subsByMain.get(mainLabel)?.size ?? 0) > 0;
 
     if (checked) {
+      // Auto-select the main if needed (counts toward the 3-main limit).
+      if (!mainActive) {
+        const mainReason = pickerLimitBlockReason("main", next.subsByMain, next.subSubsByMainSub, mainLabel);
+        if (mainReason) {
+          setLimitError(mainReason);
+          return;
+        }
+        next.subsByMain.set(mainLabel, new Set());
+      }
+
       const reason = pickerLimitBlockReason("sub", next.subsByMain, next.subSubsByMainSub, mainLabel, {
         subLabel,
       });
@@ -232,17 +256,24 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         return;
       }
 
+      let set = new Set(next.subsByMain.get(mainLabel) ?? []);
+      set.delete("__main_only__");
       set.add(subLabel);
       next.subsByMain.set(mainLabel, set);
-      if (!hasSubSubs) {
-        const msKey = keyMainSub(mainLabel, subLabel);
-        next.subSubsByMainSub.delete(msKey);
-      }
     } else {
+      let set = new Set(next.subsByMain.get(mainLabel) ?? []);
       set.delete(subLabel);
-      if (set.size === 0) next.subsByMain.delete(mainLabel);
-      else next.subsByMain.set(mainLabel, set);
       next.subSubsByMainSub.delete(keyMainSub(mainLabel, subLabel));
+      const realSubs = [...set].filter((x) => x !== "__main_only__");
+      if (realSubs.length === 0 && set.size === 0) {
+        // Keep the main selected as "whole main" if it was selected.
+        if (mainActive) next.subsByMain.set(mainLabel, new Set(["__main_only__"]));
+        else next.subsByMain.delete(mainLabel);
+      } else if (realSubs.length === 0) {
+        next.subsByMain.set(mainLabel, new Set(["__main_only__"]));
+      } else {
+        next.subsByMain.set(mainLabel, new Set(realSubs));
+      }
     }
     setLimitError(null);
     onChange(next);
@@ -254,9 +285,33 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       subsByMain: new Map(value.subsByMain),
       subSubsByMainSub: new Map(value.subSubsByMainSub),
     };
-    let ss = next.subSubsByMainSub.get(msKey) ?? new Set<string>();
-    ss = new Set(ss);
+
     if (checked) {
+      // Ensure main + sub are selected first.
+      const mainActive = (next.subsByMain.get(mainLabel)?.size ?? 0) > 0;
+      if (!mainActive) {
+        const mainReason = pickerLimitBlockReason("main", next.subsByMain, next.subSubsByMainSub, mainLabel);
+        if (mainReason) {
+          setLimitError(mainReason);
+          return;
+        }
+        next.subsByMain.set(mainLabel, new Set());
+      }
+
+      let subs = new Set(next.subsByMain.get(mainLabel) ?? []);
+      if (!subs.has(subLabel)) {
+        const subReason = pickerLimitBlockReason("sub", next.subsByMain, next.subSubsByMainSub, mainLabel, {
+          subLabel,
+        });
+        if (subReason) {
+          setLimitError(subReason);
+          return;
+        }
+        subs.delete("__main_only__");
+        subs.add(subLabel);
+        next.subsByMain.set(mainLabel, subs);
+      }
+
       const reason = pickerLimitBlockReason(
         "subsub",
         next.subsByMain,
@@ -268,18 +323,16 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         setLimitError(reason);
         return;
       }
-      ss.add(subSubLabel);
-    } else {
-      ss.delete(subSubLabel);
-    }
-    if (ss.size === 0) next.subSubsByMainSub.delete(msKey);
-    else next.subSubsByMainSub.set(msKey, ss);
 
-    let subs = next.subsByMain.get(mainLabel) ?? new Set();
-    subs = new Set(subs);
-    subs.delete("__main_only__");
-    subs.add(subLabel);
-    next.subsByMain.set(mainLabel, subs);
+      let ss = new Set(next.subSubsByMainSub.get(msKey) ?? []);
+      ss.add(subSubLabel);
+      next.subSubsByMainSub.set(msKey, ss);
+    } else {
+      let ss = new Set(next.subSubsByMainSub.get(msKey) ?? []);
+      ss.delete(subSubLabel);
+      if (ss.size === 0) next.subSubsByMainSub.delete(msKey);
+      else next.subSubsByMainSub.set(msKey, ss);
+    }
 
     setLimitError(null);
     onChange(next);
@@ -291,7 +344,12 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
     <div className="space-y-6 border border-foreground/10 rounded-xl p-4 bg-foreground/[0.02]">
       <div>
         <p className="text-sm font-medium">Categories</p>
-        <p className="text-xs text-muted-foreground">{categoryLimitHelpText()}</p>
+        <p className="text-xs text-muted-foreground">
+          Select up to {POST_MAIN_CAT_MAX} main categories. For each selected main, you can add up to{" "}
+          {POST_SUB_PER_MAIN_MAX} sub-categories and up to {POST_SUBSUB_PER_SUB_MAX} sub-sub-categories per
+          sub when available.
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">{categoryLimitHelpText()}</p>
         <p className="text-xs font-medium text-foreground/80 mt-1">
           {summarizePickerSelection(doc, value.subsByMain)}
         </p>
@@ -307,108 +365,97 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       {doc.mains.map((main) => {
         const active = value.subsByMain.get(main.label);
         const mainChecked = !!(active && active.size > 0);
-        const onlyMain = mainChecked && active?.has("__main_only__") && active.size === 1;
         const hasSubs = (main.subs?.length ?? 0) > 0;
         const canActivateMain = canActivateMainInPicker(value.subsByMain, main.label);
         return (
           <div key={main.id} className="space-y-3 border-t border-foreground/10 pt-4 first:border-t-0 first:pt-0">
-            {!hasSubs ? (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  id={`main-${main.id}`}
-                  checked={mainChecked}
-                  onCheckedChange={(c) => toggleMainOnly(main.label, c === true)}
-                />
-                <Label
-                  htmlFor={`main-${main.id}`}
-                  className={`font-semibold cursor-pointer ${!mainChecked && !canActivateMain ? "opacity-60" : ""}`}
-                >
-                  {main.label}
-                </Label>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="font-semibold text-sm text-foreground">{main.label}</p>
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id={`main-only-${main.id}`}
-                    checked={onlyMain}
-                    onCheckedChange={(c) => toggleMainOnly(main.label, c === true)}
-                  />
-                  <Label
-                    htmlFor={`main-only-${main.id}`}
-                    className={`text-xs text-muted-foreground cursor-pointer ${!onlyMain && !canActivateMain ? "opacity-60" : ""}`}
-                  >
-                    Entire category (no specific sub-categories)
-                  </Label>
-                </div>
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id={`main-${main.id}`}
+                checked={mainChecked}
+                onCheckedChange={(c) => toggleMain(main.label, c === true)}
+              />
+              <Label
+                htmlFor={`main-${main.id}`}
+                className={`font-semibold cursor-pointer ${!mainChecked && !canActivateMain ? "opacity-60" : ""}`}
+              >
+                {main.label}
+              </Label>
+            </div>
+            {hasSubs && (
+              <div className={`pl-6 space-y-2 ${!mainChecked ? "opacity-50" : ""}`}>
+                {(main.subs ?? []).map((sub) => {
+                  const subs = value.subsByMain.get(main.label);
+                  const subOn = subs?.has(sub.label) ?? false;
+                  const canPickSub =
+                    mainChecked && canAddSubInPicker(value.subsByMain, main.label, sub.label);
+                  return (
+                    <div key={sub.id} className="space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Checkbox
+                          id={`sub-${main.id}-${sub.id}`}
+                          checked={subOn}
+                          onCheckedChange={(c) => {
+                            if (c === true && !mainChecked) {
+                              setLimitError(`Select the main category “${main.label}” first.`);
+                              return;
+                            }
+                            toggleSub(main.label, sub.label, c === true);
+                          }}
+                        />
+                        <Label
+                          htmlFor={`sub-${main.id}-${sub.id}`}
+                          className={`cursor-pointer ${!subOn && !canPickSub ? "opacity-60" : ""}`}
+                        >
+                          {sub.label}
+                        </Label>
+                      </div>
+                      {(sub.subSubs?.length ?? 0) > 0 && (
+                        <div
+                          className={`pl-6 space-y-2 border-l border-foreground/10 ml-2 ${!subOn ? "opacity-50" : ""}`}
+                        >
+                          {(sub.subSubs ?? []).map((ss) => {
+                            const picked =
+                              value.subSubsByMainSub.get(keyMainSub(main.label, sub.label))?.has(ss.label) ??
+                              false;
+                            const canPickSubSub =
+                              subOn &&
+                              canAddSubSubInPicker(
+                                value.subsByMain,
+                                value.subSubsByMainSub,
+                                main.label,
+                                sub.label,
+                                ss.label,
+                              );
+                            return (
+                              <div key={ss.id} className="flex items-center gap-2">
+                                <Checkbox
+                                  id={`ss-${main.id}-${sub.id}-${ss.id}`}
+                                  checked={picked}
+                                  onCheckedChange={(c) => {
+                                    if (c === true && !subOn) {
+                                      setLimitError(`Select the sub-category “${sub.label}” first.`);
+                                      return;
+                                    }
+                                    toggleSubSub(main.label, sub.label, ss.label, c === true);
+                                  }}
+                                />
+                                <Label
+                                  htmlFor={`ss-${main.id}-${sub.id}-${ss.id}`}
+                                  className={`cursor-pointer text-sm ${!picked && !canPickSubSub ? "opacity-60" : ""}`}
+                                >
+                                  {ss.label}
+                                </Label>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
-            <div className="pl-6 space-y-2">
-              {(main.subs ?? []).map((sub) => {
-                const subs = value.subsByMain.get(main.label);
-                const subOn = subs?.has(sub.label) ?? false;
-                const canPickSub = canAddSubInPicker(value.subsByMain, main.label, sub.label);
-                return (
-                  <div key={sub.id} className="space-y-2">
-                    <div className="flex items-center gap-2">
-                      <Checkbox
-                        id={`sub-${main.id}-${sub.id}`}
-                        checked={subOn}
-                        onCheckedChange={(c) => {
-                          if (c === true && onlyMain) {
-                            setLimitError(
-                              `Uncheck “Entire category” for “${main.label}” before choosing specific sub-categories.`,
-                            );
-                            return;
-                          }
-                          toggleSub(main.label, sub.label, c === true);
-                        }}
-                      />
-                      <Label
-                        htmlFor={`sub-${main.id}-${sub.id}`}
-                        className={`cursor-pointer ${!subOn && (!canPickSub || onlyMain) ? "opacity-60" : ""}`}
-                      >
-                        {sub.label}
-                      </Label>
-                    </div>
-                    {subOn && (sub.subSubs?.length ?? 0) > 0 && (
-                      <div className="pl-6 space-y-2 border-l border-foreground/10 ml-2">
-                        {(sub.subSubs ?? []).map((ss) => {
-                          const picked =
-                            value.subSubsByMainSub.get(keyMainSub(main.label, sub.label))?.has(ss.label) ??
-                            false;
-                          const canPickSubSub = canAddSubSubInPicker(
-                            value.subsByMain,
-                            value.subSubsByMainSub,
-                            main.label,
-                            sub.label,
-                            ss.label,
-                          );
-                          return (
-                            <div key={ss.id} className="flex items-center gap-2">
-                              <Checkbox
-                                id={`ss-${main.id}-${sub.id}-${ss.id}`}
-                                checked={picked}
-                                onCheckedChange={(c) =>
-                                  toggleSubSub(main.label, sub.label, ss.label, c === true)
-                                }
-                              />
-                              <Label
-                                htmlFor={`ss-${main.id}-${sub.id}-${ss.id}`}
-                                className={`cursor-pointer text-sm ${!picked && !canPickSubSub ? "opacity-60" : ""}`}
-                              >
-                                {ss.label}
-                              </Label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
           </div>
         );
       })}
