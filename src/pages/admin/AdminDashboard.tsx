@@ -665,6 +665,7 @@ const getCollectionLabel = (collectionName: string) => {
     case "businessOfferingsCollection":
       return "Business Offering";
     case "consultingServicesCollection":
+    case "consultingCollection":
       return "Consulting Service";
     case "eventsCollection":
       return "Event";
@@ -905,6 +906,7 @@ export default function AdminDashboard() {
       const collectionNames = [
         "businessOfferingsCollection",
         "consultingServicesCollection",
+        "consultingCollection",
         "eventsCollection",
         "jobsCollection",
       ];
@@ -912,20 +914,45 @@ export default function AdminDashboard() {
 
       for (const colName of collectionNames) {
         try {
-          const snap = await getDocs(collectionGroup(db, colName));
-          snap.docs.forEach((d) => {
-            const data = d.data();
-            if (data.status !== "pending_payment") {
-              allListings.push({
+          const map = new Map<string, any>();
+
+          // 1. Fetch group subcollections (nested under partners)
+          try {
+            const groupSnap = await getDocs(collectionGroup(db, colName));
+            groupSnap.docs.forEach((d) => {
+              map.set(d.id, {
                 id: d.id,
-                ...data,
+                ...d.data(),
                 __col: colName,
                 __path: d.ref.path,
-              } as ListingRecord);
+              });
+            });
+          } catch (e) {
+            console.warn(`Failed to fetch collectionGroup for ${colName}:`, e);
+          }
+
+          // 2. Fetch root collections (global)
+          try {
+            const rootSnap = await getDocs(collection(db, colName));
+            rootSnap.docs.forEach((d) => {
+              map.set(d.id, {
+                id: d.id,
+                ...d.data(),
+                __col: colName,
+                __path: d.ref.path,
+              });
+            });
+          } catch (e) {
+            console.warn(`Failed to fetch root collection for ${colName}:`, e);
+          }
+
+          Array.from(map.values()).forEach((data) => {
+            if (data.status !== "pending_payment") {
+              allListings.push(data as ListingRecord);
             }
           });
         } catch (error) {
-          console.error(`Failed to fetch ${colName}`, error);
+          console.error(`Failed to fetch ${colName}:`, error);
         }
       }
 
@@ -2036,9 +2063,6 @@ export default function AdminDashboard() {
                 <div className="flex items-center gap-2">
                   <Button variant={listingFilter === "all" ? "default" : "outline"} onClick={() => setListingFilter("all")}>
                     All ({listings.length})
-                  </Button>
-                  <Button variant={listingFilter === "pending" ? "default" : "outline"} onClick={() => setListingFilter("pending")}>
-                    <Clock className="w-4 h-4 mr-2" /> Pending ({pendingListings.length})
                   </Button>
                   <Button variant={listingFilter === "approved" ? "default" : "outline"} onClick={() => setListingFilter("approved")}>
                     <CheckCircle2 className="w-4 h-4 mr-2" /> Approved ({approvedListings.length})
