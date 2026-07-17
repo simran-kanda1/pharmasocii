@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth, db } from "@/firebase";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   createUserWithEmailAndPassword,
   fetchSignInMethodsForEmail,
@@ -22,6 +23,7 @@ export default function MemberRegister() {
   const [error, setError] = useState("");
   const [existingEmailHint, setExistingEmailHint] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [agreePolicy, setAgreePolicy] = useState(false);
   const [form, setForm] = useState({
     name: "",
     userName: "",
@@ -45,6 +47,10 @@ export default function MemberRegister() {
     e.preventDefault();
     setError("");
     setExistingEmailHint(false);
+    if (!agreePolicy) {
+      setError("You must agree to the Community Guidelines, Privacy Policy, and Terms of Use.");
+      return;
+    }
     if (!isPasswordValid) {
       setError(PASSWORD_POLICY_ERROR_MESSAGE);
       return;
@@ -58,8 +64,8 @@ export default function MemberRegister() {
       setError("Username must be at least 2 characters (letters, numbers, underscore).");
       return;
     }
-    if (form.userName.length > 12) {
-      setError("Username cannot exceed 12 characters.");
+    if (form.userName.length > 15) {
+      setError("Username cannot exceed 15 characters.");
       return;
     }
     if (!form.name.trim() || !form.email.trim() || !form.country || !form.institution.trim() || !form.industry.trim() || !form.aboutMe.trim()) {
@@ -173,7 +179,7 @@ export default function MemberRegister() {
         </div>
         <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
         <p className="text-muted-foreground text-sm mb-8">
-          To support a trusted professional community, names and usernames cannot be changed after signup. Please verify your email before posting or commenting.
+          Name/username are final at account creation. Email verification required to post or participate.
         </p>
 
         <form onSubmit={handleRegister} className="space-y-4">
@@ -190,7 +196,7 @@ export default function MemberRegister() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label htmlFor="userName">Username</Label>
-              <span className={`text-[11px] ${form.userName.length >= 12 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/12</span>
+              <span className={`text-[11px] ${form.userName.length >= 15 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/15</span>
             </div>
             <Input
               id="userName"
@@ -198,7 +204,7 @@ export default function MemberRegister() {
               onChange={(e) => setForm((f) => ({ ...f, userName: e.target.value }))}
               required
               autoComplete="username"
-              maxLength={12}
+              maxLength={15}
               className="bg-foreground/5 border-foreground/10"
             />
           </div>
@@ -313,6 +319,33 @@ export default function MemberRegister() {
             {passwordsMismatch && (
               <p className="text-xs text-destructive">Passwords do not match.</p>
             )}
+          </div>
+
+          <div className="flex items-start space-x-2 pt-2 pb-4">
+            <Checkbox
+              id="agreePolicy"
+              checked={agreePolicy}
+              onCheckedChange={(checked) => setAgreePolicy(!!checked)}
+              required
+              className="mt-1"
+            />
+            <label
+              htmlFor="agreePolicy"
+              className="text-xs leading-normal text-muted-foreground cursor-pointer select-none"
+            >
+              I agree to the{" "}
+              <Link to="/guidelines" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                Community Guidelines
+              </Link>
+              ,{" "}
+              <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                Privacy Policy
+              </Link>
+              , and{" "}
+              <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                Terms of Use
+              </Link>
+            </label>
           </div>
 
           {existingEmailHint && (

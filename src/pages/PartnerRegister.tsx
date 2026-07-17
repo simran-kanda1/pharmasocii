@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Activity, ShieldCheck, Building2, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { auth, db } from "@/firebase";
@@ -19,6 +20,7 @@ export default function PartnerRegister() {
     const [success, setSuccess] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [agreePolicy, setAgreePolicy] = useState(false);
 
     // Form State
     const [formData, setFormData] = useState({
@@ -45,6 +47,11 @@ export default function PartnerRegister() {
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         setError("");
+
+        if (!agreePolicy) {
+            setError("You must agree to the Privacy Policy and Terms of Use.");
+            return;
+        }
 
         if (!isPasswordValid) {
             setError(PASSWORD_POLICY_ERROR_MESSAGE);
@@ -252,10 +259,30 @@ export default function PartnerRegister() {
                             <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
-                        <div className="pt-4">
-                            <p className="text-xs text-muted-foreground/80 mb-4">
-                                By creating an account, you agree to our <Link to="/terms" className="text-primary hover:underline">Terms of use</Link> and <Link to="/privacy" className="text-primary hover:underline">Privacy policy</Link>.
-                            </p>
+                        <div className="flex items-start space-x-2 pt-2 pb-4">
+                            <Checkbox
+                                id="agreePolicy"
+                                checked={agreePolicy}
+                                onCheckedChange={(checked) => setAgreePolicy(!!checked)}
+                                required
+                                className="mt-1 border-foreground/20 data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground"
+                            />
+                            <label
+                                htmlFor="agreePolicy"
+                                className="text-xs leading-normal text-muted-foreground cursor-pointer select-none"
+                            >
+                                I agree to the{" "}
+                                <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                                    Privacy Policy
+                                </Link>
+                                , and{" "}
+                                <Link to="/terms" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-medium">
+                                    Terms of Use
+                                </Link>
+                            </label>
+                        </div>
+
+                        <div className="pt-2">
                             <Button type="submit" className="w-full shadow-lg shadow-primary/20 h-12" disabled={isLoading}>
                                 {isLoading ? "Setting up..." : "Set up profile"}
                             </Button>

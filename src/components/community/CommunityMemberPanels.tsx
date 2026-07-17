@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   collection,
   doc,
@@ -18,7 +18,7 @@ import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_M
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PostCard } from "@/components/community/PostCard";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
@@ -72,7 +72,7 @@ export function CommunityMemberPanels({
   onToggleHelpful,
   onUnreadChange,
 }: Props) {
-  const navigate = useNavigate();
+
   const [myPosts, setMyPosts] = useState<Array<{ id: string } & CommunityPost>>([]);
   const [savedPosts, setSavedPosts] = useState<Array<{ id: string; unavailable?: boolean } & CommunityPost>>([]);
   const [savedComments, setSavedComments] = useState<
@@ -286,8 +286,8 @@ export function CommunityMemberPanels({
       activeTab === "my-posts"
         ? myPostsSearch
         : activeTab === "saved-posts"
-        ? savedPostsSearch
-        : savedCommentsSearch;
+          ? savedPostsSearch
+          : savedCommentsSearch;
 
     const handleSearchChange = (val: string) => {
       if (activeTab === "my-posts") setMyPostsSearch(val);
@@ -303,10 +303,10 @@ export function CommunityMemberPanels({
 
     const searchPlaceholder =
       activeTab === "my-posts"
-        ? "Search my posts..."
+        ? "Search My Posts..."
         : activeTab === "saved-posts"
-        ? "Search saved posts..."
-        : "Search saved comments...";
+          ? "Search Saved Posts..."
+          : "Search Saved Comments...";
 
     return (
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-foreground/15 dark:bg-card">
@@ -333,28 +333,23 @@ export function CommunityMemberPanels({
         </div>
         <Tabs value={activeTab} onValueChange={setActiveTab} className="p-4">
           <TabsList className="mb-4">
-            <TabsTrigger value="my-posts">My posts</TabsTrigger>
-            <TabsTrigger value="saved-posts">Saved posts</TabsTrigger>
-            <TabsTrigger value="saved-comments">Saved comments</TabsTrigger>
+            <TabsTrigger value="my-posts">My Posts</TabsTrigger>
+            <TabsTrigger value="saved-posts">Saved Posts</TabsTrigger>
+            <TabsTrigger value="saved-comments">Saved Comments</TabsTrigger>
           </TabsList>
           {loading ? (
             <p className="text-sm text-muted-foreground px-2">Loading…</p>
           ) : (
             <>
               <TabsContent value="my-posts" className="space-y-4 mt-0">
-                <p className="text-sm text-muted-foreground">
-                  {filteredMyPosts.length} post{filteredMyPosts.length === 1 ? "" : "s"}
-                  {(hasActiveFilters || myPostsSearch.trim()) && filteredMyPosts.length !== myPosts.length
-                    ? ` (of ${myPosts.length})`
-                    : ""}
-                </p>
+
                 {filteredMyPosts.length === 0 ? (
                   <p className="text-sm text-muted-foreground px-2">
                     {myPostsSearch.trim()
-                      ? "No posts match your search query."
+                      ? "No Posts Match Your Search Query."
                       : hasActiveFilters
-                      ? "No posts match your filters."
-                      : "No posts yet."}
+                        ? "No Posts Match Your Filters."
+                        : "No Posts Yet."}
                   </p>
                 ) : (
                   filteredMyPosts.map((p) => <PostCard key={p.id} {...postCardProps(p)} />)
@@ -364,16 +359,16 @@ export function CommunityMemberPanels({
                 {filteredSavedPosts.length === 0 ? (
                   <p className="text-sm text-muted-foreground px-2">
                     {savedPostsSearch.trim()
-                      ? "No saved posts match your search query."
+                      ? "No Saved Posts Match Your Search Query."
                       : hasActiveFilters
-                      ? "No saved posts match your filters."
-                      : "No saved posts yet."}
+                        ? "No Saved Posts Match Your Filters."
+                        : "No Saved Posts Yet."}
                   </p>
                 ) : (
                   filteredSavedPosts.map((p) =>
                     p.unavailable ? (
                       <div key={p.id} className="border rounded-lg p-3 text-sm text-muted-foreground">
-                        Saved post temporarily unavailable
+                        Saved Post Temporarily Unavailable
                       </div>
                     ) : (
                       <PostCard key={p.id} {...postCardProps(p)} />
@@ -384,24 +379,24 @@ export function CommunityMemberPanels({
               <TabsContent value="saved-comments" className="space-y-2 mt-0">
                 {filteredSavedComments.length === 0 ? (
                   <p className="text-sm text-muted-foreground px-2">
-                    {savedCommentsSearch.trim() ? "No saved comments match your search query." : "No saved comments yet."}
+                    {savedCommentsSearch.trim() ? "No Saved Comments Match Your Search Query." : "No Saved Comments Yet."}
                   </p>
                 ) : (
                   filteredSavedComments.map((c) => (
                     <div key={c.commentId} className="border rounded-lg p-3 text-sm">
                       {c.unavailable ? (
-                        <p className="text-muted-foreground">Saved comment temporarily unavailable</p>
+                        <p className="text-muted-foreground">Saved Comment Temporarily Unavailable</p>
                       ) : (
                         <>
                           <p className="line-clamp-2">{c.preview}</p>
                           <Link
-                             to={`/community/post/${c.postId}?highlight=${c.commentId}`}
-                             className="text-xs text-primary underline mt-2 inline-block"
-                             target="_blank"
-                             rel="noopener noreferrer"
-                             onClick={() => saveCommunityFeedScroll(c.postId)}
+                            to={`/community/post/${c.postId}?highlight=${c.commentId}`}
+                            className="text-xs text-primary underline mt-2 inline-block"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => saveCommunityFeedScroll(c.postId)}
                           >
-                            Open post
+                            See More
                           </Link>
                         </>
                       )}
@@ -434,7 +429,7 @@ export function CommunityMemberPanels({
           console.error(e);
         }
       }
-      navigate(url);
+      window.open(url, "_blank");
     };
 
     const removeNotification = async (n: MemberNotification) => {
@@ -507,7 +502,7 @@ export function CommunityMemberPanels({
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-foreground/15 dark:bg-card">
         <h2 className="font-semibold mb-4">Update profile</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          To support a trusted professional community, names and usernames cannot be changed after signup. Please verify your email before posting or commenting.
+          Name/username are final at account creation. Email verification required to post or participate.
         </p>
         <form
           className="space-y-4 max-w-lg"
@@ -541,11 +536,8 @@ export function CommunityMemberPanels({
             <Label>Email</Label>
             <Input value={email} disabled className="bg-muted/40" />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="bio">About me (Detailed Bio)</Label>
-            <Textarea id="bio" value={bio} onChange={(e) => setBio(e.target.value)} rows={4} />
-          </div>
-          
+
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="country">Country</Label>
@@ -605,7 +597,7 @@ export function CommunityMemberPanels({
         <div className="mt-10 pt-8 border-t border-slate-200 dark:border-foreground/15 max-w-lg space-y-4">
           <h3 className="font-semibold">Change password</h3>
           <p className="text-xs text-muted-foreground">
-            Name, username, and email cannot be changed here. Password updates are recorded in the audit trail.
+            Password updates are recorded in the audit trail.
           </p>
           <form
             className="space-y-4"

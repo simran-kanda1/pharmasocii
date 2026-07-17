@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
 import Home from "./pages/Home";
@@ -21,15 +21,21 @@ import MemberRegister from "./pages/MemberRegister";
 import MemberDashboard from "./pages/member/MemberDashboard";
 import MemberCommunitySetup from "./pages/member/MemberCommunitySetup";
 import MemberForgotPassword from "./pages/member/MemberForgotPassword";
+import TermsOfUse from "./pages/TermsOfUse";
+import CommunityGuidelines from "./pages/CommunityGuidelines";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  const showFooter = location.pathname.replace(/\/$/, "") !== "/community";
+
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-background text-foreground font-sans selection:bg-primary/30 antialiased">
       <Navbar />
       <main className="flex min-h-0 flex-1 w-full flex-col">
         {children}
       </main>
-      <Footer />
+      {showFooter && <Footer />}
     </div>
   );
 }
@@ -51,6 +57,9 @@ function App() {
       <Route path="/about-us" element={<AppLayout><AboutUs /></AppLayout>} />
       <Route path="/faq" element={<AppLayout><FAQ /></AppLayout>} />
       <Route path="/all-categories/:category?" element={<AppLayout><AllCategories /></AppLayout>} />
+      <Route path="/terms" element={<AppLayout><TermsOfUse /></AppLayout>} />
+      <Route path="/guidelines" element={<AppLayout><CommunityGuidelines /></AppLayout>} />
+      <Route path="/privacy" element={<AppLayout><PrivacyPolicy /></AppLayout>} />
 
       <Route path="/community" element={<AppLayout><CommunityFeed /></AppLayout>} />
       <Route path="/community/post/:postId" element={<AppLayout><CommunityPostDetail /></AppLayout>} />

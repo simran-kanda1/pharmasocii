@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { CommunityReportDialog } from "@/components/community/CommunityReportDialog";
 import { CommunityIconAction, communityActionIcons } from "@/components/community/CommunityIconAction";
 import { submitCommunitySpamReport } from "@/lib/submitCommunityReport";
-import { toggleSavedComment, toggleSavedPost } from "@/lib/communityEngagement";
+import { toggleSavedComment, toggleSavedPost, toggleCommentHelpful, togglePostHelpful } from "@/lib/communityEngagement";
 import {
   buildLinkedInShareUrl,
   buildLinkedInCommentShareUrl,
@@ -39,7 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink } from "@/lib/community";
-import { ArrowLeft, Link2, MessageSquare, Pencil } from "lucide-react";
+import { ArrowLeft, CheckSquare, Link2, MessageSquare, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
 import { syncPostCommentCount, recordCommentNotification } from "@/lib/communityCallables";
@@ -59,6 +59,7 @@ type CommentRow = {
   externalLink?: string | null;
   createdAt?: { toDate: () => Date };
   archived?: boolean;
+  likeCount?: number;
 };
 
 export default function CommunityPostDetail() {
@@ -83,7 +84,9 @@ export default function CommunityPostDetail() {
   const [commentLink, setCommentLink] = useState("");
   const [expandedReplies, setExpandedReplies] = useState<Set<string>>(new Set());
   const [saved, setSaved] = useState(false);
+  const [helpful, setHelpful] = useState(false);
   const [savedCommentIds, setSavedCommentIds] = useState<Set<string>>(new Set());
+  const [helpfulCommentIds, setHelpfulCommentIds] = useState<Set<string>>(new Set());
   const [reportOpen, setReportOpen] = useState(false);
   const [reportComment, setReportComment] = useState<CommentRow | null>(null);
   const [reportTarget, setReportTarget] = useState<"post" | "comment">("post");
@@ -101,47 +104,66 @@ export default function CommunityPostDetail() {
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      setUser(u);
-      if (u) {
-        await u.reload();
-        setVerified(u.emailVerified);
-        const m = await getDoc(doc(db, "membersCollection", u.uid));
-        setHasMemberProfile(m.exists());
-        setMemberUserName(m.exists() ? String(m.data()?.userName ?? "") : null);
-        setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
-        setMemberAboutMe(m.exists() ? String(m.data()?.aboutMe ?? "") : "");
-        const st = m.data()?.accountStatus;
-        setAccountStatus(st || "active");
-        const restricted = st === "spam_blocked" || st === "admin_hold";
-        setMemberRestricted(restricted);
-        if (restricted) {
-          setRestrictionModalOpen(true);
-        }
-        if (postId && m.exists()) {
-          const sref = doc(db, "membersCollection", u.uid, "savedPostsCollection", postId);
-          const ss = await getDoc(sref);
-          setSaved(ss.exists());
-          const savedCommentsSnap = await getDocs(
-            collection(db, "membersCollection", u.uid, "savedCommentsCollection"),
-          );
-          setSavedCommentIds(new Set(savedCommentsSnap.docs.map((d) => d.id)));
+      try {
+        setUser(u);
+        if (u) {
+          await u.reload();
+          setVerified(u.emailVerified);
+          const m = await getDoc(doc(db, "membersCollection", u.uid));
+          setHasMemberProfile(m.exists());
+          setMemberUserName(m.exists() ? String(m.data()?.userName ?? "") : null);
+          setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
+          setMemberAboutMe(m.exists() ? String(m.data()?.aboutMe ?? "") : "");
+          const st = m.data()?.accountStatus;
+          setAccountStatus(st || "active");
+          const restricted = st === "spam_blocked" || st === "admin_hold";
+          setMemberRestricted(restricted);
+          if (restricted) {
+            setRestrictionModalOpen(true);
+          }
+          if (postId && m.exists()) {
+            const sref = doc(db, "membersCollection", u.uid, "savedPostsCollection", postId);
+            const ss = await getDoc(sref);
+            setSaved(ss.exists());
+
+            const href = doc(db, "membersCollection", u.uid, "helpfulPostsCollection", postId);
+            const hs = await getDoc(href);
+            setHelpful(hs.exists());
+
+            const savedCommentsSnap = await getDocs(
+              collection(db, "membersCollection", u.uid, "savedCommentsCollection"),
+            );
+            setSavedCommentIds(new Set(savedCommentsSnap.docs.map((d) => d.id)));
+
+            const helpfulCommentsSnap = await getDocs(
+              collection(db, "membersCollection", u.uid, "helpfulCommentsCollection"),
+            );
+            setHelpfulCommentIds(new Set(helpfulCommentsSnap.docs.map((d) => d.id)));
+          } else {
+            setSaved(false);
+            setHelpful(false);
+            setSavedCommentIds(new Set());
+            setHelpfulCommentIds(new Set());
+          }
         } else {
+          setVerified(false);
+          setMemberRestricted(false);
+          setAccountStatus(null);
+          setRestrictionModalOpen(false);
           setSaved(false);
+          setHelpful(false);
           setSavedCommentIds(new Set());
+          setHelpfulCommentIds(new Set());
+          setHasMemberProfile(false);
+          setMemberUserName(null);
+          setMemberBio("");
+          setMemberAboutMe("");
         }
-      } else {
-        setVerified(false);
-        setMemberRestricted(false);
-        setAccountStatus(null);
-        setRestrictionModalOpen(false);
-        setSaved(false);
-        setSavedCommentIds(new Set());
-        setHasMemberProfile(false);
-        setMemberUserName(null);
-        setMemberBio("");
-        setMemberAboutMe("");
+      } catch (err) {
+        console.error("Auth status sync error:", err);
+      } finally {
+        setAuthReady(true);
       }
-      setAuthReady(true);
     });
     return () => unsub();
   }, [postId]);
@@ -301,6 +323,25 @@ export default function CommunityPostDetail() {
     }
   };
 
+  const toggleHelpful = async () => {
+    if (!canEngage || !postId || !user) return;
+    try {
+      const nowHelpful = await togglePostHelpful(user.uid, postId, helpful);
+      setHelpful(nowHelpful);
+      setPost((prev) => {
+        if (!prev) return null;
+        const currentCount = Number(prev.likeCount ?? 0);
+        return {
+          ...prev,
+          likeCount: Math.max(0, currentCount + (nowHelpful ? 1 : -1)),
+        };
+      });
+    } catch (e) {
+      console.error(e);
+      setError("Could not update helpful status on post.");
+    }
+  };
+
   const submitComment = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -429,6 +470,35 @@ export default function CommunityPostDetail() {
     }
   };
 
+  const toggleHelpfulCommentAction = async (commentId: string) => {
+    if (!canEngage || !user || !postId) return;
+    try {
+      const isHelpful = helpfulCommentIds.has(commentId);
+      const nowHelpful = await toggleCommentHelpful(
+        user.uid,
+        commentId,
+        postId,
+        isHelpful,
+      );
+      setHelpfulCommentIds((prev) => {
+        const next = new Set(prev);
+        if (nowHelpful) next.add(commentId);
+        else next.delete(commentId);
+        return next;
+      });
+      setComments((prev) =>
+        prev.map((c) =>
+          c.id === commentId
+            ? { ...c, likeCount: Math.max(0, Number(c.likeCount ?? 0) + (nowHelpful ? 1 : -1)) }
+            : c,
+        ),
+      );
+    } catch (e) {
+      console.error(e);
+      setError("Could not update helpful comment.");
+    }
+  };
+
   if (!postId) return null;
 
   if (!authReady) {
@@ -467,7 +537,7 @@ export default function CommunityPostDetail() {
   const welcomeName = memberUserName || user?.displayName || user?.email?.split("@")[0] || "Guest";
   const profileInitials = (welcomeName || "G").slice(0, 2).toUpperCase();
 
-  const isAuthor = postAuthorId && user?.uid && postAuthorId === user.uid;
+  const isAuthor = Boolean(postAuthorId && user?.uid && postAuthorId === user.uid);
   const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
   const isEditable = isAuthor && hoursSinceCreation <= 6;
 
@@ -488,101 +558,112 @@ export default function CommunityPostDetail() {
         </div>
       )}
 
-      <article className="space-y-4 border border-foreground/10 rounded-2xl p-6 bg-foreground/[0.02]">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex gap-3">
-            <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
-                {String(post.authorUserName || "U")
-                  .slice(0, 2)
-                  .toUpperCase()}
-              </AvatarFallback>
-            </Avatar>
-            <div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <p className="font-semibold">{String(post.authorTagline || "Anonymous")}</p>
+      <article className="border border-foreground/10 rounded-2xl bg-foreground/[0.02] overflow-hidden">
+        <div className="p-6 space-y-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex gap-3">
+              <Avatar className="h-10 w-10">
+                <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
+                  {String(post.authorUserName || "U")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <p className="font-semibold">{String(post.authorTagline || "Anonymous")}</p>
+                </div>
+                <p className="text-xs text-muted-foreground">{formatRelativeTime(created)}</p>
               </div>
-              <p className="text-xs text-muted-foreground">{formatRelativeTime(created)}</p>
             </div>
+            {isEditable && (
+              <CommunityIconAction
+                label="Edit"
+                icon={Pencil}
+                title="Edit post (available for 6 hours after posting)"
+                onClick={() => setEditOpen(true)}
+              />
+            )}
           </div>
-          {!archived && (
-            <div className="flex flex-wrap gap-1 shrink-0 justify-end items-center">
-              {isEditable && (
-                <CommunityIconAction
-                  label="Edit"
-                  icon={Pencil}
-                  title="Edit post (available for 6 hours after posting)"
-                  onClick={() => setEditOpen(true)}
-                />
-              )}
-              <CommunityIconAction
-                label="Save"
-                icon={communityActionIcons.save}
-                active={saved}
-                disabled={!canSave}
-                title={!canSave ? engageHint : saved ? "Unsave" : "Save"}
-                onClick={toggleSave}
-              />
-              <CommunityIconAction
-                label="Spam"
-                icon={communityActionIcons.report}
-                disabled={!canReport || Boolean(isAuthor)}
-                title={isAuthor ? "You cannot report your own content." : !canReport ? reportHint : "Report content"}
-                onClick={() => openReport("post")}
-              />
-              <CommunityIconAction
-                label="LinkedIn"
-                icon={communityActionIcons.linkedIn}
-                disabled={!canShare}
-                title={shareHint}
-                onClick={shareLinkedIn}
-              />
-              <CommunityIconAction
-                label={copyFeedback || "Copy link"}
-                icon={communityActionIcons.copyLink}
-                disabled={!canShare}
-                title={shareHint}
-                onClick={copyPostLinkAction}
-              />
+          {copyFeedback && <p className="text-xs text-muted-foreground">{copyFeedback}</p>}
+
+          <div className="text-sm">
+            {segments.map((seg, i) => (
+              <span key={i}>
+                <span className="font-bold">{seg.main}</span>
+                {seg.bracket.length > 0 && <span> [{seg.bracket.join(", ")}]</span>}
+                {i < segments.length - 1 ? ", " : ""}
+              </span>
+            ))}
+          </div>
+          {(post.countries as string[] | undefined)?.length ? (
+            <p className="text-xs text-muted-foreground">
+              {(post.countries as string[]).join(", ")}
+            </p>
+          ) : null}
+
+          <h1 className="text-2xl font-bold">{String(post.title)}</h1>
+          <p className="whitespace-pre-wrap text-foreground/90">{String(post.text)}</p>
+
+          {imageUrl && (
+            <img src={imageUrl} alt="" className="rounded-xl max-h-96 w-full object-cover border border-foreground/10" />
+          )}
+
+          {Array.isArray(post.externalLinks) && (post.externalLinks as string[]).length > 0 && (
+            <div className="space-y-1">
+              <p className="text-sm font-medium">Links</p>
+              <ul className="text-sm text-primary space-y-1">
+                {(post.externalLinks as string[]).map((url) => (
+                  <li key={url}>
+                    <a href={url} target="_blank" rel="noopener noreferrer" className="underline break-all">
+                      {url}
+                    </a>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
-        {copyFeedback && <p className="text-xs text-muted-foreground">{copyFeedback}</p>}
 
-        <div className="text-sm">
-          {segments.map((seg, i) => (
-            <span key={i}>
-              <span className="font-bold">{seg.main}</span>
-              {seg.bracket.length > 0 && <span> [{seg.bracket.join(", ")}]</span>}
-              {i < segments.length - 1 ? ", " : ""}
-            </span>
-          ))}
-        </div>
-        {(post.countries as string[] | undefined)?.length ? (
-          <p className="text-xs text-muted-foreground">
-            {(post.countries as string[]).join(", ")}
-          </p>
-        ) : null}
-
-        <h1 className="text-2xl font-bold">{String(post.title)}</h1>
-        <p className="whitespace-pre-wrap text-foreground/90">{String(post.text)}</p>
-
-        {imageUrl && (
-          <img src={imageUrl} alt="" className="rounded-xl max-h-96 w-full object-cover border border-foreground/10" />
-        )}
-
-        {Array.isArray(post.externalLinks) && (post.externalLinks as string[]).length > 0 && (
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Links</p>
-            <ul className="text-sm text-primary space-y-1">
-              {(post.externalLinks as string[]).map((url) => (
-                <li key={url}>
-                  <a href={url} target="_blank" rel="noopener noreferrer" className="underline break-all">
-                    {url}
-                  </a>
-                </li>
-              ))}
-            </ul>
+        {!archived && (
+          <div className="relative z-20 flex flex-wrap items-stretch border-t border-slate-200 bg-slate-50/80 dark:border-foreground/10 dark:bg-muted/20">
+            <CommentActionBtn
+              label={`Helpful (${Math.max(0, Number(post.likeCount ?? 0))})`}
+              icon={CheckSquare}
+              active={helpful}
+              disabled={isAuthor}
+              title={isAuthor ? "You cannot mark your own post as helpful." : !canEngage ? engageHint : helpful ? "Remove helpful" : "Mark as helpful"}
+              onClick={toggleHelpful}
+            />
+            <CommentActionBtn
+              label="Save"
+              icon={communityActionIcons.save}
+              active={saved}
+              disabled={!canSave}
+              title={!canSave ? engageHint : saved ? "Unsave" : "Save"}
+              onClick={toggleSave}
+            />
+            <CommentActionBtn
+              label="Spam"
+              icon={communityActionIcons.report}
+              disabled={!canReport || isAuthor}
+              title={isAuthor ? "You cannot report your own content." : !canReport ? reportHint : "Report content"}
+              onClick={() => openReport("post")}
+            />
+            <CommentActionBtn
+              label="LinkedIn"
+              icon={communityActionIcons.linkedIn}
+              disabled={!canShare}
+              title={shareHint}
+              onClick={shareLinkedIn}
+            />
+            <CommentActionBtn
+              label={copyFeedback || "Copy link"}
+              icon={communityActionIcons.copyLink}
+              disabled={!canShare}
+              title={shareHint}
+              onClick={copyPostLinkAction}
+            />
           </div>
         )}
       </article>
@@ -646,6 +727,7 @@ export default function CommunityPostDetail() {
                   reportHint={reportHint}
                   highlight={highlightCommentId === c.id}
                   saved={savedCommentIds.has(c.id)}
+                  helpful={helpfulCommentIds.has(c.id)}
                   commentRef={(el) => {
                     commentRefs.current[c.id] = el;
                   }}
@@ -656,6 +738,7 @@ export default function CommunityPostDetail() {
                   }}
                   onReport={() => openReport("comment", c)}
                   onToggleSave={() => toggleSaveComment(c.id)}
+                  onToggleHelpful={() => toggleHelpfulCommentAction(c.id)}
                   isOwnComment={Boolean(user?.uid && c.authorId === user.uid)}
                 />
                 {replyTo?.id === c.id && (
@@ -751,6 +834,7 @@ export default function CommunityPostDetail() {
                               reportHint={reportHint}
                               highlight={highlightCommentId === r.id}
                               saved={savedCommentIds.has(r.id)}
+                              helpful={helpfulCommentIds.has(r.id)}
                               isReply
                               parentUserName={c.userName}
                               commentRef={(el) => {
@@ -758,6 +842,7 @@ export default function CommunityPostDetail() {
                               }}
                               onReport={() => openReport("comment", r)}
                               onToggleSave={() => toggleSaveComment(r.id)}
+                              onToggleHelpful={() => toggleHelpfulCommentAction(r.id)}
                               isOwnComment={Boolean(user?.uid && r.authorId === user.uid)}
                             />
                           ))}
@@ -991,6 +1076,7 @@ function CommentItem({
   reportHint,
   highlight,
   saved,
+  helpful,
   isReply = false,
   parentUserName,
   showReplyButton = false,
@@ -998,6 +1084,7 @@ function CommentItem({
   onReply,
   onReport,
   onToggleSave,
+  onToggleHelpful,
   isOwnComment = false,
 }: {
   postId: string;
@@ -1012,6 +1099,7 @@ function CommentItem({
   reportHint: string;
   highlight: boolean;
   saved: boolean;
+  helpful: boolean;
   isReply?: boolean;
   parentUserName?: string;
   showReplyButton?: boolean;
@@ -1019,6 +1107,7 @@ function CommentItem({
   onReply?: () => void;
   onReport: () => void;
   onToggleSave: () => void;
+  onToggleHelpful: () => void;
   isOwnComment?: boolean;
 }) {
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -1079,6 +1168,14 @@ function CommentItem({
 
       {!archived && (
         <div className="relative z-20 flex flex-wrap items-stretch border-t border-slate-200 bg-slate-50/80 dark:border-foreground/10 dark:bg-muted/20">
+          <CommentActionBtn
+            label={`Helpful (${Math.max(0, comment.likeCount ?? 0)})`}
+            icon={CheckSquare}
+            active={helpful}
+            disabled={isOwnComment}
+            title={isOwnComment ? "You cannot mark your own comment as helpful." : !canEngage ? engageHint : helpful ? "Remove helpful" : "Mark as helpful"}
+            onClick={onToggleHelpful}
+          />
           <CommentActionBtn
             label="Save"
             icon={communityActionIcons.save}

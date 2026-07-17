@@ -53,7 +53,7 @@ const FEED_PAGE_SIZE = 20;
 export default function CommunityFeed() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { categoryDoc, categoriesLoading } = useCommunityCategories();
-  const [posts, setPosts] = useState<Array<{ id: string; [k: string]: unknown }>>([]);
+  const [posts, setPosts] = useState<Array<{ id: string;[k: string]: unknown }>>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [search, setSearch] = useState(() => searchParams.get("search") || "");
@@ -150,7 +150,7 @@ export default function CommunityFeed() {
   useEffect(() => {
     if (!user?.uid || !hasMemberProfile) return;
     const refreshNotifications = () => {
-      loadUnreadNotificationCount(user.uid).then(setNotificationUnread).catch(() => {});
+      loadUnreadNotificationCount(user.uid).then(setNotificationUnread).catch(() => { });
     };
     refreshNotifications();
     window.addEventListener("focus", refreshNotifications);
@@ -167,7 +167,7 @@ export default function CommunityFeed() {
       saveCommunityFilters(user.uid, {
         countries: selectedCountries,
         filterKeys: selectedFilterKeys,
-      }).catch(() => {});
+      }).catch(() => { });
     }, 400);
     return () => window.clearTimeout(t);
   }, [user?.uid, hasMemberProfile, selectedCountries, selectedFilterKeys]);
@@ -609,7 +609,7 @@ export default function CommunityFeed() {
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      All updates
+                      All Updates
                     </button>
                     <button
                       type="button"
@@ -634,7 +634,7 @@ export default function CommunityFeed() {
                   <p className="text-muted-foreground text-center py-12">Loading…</p>
                 ) : sidebarFiltered.length === 0 ? (
                   <p className="text-muted-foreground text-center py-12 rounded-xl border border-dashed border-slate-200 bg-white dark:border-foreground/15 dark:bg-card">
-                    No posts match your filters. Try clearing filters or search.
+                    No posts match your filters.
                   </p>
                 ) : (
                   <>
@@ -645,9 +645,6 @@ export default function CommunityFeed() {
                             post={p as PostCardPost}
                             rememberFeedScroll
                             categoryDoc={categoryDoc}
-                            showAuthorEmail={
-                              user && (p as { authorId?: string }).authorId === user.uid ? user.email : null
-                            }
                             showActionBar
                             canEngage={canEngage}
                             canShare={canShare}

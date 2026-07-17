@@ -16,7 +16,6 @@ import {
   canAddSubSubInPicker,
   categoryLimitHelpText,
   pickerLimitBlockReason,
-  summarizePickerSelection,
 } from "@/lib/communityCategoryLimits";
 
 export type CategorySelectionState = {
@@ -344,15 +343,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
     <div className="space-y-6 border border-foreground/10 rounded-xl p-4 bg-foreground/[0.02]">
       <div>
         <p className="text-sm font-medium">Categories</p>
-        <p className="text-xs text-muted-foreground">
-          Select up to {POST_MAIN_CAT_MAX} main categories. For each selected main, you can add up to{" "}
-          {POST_SUB_PER_MAIN_MAX} sub-categories and up to {POST_SUBSUB_PER_SUB_MAX} sub-sub-categories per
-          sub when available.
-        </p>
-        <p className="text-xs text-muted-foreground mt-1">{categoryLimitHelpText()}</p>
-        <p className="text-xs font-medium text-foreground/80 mt-1">
-          {summarizePickerSelection(doc, value.subsByMain)}
-        </p>
+        <p className="text-xs text-muted-foreground">{categoryLimitHelpText()}</p>
         {displayError && (
           <p
             role="alert"

@@ -10,15 +10,17 @@ import {
 import { db } from "@/firebase";
 
 export async function loadMemberEngagementIds(userId: string) {
-  const [savedPosts, helpfulPosts, savedComments] = await Promise.all([
+  const [savedPosts, helpfulPosts, savedComments, helpfulComments] = await Promise.all([
     getDocs(collection(db, "membersCollection", userId, "savedPostsCollection")),
     getDocs(collection(db, "membersCollection", userId, "helpfulPostsCollection")),
     getDocs(collection(db, "membersCollection", userId, "savedCommentsCollection")),
+    getDocs(collection(db, "membersCollection", userId, "helpfulCommentsCollection")),
   ]);
   return {
     savedPostIds: new Set(savedPosts.docs.map((d) => d.id)),
     helpfulPostIds: new Set(helpfulPosts.docs.map((d) => d.id)),
     savedCommentIds: new Set(savedComments.docs.map((d) => d.id)),
+    helpfulCommentIds: new Set(helpfulComments.docs.map((d) => d.id)),
   };
 }
 
@@ -63,6 +65,32 @@ export async function togglePostHelpful(userId: string, postId: string, helpful:
     } else {
       tx.set(helpfulRef, { markedAt: serverTimestamp() });
       tx.update(postRef, { likeCount: likeCount + 1 });
+    }
+  });
+  return !helpful;
+}
+
+export async function toggleCommentHelpful(
+  userId: string,
+  commentId: string,
+  postId: string,
+  helpful: boolean,
+) {
+  const commentRef = doc(db, "postsCollection", postId, "commentsCollection", commentId);
+  const helpfulRef = doc(db, "membersCollection", userId, "helpfulCommentsCollection", commentId);
+  await runTransaction(db, async (tx) => {
+    const commentSnap = await tx.get(commentRef);
+    if (!commentSnap.exists()) throw new Error("Comment not found.");
+    if (commentSnap.data().authorId === userId) {
+      throw new Error("You cannot mark your own comment as helpful.");
+    }
+    const likeCount = Number(commentSnap.data().likeCount ?? 0);
+    if (helpful) {
+      tx.delete(helpfulRef);
+      tx.update(commentRef, { likeCount: Math.max(0, likeCount - 1) });
+    } else {
+      tx.set(helpfulRef, { postId, markedAt: serverTimestamp() });
+      tx.update(commentRef, { likeCount: likeCount + 1 });
     }
   });
   return !helpful;

@@ -81,7 +81,7 @@ export function CommunityMemberSidebar({
         <nav className="space-y-1">
           {navItem("home", "Home", Home)}
           {navItem("my-space", "My Space", Monitor)}
-          {navItem("profile", "Edit Profile", User)}
+          {navItem("profile", "Profile", User)}
           {navItem("notifications", "Notifications", Bell, notificationUnread)}
           <button
             type="button"

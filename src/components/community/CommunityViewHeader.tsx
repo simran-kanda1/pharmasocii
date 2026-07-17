@@ -4,7 +4,7 @@ import type { CommunityView } from "@/components/community/CommunityMemberSideba
 
 const VIEW_LABELS: Record<Exclude<CommunityView, "home">, string> = {
   "my-space": "My Space",
-  profile: "Edit Profile",
+  profile: "Profile",
   notifications: "Notifications",
 };
 

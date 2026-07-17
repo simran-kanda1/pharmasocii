@@ -68,7 +68,6 @@ function linkifyText(text: string) {
 export function PostCard({
   post,
   categoryDoc,
-  showAuthorEmail,
   showActionBar = false,
   canEngage = false,
   canShare,
@@ -84,7 +83,6 @@ export function PostCard({
 }: {
   post: PostCardPost;
   categoryDoc: CommunityCategoryDoc | null;
-  showAuthorEmail?: string | null;
   showActionBar?: boolean;
   canEngage?: boolean;
   canShare?: boolean;
@@ -105,7 +103,7 @@ export function PostCard({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const created = post.createdAt?.toDate?.() ?? new Date();
   const currentUserId = auth.currentUser?.uid;
-  const isAuthor = post.authorId && currentUserId && post.authorId === currentUserId;
+  const isAuthor = Boolean(post.authorId && currentUserId && post.authorId === currentUserId);
   const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
   const isEditable = isAuthor && hoursSinceCreation <= 6;
 
@@ -166,9 +164,6 @@ export function PostCard({
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full">
               <span className="font-semibold text-foreground text-sm">{post.authorTagline || "Anonymous"}</span>
-              {showAuthorEmail ? (
-                <span className="text-xs text-muted-foreground truncate max-w-[200px]">{showAuthorEmail}</span>
-              ) : null}
               <span className="text-xs text-muted-foreground">{formatRelativeTime(created)}</span>
               <div className="ml-auto flex items-center gap-1">
                 {isEditable && onEdit && (

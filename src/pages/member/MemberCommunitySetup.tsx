@@ -67,8 +67,8 @@ export default function MemberCommunitySetup() {
       setError("Username must be at least 2 characters (letters, numbers, underscore).");
       return;
     }
-    if (userName.length > 12) {
-      setError("Username cannot exceed 12 characters.");
+    if (userName.length > 15) {
+      setError("Username cannot exceed 15 characters.");
       return;
     }
     if (!name.trim() || !country || !institution.trim() || !industry.trim() || !aboutMe.trim()) {
@@ -163,7 +163,7 @@ export default function MemberCommunitySetup() {
         </div>
         <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
         <p className="text-muted-foreground text-sm mb-8">
-          To support a trusted professional community, names and usernames cannot be changed after signup. Please verify your email before posting or commenting.
+          Name/username are final at account creation. Email verification required to post or participate.
         </p>
 
         <form onSubmit={submit} className="space-y-4">
@@ -180,7 +180,7 @@ export default function MemberCommunitySetup() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label htmlFor="userName">Username</Label>
-              <span className={`text-[11px] ${userName.length >= 12 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{userName.length}/12</span>
+              <span className={`text-[11px] ${userName.length >= 15 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{userName.length}/15</span>
             </div>
             <Input
               id="userName"
@@ -188,7 +188,7 @@ export default function MemberCommunitySetup() {
               onChange={(e) => setUserName(e.target.value)}
               required
               autoComplete="username"
-              maxLength={12}
+              maxLength={15}
               className="bg-foreground/5 border-foreground/10"
             />
           </div>
