@@ -1893,8 +1893,12 @@ export default function Dashboard() {
         const renderPlanSubscriptionCard = (plan: any, mode: "active" | "past" = "active") => {
             const isPast = mode === "past";
             const planConfig = PLAN_CONFIGS[plan.planId];
-            const startDate = plan.startDate?.seconds ? new Date(plan.startDate.seconds * 1000) : plan.startDate ? new Date(plan.startDate) : null;
-            const billingEnd = plan.billingPeriodEnd?.seconds ? new Date(plan.billingPeriodEnd.seconds * 1000) : plan.billingPeriodEnd ? new Date(plan.billingPeriodEnd) : null;
+            // Current billing period start (updates on renewals); fall back to original purchase startDate.
+            const startDate =
+                toDateValue(plan.billingPeriodStart) ||
+                toDateValue(plan.lastPaymentReceivedAt) ||
+                toDateValue(plan.startDate);
+            const billingEnd = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
             const cancelledAt = toDateValue(plan.cancelledAt);
             const isYearly = plan.billingInterval === "year" || plan.planId?.includes("_yr");
             const billingCycleLabel = isYearly ? "Annual" : "Monthly";
@@ -2003,7 +2007,9 @@ export default function Dashboard() {
                                 )}
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
                                     <div>
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Start date</p>
+                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">
+                                            {isPast ? "Last period start" : "Current period start"}
+                                        </p>
                                         <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
                                     </div>
                                     <div>

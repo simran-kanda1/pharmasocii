@@ -206,7 +206,8 @@ async function advancePartnerTestClock(partnerId, advanceDays = STRIPE_TEST_BILL
     const intervalSeconds = await getTestClockShortestIntervalSeconds(testClockId);
     const maxStepSeconds = 2 * intervalSeconds; // Stripe hard limit
     const nowSeconds = Math.floor(Date.now() / 1000);
-    const catchUpTarget = nowSeconds + intervalSeconds;
+    // Catch up to wall clock only — do not add an extra billing period (that made renewal end dates look a day late).
+    const catchUpTarget = nowSeconds;
 
     let clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
     let currentFrozen = Number(clock.frozen_time || Math.floor(Date.now() / 1000));
@@ -1230,6 +1231,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             planId,
                             planName: planId.replace(/_/g, " "),
                             startDate: startDate,
+                            billingPeriodStart: startDate,
                             billingPeriodEnd: billingPeriodEnd,
                             billingInterval: isYearly ? "year" : "month",
                             active: true,
@@ -1263,6 +1265,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             planId,
                             planName: planId.replace(/_/g, " "),
                             startDate: startDate,
+                            billingPeriodStart: startDate,
                             billingPeriodEnd: billingPeriodEnd,
                             billingInterval: isYearly ? "year" : "month",
                             active: true,
@@ -2371,6 +2374,9 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
     const billingPeriodEnd = subscription.current_period_end
         ? new Date(subscription.current_period_end * 1000)
         : null;
+    const billingPeriodStart = subscription.current_period_start
+        ? new Date(subscription.current_period_start * 1000)
+        : null;
     const customerId = toStripeCustomerId(subscription.customer);
 
     const planSnap = options.partnerId
@@ -2405,6 +2411,7 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
         if (isLive) {
             planUpdate.active = true;
             planUpdate.expiredAt = admin.firestore.FieldValue.delete();
+            if (billingPeriodStart) planUpdate.billingPeriodStart = billingPeriodStart;
             if (billingPeriodEnd) planUpdate.billingPeriodEnd = billingPeriodEnd;
             planUpdate.lastPaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
             if (subscription.cancel_at_period_end) {
@@ -2561,6 +2568,18 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
     const customerId = getInvoiceCustomerId(invoice);
     const billingReason = invoice.billing_reason || "unknown";
     const billingPeriodEnd = await resolveBillingPeriodEndFromStripe(stripe, invoice, subscriptionId);
+    let billingPeriodStart = null;
+    const subIdForPeriod = toStripeSubscriptionId(subscriptionId);
+    if (subIdForPeriod) {
+        try {
+            const sub = await stripe.subscriptions.retrieve(subIdForPeriod);
+            if (sub?.current_period_start) {
+                billingPeriodStart = new Date(sub.current_period_start * 1000);
+            }
+        } catch (err) {
+            console.warn("processSubscriptionInvoicePaid period start:", err?.message || err);
+        }
+    }
 
     console.log(`💳 Invoice paid: ${invoice.id} (reason: ${billingReason})`);
 
@@ -2610,6 +2629,14 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
         const existingEnd = toDateValue(planData.billingPeriodEnd);
         if (billingPeriodEnd && (!existingEnd || billingPeriodEnd.getTime() >= existingEnd.getTime())) {
             planUpdate.billingPeriodEnd = billingPeriodEnd;
+        }
+        // Prefer newer period starts only (same replay safety).
+        const existingStart = toDateValue(planData.billingPeriodStart);
+        if (
+            billingPeriodStart &&
+            (!existingStart || billingPeriodStart.getTime() >= existingStart.getTime())
+        ) {
+            planUpdate.billingPeriodStart = billingPeriodStart;
         }
         await planDoc.ref.set(planUpdate, { merge: true });
 
