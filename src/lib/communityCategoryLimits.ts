@@ -139,7 +139,7 @@ export function filterLimitBlockReason(
   return `You can select at most ${POST_SUBSUB_PER_SUB_MAX} sub-sub-categories under “${sub.label}”.`;
 }
 
-export function summarizeFilterSelection(doc: CommunityCategoryDoc, keys: string[]): string {
+export function summarizeFilterSelection(_doc: CommunityCategoryDoc, keys: string[]): string {
   const mains = activeMainLabelsFromFilterKeys(keys).size;
   return `${mains}/${POST_MAIN_CAT_MAX} main · up to ${POST_SUB_PER_MAIN_MAX} subs each · up to ${POST_SUBSUB_PER_SUB_MAX} sub-subs each`;
 }
@@ -215,7 +215,7 @@ export function pickerLimitBlockReason(
   return `You can select at most ${POST_SUBSUB_PER_SUB_MAX} sub-sub-categories under “${subLabel}”.`;
 }
 
-export function summarizePickerSelection(doc: CommunityCategoryDoc, subsByMain: Map<string, Set<string>>): string {
+export function summarizePickerSelection(_doc: CommunityCategoryDoc, subsByMain: Map<string, Set<string>>): string {
   const mains = countActiveMainsInPicker(subsByMain);
   return `${mains}/${POST_MAIN_CAT_MAX} main · up to ${POST_SUB_PER_MAIN_MAX} subs each · up to ${POST_SUBSUB_PER_SUB_MAX} sub-subs each`;
 }

@@ -1220,6 +1220,23 @@ export default function AdminDashboard() {
         active: true
       });
 
+      // Sync status to the associated listing if present
+      const listingId = (latestPlan as any).listingId;
+      const collectionName = (latestPlan as any).collectionName;
+      if (listingId && collectionName) {
+        let listingRef;
+        if (collectionName === "businessOfferingsCollection") {
+          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", listingId);
+        } else {
+          listingRef = doc(db, collectionName, listingId);
+        }
+        try {
+          await updateDoc(listingRef, { status: "Extended" });
+        } catch (e) {
+          console.warn("Failed to sync listing status to Extended:", e);
+        }
+      }
+
       await logActivity({
         partnerId: selectedPartner.id,
         partnerName: selectedPartner.businessName || "Unnamed Business",
@@ -1251,6 +1268,23 @@ export default function AdminDashboard() {
       const previousEnd = new Date(lastTrialEndMs);
       const planDocRef = doc(db, "partnersCollection", selectedPartner.id, "planCollection", latestPlan.id);
       await updateDoc(planDocRef, { billingPeriodEnd: previousEnd });
+
+      // Sync status to the associated listing if present
+      const listingId = (latestPlan as any).listingId;
+      const collectionName = (latestPlan as any).collectionName;
+      if (listingId && collectionName) {
+        let listingRef;
+        if (collectionName === "businessOfferingsCollection") {
+          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", listingId);
+        } else {
+          listingRef = doc(db, collectionName, listingId);
+        }
+        try {
+          await updateDoc(listingRef, { status: "Approved" });
+        } catch (e) {
+          console.warn("Failed to revert listing status on undo:", e);
+        }
+      }
 
       await logActivity({
         partnerId: selectedPartner.id,
@@ -1290,6 +1324,23 @@ export default function AdminDashboard() {
         active: false,
         billingPeriodEnd: new Date(),
       });
+
+      // Sync status to the associated listing if present
+      const listingId = (latestPlan as any).listingId;
+      const collectionName = (latestPlan as any).collectionName;
+      if (listingId && collectionName) {
+        let listingRef;
+        if (collectionName === "businessOfferingsCollection") {
+          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", listingId);
+        } else {
+          listingRef = doc(db, collectionName, listingId);
+        }
+        try {
+          await updateDoc(listingRef, { status: "Cancelled", active: false });
+        } catch (e) {
+          console.warn("Failed to sync listing status to Cancelled:", e);
+        }
+      }
 
       await logActivity({
         partnerId: selectedPartner.id,
@@ -2529,7 +2580,6 @@ export default function AdminDashboard() {
                 className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="Approved">Approved</option>
-                <option value="Pending Review">Pending Review</option>
                 <option value="Cancelled">Cancelled</option>
                 <option value="Extended">Extended</option>
                 <option value="Disabled">Disabled</option>
