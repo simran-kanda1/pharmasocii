@@ -3540,8 +3540,27 @@ app.post("/api/cron/advance-test-clock", async (req, res) => {
         const partnerId = String(req.body?.partnerId || "").trim();
         // No partnerId → catch up every stale test clock (1-day renewals on always-on instance).
         if (!partnerId) {
-            const result = await runAdvanceAllStaleTestClocks({ force: Boolean(req.body?.force) });
-            return res.json(result);
+            const force = Boolean(req.body?.force);
+            res.status(202).json({
+                ok: true,
+                accepted: true,
+                message: "Advancing stale test clocks in background.",
+            });
+            setImmediate(() => {
+                runAdvanceAllStaleTestClocks({ force })
+                    .then((result) => {
+                        console.log(
+                            "advance-test-clock (all) background:",
+                            JSON.stringify({
+                                advanced: result.advanced,
+                                skipped: result.skipped,
+                                errors: result.errors,
+                            }),
+                        );
+                    })
+                    .catch((err) => console.error("advance-test-clock (all) background:", err));
+            });
+            return;
         }
         const result = await advancePartnerTestClock(partnerId, req.body?.advanceDays, {
             catchUpToNow: Boolean(req.body?.catchUpToNow),
@@ -3561,6 +3580,9 @@ app.post("/api/cron/advance-test-clock", async (req, res) => {
  * Test keys only: catch up every partner test clock behind wall clock, then sync renewals.
  * Enables 1-day test billing on a paid always-on Render instance without manual CLI.
  * Header: x-cron-secret: process.env.CRON_SECRET
+ *
+ * Returns 202 immediately and runs in the background — full catch-up of many clocks
+ * exceeds typical Render / Cloud Functions HTTP timeouts (which caused fetch failed).
  */
 app.post("/api/cron/advance-stale-test-clocks", async (req, res) => {
     const expected = process.env.CRON_SECRET;
@@ -3570,13 +3592,28 @@ app.post("/api/cron/advance-stale-test-clocks", async (req, res) => {
     if (!STRIPE_IS_TEST) {
         return res.status(403).json({ error: "Only available with Stripe test keys (sk_test_)." });
     }
-    try {
-        const result = await runAdvanceAllStaleTestClocks({ force: Boolean(req.body?.force) });
-        return res.json(result);
-    } catch (err) {
-        console.error("advance-stale-test-clocks:", err);
-        return res.status(500).json({ error: err.message || "Advance failed" });
-    }
+    const force = Boolean(req.body?.force);
+    res.status(202).json({
+        ok: true,
+        accepted: true,
+        message: "Advancing stale test clocks in background.",
+    });
+    setImmediate(() => {
+        runAdvanceAllStaleTestClocks({ force })
+            .then((result) => {
+                console.log(
+                    "advance-stale-test-clocks background:",
+                    JSON.stringify({
+                        advanced: result.advanced,
+                        skipped: result.skipped,
+                        errors: result.errors,
+                    }),
+                );
+            })
+            .catch((err) => {
+                console.error("advance-stale-test-clocks background:", err);
+            });
+    });
 });
 
 /**

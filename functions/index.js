@@ -94,17 +94,18 @@ exports.cleanupExpiredSpotlights = onSchedule(
  */
 exports.advanceStaleTestClocks = onSchedule(
     {
-        schedule: "every 24 hours",
+        // 1-day test billing needs frequent catch-ups; daily left renewals stuck when a run failed.
+        schedule: "every 6 hours",
         timeZone: "Etc/UTC",
         retryCount: 1,
-        timeoutSeconds: 540,
+        timeoutSeconds: 120,
         region: "us-central1",
     },
     async () => {
         const baseUrl = String(process.env.BILLING_API_URL || "https://pharmasocii.onrender.com").replace(/\/$/, "");
         const cronSecret = process.env.CRON_SECRET;
-        if (!cronSecret) {
-            console.warn("advanceStaleTestClocks: CRON_SECRET not set; skipping.");
+        if (!cronSecret || cronSecret === "replace-with-shared-secret") {
+            console.warn("advanceStaleTestClocks: CRON_SECRET missing or still placeholder; skipping.");
             return;
         }
         const url = `${baseUrl}/api/cron/advance-stale-test-clocks`;
@@ -115,6 +116,7 @@ exports.advanceStaleTestClocks = onSchedule(
                 "x-cron-secret": cronSecret,
             },
             body: "{}",
+            signal: AbortSignal.timeout(60000),
         });
         const text = await res.text();
         let body = text;
@@ -123,11 +125,12 @@ exports.advanceStaleTestClocks = onSchedule(
         } catch {
             /* keep text */
         }
+        // 202 = accepted for background processing (long catch-ups).
         if (!res.ok) {
             console.error("advanceStaleTestClocks failed", res.status, body);
             throw new Error(`advance-stale-test-clocks HTTP ${res.status}`);
         }
-        console.log("advanceStaleTestClocks ok", body);
+        console.log("advanceStaleTestClocks ok", res.status, body);
     }
 );
 
