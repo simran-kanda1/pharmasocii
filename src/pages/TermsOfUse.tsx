@@ -9,6 +9,11 @@ export default function TermsOfUse() {
   useEffect(() => {
     const fetchPolicy = async () => {
       try {
+        const savedLocal = localStorage.getItem("pharmasocii_site_policies");
+        if (savedLocal) {
+          const parsed = JSON.parse(savedLocal);
+          if (parsed.termsOfUse) setCustomText(parsed.termsOfUse);
+        }
         const snap = await getDoc(doc(db, "config", "sitePolicies"));
         if (snap.exists() && snap.data().termsOfUse) {
           setCustomText(snap.data().termsOfUse);

@@ -9,6 +9,11 @@ export default function PrivacyPolicy() {
   useEffect(() => {
     const fetchPolicy = async () => {
       try {
+        const savedLocal = localStorage.getItem("pharmasocii_site_policies");
+        if (savedLocal) {
+          const parsed = JSON.parse(savedLocal);
+          if (parsed.privacyPolicy) setCustomText(parsed.privacyPolicy);
+        }
         const snap = await getDoc(doc(db, "config", "sitePolicies"));
         if (snap.exists() && snap.data().privacyPolicy) {
           setCustomText(snap.data().privacyPolicy);

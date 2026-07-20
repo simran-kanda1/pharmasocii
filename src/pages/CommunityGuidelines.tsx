@@ -9,6 +9,11 @@ export default function CommunityGuidelines() {
   useEffect(() => {
     const fetchPolicy = async () => {
       try {
+        const savedLocal = localStorage.getItem("pharmasocii_site_policies");
+        if (savedLocal) {
+          const parsed = JSON.parse(savedLocal);
+          if (parsed.communityGuidelines) setCustomText(parsed.communityGuidelines);
+        }
         const snap = await getDoc(doc(db, "config", "sitePolicies"));
         if (snap.exists() && snap.data().communityGuidelines) {
           setCustomText(snap.data().communityGuidelines);
