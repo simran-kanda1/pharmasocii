@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Loader2, CheckCircle2 } from "lucide-react";
+import {
+    DEFAULT_TERMS_OF_USE,
+    DEFAULT_PRIVACY_POLICY,
+    DEFAULT_COMMUNITY_GUIDELINES,
+} from "@/lib/defaultSitePolicies";
 
 export function AdminSitePoliciesPanel() {
     const [activeTab, setActiveTab] = useState<"terms" | "privacy" | "guidelines">("terms");
@@ -14,9 +19,9 @@ export function AdminSitePoliciesPanel() {
     const [error, setError] = useState("");
 
     const [policies, setPolicies] = useState({
-        termsOfUse: "",
-        privacyPolicy: "",
-        communityGuidelines: "",
+        termsOfUse: DEFAULT_TERMS_OF_USE,
+        privacyPolicy: DEFAULT_PRIVACY_POLICY,
+        communityGuidelines: DEFAULT_COMMUNITY_GUIDELINES,
     });
 
     useEffect(() => {
@@ -25,16 +30,18 @@ export function AdminSitePoliciesPanel() {
                 setLoading(true);
                 setError("");
 
+                let currentTerms = DEFAULT_TERMS_OF_USE;
+                let currentPrivacy = DEFAULT_PRIVACY_POLICY;
+                let currentGuidelines = DEFAULT_COMMUNITY_GUIDELINES;
+
                 // 1. Check localStorage fallback first for instant response
                 const savedLocal = localStorage.getItem("pharmasocii_site_policies");
                 if (savedLocal) {
                     try {
                         const parsed = JSON.parse(savedLocal);
-                        setPolicies({
-                            termsOfUse: parsed.termsOfUse || "",
-                            privacyPolicy: parsed.privacyPolicy || "",
-                            communityGuidelines: parsed.communityGuidelines || "",
-                        });
+                        if (parsed.termsOfUse) currentTerms = parsed.termsOfUse;
+                        if (parsed.privacyPolicy) currentPrivacy = parsed.privacyPolicy;
+                        if (parsed.communityGuidelines) currentGuidelines = parsed.communityGuidelines;
                     } catch (e) {
                         console.error("Error parsing local policies:", e);
                     }
@@ -45,17 +52,20 @@ export function AdminSitePoliciesPanel() {
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
                     const data = docSnap.data();
-                    const updated = {
-                        termsOfUse: data.termsOfUse || "",
-                        privacyPolicy: data.privacyPolicy || "",
-                        communityGuidelines: data.communityGuidelines || "",
-                    };
-                    setPolicies(updated);
-                    localStorage.setItem("pharmasocii_site_policies", JSON.stringify(updated));
+                    if (data.termsOfUse) currentTerms = data.termsOfUse;
+                    if (data.privacyPolicy) currentPrivacy = data.privacyPolicy;
+                    if (data.communityGuidelines) currentGuidelines = data.communityGuidelines;
                 }
+
+                const updated = {
+                    termsOfUse: currentTerms,
+                    privacyPolicy: currentPrivacy,
+                    communityGuidelines: currentGuidelines,
+                };
+                setPolicies(updated);
+                localStorage.setItem("pharmasocii_site_policies", JSON.stringify(updated));
             } catch (err: any) {
                 console.warn("Firestore fetch notice (using active local session):", err);
-                // Keep local state silently active without displaying an intimidating red banner
             } finally {
                 setLoading(false);
             }
