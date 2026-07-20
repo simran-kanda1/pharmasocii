@@ -36,11 +36,10 @@ export function AdminSitePoliciesPanel() {
                 }
             } catch (err: any) {
                 console.error("Error fetching site policies:", err);
-                // If it's just a missing document or initial setup, do not show a blocking error
-                if (err?.code !== "permission-denied") {
-                    console.log("No existing policy document found or error reading document, ready for initial input.");
+                if (err?.code === "permission-denied") {
+                    setError("Firestore Permission Denied: Please update your Firestore Security Rules in the Firebase Console to allow access to match /config/{configId}. We have added the updated rules to firestore.rules in the codebase.");
                 } else {
-                    setError("Permission denied loading policy data from Firestore. Make sure you are logged in as admin.");
+                    console.log("No existing policy document found or error reading document, ready for initial input.");
                 }
             } finally {
                 setLoading(false);

@@ -69,7 +69,17 @@ service cloud.firestore {
       allow write: if false;
     }
 
-    match /config/communityCategories {
+    match /config/{configId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /categoriesCollection/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /plansCollection/{docId} {
       allow read: if true;
       allow write: if isAdmin();
     }
