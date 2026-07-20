@@ -119,10 +119,21 @@ export default function CommunityFeed() {
           filtersHydratedRef.current = true;
           setSelectedCountries(saved.countries);
           setSelectedFilterKeys(saved.filterKeys);
-          const engagement = await loadMemberEngagementIds(u.uid);
-          setSavedPostIds(engagement.savedPostIds);
-          setHelpfulPostIds(engagement.helpfulPostIds);
-          setNotificationUnread(await loadUnreadNotificationCount(u.uid));
+          try {
+            const engagement = await loadMemberEngagementIds(u.uid);
+            setSavedPostIds(engagement.savedPostIds);
+            setHelpfulPostIds(engagement.helpfulPostIds);
+          } catch (err) {
+            console.warn("Could not load community engagement:", err);
+            setSavedPostIds(new Set());
+            setHelpfulPostIds(new Set());
+          }
+          try {
+            setNotificationUnread(await loadUnreadNotificationCount(u.uid));
+          } catch (err) {
+            console.warn("Could not load notification count:", err);
+            setNotificationUnread(0);
+          }
         } else {
           setSavedPostIds(new Set());
           setHelpfulPostIds(new Set());

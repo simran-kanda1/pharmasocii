@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -165,6 +166,11 @@ export function CreatePostModal({
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0">
           <DialogHeader className="px-5 pt-5 pb-3 border-b">
             <DialogTitle>{postToEdit ? "Edit post" : "Create a post"}</DialogTitle>
+            <DialogDescription className="sr-only">
+              {postToEdit
+                ? "Edit your community post title, body, categories, and countries."
+                : "Create a community post with a title, body, optional categories and countries."}
+            </DialogDescription>
           </DialogHeader>
 
           <div className="px-5 py-4 space-y-4">
@@ -310,6 +316,9 @@ export function CreatePostModal({
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Select categories</DialogTitle>
+            <DialogDescription className="sr-only">
+              Choose up to 3 main categories, 2 sub-categories per main, and 2 sub-sub-categories per sub.
+            </DialogDescription>
           </DialogHeader>
           <CategoryPicker doc={categoryDoc} value={catSel} onChange={setCatSel} />
           <Button type="button" onClick={() => setNested(null)}>
@@ -322,6 +331,9 @@ export function CreatePostModal({
         <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Select countries</DialogTitle>
+            <DialogDescription className="sr-only">
+              Optionally choose up to {POST_COUNTRIES_MAX} countries for this post.
+            </DialogDescription>
           </DialogHeader>
           <CountryMultiSelect value={countries} onChange={setCountries} max={POST_COUNTRIES_MAX} />
           <Button type="button" onClick={() => setNested(null)}>

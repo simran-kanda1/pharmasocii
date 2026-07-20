@@ -200,10 +200,11 @@ service cloud.firestore {
         && request.resource.data.mainCategories is list
         && request.resource.data.mainCategories.size() >= 1
         && request.resource.data.mainCategories.size() <= 3
+        // 3 mains × 2 subs = 6; 3 mains × 2 subs × 2 sub-subs = 12
         && (!('subCategories' in request.resource.data)
           || (request.resource.data.subCategories is list && request.resource.data.subCategories.size() <= 6))
         && (!('subSubCategories' in request.resource.data)
-          || (request.resource.data.subSubCategories is list && request.resource.data.subSubCategories.size() <= 6))
+          || (request.resource.data.subSubCategories is list && request.resource.data.subSubCategories.size() <= 12))
         && (!('countries' in request.resource.data)
           || (request.resource.data.countries is list && request.resource.data.countries.size() <= 5))
         && (!('externalLinks' in request.resource.data)
