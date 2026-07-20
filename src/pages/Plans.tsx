@@ -368,6 +368,13 @@ export default function Plans() {
                     </div>
                 </div>
 
+                {/* Footnote */}
+                <div className="mt-16 text-center border-t border-slate-200/80 pt-6">
+                    <p className="text-xs text-slate-500 font-medium tracking-wide">
+                        Plans auto‑renew. Access continues until the end of the paid period. No refunds.
+                    </p>
+                </div>
+
             </div>
         </div>
     );
