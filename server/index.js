@@ -31,7 +31,7 @@ const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
 const STRIPE_IS_TEST = Boolean(STRIPE_SECRET_KEY?.startsWith("sk_test_"));
 const STRIPE_TEST_BILLING_DAYS = Math.max(
     1,
-    parseInt(process.env.STRIPE_TEST_BILLING_DAYS || "1", 10) || 1,
+    parseInt(process.env.STRIPE_TEST_BILLING_DAYS || "4", 10) || 4,
 );
 const STRIPE_TEST_CLOCKS_ENABLED =
     STRIPE_IS_TEST && String(process.env.STRIPE_TEST_CLOCKS || "true").toLowerCase() !== "false";
@@ -278,7 +278,7 @@ async function advancePartnerTestClock(partnerId, advanceDays = STRIPE_TEST_BILL
     };
 }
 
-/** Advance every partner test clock that has fallen behind wall clock (1-day renewals). */
+/** Advance every partner test clock that has fallen behind wall clock (test renewals). */
 async function runAdvanceAllStaleTestClocks(options = {}) {
     if (!STRIPE_IS_TEST) {
         return { error: "Only available with Stripe test keys (sk_test_)." };
@@ -391,6 +391,236 @@ async function collectPartnerSubscriptionIntervalWarnings(partnerId) {
         }
     }
     return warnings;
+}
+
+async function resolveMigratableProductId(sourceProductId, productCache) {
+    if (productCache.has(sourceProductId)) return productCache.get(sourceProductId);
+
+    const sourceProduct = await stripe.products.retrieve(sourceProductId);
+    if (sourceProduct.active) {
+        productCache.set(sourceProductId, sourceProductId);
+        return sourceProductId;
+    }
+
+    // Stripe automatically-created products cannot be reactivated. Reuse or
+    // create a normal active replacement so the subscription can accept the
+    // new 4-day price.
+    const activeProducts = await stripe.products
+        .list({ active: true, limit: 100 })
+        .autoPagingToArray({ limit: 1000 });
+    let replacement = activeProducts.find(
+        (product) => product.metadata?.pharmasociiSourceProductId === sourceProductId,
+    );
+    if (!replacement) {
+        replacement = await stripe.products.create({
+            name: sourceProduct.name || "Pharma Socii test subscription",
+            ...(sourceProduct.description ? { description: sourceProduct.description } : {}),
+            metadata: {
+                pharmasociiSourceProductId: sourceProductId,
+                pharmasociiTestBillingDays: String(STRIPE_TEST_BILLING_DAYS),
+            },
+        });
+    }
+    productCache.set(sourceProductId, replacement.id);
+    return replacement.id;
+}
+
+async function getOrCreateTestIntervalPrice(sourcePrice, cache, productCache) {
+    const cacheKey = sourcePrice.id;
+    if (cache.has(cacheKey)) return cache.get(cacheKey);
+
+    const sourceProductId =
+        typeof sourcePrice.product === "string" ? sourcePrice.product : sourcePrice.product?.id;
+    if (!sourceProductId || sourcePrice.unit_amount == null) {
+        throw new Error(`Price ${sourcePrice.id} cannot be migrated (missing product or unit amount).`);
+    }
+    const productId = await resolveMigratableProductId(sourceProductId, productCache);
+
+    // Reuse a prior migration price when rerunning after a partial failure.
+    const prices = await stripe.prices.list({ product: productId, active: true, limit: 100 });
+    const existing = prices.data.find(
+        (price) =>
+            price.metadata?.pharmasociiSourcePriceId === sourcePrice.id &&
+            Number(price.metadata?.pharmasociiTestBillingDays) === STRIPE_TEST_BILLING_DAYS &&
+            price.recurring?.interval === "day" &&
+            Number(price.recurring?.interval_count || 1) === STRIPE_TEST_BILLING_DAYS,
+    );
+    if (existing) {
+        cache.set(cacheKey, existing);
+        return existing;
+    }
+
+    const recurring = {
+        interval: "day",
+        interval_count: STRIPE_TEST_BILLING_DAYS,
+        usage_type: sourcePrice.recurring?.usage_type || "licensed",
+    };
+    if (sourcePrice.recurring?.usage_type === "metered" && sourcePrice.recurring?.aggregate_usage) {
+        recurring.aggregate_usage = sourcePrice.recurring.aggregate_usage;
+    }
+
+    const created = await stripe.prices.create({
+        product: productId,
+        currency: sourcePrice.currency,
+        unit_amount: sourcePrice.unit_amount,
+        recurring,
+        ...(sourcePrice.tax_behavior && sourcePrice.tax_behavior !== "unspecified"
+            ? { tax_behavior: sourcePrice.tax_behavior }
+            : {}),
+        metadata: {
+            pharmasociiSourcePriceId: sourcePrice.id,
+            pharmasociiTestBillingDays: String(STRIPE_TEST_BILLING_DAYS),
+        },
+    });
+    cache.set(cacheKey, created);
+    return created;
+}
+
+/**
+ * Move every live subscription attached to a Pharma Socii test clock onto the
+ * configured day interval. This changes existing subscriptions; changing the
+ * server default alone only affects newly-created prices.
+ */
+async function migrateAllTestSubscriptionsToConfiguredInterval() {
+    if (!STRIPE_IS_TEST) {
+        return { error: "Only available with Stripe test keys (sk_test_)." };
+    }
+
+    const partnersSnap = await db.collection("partnersCollection").get();
+    const seenClockIds = new Set();
+    const seenSubscriptionIds = new Set();
+    const priceCache = new Map();
+    const productCache = new Map();
+    const results = [];
+    let migrated = 0;
+    let alreadyConfigured = 0;
+    let skipped = 0;
+    let errors = 0;
+
+    for (const partnerDoc of partnersSnap.docs) {
+        const partnerData = partnerDoc.data() || {};
+        const testClockId = await resolvePartnerTestClockIdFromData(partnerData);
+        if (!testClockId || seenClockIds.has(testClockId)) continue;
+        seenClockIds.add(testClockId);
+
+        let subscriptions;
+        try {
+            subscriptions = await stripe.subscriptions.list({
+                test_clock: testClockId,
+                status: "all",
+                limit: 100,
+            });
+        } catch (err) {
+            errors += 1;
+            results.push({
+                partnerId: partnerDoc.id,
+                testClockId,
+                error: err?.message || String(err),
+            });
+            continue;
+        }
+
+        for (const subscription of subscriptions.data || []) {
+            if (seenSubscriptionIds.has(subscription.id)) continue;
+            seenSubscriptionIds.add(subscription.id);
+
+            if (!["active", "trialing", "past_due", "unpaid"].includes(subscription.status)) {
+                skipped += 1;
+                results.push({
+                    partnerId: partnerDoc.id,
+                    subscriptionId: subscription.id,
+                    skipped: `status_${subscription.status}`,
+                });
+                continue;
+            }
+
+            try {
+                const itemUpdates = [];
+                let mismatched = false;
+                for (const item of subscription.items?.data || []) {
+                    const recurring = item.price?.recurring;
+                    if (
+                        recurring?.interval === "day" &&
+                        Number(recurring.interval_count || 1) === STRIPE_TEST_BILLING_DAYS
+                    ) {
+                        continue;
+                    }
+                    mismatched = true;
+                    const replacement = await getOrCreateTestIntervalPrice(
+                        item.price,
+                        priceCache,
+                        productCache,
+                    );
+                    itemUpdates.push({
+                        id: item.id,
+                        price: replacement.id,
+                        quantity: item.quantity || 1,
+                    });
+                }
+
+                if (!mismatched) {
+                    alreadyConfigured += 1;
+                    results.push({
+                        partnerId: partnerDoc.id,
+                        subscriptionId: subscription.id,
+                        alreadyConfigured: true,
+                    });
+                    continue;
+                }
+
+                if (itemUpdates.length === 0) {
+                    skipped += 1;
+                    results.push({
+                        partnerId: partnerDoc.id,
+                        subscriptionId: subscription.id,
+                        skipped: "no_migratable_items",
+                    });
+                    continue;
+                }
+
+                const updated = await stripe.subscriptions.update(subscription.id, {
+                    items: itemUpdates,
+                    proration_behavior: "none",
+                    metadata: {
+                        ...subscription.metadata,
+                        pharmasociiTestBillingDays: String(STRIPE_TEST_BILLING_DAYS),
+                    },
+                });
+                migrated += 1;
+                results.push({
+                    partnerId: partnerDoc.id,
+                    subscriptionId: subscription.id,
+                    migrated: true,
+                    status: updated.status,
+                    currentPeriodEnd: updated.current_period_end
+                        ? new Date(updated.current_period_end * 1000).toISOString()
+                        : null,
+                });
+            } catch (err) {
+                errors += 1;
+                results.push({
+                    partnerId: partnerDoc.id,
+                    subscriptionId: subscription.id,
+                    error: err?.message || String(err),
+                });
+            }
+        }
+    }
+
+    // Apply any immediate Stripe period changes and invoices to Firestore.
+    const sync = await runSyncAllTestBilling();
+    return {
+        ok: errors === 0,
+        testBillingDays: STRIPE_TEST_BILLING_DAYS,
+        clocks: seenClockIds.size,
+        subscriptions: seenSubscriptionIds.size,
+        migrated,
+        alreadyConfigured,
+        skipped,
+        errors,
+        results,
+        sync,
+    };
 }
 
 async function processPartnerPaidSubscriptionInvoices(partnerId) {
@@ -3524,7 +3754,7 @@ app.post("/api/advance-test-billing", async (req, res) => {
 
 /**
  * POST /api/cron/advance-test-clock
- * Test keys only: advance test clock by STRIPE_TEST_BILLING_DAYS (default 1).
+ * Test keys only: advance test clock by STRIPE_TEST_BILLING_DAYS (default 4).
  * Header: x-cron-secret: process.env.CRON_SECRET
  * Body: { partnerId, advanceDays? }
  */
@@ -3538,7 +3768,7 @@ app.post("/api/cron/advance-test-clock", async (req, res) => {
     }
     try {
         const partnerId = String(req.body?.partnerId || "").trim();
-        // No partnerId → catch up every stale test clock (1-day renewals on always-on instance).
+        // No partnerId → catch up every stale test clock (test renewals on always-on instance).
         if (!partnerId) {
             const force = Boolean(req.body?.force);
             res.status(202).json({
@@ -3578,7 +3808,7 @@ app.post("/api/cron/advance-test-clock", async (req, res) => {
 /**
  * POST /api/cron/advance-stale-test-clocks
  * Test keys only: catch up every partner test clock behind wall clock, then sync renewals.
- * Enables 1-day test billing on a paid always-on Render instance without manual CLI.
+ * Enables accelerated test billing on a paid always-on Render instance without manual CLI.
  * Header: x-cron-secret: process.env.CRON_SECRET
  *
  * Returns 202 immediately and runs in the background — full catch-up of many clocks
@@ -5549,6 +5779,13 @@ async function runBillingCli() {
         });
         console.log(JSON.stringify(result, null, 2));
         if (result.error) process.exit(1);
+        return;
+    }
+
+    if (cliCommand === "migrate-test-billing-interval") {
+        const result = await migrateAllTestSubscriptionsToConfiguredInterval();
+        console.log(JSON.stringify(result, null, 2));
+        if (result.error || result.errors > 0) process.exit(1);
         return;
     }
 

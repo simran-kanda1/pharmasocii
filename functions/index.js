@@ -1,6 +1,6 @@
 /**
  * Scheduled cleanup: remove spotlight fields after featureSpotlightAccessEnd.
- * Daily advanceStaleTestClocks: calls Render /api/cron/advance-stale-test-clocks for 1-day test renewals.
+ * advanceStaleTestClocks calls Render for accelerated 4-day test renewals.
  * Community: comment counts, spam thresholds, spam-block release.
  * Community-only email testing: onMemberDocumentCreatedVerificationMirror (Firestore) +
  * requestVerificationEmailCc (resend) mirror links to verificationMirrors and optional SMTP
@@ -85,7 +85,7 @@ exports.cleanupExpiredSpotlights = onSchedule(
 );
 
 /**
- * Daily: ask the billing server to advance stale Stripe test clocks so 1-day test
+ * Ask the billing server to advance stale Stripe test clocks so 4-day test
  * subscriptions renew. Keeps Stripe/test-clock logic on Render; Firebase only schedules.
  *
  * Env (functions/.env.pharmasocii or Cloud Console):
@@ -94,7 +94,7 @@ exports.cleanupExpiredSpotlights = onSchedule(
  */
 exports.advanceStaleTestClocks = onSchedule(
     {
-        // 1-day test billing needs frequent catch-ups; daily left renewals stuck when a run failed.
+        // Check every 6 hours so a failed run does not leave test renewals stuck.
         schedule: "every 6 hours",
         timeZone: "Etc/UTC",
         retryCount: 1,

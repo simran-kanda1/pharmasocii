@@ -7,6 +7,7 @@
         "start": "node index.js",
         "sync-all-test-billing": "node index.js sync-all-test-billing",
         "advance-test-billing": "node index.js advance-test-billing",
+        "migrate-test-billing-interval": "node index.js migrate-test-billing-interval",
         "sync-partner-billing": "node index.js sync-partner-billing"
     },
     "dependencies": {

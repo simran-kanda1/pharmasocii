@@ -15,7 +15,9 @@ import {
   canAddSubInPicker,
   canAddSubSubInPicker,
   categoryLimitHelpText,
+  countActiveMainsInPicker,
   pickerLimitBlockReason,
+  summarizePickerSelection,
 } from "@/lib/communityCategoryLimits";
 
 export type CategorySelectionState = {
@@ -97,16 +99,13 @@ export function selectionToPostFields(
 
     for (const sub of main.subs ?? []) {
       if (!subs.has(sub.label)) continue;
-      const hasSubSubs = (sub.subSubs?.length ?? 0) > 0;
+      // Always keep the sub label so restore/counting stay tied to this main.
+      subCategories.push(sub.label);
       const msKey = keyMainSub(main.label, sub.label);
       const pickedSubSubs = sel.subSubsByMainSub.get(msKey);
-
-      if (hasSubSubs && pickedSubSubs && pickedSubSubs.size > 0) {
-        for (const ss of sub.subSubs ?? []) {
-          if (pickedSubSubs.has(ss.label)) subSubCategories.push(ss.label);
-        }
-      } else {
-        subCategories.push(sub.label);
+      if (!pickedSubSubs?.size) continue;
+      for (const ss of sub.subSubs ?? []) {
+        if (pickedSubSubs.has(ss.label)) subSubCategories.push(ss.label);
       }
     }
   }
@@ -130,14 +129,12 @@ export function buildFilterKeysFromSelection(
     const subSubLabels: string[] = [];
     for (const sub of main.subs ?? []) {
       if (!subs.has(sub.label)) continue;
+      subLabels.push(sub.label);
       const msKey = keyMainSub(main.label, sub.label);
       const picked = sel.subSubsByMainSub.get(msKey);
-      if ((sub.subSubs?.length ?? 0) > 0 && picked?.size) {
-        for (const ss of sub.subSubs ?? []) {
-          if (picked.has(ss.label)) subSubLabels.push(ss.label);
-        }
-      } else {
-        subLabels.push(sub.label);
+      if (!picked?.size) continue;
+      for (const ss of sub.subSubs ?? []) {
+        if (picked.has(ss.label)) subSubLabels.push(ss.label);
       }
     }
     branches.push({ mainLabel: main.label, subLabels, subSubLabels });
@@ -194,7 +191,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
   }, [limitError]);
 
   const softValidation = (() => {
-    const mains = [...value.subsByMain.values()].filter((s) => s.size > 0).length;
+    const mains = countActiveMainsInPicker(value.subsByMain, doc);
     if (mains === 0) return null;
     return validateCategorySelection(doc, value);
   })();
@@ -215,7 +212,9 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       subSubsByMainSub: new Map(value.subSubsByMainSub),
     };
     if (checked) {
-      const reason = pickerLimitBlockReason("main", next.subsByMain, next.subSubsByMainSub, mainLabel);
+      const reason = pickerLimitBlockReason("main", next.subsByMain, next.subSubsByMainSub, mainLabel, {
+        doc,
+      });
       if (reason) {
         setLimitError(reason);
         return;
@@ -239,7 +238,9 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
     if (checked) {
       // Auto-select the main if needed (counts toward the 3-main limit).
       if (!mainActive) {
-        const mainReason = pickerLimitBlockReason("main", next.subsByMain, next.subSubsByMainSub, mainLabel);
+        const mainReason = pickerLimitBlockReason("main", next.subsByMain, next.subSubsByMainSub, mainLabel, {
+          doc,
+        });
         if (mainReason) {
           setLimitError(mainReason);
           return;
@@ -249,6 +250,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
 
       const reason = pickerLimitBlockReason("sub", next.subsByMain, next.subSubsByMainSub, mainLabel, {
         subLabel,
+        doc,
       });
       if (reason) {
         setLimitError(reason);
@@ -289,7 +291,9 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       // Ensure main + sub are selected first.
       const mainActive = (next.subsByMain.get(mainLabel)?.size ?? 0) > 0;
       if (!mainActive) {
-        const mainReason = pickerLimitBlockReason("main", next.subsByMain, next.subSubsByMainSub, mainLabel);
+        const mainReason = pickerLimitBlockReason("main", next.subsByMain, next.subSubsByMainSub, mainLabel, {
+          doc,
+        });
         if (mainReason) {
           setLimitError(mainReason);
           return;
@@ -301,6 +305,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       if (!subs.has(subLabel)) {
         const subReason = pickerLimitBlockReason("sub", next.subsByMain, next.subSubsByMainSub, mainLabel, {
           subLabel,
+          doc,
         });
         if (subReason) {
           setLimitError(subReason);
@@ -316,7 +321,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         next.subsByMain,
         next.subSubsByMainSub,
         mainLabel,
-        { subLabel, subSubLabel },
+        { subLabel, subSubLabel, doc },
       );
       if (reason) {
         setLimitError(reason);
@@ -343,7 +348,15 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
     <div className="space-y-6 border border-foreground/10 rounded-xl p-4 bg-foreground/[0.02]">
       <div>
         <p className="text-sm font-medium">Categories</p>
-        <p className="text-xs text-muted-foreground">{categoryLimitHelpText()}</p>
+        <p className="text-xs text-muted-foreground">
+          Select up to {POST_MAIN_CAT_MAX} main categories. For each selected main, you can add up to{" "}
+          {POST_SUB_PER_MAIN_MAX} sub-categories and up to {POST_SUBSUB_PER_SUB_MAX} sub-sub-categories per
+          sub when available.
+        </p>
+        <p className="text-xs text-muted-foreground mt-1">{categoryLimitHelpText()}</p>
+        <p className="text-xs font-medium text-foreground/80 mt-1 sticky top-0 z-10 bg-background/95 backdrop-blur-sm py-1">
+          {summarizePickerSelection(doc, value.subsByMain, value.subSubsByMainSub)}
+        </p>
         {displayError && (
           <p
             role="alert"
@@ -357,7 +370,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         const active = value.subsByMain.get(main.label);
         const mainChecked = !!(active && active.size > 0);
         const hasSubs = (main.subs?.length ?? 0) > 0;
-        const canActivateMain = canActivateMainInPicker(value.subsByMain, main.label);
+        const canActivateMain = canActivateMainInPicker(value.subsByMain, main.label, doc);
         return (
           <div key={main.id} className="space-y-3 border-t border-foreground/10 pt-4 first:border-t-0 first:pt-0">
             <div className="flex items-center gap-2">
@@ -379,7 +392,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                   const subs = value.subsByMain.get(main.label);
                   const subOn = subs?.has(sub.label) ?? false;
                   const canPickSub =
-                    mainChecked && canAddSubInPicker(value.subsByMain, main.label, sub.label);
+                    mainChecked && canAddSubInPicker(value.subsByMain, main.label, sub.label, doc);
                   return (
                     <div key={sub.id} className="space-y-2">
                       <div className="flex items-center gap-2">
@@ -417,6 +430,7 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                                 main.label,
                                 sub.label,
                                 ss.label,
+                                doc,
                               );
                             return (
                               <div key={ss.id} className="flex items-center gap-2">

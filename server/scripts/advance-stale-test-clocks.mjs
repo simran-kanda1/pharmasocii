@@ -1,6 +1,6 @@
 /**
  * Catch up every partner Stripe test clock behind wall clock, then sync renewals.
- * Needed for 1-day test billing on an always-on server (Render paid).
+ * Needed for accelerated test billing on an always-on server (Render paid).
  *
  * Usage (from repo root):
  *   node server/scripts/advance-stale-test-clocks.mjs

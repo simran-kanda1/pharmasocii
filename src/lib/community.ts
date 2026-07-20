@@ -107,11 +107,8 @@ export function buildFilterKeys(branches: SelectedCategoryBranch[]): string[] {
   const keys: string[] = [];
   for (const b of branches) {
     keys.push(`main:${b.mainLabel}`);
-    if (b.subSubLabels?.length) {
-      for (const ss of b.subSubLabels) keys.push(`ss:${b.mainLabel}:${ss}`);
-    } else if (b.subLabels?.length) {
-      for (const s of b.subLabels) keys.push(`sub:${b.mainLabel}:${s}`);
-    }
+    for (const s of b.subLabels ?? []) keys.push(`sub:${b.mainLabel}:${s}`);
+    for (const ss of b.subSubLabels ?? []) keys.push(`ss:${b.mainLabel}:${ss}`);
   }
   return keys;
 }
