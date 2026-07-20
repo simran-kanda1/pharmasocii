@@ -1,6 +1,24 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { db } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function PrivacyPolicy() {
+  const [customText, setCustomText] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPolicy = async () => {
+      try {
+        const snap = await getDoc(doc(db, "config", "sitePolicies"));
+        if (snap.exists() && snap.data().privacyPolicy) {
+          setCustomText(snap.data().privacyPolicy);
+        }
+      } catch (err) {
+        console.error("Error loading Privacy Policy:", err);
+      }
+    };
+    fetchPolicy();
+  }, []);
   return (
     <div className="flex-1 bg-background py-16 md:py-24 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
@@ -17,9 +35,13 @@ export default function PrivacyPolicy() {
 
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-150 fill-mode-both">
           <div className="bg-foreground/5 p-8 md:p-12 rounded-3xl border border-foreground/10 shadow-xl backdrop-blur-sm space-y-8 text-foreground/90 text-sm md:text-base leading-relaxed">
-            <p>
-              <strong>PharmaSocii</strong> (“we,” “our,” “us”) respects your privacy. This Privacy Policy explains how we collect, use, share, and protect your information when you use our Platform.
-            </p>
+            {customText ? (
+              <div className="whitespace-pre-wrap space-y-4" dangerouslySetInnerHTML={{ __html: customText }} />
+            ) : (
+              <>
+                <p>
+                  <strong>PharmaSocii</strong> (“we,” “our,” “us”) respects your privacy. This Privacy Policy explains how we collect, use, share, and protect your information when you use our Platform.
+                </p>
 
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">1. Information We Collect</h2>
@@ -178,6 +200,8 @@ export default function PrivacyPolicy() {
                 If you access the Platform from outside Canada, you do so at your own initiative and are responsible for complying with local laws where applicable.
               </p>
             </section>
+            </>
+            )}
           </div>
         </div>
       </div>

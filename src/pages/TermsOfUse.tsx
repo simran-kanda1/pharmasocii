@@ -1,6 +1,24 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { db } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function TermsOfUse() {
+  const [customText, setCustomText] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPolicy = async () => {
+      try {
+        const snap = await getDoc(doc(db, "config", "sitePolicies"));
+        if (snap.exists() && snap.data().termsOfUse) {
+          setCustomText(snap.data().termsOfUse);
+        }
+      } catch (err) {
+        console.error("Error loading Terms of Use policy:", err);
+      }
+    };
+    fetchPolicy();
+  }, []);
   return (
     <div className="flex-1 bg-background py-16 md:py-24 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
@@ -17,9 +35,13 @@ export default function TermsOfUse() {
 
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-150 fill-mode-both">
           <div className="bg-foreground/5 p-8 md:p-12 rounded-3xl border border-foreground/10 shadow-xl backdrop-blur-sm space-y-8 text-foreground/90 text-sm md:text-base leading-relaxed">
-            <p>
-              Welcome to <strong>PharmaSocii</strong> (“Platform”), operated by PharmaSocii (“we, our, us”). These Terms of Service (“Terms”) govern your access to and use of the Platform.
-            </p>
+            {customText ? (
+              <div className="whitespace-pre-wrap space-y-4" dangerouslySetInnerHTML={{ __html: customText }} />
+            ) : (
+              <>
+                <p>
+                  Welcome to <strong>PharmaSocii</strong> (“Platform”), operated by PharmaSocii (“we, our, us”). These Terms of Service (“Terms”) govern your access to and use of the Platform.
+                </p>
 
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">1. Acceptance & Entire Agreement</h2>
@@ -341,6 +363,8 @@ export default function TermsOfUse() {
                 For privacy and legal notices, please use: <a href="mailto:legal@pharmasocii.com" className="text-primary hover:underline">legal@pharmasocii.com</a>
               </p>
             </section>
+            </>
+            )}
           </div>
         </div>
       </div>

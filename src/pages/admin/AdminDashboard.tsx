@@ -21,6 +21,7 @@ import {
   LogOut,
   MessageSquare,
   MoreVertical,
+  Pencil,
   Plus,
   Receipt,
   Search,
@@ -98,6 +99,9 @@ const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcat
 import { AdminAddCategory } from "@/components/admin/AdminAddCategory";
 import { AdminAddPlan } from "@/components/admin/AdminAddPlan";
 import { AdminAddFeaturedPlan } from "@/components/admin/AdminAddFeaturedPlan";
+import { AdminSitePoliciesPanel } from "@/components/admin/AdminSitePoliciesPanel";
+import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
+import { AdminEditPlanModal } from "@/components/admin/AdminEditPlanModal";
 
 type AdminTab =
   | "overview"
@@ -106,6 +110,7 @@ type AdminTab =
   | "plans"
   | "featuredPlans"
   | "categories"
+  | "policies"
   | "communityMembers"
   | "communityPosts"
   | "communityArchivePosts"
@@ -1918,6 +1923,7 @@ export default function AdminDashboard() {
     plans: "Plans",
     featuredPlans: "Featured Plans",
     categories: "Categories",
+    policies: "Site Policies",
     communityMembers: "Members",
     communityPosts: "Member posts",
     communityArchivePosts: "Archive posts",
@@ -1959,6 +1965,7 @@ export default function AdminDashboard() {
             <SidebarItem label="Plans" icon={Tags} active={activeTab === "plans"} onClick={() => setActiveTab("plans")} />
             <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
+            <SidebarItem label="Site Policies" icon={ShieldCheck} active={activeTab === "policies"} onClick={() => setActiveTab("policies")} />
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
             <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
             <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
@@ -2183,6 +2190,8 @@ export default function AdminDashboard() {
               </div>
             )
           )}
+
+          {activeTab === "policies" && <AdminSitePoliciesPanel />}
 
           {activeTab === "communityMembers" && <AdminMembersPanel />}
           {activeTab === "communityPosts" && <AdminMemberPostsPanel />}
@@ -3049,48 +3058,133 @@ function PartnerList({
 }
 
 function PlansCatalogTab() {
+  const [plans, setPlans] = useState<any[]>([]);
+  const [editingPlan, setEditingPlan] = useState<any | null>(null);
+
+  const fetchPlans = async () => {
+    try {
+      const snap = await getDocs(collection(db, "plansCollection"));
+      const customPlansMap: Record<string, any> = {};
+      snap.docs.forEach((docSnap) => {
+        customPlansMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+      });
+
+      const merged = AVAILABLE_PLANS.map((defaultPlan) => {
+        const custom = customPlansMap[defaultPlan.planId];
+        if (custom) {
+          return {
+            ...defaultPlan,
+            ...custom,
+            label: custom.label || custom.title || defaultPlan.label,
+            service: custom.service || custom.group || defaultPlan.service,
+            billing: custom.billing || defaultPlan.billing,
+            priceUsd: custom.priceUsd !== undefined ? custom.priceUsd : (custom.amount !== undefined ? Number(custom.amount) : defaultPlan.priceUsd),
+            maxCategories: custom.maxCategories !== undefined ? custom.maxCategories : (custom.numberOfCategory === "Unlimited" ? -1 : Number(custom.numberOfCategory || PLAN_LIMITS[defaultPlan.planId]?.maxCategories)),
+            maxCountries: custom.maxCountries !== undefined ? custom.maxCountries : (custom.numberOfCountry === "Unlimited" ? -1 : Number(custom.numberOfCountry || PLAN_LIMITS[defaultPlan.planId]?.maxCountries)),
+            notes: custom.notes || custom.specification || (defaultPlan.planId.includes("premium_plus") ? "Eligible for stronger homepage visibility options." : "Standard listing visibility."),
+            status: custom.status || "Active",
+          };
+        }
+        const limits = PLAN_LIMITS[defaultPlan.planId];
+        return {
+          ...defaultPlan,
+          maxCategories: limits?.maxCategories,
+          maxCountries: limits?.maxCountries,
+          notes: defaultPlan.planId.includes("premium_plus")
+            ? "Eligible for stronger homepage visibility options."
+            : "Standard listing visibility.",
+          status: "Active",
+        };
+      });
+
+      // Also add any completely new plans created in Firestore
+      Object.keys(customPlansMap).forEach((id) => {
+        if (!AVAILABLE_PLANS.some((p) => p.planId === id)) {
+          const custom = customPlansMap[id];
+          merged.push({
+            planId: id,
+            id: id,
+            service: custom.service || custom.group || "Custom Service",
+            label: custom.label || custom.title || "Custom Plan",
+            billing: custom.billing || "Monthly",
+            priceUsd: custom.priceUsd !== undefined ? custom.priceUsd : Number(custom.amount || 0),
+            maxCategories: custom.maxCategories !== undefined ? custom.maxCategories : (custom.numberOfCategory === "Unlimited" ? -1 : Number(custom.numberOfCategory || 0)),
+            maxCountries: custom.maxCountries !== undefined ? custom.maxCountries : (custom.numberOfCountry === "Unlimited" ? -1 : Number(custom.numberOfCountry || 0)),
+            notes: custom.notes || custom.specification || "-",
+            status: custom.status || "Active",
+          });
+        }
+      });
+
+      setPlans(merged);
+    } catch (err) {
+      console.error("Error fetching custom plans:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchPlans();
+  }, []);
+
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
-      <CardHeader>
-        <CardTitle>Available Plans by Service</CardTitle>
-        <CardDescription>Pricing and limitations by plan.</CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-6">Service</TableHead>
-              <TableHead>Plan</TableHead>
-              <TableHead>Billing</TableHead>
-              <TableHead>Price (USD)</TableHead>
-              <TableHead>Max Categories</TableHead>
-              <TableHead>Max Countries</TableHead>
-              <TableHead className="pr-6">Notes</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {AVAILABLE_PLANS.map((plan) => {
-              const limits = PLAN_LIMITS[plan.planId];
-              return (
-                <TableRow key={plan.planId}>
-                  <TableCell className="pl-6">{plan.service}</TableCell>
+    <>
+      <Card className="bg-white border-slate-200 shadow-sm">
+        <CardHeader>
+          <CardTitle>Available Plans by Service</CardTitle>
+          <CardDescription>Pricing, limitations, and settings by plan. Click Edit to update any plan.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">Service</TableHead>
+                <TableHead>Plan</TableHead>
+                <TableHead>Billing</TableHead>
+                <TableHead>Price (USD)</TableHead>
+                <TableHead>Max Categories</TableHead>
+                <TableHead>Max Countries</TableHead>
+                <TableHead>Notes</TableHead>
+                <TableHead className="pr-6 text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {plans.map((plan) => (
+                <TableRow key={plan.planId || plan.id}>
+                  <TableCell className="pl-6 font-medium">{plan.service}</TableCell>
                   <TableCell>{plan.label}</TableCell>
                   <TableCell>{plan.billing}</TableCell>
-                  <TableCell className="font-semibold text-emerald-700">${plan.priceUsd.toLocaleString()}</TableCell>
-                  <TableCell>{limits?.maxCategories === -1 ? "Unlimited" : limits?.maxCategories ?? "-"}</TableCell>
-                  <TableCell>{limits?.maxCountries === -1 ? "Unlimited" : limits?.maxCountries ?? "-"}</TableCell>
-                  <TableCell className="pr-6">
-                    {plan.planId.includes("premium_plus")
-                      ? "Eligible for stronger homepage visibility options."
-                      : "Standard listing visibility."}
+                  <TableCell className="font-semibold text-emerald-700">${Number(plan.priceUsd || 0).toLocaleString()}</TableCell>
+                  <TableCell>{plan.maxCategories === -1 ? "Unlimited" : plan.maxCategories ?? "-"}</TableCell>
+                  <TableCell>{plan.maxCountries === -1 ? "Unlimited" : plan.maxCountries ?? "-"}</TableCell>
+                  <TableCell className="max-w-[200px] truncate" title={plan.notes}>{plan.notes}</TableCell>
+                  <TableCell className="pr-6 text-right">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditingPlan(plan)}
+                      className="h-8 border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
+                    >
+                      <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
+                    </Button>
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {editingPlan && (
+        <AdminEditPlanModal
+          plan={editingPlan}
+          onClose={() => setEditingPlan(null)}
+          onSaved={() => {
+            setEditingPlan(null);
+            fetchPlans();
+          }}
+        />
+      )}
+    </>
   );
 }
 
@@ -3243,55 +3337,146 @@ function AdminSettingsTab({
 function CategoryBreakdownTable({
   rows,
 }: {
-  rows: Array<{ group: string; category: string; subcategory: string; subSubcategory: string }>;
+  rows: Array<{ group: string; category: string; subcategory: string; subSubcategory: string; [key: string]: any }>;
 }) {
+  const [dbCategoriesMap, setDbCategoriesMap] = useState<Record<string, any>>({});
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
+
+  const fetchDbCategories = async () => {
+    try {
+      const snap = await getDocs(collection(db, "categoriesCollection"));
+      const map: Record<string, any> = {};
+      snap.docs.forEach((docSnap) => {
+        map[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
+      });
+      setDbCategoriesMap(map);
+    } catch (err) {
+      console.error("Error fetching db categories:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchDbCategories();
+  }, []);
+
+  const mergedRows = useMemo(() => {
+    const list = rows.map((row) => {
+      const docId = `${row.group}_${row.category}_${row.subcategory || "none"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const custom = dbCategoriesMap[docId];
+      if (custom) {
+        return {
+          ...row,
+          ...custom,
+          group: custom.group || custom.parentCategory || row.group,
+          category: custom.category || custom.categoryName || row.category,
+          subcategory: custom.subcategory || row.subcategory,
+          subSubcategory: custom.subSubcategory || row.subSubcategory,
+          status: custom.status || "Active",
+          imageUrl: custom.imageUrl || "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80",
+        };
+      }
+      return {
+        ...row,
+        status: "Active",
+        imageUrl: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80",
+      };
+    });
+
+    // Also include any new categories added dynamically in categoriesCollection
+    Object.keys(dbCategoriesMap).forEach((id) => {
+      const custom = dbCategoriesMap[id];
+      const exists = list.some(
+        (r) => r.id === id || (r.group === custom.group && r.category === custom.category && r.subcategory === custom.subcategory)
+      );
+      if (!exists) {
+        list.push({
+          id,
+          group: custom.group || custom.parentCategory || "General",
+          category: custom.category || custom.categoryName || "Uncategorized",
+          subcategory: custom.subcategory || "-",
+          subSubcategory: custom.subSubcategory || "-",
+          status: custom.status || "Active",
+          imageUrl: custom.imageUrl || "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80",
+        });
+      }
+    });
+
+    return list;
+  }, [rows, dbCategoriesMap]);
+
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
-      <CardHeader>
-        <CardTitle>All Categories</CardTitle>
-        <CardDescription>Categories, sub categories, and sub sub categories.</CardDescription>
-      </CardHeader>
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-6">Group</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Sub Category</TableHead>
-              <TableHead>Sub Sub Categories</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="pr-6 text-center">Featured Image</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.length === 0 ? (
+    <>
+      <Card className="bg-white border-slate-200 shadow-sm">
+        <CardHeader>
+          <CardTitle>All Categories</CardTitle>
+          <CardDescription>Categories, sub categories, and sub sub categories. Click Edit to update details.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
               <TableRow>
-                <TableCell className="pl-6 text-slate-500" colSpan={6}>
-                  No categories found.
-                </TableCell>
+                <TableHead className="pl-6">Group</TableHead>
+                <TableHead>Category</TableHead>
+                <TableHead>Sub Category</TableHead>
+                <TableHead>Sub Sub Categories</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-center">Featured Image</TableHead>
+                <TableHead className="pr-6 text-right">Actions</TableHead>
               </TableRow>
-            ) : (
-              rows.map((row, index) => (
-                <TableRow key={`${row.group}-${row.category}-${row.subcategory}-${index}`}>
-                  <TableCell className="pl-6">{row.group}</TableCell>
-                  <TableCell>{row.category}</TableCell>
-                  <TableCell>{row.subcategory}</TableCell>
-                  <TableCell>{row.subSubcategory}</TableCell>
-                  <TableCell>
-                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
-                  </TableCell>
-                  <TableCell className="pr-6 text-center">
-                    <div className="w-10 h-8 mx-auto bg-slate-100 rounded border border-slate-200 flex items-center justify-center overflow-hidden">
-                      <img src="https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80" alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
-                    </div>
+            </TableHeader>
+            <TableBody>
+              {mergedRows.length === 0 ? (
+                <TableRow>
+                  <TableCell className="pl-6 text-slate-500" colSpan={7}>
+                    No categories found.
                   </TableCell>
                 </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+              ) : (
+                mergedRows.map((row, index) => (
+                  <TableRow key={row.id || `${row.group}-${row.category}-${row.subcategory}-${index}`}>
+                    <TableCell className="pl-6 font-medium">{row.group}</TableCell>
+                    <TableCell>{row.category}</TableCell>
+                    <TableCell>{row.subcategory}</TableCell>
+                    <TableCell>{row.subSubcategory}</TableCell>
+                    <TableCell>
+                      <Badge className={row.status === "Inactive" ? "bg-slate-100 text-slate-600 border-slate-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}>
+                        {row.status || "Active"}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="w-10 h-8 mx-auto bg-slate-100 rounded border border-slate-200 flex items-center justify-center overflow-hidden">
+                        <img src={row.imageUrl} alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
+                      </div>
+                    </TableCell>
+                    <TableCell className="pr-6 text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setEditingCategory(row)}
+                        className="h-8 border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
+                      >
+                        <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {editingCategory && (
+        <AdminEditCategoryModal
+          category={editingCategory}
+          onClose={() => setEditingCategory(null)}
+          onSaved={() => {
+            setEditingCategory(null);
+            fetchDbCategories();
+          }}
+        />
+      )}
+    </>
   );
 }
 

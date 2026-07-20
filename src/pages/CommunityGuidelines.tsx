@@ -1,6 +1,24 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { db } from "@/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 export default function CommunityGuidelines() {
+  const [customText, setCustomText] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchPolicy = async () => {
+      try {
+        const snap = await getDoc(doc(db, "config", "sitePolicies"));
+        if (snap.exists() && snap.data().communityGuidelines) {
+          setCustomText(snap.data().communityGuidelines);
+        }
+      } catch (err) {
+        console.error("Error loading Community Guidelines policy:", err);
+      }
+    };
+    fetchPolicy();
+  }, []);
   return (
     <div className="flex-1 bg-background py-16 md:py-24 relative overflow-hidden">
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
@@ -17,9 +35,13 @@ export default function CommunityGuidelines() {
 
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-150 fill-mode-both">
           <div className="bg-foreground/5 p-8 md:p-12 rounded-3xl border border-foreground/10 shadow-xl backdrop-blur-sm space-y-8 text-foreground/90 text-sm md:text-base leading-relaxed">
-            <p>
-              <strong>PharmaSocii</strong> is a professional community designed to foster collaboration, knowledge-sharing, and problem-solving across the life sciences ecosystem. This is <strong>not</strong> a forum for marketing, recruitment, or product promotion. By participating, you agree to follow these guidelines to ensure a safe, respectful, and productive environment for all members.
-            </p>
+            {customText ? (
+              <div className="whitespace-pre-wrap space-y-4" dangerouslySetInnerHTML={{ __html: customText }} />
+            ) : (
+              <>
+                <p>
+                  <strong>PharmaSocii</strong> is a professional community designed to foster collaboration, knowledge-sharing, and problem-solving across the life sciences ecosystem. This is <strong>not</strong> a forum for marketing, recruitment, or product promotion. By participating, you agree to follow these guidelines to ensure a safe, respectful, and productive environment for all members.
+                </p>
 
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">1. Professional Conduct</h2>
@@ -135,6 +157,8 @@ export default function CommunityGuidelines() {
                 Deleting your account does not automatically erase all of your contributions. Some information may remain visible or stored in backups even if your account is removed.
               </p>
             </section>
+            </>
+            )}
           </div>
         </div>
       </div>
