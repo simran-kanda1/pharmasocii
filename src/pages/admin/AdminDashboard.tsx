@@ -3058,7 +3058,18 @@ function PartnerList({
 }
 
 function PlansCatalogTab() {
-  const [plans, setPlans] = useState<any[]>([]);
+  const getDefaultPlans = () =>
+    AVAILABLE_PLANS.map((p) => ({
+      ...p,
+      maxCategories: PLAN_LIMITS[p.planId]?.maxCategories,
+      maxCountries: PLAN_LIMITS[p.planId]?.maxCountries,
+      notes: p.planId.includes("premium_plus")
+        ? "Eligible for stronger homepage visibility options."
+        : "Standard listing visibility.",
+      status: "Active",
+    }));
+
+  const [plans, setPlans] = useState<any[]>(getDefaultPlans);
   const [editingPlan, setEditingPlan] = useState<any | null>(null);
 
   const fetchPlans = async () => {
@@ -3119,6 +3130,8 @@ function PlansCatalogTab() {
       setPlans(merged);
     } catch (err) {
       console.error("Error fetching custom plans:", err);
+      // Fallback to default plans if Firestore fetch encounters an error
+      setPlans(getDefaultPlans());
     }
   };
 
