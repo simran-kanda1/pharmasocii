@@ -24,6 +24,7 @@ import MemberForgotPassword from "./pages/member/MemberForgotPassword";
 import TermsOfUse from "./pages/TermsOfUse";
 import CommunityGuidelines from "./pages/CommunityGuidelines";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Plans from "./pages/Plans";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -56,6 +57,7 @@ function App() {
       <Route path="/listing/:type/:id" element={<AppLayout><ListingDetail /></AppLayout>} />
       <Route path="/about-us" element={<AppLayout><AboutUs /></AppLayout>} />
       <Route path="/faq" element={<AppLayout><FAQ /></AppLayout>} />
+      <Route path="/plans" element={<AppLayout><Plans /></AppLayout>} />
       <Route path="/all-categories/:category?" element={<AppLayout><AllCategories /></AppLayout>} />
       <Route path="/terms" element={<AppLayout><TermsOfUse /></AppLayout>} />
       <Route path="/guidelines" element={<AppLayout><CommunityGuidelines /></AppLayout>} />
