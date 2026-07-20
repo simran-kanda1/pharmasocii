@@ -23,6 +23,7 @@ export function AdminSitePoliciesPanel() {
         const fetchPolicies = async () => {
             try {
                 setLoading(true);
+                setError("");
                 const docRef = doc(db, "config", "sitePolicies");
                 const docSnap = await getDoc(docRef);
                 if (docSnap.exists()) {
@@ -35,7 +36,12 @@ export function AdminSitePoliciesPanel() {
                 }
             } catch (err: any) {
                 console.error("Error fetching site policies:", err);
-                setError("Failed to load policy data from Firestore.");
+                // If it's just a missing document or initial setup, do not show a blocking error
+                if (err?.code !== "permission-denied") {
+                    console.log("No existing policy document found or error reading document, ready for initial input.");
+                } else {
+                    setError("Permission denied loading policy data from Firestore. Make sure you are logged in as admin.");
+                }
             } finally {
                 setLoading(false);
             }
