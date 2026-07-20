@@ -218,13 +218,6 @@ export function AdminSitePoliciesPanel() {
                         </div>
                     )}
                 </div>
-
-                <div className="flex justify-end pt-4 border-t">
-                    <Button onClick={handleSave} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
-                        {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                        Save All Policies
-                    </Button>
-                </div>
             </CardContent>
         </Card>
     );
