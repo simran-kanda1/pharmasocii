@@ -1969,17 +1969,17 @@ export default function Dashboard() {
                                         </>
                                     ) : isEnding ? (
                                         <>
-                                            <Badge variant="outline" className="bg-amber-500/20 text-amber-900 border-amber-500/50">Scheduled to end</Badge>
+                                            <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#78350f', borderColor: '#d97706' }}>Scheduled to end</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
                                             {billingEnd && (
-                                                <span className="text-xs font-medium text-amber-900">
+                                                <span className="text-xs font-medium" style={{ color: '#78350f' }}>
                                                     Access through {billingEnd.toLocaleDateString()}
                                                 </span>
                                             )}
                                         </>
                                     ) : (
                                         <>
-                                            <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/50">Active</Badge>
+                                            <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>Active</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
                                         </>
                                     )}
@@ -2035,11 +2035,11 @@ export default function Dashboard() {
                                                 {standaloneSpotlightPlan?.label || "Spotlight add-on"}
                                             </h5>
                                             {spotlightCancelPending ? (
-                                                <Badge variant="outline" className="bg-amber-500/20 text-amber-900 border-amber-500/50">
+                                                <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#78350f', borderColor: '#d97706' }}>
                                                     Scheduled to end
                                                 </Badge>
                                             ) : (
-                                                <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/50">Active</Badge>
+                                                <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>Active</Badge>
                                             )}
                                             <Badge variant="outline" className="border-foreground/20">Monthly</Badge>
                                         </div>
@@ -2177,7 +2177,7 @@ export default function Dashboard() {
                                         : `Active spotlight: ${FEATURE_PLANS.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label}`}
                                 </p>
                                 {spotlightCancelPending && standaloneSpotlightRenewal && (
-                                    <p className="text-xs text-amber-800 mt-1">
+                                    <p className="text-xs mt-1" style={{ color: '#78350f' }}>
                                         Spotlight add-on scheduled to end on {standaloneSpotlightRenewal.toLocaleDateString()}.
                                         It will not renew; you can purchase again after that date.
                                     </p>
