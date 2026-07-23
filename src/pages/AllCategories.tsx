@@ -1066,7 +1066,7 @@ export default function AllCategories() {
                                         const bottomLabel = currentTab === "business"
                                             ? (certsDisplay ? certsDisplay : null)
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
-                                                : currentTab === "events" ? `${toTitleCase(item.city || "Venue")}, ${toTitleCase(item.location || "")}`
+                                                : currentTab === "events" ? ([item.city, item.stateRegion || item.state, item.eventCountry || item.country].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Online")
                                                     : `${item.businessName || "Company"} • ${toTitleCase(item.jobtype || "Role")}`;
                                         const categoryInfo = [
                                             ...(Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
@@ -1318,9 +1318,10 @@ export default function AllCategories() {
                                         <h3 className="text-3xl font-bold text-primary">{selectedProfile.eventName}</h3>
                                         <p className="text-lg font-medium text-muted-foreground flex items-center gap-2"><Calendar className="w-5 h-5" /> {selectedProfile.startDate}</p>
                                     </div>
-                                    <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10 grid grid-cols-2 gap-4">
-                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">City</p><p className="font-semibold">{selectedProfile.city}</p></div>
-                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">Venue</p><p className="font-semibold">{selectedProfile.location}</p></div>
+                                    <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10 grid grid-cols-3 gap-4">
+                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">City</p><p className="font-semibold">{selectedProfile.city || "N/A"}</p></div>
+                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">State/Region</p><p className="font-semibold">{selectedProfile.stateRegion || selectedProfile.state || "N/A"}</p></div>
+                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">Country</p><p className="font-semibold">{selectedProfile.eventCountry || selectedProfile.country || "N/A"}</p></div>
                                     </div>
                                     {selectedProfile.categories && (
                                         <div>

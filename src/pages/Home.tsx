@@ -469,7 +469,7 @@ export default function Home() {
                                                 <div className="flex flex-col p-5 w-full">
                                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2 sm:gap-4">
                                                         <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 truncate">
-                                                            <MapPin className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{evt.city || evt.location || "Online"}</span>
+                                                            <MapPin className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{[evt.city, evt.stateRegion || evt.state, evt.eventCountry || evt.country].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Online"}</span>
                                                         </div>
                                                     </div>
                                                     <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-4 leading-tight">{evt.eventName || ""}</h3>

@@ -200,11 +200,11 @@ export default function ListingDetail() {
     const eventEnd = type === "events" ? formatDate(item.endDate) : null;
     const eventLocationLine =
         type === "events"
-            ? [item.city, item.stateRegion, item.location, item.eventCountry].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
+            ? [item.city, item.stateRegion || item.state, item.eventCountry || item.country].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
             : "";
     const jobLocationLine =
         type === "jobs"
-            ? [item.city, item.stateRegion, item.location, item.jobCountry].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
+            ? [item.location, item.city, item.stateRegion, item.jobCountry].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
             : "";
     const jobTypeLabel = type === "jobs" ? (item.jobtype || item.positionType || "") : "";
     const jobDeadlineFormatted = type === "jobs" && item.applicationDeadline ? formatDate(item.applicationDeadline) : null;
