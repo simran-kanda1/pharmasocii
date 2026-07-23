@@ -1052,7 +1052,7 @@ export default function AllCategories() {
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                     {paginatedBusinesses.map((item) => {
                                         const rawTitle = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
-                                        const title = toTitleCase(rawTitle || "");
+                                        const title = rawTitle || "";
                                         const bslDisplay = Array.isArray(item.bioSafetyLevel) ? item.bioSafetyLevel.join(", ") : item.bioSafetyLevel;
                                         const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
                                         const certsArray = Array.isArray(item.certifications) ? [...item.certifications] : (item.certifications ? [item.certifications] : []);
@@ -1062,7 +1062,7 @@ export default function AllCategories() {
                                             ? (certsDisplay ? certsDisplay : null)
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
                                                 : currentTab === "events" ? `${toTitleCase(item.city || "Venue")}, ${toTitleCase(item.location || "")}`
-                                                    : `${toTitleCase(item.businessName || "Company")} • ${toTitleCase(item.jobtype || "Role")}`;
+                                                    : `${item.businessName || "Company"} • ${toTitleCase(item.jobtype || "Role")}`;
                                         const categoryInfo = [
                                             ...(Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
                                                 ? item.selectedCategoriesDisplay
