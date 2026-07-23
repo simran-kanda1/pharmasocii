@@ -4034,9 +4034,6 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                             <p className="text-sm font-medium text-foreground">Select a plan to upgrade to:</p>
                             <div className="space-y-3">
                                 {upgradePlans.map(([id, config]) => {
-                                    const rowIsAnnual = id.includes('_yr');
-                                    const rowCrossInterval = Boolean(isBusinessMonthly && rowIsAnnual);
-                                    const listPriceDiff = parsePrice(config.price) - currentPrice;
                                     return (
                                         <button
                                             key={id}
@@ -4064,9 +4061,7 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                                                 <div className="text-right">
                                                     <p className="text-lg font-bold text-foreground">{config.price}<span className="text-sm font-normal text-muted-foreground">{config.period}</span></p>
                                                     <p className="text-xs text-muted-foreground mt-1">
-                                                        {rowCrossInterval
-                                                            ? "Prorated charge at checkout"
-                                                            : `+ $${listPriceDiff.toFixed(2)} vs current list price`}
+                                                        Prorated charge at checkout
                                                     </p>
                                                 </div>
                                             </div>
