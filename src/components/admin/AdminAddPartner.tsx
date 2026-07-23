@@ -980,6 +980,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 <div>
                   <Label className="text-slate-600 font-medium">Company name <span className="text-red-500">*</span></Label>
                   <Input value={formData.companyName} onChange={(e) => handleChange("companyName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
+                  <p className="text-xs text-slate-400 mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
                 </div>
                 <div>
                   <Label className="text-slate-600 font-medium">Company website <span className="text-red-500">*</span></Label>
@@ -1197,6 +1198,14 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           <div className="space-y-6 animate-fadeIn">
             {/* Dynamic fields based on group */}
 
+            {(groupKey === "business_offerings" || groupKey === "consulting") && (
+              <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 space-y-1">
+                <Label className="text-slate-500 font-medium">Listing Title (Inherited from Company Name)</Label>
+                <p className="text-sm font-semibold text-slate-800">{formData.companyName || "Unnamed Business"}</p>
+                <p className="text-xs text-slate-400">This listing is published under the company name and displays exactly as typed (original capitalization preserved). You can edit this in Step 2: Company Details.</p>
+              </div>
+            )}
+
             {/* ═══ Business Offerings details ═══ */}
             {groupKey === "business_offerings" && (
               <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 space-y-6">
@@ -1316,6 +1325,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   <div className="md:col-span-2">
                     <Label className="text-slate-600 font-semibold">Event Name <span className="text-red-500">*</span></Label>
                     <Input value={eventData.eventName} onChange={e => setEventData(prev => ({ ...prev, eventName: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
+                    <p className="text-xs text-slate-400 mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
                   </div>
                   <div className="md:col-span-2">
                     <Label className="text-slate-600 font-semibold">Event Web Link <span className="text-red-500">*</span></Label>
@@ -1407,6 +1417,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   <div>
                     <Label className="text-slate-600 font-semibold">Position / Job Title <span className="text-red-500">*</span></Label>
                     <Input value={jobData.jobTitle} onChange={e => setJobData(prev => ({ ...prev, jobTitle: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
+                    <p className="text-xs text-slate-400 mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
                   </div>
                   <div>
                     <Label className="text-slate-600 font-semibold">Industry / Area</Label>
