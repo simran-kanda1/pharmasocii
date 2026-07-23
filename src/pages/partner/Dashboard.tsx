@@ -3550,7 +3550,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             )}
                         </div>
                         <p className="text-xs text-muted-foreground mb-2">Select from category, subcategory, or sub-subcategory levels.</p>
-                        <div className="max-h-64 overflow-y-auto border border-foreground/10 rounded-lg p-3 bg-foreground/5">
+                        <div className="max-h-[500px] overflow-y-auto border border-foreground/10 rounded-lg p-3 bg-foreground/5">
                             {renderCategoryTree()}
                         </div>
                     </div>
