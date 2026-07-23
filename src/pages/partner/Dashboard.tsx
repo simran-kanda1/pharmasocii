@@ -2007,28 +2007,28 @@ export default function Dashboard() {
                                 )}
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
                                     <div>
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">
-                                            {isPast ? "Last period start" : "Current period start"}
+                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">
+                                            {isPast ? "Last Period Start" : "Current Period Start"}
                                         </p>
                                         <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">{isPast ? "Ended on" : isEnding ? "Ends on" : "Renewal date"}</p>
+                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">{isPast ? "Ended On" : isEnding ? "Ends On" : "Renewal Date"}</p>
                                         <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Billing cycle</p>
+                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Billing Cycle</p>
                                         <p className="text-sm text-foreground font-medium capitalize">{billingCycleLabel}</p>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Price</p>
+                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Price</p>
                                         <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
                                     </div>
                                 </div>
                                 {hasStandaloneAddon && (
                                     <div className="mt-4 pt-4 border-t border-foreground/10">
-                                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-3">
-                                            Spotlight add-on subscription
+                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-3">
+                                            Spotlight Add-on Subscription
                                         </p>
                                         <div className="flex items-center gap-3 mb-3 flex-wrap">
                                             <h5 className="text-sm font-semibold text-foreground">
@@ -2045,25 +2045,25 @@ export default function Dashboard() {
                                         </div>
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                             <div>
-                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Start date</p>
+                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Start Date</p>
                                                 <p className="text-sm text-foreground font-medium">
                                                     {standaloneSpotlightStart ? standaloneSpotlightStart.toLocaleDateString() : "N/A"}
                                                 </p>
                                             </div>
                                             <div>
-                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">
-                                                    {spotlightCancelPending ? "Ends on" : "Renewal date"}
+                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">
+                                                    {spotlightCancelPending ? "Ends On" : "Renewal Date"}
                                                 </p>
                                                 <p className="text-sm text-foreground font-medium">
                                                     {standaloneSpotlightRenewal ? standaloneSpotlightRenewal.toLocaleDateString() : "N/A"}
                                                 </p>
                                             </div>
                                             <div>
-                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Billing cycle</p>
+                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Billing Cycle</p>
                                                 <p className="text-sm text-foreground font-medium">Monthly</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1">Price</p>
+                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Price</p>
                                                 <p className="text-sm text-foreground font-medium">
                                                     {standaloneSpotlightPlan?.price || "N/A"}/month
                                                 </p>
@@ -2186,7 +2186,7 @@ export default function Dashboard() {
                         )}
                         {planRepresentatives?.length > 0 && (
                             <div className="pt-3 border-t border-foreground/10">
-                                <p className="text-xs text-muted-foreground uppercase tracking-wider font-bold mb-1.5">Company representatives</p>
+                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1.5">Company Representatives</p>
                                 <div className="space-y-1.5">
                                     {planRepresentatives.map((rep: any, i: number) => (
                                         <p key={i} className="text-sm text-foreground/90">
@@ -2266,13 +2266,13 @@ export default function Dashboard() {
                         </CardHeader>
                         <CardContent className="space-y-5 pt-6">
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">Company Name</p>
+                                <p className="text-sm font-medium text-muted-foreground tracking-wider mb-1">Company Name</p>
                                 <p className="text-2xl text-foreground font-bold">{partnerData.businessName}</p>
                             </div>
                             <div className="grid grid-cols-1 gap-4 bg-muted/40 p-4 rounded-lg border border-foreground/10">
                                 {livePlansSorted.length > 0 ? (
                                     <div>
-                                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Active plans</p>
+                                        <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-2">Active Plans</p>
                                         <ul className="space-y-2">
                                             {livePlansSorted.map((plan) => {
                                                 const linked = getLinkedListingForPlan(plan);
@@ -2294,11 +2294,11 @@ export default function Dashboard() {
                                 ) : (
                                     <div className="grid grid-cols-2 gap-6">
                                         <div>
-                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Group</p>
+                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Group</p>
                                             <p className="text-foreground font-medium capitalize">{currentGroup.replace(/_/g, " ") || "N/A"}</p>
                                         </div>
                                         <div>
-                                            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">Plan</p>
+                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Plan</p>
                                             <p className="text-foreground font-medium">{currentPlan?.label || "N/A"}</p>
                                         </div>
                                     </div>
@@ -2318,22 +2318,22 @@ export default function Dashboard() {
                         </CardHeader>
                         <CardContent className="space-y-5 pt-6">
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-1">Primary Rep</p>
+                                <p className="text-sm font-medium text-muted-foreground tracking-wider mb-1">Primary Rep</p>
                                 <p className="text-xl text-foreground font-bold">{partnerData.primaryName}</p>
                             </div>
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-muted/40 border border-foreground/10 flex items-center justify-center"><Mail className="w-4 h-4 text-foreground" /></div>
-                                    <div><p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Email</p><p className="text-foreground font-medium">{partnerData.primaryEmail}</p></div>
+                                    <div><p className="text-xs font-medium text-muted-foreground tracking-wider">Email</p><p className="text-foreground font-medium">{partnerData.primaryEmail}</p></div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-muted/40 border border-foreground/10 flex items-center justify-center"><Phone className="w-4 h-4 text-foreground" /></div>
-                                    <div><p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Phone</p><p className="text-foreground font-medium">{partnerData.phoneNumber || partnerData.businessPhoneNumber || "N/A"}</p></div>
+                                    <div><p className="text-xs font-medium text-muted-foreground tracking-wider">Phone</p><p className="text-foreground font-medium">{partnerData.phoneNumber || partnerData.businessPhoneNumber || "N/A"}</p></div>
                                 </div>
                             </div>
                             {(partnerData.secondaryName || partnerData.secondaryEmail) && (
                                 <div className="pt-5 border-t border-foreground/10 mt-5">
-                                    <p className="text-sm font-bold text-primary mb-3 uppercase tracking-wider">Alternate Contact</p>
+                                    <p className="text-sm font-bold text-primary mb-3 tracking-wider">Alternate Contact</p>
                                     <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
                                         {partnerData.secondaryName && <p className="text-foreground font-semibold mb-1">{partnerData.secondaryName}</p>}
                                         {partnerData.secondaryEmail && <p className="text-foreground/80 text-sm">{partnerData.secondaryEmail}</p>}
@@ -2363,7 +2363,7 @@ export default function Dashboard() {
                         <CardContent className="pt-6 space-y-10">
                             {livePlansSorted.length > 0 && (
                                 <div className="space-y-3">
-                                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Active</h3>
+                                    <h3 className="text-sm font-bold tracking-wider text-muted-foreground">Active</h3>
                                     <p className="text-xs text-muted-foreground">
                                         Plans marked "Scheduled to end" remain active until the listed end date.
                                     </p>
@@ -2372,7 +2372,7 @@ export default function Dashboard() {
                             )}
                             {expiredPlans.length > 0 && (
                                 <div className="space-y-3">
-                                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Past plans</h3>
+                                    <h3 className="text-sm font-bold tracking-wider text-muted-foreground">Past Plans</h3>
                                     <p className="text-xs text-muted-foreground">
                                         Cancelled, expired, or replaced — no longer billing. Labels reflect subscription state in Stripe and your account.
                                     </p>
@@ -2383,9 +2383,9 @@ export default function Dashboard() {
                             )}
                             {pendingPaymentListings.length > 0 && (
                                 <div className="space-y-3">
-                                    <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                    <h3 className="text-sm font-bold tracking-wider text-muted-foreground flex items-center gap-2">
                                         <Clock className="w-4 h-4 text-yellow-500" />
-                                        Pending payment ({pendingPaymentListings.length})
+                                        Pending Payment ({pendingPaymentListings.length})
                                     </h3>
                                     <div className="space-y-3">
                                         {visiblePendingPaymentListings.map((offering) => {
@@ -2660,25 +2660,25 @@ export default function Dashboard() {
                             <table className="w-full text-sm border-collapse min-w-[720px]">
                                 <thead>
                                     <tr className="bg-muted/60 border-b border-foreground/15">
-                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                        <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Date
                                         </th>
-                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                        <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Type
                                         </th>
-                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10">
+                                        <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10">
                                             Description
                                         </th>
-                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                        <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Group
                                         </th>
-                                        <th className="text-right font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                        <th className="text-right font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Amount
                                         </th>
-                                        <th className="text-left font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                        <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Status
                                         </th>
-                                        <th className="text-center font-semibold text-foreground/80 uppercase tracking-wide text-xs px-3 py-2.5 whitespace-nowrap w-[100px]">
+                                        <th className="text-center font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 whitespace-nowrap w-[100px]">
                                             Details
                                         </th>
                                     </tr>
@@ -2771,36 +2771,36 @@ export default function Dashboard() {
                                 </div>
                                 <dl className="space-y-3 border-t border-foreground/10 pt-4">
                                     <div>
-                                        <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Description</dt>
+                                        <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Description</dt>
                                         <dd className="text-foreground mt-0.5">{detail.description}</dd>
                                     </div>
                                     {detail.businessName && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Business</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Business</dt>
                                             <dd className="text-foreground mt-0.5">{detail.businessName}</dd>
                                         </div>
                                     )}
                                     {detail.group && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Group</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Group</dt>
                                             <dd className="text-foreground mt-0.5 capitalize">{detail.group}</dd>
                                         </div>
                                     )}
                                     {detail.planId && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Plan ID</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Plan ID</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.planId}</dd>
                                         </div>
                                     )}
                                     {detail.featureId && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Feature ID</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Feature ID</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.featureId}</dd>
                                         </div>
                                     )}
                                     {(detail.listingId || detail.collectionName) && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Listing</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Listing</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">
                                                 {detail.collectionName && <span>{detail.collectionName}</span>}
                                                 {detail.collectionName && detail.listingId && " / "}
@@ -2811,31 +2811,31 @@ export default function Dashboard() {
                                     )}
                                     {detail.sessionId && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Session ID</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Session ID</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.sessionId}</dd>
                                         </div>
                                     )}
                                     {detail.invoiceId && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Invoice ID</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Invoice ID</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.invoiceId}</dd>
                                         </div>
                                     )}
                                     {detail.stripeSubscriptionId && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Subscription ID</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Subscription ID</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.stripeSubscriptionId}</dd>
                                         </div>
                                     )}
                                     {detail.customerEmail && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Customer email</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Customer Email</dt>
                                             <dd className="text-foreground mt-0.5 break-all">{detail.customerEmail}</dd>
                                         </div>
                                     )}
                                     {detail.selectedCategories.length > 0 && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Categories</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Categories</dt>
                                             <dd className="flex flex-wrap gap-1.5">
                                                 {detail.selectedCategories.map((cat, i) => (
                                                     <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">
@@ -2847,7 +2847,7 @@ export default function Dashboard() {
                                     )}
                                     {detail.selectedSubcategories.length > 0 && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Subcategories</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Subcategories</dt>
                                             <dd className="flex flex-wrap gap-1.5">
                                                 {detail.selectedSubcategories.map((sub, i) => (
                                                     <Badge key={i} variant="outline" className="border-foreground/20 text-xs">
@@ -2859,7 +2859,7 @@ export default function Dashboard() {
                                     )}
                                     {detail.selectedSubSubcategories.length > 0 && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Sub-subcategories</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Sub-subcategories</dt>
                                             <dd className="flex flex-wrap gap-1.5">
                                                 {detail.selectedSubSubcategories.map((subSub, i) => (
                                                     <Badge key={i} variant="outline" className="border-primary/30 text-primary text-xs">
@@ -2873,7 +2873,7 @@ export default function Dashboard() {
                                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                             {detail.serviceCountries.length > 0 && (
                                                 <div>
-                                                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Countries</dt>
+                                                    <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Countries</dt>
                                                     <dd className="flex flex-wrap gap-1.5">
                                                         {detail.serviceCountries.map((c, i) => (
                                                             <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">
@@ -2885,7 +2885,7 @@ export default function Dashboard() {
                                             )}
                                             {detail.serviceRegions.length > 0 && (
                                                 <div>
-                                                    <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Regions</dt>
+                                                    <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Regions</dt>
                                                     <dd className="text-xs text-foreground/90">{detail.serviceRegions.join(", ")}</dd>
                                                 </div>
                                             )}
@@ -2893,7 +2893,7 @@ export default function Dashboard() {
                                     )}
                                     {detail.companyRepresentatives.length > 0 && (
                                         <div>
-                                            <dt className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">Company representatives</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Company Representatives</dt>
                                             <dd className="space-y-1">
                                                 {detail.companyRepresentatives.map((rep, i) => (
                                                     <p key={i} className="text-xs text-foreground/90">
