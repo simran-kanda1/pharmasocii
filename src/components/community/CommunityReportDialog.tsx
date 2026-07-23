@@ -68,7 +68,7 @@ export function CommunityReportDialog({
     >
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-center text-lg">{title}</DialogTitle>
+          <DialogTitle className="text-center text-lg font-normal">{title}</DialogTitle>
         </DialogHeader>
         <ul className="space-y-2 py-2">
           {COMMUNITY_REPORT_REASONS.map((reason) => (

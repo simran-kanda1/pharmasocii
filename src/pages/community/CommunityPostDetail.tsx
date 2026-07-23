@@ -15,7 +15,7 @@ import { auth, db, storage } from "@/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+
 import { CommunityReportDialog } from "@/components/community/CommunityReportDialog";
 import { CommunityIconAction, communityActionIcons } from "@/components/community/CommunityIconAction";
 import { submitCommunitySpamReport } from "@/lib/submitCommunityReport";
@@ -39,7 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink } from "@/lib/community";
-import { ArrowLeft, CheckSquare, Link2, MessageSquare, Pencil } from "lucide-react";
+import { CheckSquare, Link2, MessageSquare, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
 import { syncPostCommentCount, recordCommentNotification } from "@/lib/communityCallables";
@@ -98,9 +98,7 @@ export default function CommunityPostDetail() {
   const [copyFeedback, setCopyFeedback] = useState("");
   const [memberAboutMe, setMemberAboutMe] = useState("");
   const [memberBio, setMemberBio] = useState("");
-  const [accountStatus, setAccountStatus] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [restrictionModalOpen, setRestrictionModalOpen] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
@@ -115,12 +113,8 @@ export default function CommunityPostDetail() {
           setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
           setMemberAboutMe(m.exists() ? String(m.data()?.aboutMe ?? "") : "");
           const st = m.data()?.accountStatus;
-          setAccountStatus(st || "active");
           const restricted = st === "spam_blocked" || st === "admin_hold";
           setMemberRestricted(restricted);
-          if (restricted) {
-            setRestrictionModalOpen(true);
-          }
           if (postId && m.exists()) {
             const sref = doc(db, "membersCollection", u.uid, "savedPostsCollection", postId);
             const ss = await getDoc(sref);
@@ -148,8 +142,6 @@ export default function CommunityPostDetail() {
         } else {
           setVerified(false);
           setMemberRestricted(false);
-          setAccountStatus(null);
-          setRestrictionModalOpen(false);
           setSaved(false);
           setHelpful(false);
           setSavedCommentIds(new Set());
@@ -543,14 +535,7 @@ export default function CommunityPostDetail() {
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl">
-      <Button
-        type="button"
-        variant="ghost"
-        className="mb-6 gap-2"
-        onClick={() => goBackToCommunityFeed(navigate, returnTo)}
-      >
-        <ArrowLeft className="w-4 h-4" /> Back
-      </Button>
+
 
       {archived && (
         <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
@@ -676,11 +661,11 @@ export default function CommunityPostDetail() {
             : ""}
         </h2>
         <p className="text-xs text-muted-foreground">
-          You can comment on a post and reply once to a comment. Replies are limited to one level to keep discussions clear and focused.
+          Replies are limited to one level to keep discussions clear and focused.
         </p>
         {memberRestricted && (
           <p className="text-sm text-muted-foreground">
-            Your account is currently paused. You have view-only access.
+            You have view-only access.
           </p>
         )}
         {!archived && !replyTo && (
@@ -870,26 +855,6 @@ export default function CommunityPostDetail() {
         }}
         postToEdit={post as PostCardPost}
       />
-
-      <Dialog open={restrictionModalOpen} onOpenChange={setRestrictionModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-amber-600 dark:text-amber-500">
-              {accountStatus === "spam_blocked" ? "Account Paused" : "Administrative Hold"}
-            </DialogTitle>
-            <DialogDescription className="pt-2 text-foreground/90">
-              {accountStatus === "spam_blocked" ? (
-                "Your account is currently paused for 30 days due to spam activity. You can browse the community feed, but you cannot create posts, comment, like, or report content until the pause period expires."
-              ) : (
-                "Your account is currently on administrative hold. You can browse the community feed, but you cannot create posts, comment, like, or report content until the hold is lifted by an administrator."
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end pt-4">
-            <Button onClick={() => setRestrictionModalOpen(false)}>Acknowledge</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -939,16 +904,27 @@ function CommentComposer({
         !canEngage && "opacity-60",
       )}
     >
-      {isReply && replyToName && (
-        <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
-          Replying to <span className="font-medium text-foreground">Anonymous</span>
-          {onCancel && (
-            <Button type="button" variant="link" className="text-xs h-auto p-0" disabled={!canEngage} onClick={onCancel}>
-              Cancel
-            </Button>
-          )}
-        </p>
-      )}
+      <div className="flex justify-between items-center mb-1">
+        {isReply && replyToName ? (
+          <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
+            Replying to <span className="font-medium text-foreground">Anonymous</span>
+            {onCancel && (
+              <Button type="button" variant="link" className="text-xs h-auto p-0" disabled={!canEngage} onClick={onCancel}>
+                Cancel
+              </Button>
+            )}
+          </p>
+        ) : (
+          <span className="text-xs font-semibold text-muted-foreground">
+            Comment
+          </span>
+        )}
+        {canEngage && (
+          <span className={`text-[11px] ${commentText.length >= maxLen ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
+            {commentText.length}/{maxLen}
+          </span>
+        )}
+      </div>
       <Textarea
         value={commentText}
         onChange={(e) => setCommentText(e.target.value)}
@@ -957,7 +933,7 @@ function CommentComposer({
         disabled={!canEngage}
         placeholder={
           memberRestricted
-            ? "Account Restricted. You have view-only access."
+            ? "You have view-only access."
             : !canEngage
               ? "Log in to comment…"
               : isReply
@@ -1000,7 +976,7 @@ function CommentComposer({
         {!canEngage && (
           <p className="text-xs text-muted-foreground">
             {memberRestricted ? (
-              <span>Your account is currently paused. You have view-only access.</span>
+              <span>You have view-only access.</span>
             ) : user && verified && !hasMemberProfile ? (
               <>
                 <Link to="/member/setup" className="text-primary underline">

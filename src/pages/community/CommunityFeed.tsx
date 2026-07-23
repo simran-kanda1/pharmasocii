@@ -44,9 +44,8 @@ import {
   canShareCommunityContent,
   communityAccessHint,
 } from "@/lib/communityAccess";
-import { CommunityViewHeader } from "@/components/community/CommunityViewHeader";
+
 import { cn } from "@/lib/utils";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 const FEED_PAGE_SIZE = 20;
 
@@ -76,8 +75,7 @@ export default function CommunityFeed() {
   const [postToEdit, setPostToEdit] = useState<PostCardPost | null>(null);
   const [refreshPostsKey, setRefreshPostsKey] = useState(0);
   const [feedTab, setFeedTab] = useState<"all" | "latest">("all");
-  const [accountStatus, setAccountStatus] = useState<string | null>(null);
-  const [restrictionModalOpen, setRestrictionModalOpen] = useState(false);
+
   const filtersHydratedRef = useRef(false);
   const skipNextFilterSaveRef = useRef(false);
   const lastVisibleDocRef = useRef<QueryDocumentSnapshot<DocumentData> | null>(null);
@@ -107,12 +105,8 @@ export default function CommunityFeed() {
         setMemberBio(m.exists() ? String(m.data()?.userBio ?? "") : "");
         setMemberAboutMe(m.exists() ? String(m.data()?.aboutMe ?? "") : "");
         const st = m.data()?.accountStatus;
-        setAccountStatus(st || "active");
         const restricted = st === "spam_blocked" || st === "admin_hold";
         setMemberRestricted(restricted);
-        if (restricted) {
-          setRestrictionModalOpen(true);
-        }
         if (m.exists()) {
           const saved = parseSavedFilters(m.data() as Record<string, unknown>);
           skipNextFilterSaveRef.current = true;
@@ -146,8 +140,6 @@ export default function CommunityFeed() {
         setMemberBio("");
         setMemberAboutMe("");
         setMemberRestricted(false);
-        setAccountStatus(null);
-        setRestrictionModalOpen(false);
         setSavedPostIds(new Set());
         setHelpfulPostIds(new Set());
         setNotificationUnread(0);
@@ -467,12 +459,14 @@ export default function CommunityFeed() {
     <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center gap-3 dark:border-foreground/15 dark:bg-card">
       <MessageSquarePlus className="h-8 w-8 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-[200px]">
-        <p className="font-medium text-sm">
-          {memberRestricted ? "Account Restricted" : "Join the conversation"}
-        </p>
+        {!memberRestricted && (
+          <p className="font-medium text-sm">
+            Join the conversation
+          </p>
+        )}
         <p className="text-xs text-muted-foreground">
           {memberRestricted
-            ? "Your account is currently paused. You have view-only access."
+            ? "You have view-only access."
             : "Sign in with a verified member profile to start a post."}
         </p>
       </div>
@@ -534,7 +528,7 @@ export default function CommunityFeed() {
           <main className="xl:col-span-6 order-1 xl:order-2 space-y-5">
             {memberRestricted && user && (
               <p className="text-sm text-muted-foreground rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2">
-                Your account is currently paused. You have view-only access.
+                You have view-only access.
               </p>
             )}
 
@@ -584,9 +578,7 @@ export default function CommunityFeed() {
               </div>
             )}
 
-            {showMemberPanels && communityView !== "home" && (
-              <CommunityViewHeader view={communityView} onBack={() => setCommunityView("home")} />
-            )}
+
 
             {showMemberPanels && user ? (
               <CommunityMemberPanels
@@ -632,7 +624,7 @@ export default function CommunityFeed() {
                           : "text-muted-foreground hover:text-foreground"
                       )}
                     >
-                      Latest Updates (48h)
+                      Latest Updates
                     </button>
                   </div>
                   {sidebarFiltered.length > 0 && (
@@ -722,26 +714,6 @@ export default function CommunityFeed() {
         }}
         postToEdit={postToEdit}
       />
-
-      <Dialog open={restrictionModalOpen} onOpenChange={setRestrictionModalOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-amber-600 dark:text-amber-500">
-              {accountStatus === "spam_blocked" ? "Account Paused" : "Administrative Hold"}
-            </DialogTitle>
-            <DialogDescription className="pt-2 text-foreground/90">
-              {accountStatus === "spam_blocked" ? (
-                "Your account is currently paused for 30 days due to spam activity. You can browse the community feed, but you cannot create posts, comment, like, or report content until the pause period expires."
-              ) : (
-                "Your account is currently on administrative hold. You can browse the community feed, but you cannot create posts, comment, like, or report content until the hold is lifted by an administrator."
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end pt-4">
-            <Button onClick={() => setRestrictionModalOpen(false)}>Acknowledge</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

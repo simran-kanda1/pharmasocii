@@ -136,8 +136,13 @@ export function CommunityMemberPanels({
           setMyPosts(ps.docs.map((d) => ({ id: d.id, ...(d.data() as CommunityPost) })));
 
           const savedSnap = await getDocs(collection(db, "membersCollection", userId, "savedPostsCollection"));
+          const sortedSavedDocs = [...savedSnap.docs].sort((a, b) => {
+            const tA = a.data().savedAt?.toDate?.()?.getTime() || a.data().savedAt?.seconds || 0;
+            const tB = b.data().savedAt?.toDate?.()?.getTime() || b.data().savedAt?.seconds || 0;
+            return tB - tA;
+          });
           const loaded: Array<{ id: string; unavailable?: boolean } & CommunityPost> = [];
-          for (const d of savedSnap.docs) {
+          for (const d of sortedSavedDocs) {
             try {
               const pr = await getDoc(doc(db, "postsCollection", d.id));
               if (!pr.exists()) {
@@ -160,8 +165,13 @@ export function CommunityMemberPanels({
           const savedCommentsSnap = await getDocs(
             collection(db, "membersCollection", userId, "savedCommentsCollection"),
           );
+          const sortedSavedCommentsDocs = [...savedCommentsSnap.docs].sort((a, b) => {
+            const tA = a.data().savedAt?.toDate?.()?.getTime() || a.data().savedAt?.seconds || 0;
+            const tB = b.data().savedAt?.toDate?.()?.getTime() || b.data().savedAt?.seconds || 0;
+            return tB - tA;
+          });
           const rows: typeof savedComments = [];
-          for (const d of savedCommentsSnap.docs) {
+          for (const d of sortedSavedCommentsDocs) {
             const postId = String(d.data().postId || "");
             if (!postId) continue;
             try {
@@ -303,10 +313,10 @@ export function CommunityMemberPanels({
 
     const searchPlaceholder =
       activeTab === "my-posts"
-        ? "Search My Posts..."
+        ? "Search my posts..."
         : activeTab === "saved-posts"
-          ? "Search Saved Posts..."
-          : "Search Saved Comments...";
+          ? "Search saved posts..."
+          : "Search saved comments...";
 
     return (
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-foreground/15 dark:bg-card">
@@ -346,10 +356,10 @@ export function CommunityMemberPanels({
                 {filteredMyPosts.length === 0 ? (
                   <p className="text-sm text-muted-foreground px-2">
                     {myPostsSearch.trim()
-                      ? "No Posts Match Your Search Query."
+                      ? "No posts match your search query."
                       : hasActiveFilters
-                        ? "No Posts Match Your Filters."
-                        : "No Posts Yet."}
+                        ? "No posts match your filters."
+                        : "No posts yet."}
                   </p>
                 ) : (
                   filteredMyPosts.map((p) => <PostCard key={p.id} {...postCardProps(p)} />)
@@ -359,16 +369,16 @@ export function CommunityMemberPanels({
                 {filteredSavedPosts.length === 0 ? (
                   <p className="text-sm text-muted-foreground px-2">
                     {savedPostsSearch.trim()
-                      ? "No Saved Posts Match Your Search Query."
+                      ? "No saved posts match your search query."
                       : hasActiveFilters
-                        ? "No Saved Posts Match Your Filters."
-                        : "No Saved Posts Yet."}
+                        ? "No saved posts match your filters."
+                        : "No saved posts yet."}
                   </p>
                 ) : (
                   filteredSavedPosts.map((p) =>
                     p.unavailable ? (
                       <div key={p.id} className="border rounded-lg p-3 text-sm text-muted-foreground">
-                        Saved Post Temporarily Unavailable
+                        Saved post temporarily unavailable
                       </div>
                     ) : (
                       <PostCard key={p.id} {...postCardProps(p)} />
@@ -379,13 +389,13 @@ export function CommunityMemberPanels({
               <TabsContent value="saved-comments" className="space-y-2 mt-0">
                 {filteredSavedComments.length === 0 ? (
                   <p className="text-sm text-muted-foreground px-2">
-                    {savedCommentsSearch.trim() ? "No Saved Comments Match Your Search Query." : "No Saved Comments Yet."}
+                    {savedCommentsSearch.trim() ? "No saved comments match your search query." : "No saved comments yet."}
                   </p>
                 ) : (
                   filteredSavedComments.map((c) => (
                     <div key={c.commentId} className="border rounded-lg p-3 text-sm">
                       {c.unavailable ? (
-                        <p className="text-muted-foreground">Saved Comment Temporarily Unavailable</p>
+                        <p className="text-muted-foreground">Saved comment temporarily unavailable</p>
                       ) : (
                         <>
                           <p className="line-clamp-2">{c.preview}</p>
@@ -502,7 +512,7 @@ export function CommunityMemberPanels({
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-foreground/15 dark:bg-card">
         <h2 className="font-semibold mb-4">Update profile</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Name/username are final at account creation. Email verification required to post or participate.
+          Name/username are final at account creation.
         </p>
         <form
           className="space-y-4 max-w-lg"

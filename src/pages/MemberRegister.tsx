@@ -179,7 +179,7 @@ export default function MemberRegister() {
         </div>
         <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
         <p className="text-muted-foreground text-sm mb-8">
-          Name/username are final at account creation. Email verification required to post or participate.
+          Name/username are final at account creation.
         </p>
 
         <form onSubmit={handleRegister} className="space-y-4">

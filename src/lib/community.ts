@@ -52,8 +52,11 @@ export function formatRelativeTime(date: Date): string {
   const d = Math.floor(h / 24);
   if (d < 7) return `${d}d ago`;
   const w = Math.floor(d / 7);
-  if (w < 5) return `${w}wk ago`;
-  return date.toLocaleDateString();
+  if (d < 30) return `${w}w ago`;
+  const mo = Math.floor(d / 30);
+  if (d < 365) return `${mo}mo ago`;
+  const y = Math.floor(d / 365);
+  return `${y}y ago`;
 }
 
 /** Bold main + [lowest tier labels] per display spec. */

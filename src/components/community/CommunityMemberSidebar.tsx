@@ -1,10 +1,8 @@
-import { signOut } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
-import { auth } from "@/firebase";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Bell, Home, LogOut, Monitor, User, X } from "lucide-react";
+import { Bell, Home, Monitor, User, X } from "lucide-react";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import { filterKeyToLabel } from "@/lib/communityFilterPreferences";
 
@@ -83,17 +81,7 @@ export function CommunityMemberSidebar({
           {navItem("my-space", "My Space", Monitor)}
           {navItem("profile", "Profile", User)}
           {navItem("notifications", "Notifications", Bell, notificationUnread)}
-          <button
-            type="button"
-            onClick={async () => {
-              await signOut(auth);
-              navigate("/");
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-muted-foreground hover:bg-slate-50 hover:text-foreground dark:hover:bg-muted/50"
-          >
-            <LogOut className="h-4 w-4" />
-            Logout
-          </button>
+
         </nav>
       ) : (
         <Button variant="outline" className="w-full" onClick={() => navigate("/member/login")}>
@@ -122,7 +110,7 @@ export function CommunityMemberSidebar({
           <div className="space-y-3">
             {selectedCountries.length > 0 && (
               <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1.5">Countries</p>
+                <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Countries</p>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedCountries.map((c) => (
                     <span
@@ -147,7 +135,7 @@ export function CommunityMemberSidebar({
             )}
             {selectedFilterKeys.length > 0 && (
               <div>
-                <p className="text-[10px] font-medium text-muted-foreground uppercase mb-1.5">Categories</p>
+                <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Categories</p>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedFilterKeys.map((key) => (
                     <span

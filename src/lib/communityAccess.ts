@@ -53,7 +53,7 @@ export function communityAccessHint(
   verified: boolean,
   hasMemberProfile: boolean,
 ): string {
-  if (memberRestricted) return "Your account is currently paused. You have view-only access.";
+  if (memberRestricted) return "You have view-only access.";
   if (!user) return "Log in with a verified member profile.";
   if (!verified) return "Verify your email first.";
   if (!hasMemberProfile) return "Create your community profile.";
