@@ -1724,7 +1724,7 @@ export default function Dashboard() {
                                                         <div className="flex-1">
                                                             <p className="font-semibold text-foreground flex items-center gap-2">
                                                                 {fp.label}
-                                                                {alreadyHasExact && <Badge className="bg-green-500/20 text-green-400 border-green-500/30 text-[10px]">Active</Badge>}
+                                                                {alreadyHasExact && <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/30 text-[10px]">Active</Badge>}
                                                                 {isValidUpgradeChoice && globalModalAddonTier && (
                                                                     <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">Upgrade</Badge>
                                                                 )}
@@ -1954,7 +1954,7 @@ export default function Dashboard() {
                                     </h4>
                                     {isPast ? (
                                         <>
-                                            <Badge className="bg-foreground/15 text-muted-foreground border-foreground/25">{pastStatusLabel}</Badge>
+                                            <Badge variant="outline" className="bg-foreground/10 text-muted-foreground border-foreground/20">{pastStatusLabel}</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
                                             {cancelledAt && (
                                                 <span className="text-xs font-medium text-muted-foreground">
@@ -1969,17 +1969,17 @@ export default function Dashboard() {
                                         </>
                                     ) : isEnding ? (
                                         <>
-                                            <Badge className="bg-amber-500/15 text-amber-900 dark:text-amber-100 border-amber-500/50">Scheduled to end</Badge>
+                                            <Badge variant="outline" className="bg-amber-500/20 text-amber-900 border-amber-500/50">Scheduled to end</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
                                             {billingEnd && (
-                                                <span className="text-xs font-medium text-amber-900/85 dark:text-amber-100/85">
+                                                <span className="text-xs font-medium text-amber-900">
                                                     Access through {billingEnd.toLocaleDateString()}
                                                 </span>
                                             )}
                                         </>
                                     ) : (
                                         <>
-                                            <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>
+                                            <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/50">Active</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
                                         </>
                                     )}
@@ -2035,11 +2035,11 @@ export default function Dashboard() {
                                                 {standaloneSpotlightPlan?.label || "Spotlight add-on"}
                                             </h5>
                                             {spotlightCancelPending ? (
-                                                <Badge className="bg-amber-500/15 text-amber-900 dark:text-amber-100 border-amber-500/50">
+                                                <Badge variant="outline" className="bg-amber-500/20 text-amber-900 border-amber-500/50">
                                                     Scheduled to end
                                                 </Badge>
                                             ) : (
-                                                <Badge className="bg-green-500/20 text-green-400 border-green-500/50">Active</Badge>
+                                                <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/50">Active</Badge>
                                             )}
                                             <Badge variant="outline" className="border-foreground/20">Monthly</Badge>
                                         </div>
@@ -2177,7 +2177,7 @@ export default function Dashboard() {
                                         : `Active spotlight: ${FEATURE_PLANS.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label}`}
                                 </p>
                                 {spotlightCancelPending && standaloneSpotlightRenewal && (
-                                    <p className="text-xs text-amber-700 dark:text-amber-200 mt-1">
+                                    <p className="text-xs text-amber-800 mt-1">
                                         Spotlight add-on scheduled to end on {standaloneSpotlightRenewal.toLocaleDateString()}.
                                         It will not renew; you can purchase again after that date.
                                     </p>
@@ -2437,7 +2437,7 @@ export default function Dashboard() {
                     </Button>
                 </div>
                 {profileMsg && (
-                    <div className={`p-3 rounded-lg text-sm font-medium ${profileMsg.includes("success") ? "bg-green-500/10 border border-green-500/30 text-green-400" : "bg-destructive/10 border border-destructive/30 text-destructive"}`}>{profileMsg}</div>
+                    <div className={`p-3 rounded-lg text-sm font-medium ${profileMsg.includes("success") ? "bg-green-500/10 border border-green-500/30 text-green-700" : "bg-destructive/10 border border-destructive/30 text-destructive"}`}>{profileMsg}</div>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2573,7 +2573,7 @@ export default function Dashboard() {
                 <h1 className="text-2xl font-bold tracking-tight text-foreground">Change Password</h1>
                 <p className="text-muted-foreground text-sm">Update your password to keep your account secure.</p>
                 {passwordMsg.text && (
-                    <div className={`p-3 rounded-lg text-sm font-medium ${passwordMsg.type === "success" ? "bg-green-500/10 border border-green-500/30 text-green-400" : "bg-destructive/10 border border-destructive/30 text-destructive"}`}>{passwordMsg.text}</div>
+                    <div className={`p-3 rounded-lg text-sm font-medium ${passwordMsg.type === "success" ? "bg-green-500/10 border border-green-500/30 text-green-700" : "bg-destructive/10 border border-destructive/30 text-destructive"}`}>{passwordMsg.text}</div>
                 )}
                 <div className="space-y-5">
                     <div className="space-y-2">
@@ -2613,7 +2613,7 @@ export default function Dashboard() {
         const detail = transactionDetailRow;
         const statusBadgeClass =
             detail?.statusRaw === "succeeded"
-                ? "bg-green-500/10 text-green-400 border-green-500/30"
+                ? "bg-green-500/10 text-green-700 border-green-500/30"
                 : "bg-foreground/10 text-foreground border-foreground/20";
 
         return (
@@ -2710,8 +2710,8 @@ export default function Dashboard() {
                                                 <Badge
                                                     className={
                                                         txn.statusRaw === "succeeded"
-                                                            ? "bg-green-500/10 text-green-400 border-green-500/30 font-medium"
-                                                            : "bg-amber-500/10 text-amber-200 border-amber-500/30 font-medium"
+                                                            ? "bg-green-500/10 text-green-700 border-green-500/30 font-medium"
+                                                            : "bg-amber-500/10 text-amber-800 border-amber-500/30 font-medium"
                                                     }
                                                 >
                                                     {txn.statusLabel}
@@ -3189,7 +3189,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                                 disabled={!isNested && !isSubChecked && isCategoryLimitReached}
                                                 className={isSubChecked ? "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}
                                             />
-                                            <label htmlFor={`edit-sub-${cat}-${subLabel}`} className="text-sm text-green-700 dark:text-green-400 cursor-pointer">{subLabel}</label>
+                                            <label htmlFor={`edit-sub-${cat}-${subLabel}`} className="text-sm text-green-700 cursor-pointer">{subLabel}</label>
                                         </div>
                                         {isNested && isSubExpanded && hasSubSub(entry) && (
                                             <div className="ml-8 pl-3 border-l-2 border-primary/30 space-y-1 mb-1">
@@ -4148,7 +4148,7 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotligh
                     </p>
                     {spotlightCancelPending && (
                         <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-4">
-                            <p className="text-sm text-amber-800 dark:text-amber-100">
+                            <p className="text-sm text-amber-800">
                                 Your spotlight add-on is already scheduled to end on{" "}
                                 <span className="font-semibold">
                                     {spotlightEnd?.toLocaleDateString() || "the end of your paid period"}
