@@ -42,6 +42,40 @@ export function normalizeUserNameKey(userName: string): string {
   return userName.trim().toLowerCase().replace(/[^a-z0-9_]/g, "");
 }
 
+/** True if a string looks like an email address (for anonymity scrubbing). */
+export function looksLikeEmail(value: string | null | undefined): boolean {
+  const s = String(value || "").trim();
+  if (!s) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s) || (s.includes("@") && s.includes("."));
+}
+
+/**
+ * Public community display identity — never surfaces an email.
+ * Prefers tagline (about me), then username; emails are redacted.
+ */
+export function publicCommunityAuthorLabel(opts: {
+  authorUserName?: string | null;
+  authorTagline?: string | null;
+}): { primary: string; secondary?: string } {
+  const userName = String(opts.authorUserName || "").trim();
+  const tagline = String(opts.authorTagline || "").trim();
+  const safeUser = userName && !looksLikeEmail(userName) ? userName : "";
+  const safeTag = tagline && !looksLikeEmail(tagline) ? tagline : "";
+
+  if (safeTag) {
+    return { primary: safeTag, secondary: safeUser && safeUser !== safeTag ? safeUser : undefined };
+  }
+  if (safeUser) return { primary: safeUser };
+  return { primary: "Anonymous" };
+}
+
+/** Safe author handle stored on new posts/comments — never the account email. */
+export function resolveAuthorUserNameForPost(memberUserName: unknown, _email?: string | null): string {
+  const name = String(memberUserName || "").trim();
+  if (name && !looksLikeEmail(name)) return name;
+  return "member";
+}
+
 export function formatRelativeTime(date: Date): string {
   const sec = Math.floor((Date.now() - date.getTime()) / 1000);
   if (sec < 60) return "just now";

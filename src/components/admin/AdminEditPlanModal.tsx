@@ -42,7 +42,7 @@ export function AdminEditPlanModal({
   const [formData, setFormData] = useState({
     service: plan.service || SERVICE_OPTIONS[0],
     label: plan.label || "",
-    billing: plan.billing || "Monthly",
+    billing: plan.billing === "Yearly" ? "Annual" : (plan.billing || "Monthly"),
     priceUsd: plan.priceUsd !== undefined ? String(plan.priceUsd) : "100",
     maxCategories: plan.maxCategories === -1 ? "Unlimited" : (plan.maxCategories !== undefined ? String(plan.maxCategories) : "3"),
     maxCountries: plan.maxCountries === -1 ? "Unlimited" : (plan.maxCountries !== undefined ? String(plan.maxCountries) : "1"),
@@ -177,7 +177,7 @@ export function AdminEditPlanModal({
               onChange={(e) => handleChange("billing", e.target.value)}
             >
               <option value="Monthly">Monthly</option>
-              <option value="Yearly">Yearly</option>
+              <option value="Annual">Annual</option>
               <option value="One-time">One-time</option>
             </select>
           </div>

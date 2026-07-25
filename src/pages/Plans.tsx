@@ -255,7 +255,7 @@ export default function Plans() {
                         Plans that fit every business size, budget, and stage. Choose yours today!
                     </h1>
 
-                    {/* Monthly / Yearly Toggle */}
+                    {/* Monthly / Annual Toggle */}
                     <div className="inline-flex items-center gap-3 pt-4">
                         <span className={`text-sm font-semibold transition-colors ${!isYearly ? "text-slate-900" : "text-slate-500"}`}>
                             Monthly
@@ -274,7 +274,7 @@ export default function Plans() {
                             />
                         </button>
                         <span className={`text-sm font-semibold transition-colors flex items-center gap-1.5 ${isYearly ? "text-slate-900" : "text-slate-500"}`}>
-                            Yearly
+                            Annual
                         </span>
                     </div>
                 </div>
@@ -418,7 +418,7 @@ function PlanCard({
 
                 {isYearly && (
                     <div className="mt-1 space-y-0.5">
-                        <p className="text-xs font-semibold text-slate-500">Billed Annually</p>
+                        <p className="text-xs font-semibold text-slate-500">Billed annually</p>
                         {showDiscountTag && plan.monthlyPrice !== plan.yearlyMonthlyPrice && (
                             <p className="text-xs font-bold text-emerald-600">Save 10%</p>
                         )}

@@ -38,7 +38,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
-import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink } from "@/lib/community";
+import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink, publicCommunityAuthorLabel, resolveAuthorUserNameForPost, looksLikeEmail } from "@/lib/community";
 import { CheckSquare, Link2, MessageSquare, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
@@ -362,7 +362,7 @@ export default function CommunityPostDetail() {
     }
 
     const member = await getDoc(doc(db, "membersCollection", user.uid));
-    const userName = (member.data()?.userName as string) || user.email?.split("@")[0] || "member";
+    const userName = resolveAuthorUserNameForPost(member.data()?.userName);
 
     try {
       let imageStoragePath: string | null = null;
@@ -528,6 +528,10 @@ export default function CommunityPostDetail() {
 
   const welcomeName = memberUserName || user?.displayName || user?.email?.split("@")[0] || "Guest";
   const profileInitials = (welcomeName || "G").slice(0, 2).toUpperCase();
+  const postAuthorLabel = publicCommunityAuthorLabel({
+    authorUserName: post.authorUserName as string | undefined,
+    authorTagline: post.authorTagline as string | undefined,
+  });
 
   const isAuthor = Boolean(postAuthorId && user?.uid && postAuthorId === user.uid);
   const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
@@ -549,14 +553,12 @@ export default function CommunityPostDetail() {
             <div className="flex gap-3">
               <Avatar className="h-10 w-10">
                 <AvatarFallback className="bg-primary/20 text-primary text-xs font-semibold">
-                  {String(post.authorUserName || "U")
-                    .slice(0, 2)
-                    .toUpperCase()}
+                  {postAuthorLabel.primary.slice(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
               <div>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  <p className="font-semibold">{String(post.authorTagline || "Anonymous")}</p>
+                  <p className="font-semibold">{postAuthorLabel.primary}</p>
                 </div>
                 <p className="text-xs text-muted-foreground">{formatRelativeTime(created)}</p>
               </div>
@@ -849,7 +851,11 @@ export default function CommunityPostDetail() {
         onOpenChange={setEditOpen}
         displayName={welcomeName}
         profileInitials={profileInitials}
-        bio={memberAboutMe || memberBio}
+        bio={
+          looksLikeEmail(memberAboutMe || memberBio)
+            ? ""
+            : memberAboutMe || memberBio
+        }
         onPublished={() => {
           setEditOpen(false);
         }}

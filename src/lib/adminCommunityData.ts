@@ -39,6 +39,7 @@ export type AdminPostRow = {
   authorUserName?: string;
   authorEmail?: string;
   authorAccountStatus?: string;
+  authorSpamActiveReportCount?: number;
   imageStoragePath?: string | null;
   likeCount?: number;
   commentCount?: number;
@@ -163,6 +164,10 @@ async function enrichPostsWithMemberEmail(
       ...p,
       authorEmail: (member?.email as string | undefined) || undefined,
       authorAccountStatus: (member?.accountStatus as string | undefined) || "active",
+      authorSpamActiveReportCount:
+        typeof member?.spamActiveReportCount === "number"
+          ? (member.spamActiveReportCount as number)
+          : 0,
     };
   });
 }

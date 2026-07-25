@@ -23,6 +23,8 @@ import {
   POST_COUNTRIES_MAX,
   validatePostPayload,
   EXTERNAL_LINKS_MAX,
+  resolveAuthorUserNameForPost,
+  looksLikeEmail,
 } from "@/lib/community";
 import { ArrowLeft } from "lucide-react";
 import { CountryMultiSelect } from "@/components/community/CountryMultiSelect";
@@ -109,8 +111,9 @@ export default function NewCommunityPost() {
 
     const memberSnap = await getDoc(doc(db, "membersCollection", u.uid));
     const member = memberSnap.exists() ? memberSnap.data() : null;
-    const authorUserName = (member?.userName as string) || u.email?.split("@")[0] || "member";
-    const authorTagline = (member?.aboutMe as string) || "";
+    const authorUserName = resolveAuthorUserNameForPost(member?.userName);
+    const rawTagline = String(member?.aboutMe || "").trim();
+    const authorTagline = looksLikeEmail(rawTagline) ? "" : rawTagline;
 
     try {
       setSaving(true);

@@ -30,6 +30,36 @@ function wrapText(bodyText) {
 }
 
 const templates = {
+    partner_email_verification: {
+        subject: () => "Verify your new Pharma SocII partner email",
+        text: ({ verifyLink, ...payload }) => {
+            const first = firstNameFrom(payload);
+            let body =
+                `Dear ${first},\n\n` +
+                "Your Pharma SocII partner account sign-in email was updated. " +
+                "Please verify this new address using the link below.\n\n";
+            if (verifyLink) {
+                body += `${verifyLink}\n\n`;
+            }
+            body +=
+                "After verifying, sign in with this email and your existing password.\n\n" +
+                "Pharma SocII Team";
+            return wrapText(body);
+        },
+        html: ({ verifyLink, ...payload }) => {
+            const first = escapeHtml(firstNameFrom(payload));
+            const link = verifyLink
+                ? `<p><a href="${escapeHtml(verifyLink)}">Verify your email</a></p><p style="word-break:break-all;font-size:12px;color:#666">${escapeHtml(verifyLink)}</p>`
+                : "";
+            return wrapHtml(
+                `<p>Dear ${first},</p>` +
+                    `<p>Your Pharma SocII partner account sign-in email was updated. Please verify this new address.</p>` +
+                    link +
+                    `<p>After verifying, sign in with this email and your existing password.</p>` +
+                    `<p>Pharma SocII Team</p>`,
+            );
+        },
+    },
     account_activation: {
         subject: () => "Account activation",
         text: ({ verifyLink, ...payload }) => {
@@ -298,24 +328,20 @@ const templates = {
         subject: () => "Community notice: content removed after reports",
         text: (payload) => {
             const first = firstNameFrom(payload);
-            const contentType = payload.contentType || "content";
             return wrapText(
                 `Hi ${first},\n\n` +
-                    `Your ${contentType} on the Pharma SocII Community received three member reports and has been automatically removed from the platform.\n\n` +
-                    "No further action has been taken on your account at this time unless you have received a separate account status notice.\n\n" +
-                    "We encourage you to review our Community Guidelines before creating future posts or comments.\n\n" +
+                    "Your content on the Pharma SocII Community received three member reports and has been automatically removed from the platform. " +
+                    "We encourage you to review our Community Guidelines before creating future content.\n\n" +
                     "Regards,\n" +
                     "Pharma SocII Community Team",
             );
         },
         html: (payload) => {
             const first = escapeHtml(firstNameFrom(payload));
-            const contentType = escapeHtml(payload.contentType || "content");
             return wrapHtml(
                 `<p>Hi ${first},</p>` +
-                    `<p>Your <b>${contentType}</b> on the <b>Pharma SocII Community</b> received three member reports and has been automatically removed from the platform.</p>` +
-                    `<p>No further action has been taken on your account at this time unless you have received a separate account status notice.</p>` +
-                    `<p>We encourage you to review our Community Guidelines before creating future posts or comments.</p>` +
+                    `<p>Your content on the <b>Pharma SocII Community</b> received three member reports and has been automatically removed from the platform. ` +
+                    `We encourage you to review our Community Guidelines before creating future content.</p>` +
                     `<p>Regards,<br/>Pharma SocII Community Team</p>`,
             );
         },

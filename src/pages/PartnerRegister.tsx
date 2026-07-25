@@ -335,7 +335,7 @@ export default function PartnerRegister() {
                                     </div>
                                     <h3 className="text-xl font-semibold mb-2">Set up your profile</h3>
                                     <p className="text-muted-foreground leading-relaxed">
-                                        Create a profile using the form on this page. Note: Anyone with access to this account can edit your partner page, however, the primary contact, email and company name can only be changed by our team.
+                                        Create a profile using the form on this page. Note: Anyone with access to this account can edit your partner page. You can update your primary contact email from Partner Information (a verification email is sent to the new address).
                                     </p>
                                 </div>
 

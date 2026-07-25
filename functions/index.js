@@ -15,7 +15,7 @@
  * Keep logic aligned with server/cleanupExpiredSpotlights.js (HTTP cron fallback).
  */
 const { onSchedule } = require("firebase-functions/v2/scheduler");
-const { onDocumentCreated } = require("firebase-functions/v2/firestore");
+const { onDocumentCreated, onDocumentUpdated } = require("firebase-functions/v2/firestore");
 const { onCall, HttpsError } = require("firebase-functions/v2/https");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
@@ -427,8 +427,11 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
     const smtpPass = process.env.SMTP_PASS;
     const from = getNodemailerFrom();
     if (!host || !smtpUser || !smtpPass || !from) {
-        console.info(`[community-email] SMTP not configured; logged ${type} for ${toEmail}`);
-        return;
+        console.warn(
+            `[community-email] SMTP not configured; logged ${type} for ${toEmail} but did not send. ` +
+                "Set SMTP_HOST/SMTP_USER/SMTP_PASS/SMTP_FROM on Cloud Functions."
+        );
+        return { logged: true, sent: false, reason: "smtp_not_configured" };
     }
     const transporter = nodemailer.createTransport({
         host,
@@ -447,8 +450,10 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
                 ? `${html}<hr/><p style="color:#666;font-size:12px">QA copy (CC ${escapeHtmlVerification(ccTo)})</p>`
                 : html,
         });
+        return { logged: true, sent: true };
     } catch (mailErr) {
         console.error("[community-email] SMTP send failed", type, toEmail, mailErr);
+        return { logged: true, sent: false, reason: mailErr?.message || String(mailErr) };
     }
 }
 
@@ -479,12 +484,81 @@ async function getMemberEmailAndName(userId) {
     const d = m.data();
     const name = String(d.name || "").trim();
     const firstName = name ? name.split(/\s+/)[0] : String(d.userName || "").trim() || null;
+    let email = String(d.email || "").trim() || null;
+    if (!email) {
+        try {
+            const userRecord = await admin.auth().getUser(userId);
+            email = String(userRecord.email || "").trim() || null;
+        } catch (err) {
+            console.warn("getMemberEmailAndName: Auth lookup failed", userId, err?.message || err);
+        }
+    }
     return {
-        email: d.email || null,
+        email,
         userName: d.userName || name || null,
         firstName,
         name: name || null,
     };
+}
+
+/** Normalize member accountStatus for transition emails. */
+function normalizeMemberAccountStatus(status) {
+    if (status === "spam_blocked" || status === "admin_hold" || status === "active") return status;
+    return "active";
+}
+
+/**
+ * Send pause / hold / reactivate emails when membersCollection.accountStatus changes.
+ * Single source of truth so admin edits, spam auto-pause, and cron release all notify.
+ */
+async function sendMemberStatusTransitionEmails(userId, beforeStatus, afterStatus, afterData = {}) {
+    const before = normalizeMemberAccountStatus(beforeStatus);
+    const after = normalizeMemberAccountStatus(afterStatus);
+    if (before === after) return { sent: false, reason: "unchanged" };
+
+    const { email, userName, firstName } = await getMemberEmailAndName(userId);
+    if (!email) {
+        console.warn("sendMemberStatusTransitionEmails: no email for member", userId, { before, after });
+        return { sent: false, reason: "no_email" };
+    }
+
+    const memberPayload = { userName, firstName };
+
+    if (after === "spam_blocked" && before !== "spam_blocked") {
+        const until = memberTimestampToDate(afterData.spamBlockUntil);
+        await sendCommunityEmail({
+            type: "spam_strike_3_account_archived",
+            toEmail: email,
+            payload: {
+                ...memberPayload,
+                untilDate: until ? until.toLocaleDateString() : null,
+            },
+        });
+        return { sent: true, type: "spam_strike_3_account_archived" };
+    }
+
+    if (after === "admin_hold" && before !== "admin_hold") {
+        await sendCommunityEmail({
+            type: "account_on_hold",
+            toEmail: email,
+            payload: {
+                ...memberPayload,
+                reason: afterData.adminHoldReason || "",
+            },
+        });
+        return { sent: true, type: "account_on_hold" };
+    }
+
+    if (after === "active" && (before === "spam_blocked" || before === "admin_hold")) {
+        await sendCommunityEmail({
+            type: "account_reactivated",
+            toEmail: email,
+            payload: memberPayload,
+        });
+        return { sent: true, type: "account_reactivated" };
+    }
+
+    return { sent: false, reason: "no_template" };
 }
 
 async function getMemberProfileByEmail(email) {
@@ -690,7 +764,6 @@ exports.onSpamReportCreated = onDocumentCreated(
         }
 
         let newActive = 0;
-        let blockedUntil = null;
         let memberWasRestricted = false;
         const memberRef = db.collection("membersCollection").doc(targetAuthorId);
         await db.runTransaction(async (tx) => {
@@ -716,7 +789,7 @@ exports.onSpamReportCreated = onDocumentCreated(
             };
             if (active === SPAM_THRESHOLD) {
                 const blockStartedAt = reportCreatedAt;
-                blockedUntil = computeSpamBlockEnd(blockStartedAt);
+                const blockedUntil = computeSpamBlockEnd(blockStartedAt);
                 update.accountStatus = "spam_blocked";
                 update.spamBlockStartedAt = admin.firestore.Timestamp.fromDate(blockStartedAt);
                 update.spamBlockUntil = admin.firestore.Timestamp.fromDate(blockedUntil);
@@ -732,21 +805,13 @@ exports.onSpamReportCreated = onDocumentCreated(
         });
 
         const { email, userName, firstName } = await getMemberEmailAndName(targetAuthorId);
+        // Strike 1/2 only — pause/reactivate emails are sent by onMemberAccountStatusUpdated.
         if (email && !memberWasRestricted) {
             const memberPayload = { userName, firstName };
             if (newActive === 1) {
                 await sendCommunityEmail({ type: "spam_strike_1", toEmail: email, payload: memberPayload });
             } else if (newActive === 2) {
                 await sendCommunityEmail({ type: "spam_strike_2", toEmail: email, payload: memberPayload });
-            } else if (newActive >= SPAM_THRESHOLD) {
-                await sendCommunityEmail({
-                    type: "spam_strike_3_account_archived",
-                    toEmail: email,
-                    payload: {
-                        ...memberPayload,
-                        untilDate: blockedUntil ? blockedUntil.toLocaleDateString() : null,
-                    },
-                });
             }
         }
         if (email && contentArchived && !memberWasRestricted) {
@@ -781,17 +846,38 @@ exports.releaseExpiredSpamBlocks = onSchedule(
                 spamBlockUntil: FieldValue.delete(),
                 spamBlockStartedAt: FieldValue.delete(),
             });
-            const { email, userName, firstName } = await getMemberEmailAndName(docSnap.id);
-            if (email) {
-                await sendCommunityEmail({
-                    type: "account_reactivated",
-                    toEmail: email,
-                    payload: { userName, firstName },
-                });
-            }
+            // Reactivation email is sent by onMemberAccountStatusUpdated.
             n += 1;
         }
         console.log(`releaseExpiredSpamBlocks: released ${n} member(s).`);
+    }
+);
+
+/** Notify member whenever accountStatus transitions (pause / hold / reactivate). */
+exports.onMemberAccountStatusUpdated = onDocumentUpdated(
+    {
+        document: "membersCollection/{userId}",
+        region: "us-central1",
+    },
+    async (event) => {
+        const before = event.data?.before?.data?.() || {};
+        const after = event.data?.after?.data?.() || {};
+        const userId = event.params.userId;
+        if (normalizeMemberAccountStatus(before.accountStatus) === normalizeMemberAccountStatus(after.accountStatus)) {
+            return;
+        }
+        try {
+            const result = await sendMemberStatusTransitionEmails(
+                userId,
+                before.accountStatus,
+                after.accountStatus,
+                after,
+            );
+            console.log("onMemberAccountStatusUpdated", userId, result);
+        } catch (err) {
+            console.error("onMemberAccountStatusUpdated failed", userId, err);
+            throw err;
+        }
     }
 );
 
@@ -941,10 +1027,6 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     const allowed = ["active", "spam_blocked", "admin_hold"];
     if (!allowed.includes(status)) throw new HttpsError("invalid-argument", "Invalid status.");
     const memberRef = db.collection("membersCollection").doc(userId);
-    const beforeSnap = await memberRef.get();
-    const beforeData = beforeSnap.exists ? beforeSnap.data() || {} : {};
-    const wasAlreadySpamBlocked = beforeData.accountStatus === "spam_blocked";
-    const wasAlreadyOnHold = beforeData.accountStatus === "admin_hold";
     const update = { accountStatus: status };
     if (status === "active") {
         update.spamBlockUntil = FieldValue.delete();
@@ -961,34 +1043,7 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     }
     if (reason) update.adminHoldReason = reason;
     await memberRef.update(update);
-
-    const { email, userName, firstName } = await getMemberEmailAndName(userId);
-    if (email) {
-        if (status === "admin_hold" && !wasAlreadyOnHold) {
-            await sendCommunityEmail({
-                type: "account_on_hold",
-                toEmail: email,
-                payload: { userName, firstName, reason: reason || "" },
-            });
-        } else if (status === "spam_blocked" && !wasAlreadySpamBlocked) {
-            const until = update.spamBlockUntil?.toDate?.() || null;
-            await sendCommunityEmail({
-                type: "spam_strike_3_account_archived",
-                toEmail: email,
-                payload: {
-                    userName,
-                    firstName,
-                    untilDate: until ? until.toLocaleDateString() : null,
-                },
-            });
-        } else if (status === "active" && beforeData.accountStatus !== "active") {
-            await sendCommunityEmail({
-                type: "account_reactivated",
-                toEmail: email,
-                payload: { userName, firstName },
-            });
-        }
-    }
+    // Pause / hold / reactivate emails are sent by onMemberAccountStatusUpdated.
     return { ok: true };
 });
 
@@ -1312,3 +1367,117 @@ exports.adminApproveMemberVerification = onCall(
         return { ok: true };
     }
 );
+
+/**
+ * Partner primary email change: Admin SDK replaces Auth + Firestore email immediately
+ * (client updateEmail is blocked when email enumeration protection is on), then sends
+ * a verification email to the new address.
+ */
+exports.changePartnerPrimaryEmail = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.uid) {
+        throw new HttpsError("unauthenticated", "Sign in required.");
+    }
+    const uid = request.auth.uid;
+    const newEmail = String(request.data?.newEmail || "").trim().toLowerCase();
+    if (!newEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
+        throw new HttpsError("invalid-argument", "Enter a valid email address.");
+    }
+
+    const partnerRef = db.collection("partnersCollection").doc(uid);
+    const partnerSnap = await partnerRef.get();
+    if (!partnerSnap.exists) {
+        throw new HttpsError("failed-precondition", "Partner profile not found.");
+    }
+
+    let userRecord;
+    try {
+        userRecord = await admin.auth().getUser(uid);
+    } catch (e) {
+        throw new HttpsError("not-found", "Auth user not found.");
+    }
+
+    const currentEmail = String(userRecord.email || "").trim().toLowerCase();
+    if (newEmail === currentEmail) {
+        return { ok: true, unchanged: true };
+    }
+
+    try {
+        const existing = await admin.auth().getUserByEmail(newEmail);
+        if (existing.uid !== uid) {
+            throw new HttpsError("already-exists", "This email is already in use by another account.");
+        }
+    } catch (e) {
+        if (e instanceof HttpsError) throw e;
+        if (e?.code !== "auth/user-not-found") {
+            console.error("changePartnerPrimaryEmail getUserByEmail", e);
+            throw new HttpsError("internal", "Could not validate the new email.");
+        }
+    }
+
+    try {
+        await admin.auth().updateUser(uid, {
+            email: newEmail,
+            emailVerified: false,
+        });
+    } catch (e) {
+        console.error("changePartnerPrimaryEmail updateUser", e);
+        const msg = String(e?.message || e);
+        if (msg.includes("EMAIL_EXISTS") || e?.code === "auth/email-already-exists") {
+            throw new HttpsError("already-exists", "This email is already in use by another account.");
+        }
+        if (msg.includes("INVALID_EMAIL") || e?.code === "auth/invalid-email") {
+            throw new HttpsError("invalid-argument", "Enter a valid email address.");
+        }
+        throw new HttpsError("internal", "Could not update sign-in email.");
+    }
+
+    const partnerName = String(partnerSnap.data()?.primaryName || partnerSnap.data()?.businessName || "").trim();
+    await partnerRef.set(
+        {
+            primaryEmail: newEmail,
+            emailVerified: false,
+            updatedAt: FieldValue.serverTimestamp(),
+        },
+        { merge: true }
+    );
+
+    const base = APP_PUBLIC_URL.replace(/\/$/, "");
+    let verifyLink = null;
+    let linkError = null;
+    try {
+        verifyLink = await admin.auth().generateEmailVerificationLink(newEmail, {
+            url: `${base}/login`,
+            handleCodeInApp: false,
+        });
+    } catch (firstErr) {
+        try {
+            verifyLink = await admin.auth().generateEmailVerificationLink(newEmail);
+        } catch (secondErr) {
+            linkError = secondErr?.message || firstErr?.message || String(secondErr);
+            console.error("changePartnerPrimaryEmail generateEmailVerificationLink", secondErr);
+        }
+    }
+
+    if (verifyLink) {
+        await recordVerificationMirror(newEmail, verifyLink, "partner_email_change", { userId: uid });
+        await sendVerificationMirrorSmtp(newEmail, verifyLink);
+        try {
+            await sendCommunityEmail({
+                type: "partner_email_verification",
+                toEmail: newEmail,
+                payload: { userName: partnerName, firstName: partnerName.split(/\s+/)[0] || null, verifyLink },
+                link: verifyLink,
+            });
+        } catch (mailErr) {
+            console.error("changePartnerPrimaryEmail send email", mailErr);
+            linkError = linkError || mailErr?.message || String(mailErr);
+        }
+    }
+
+    return {
+        ok: true,
+        email: newEmail,
+        verificationSent: Boolean(verifyLink),
+        message: linkError || null,
+    };
+});

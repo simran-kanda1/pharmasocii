@@ -8,7 +8,7 @@ import {
   validateCategorySelection,
   type CategorySelectionState,
 } from "@/components/community/CategoryPicker";
-import { validatePostPayload, EXTERNAL_LINKS_MAX } from "@/lib/community";
+import { validatePostPayload, EXTERNAL_LINKS_MAX, resolveAuthorUserNameForPost, looksLikeEmail } from "@/lib/community";
 
 export const POST_IMAGE_MAX_BYTES = 1.5 * 1024 * 1024;
 export const POST_IMAGE_ACCEPT = "image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,.heic,.heif";
@@ -56,8 +56,9 @@ export async function publishCommunityPost(params: {
   const memberSnap = await getDoc(doc(db, "membersCollection", u.uid));
   if (!memberSnap.exists()) throw new Error("Community profile required.");
   const member = memberSnap.data();
-  const authorUserName = (member?.userName as string) || u.email?.split("@")[0] || "member";
-  const authorTagline = (member?.aboutMe as string) || "";
+  const authorUserName = resolveAuthorUserNameForPost(member?.userName);
+  const rawTagline = String(member?.aboutMe || "").trim();
+  const authorTagline = looksLikeEmail(rawTagline) ? "" : rawTagline;
 
   let imageStoragePath: string | null = null;
   if (params.imageFile) {
@@ -124,7 +125,8 @@ export async function updateCommunityPost(params: {
 
   const memberSnap = await getDoc(doc(db, "membersCollection", u.uid));
   const member = memberSnap.exists() ? memberSnap.data() : null;
-  const authorTagline = (member?.aboutMe as string) || "";
+  const rawTagline = String(member?.aboutMe || "").trim();
+  const authorTagline = looksLikeEmail(rawTagline) ? "" : rawTagline;
 
   const createdTime = postData.createdAt?.toDate?.() || new Date();
   const diffHours = (Date.now() - createdTime.getTime()) / (1000 * 60 * 60);

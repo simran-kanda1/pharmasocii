@@ -38,7 +38,7 @@ export function AdminPostListTable({
   onDelete,
   onActivate,
 }: Props) {
-  const colSpan = archived ? 13 : 12;
+  const colSpan = archived ? 14 : 13;
 
   return (
     <div className="rounded-lg border bg-white overflow-x-auto">
@@ -53,6 +53,7 @@ export function AdminPostListTable({
             <TableHead>Comments</TableHead>
             <TableHead>User</TableHead>
             <TableHead>Spam</TableHead>
+            <TableHead>Member spam</TableHead>
             <TableHead>Account</TableHead>
             <TableHead>Post status</TableHead>
             <TableHead>Created</TableHead>
@@ -87,6 +88,11 @@ export function AdminPostListTable({
                   ) : null}
                 </TableCell>
                 <TableCell>{p.spamReportCount ?? 0}</TableCell>
+                <TableCell>
+                  {p.authorSpamActiveReportCount != null
+                    ? `${p.authorSpamActiveReportCount}/3`
+                    : "—"}
+                </TableCell>
                 <TableCell>
                   {p.authorAccountStatus === "active" || !p.authorAccountStatus ? (
                     <Badge className="bg-emerald-600 hover:bg-emerald-600">Active</Badge>

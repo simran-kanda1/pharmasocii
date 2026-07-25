@@ -36,6 +36,7 @@ export function transactionRowToExportRecord(row: PartnerTransactionRow): Record
         "Feature ID": row.featureId || "",
         Group: row.group || "",
         "Business name": row.businessName || "",
+        "Partner ID": row.partnerId || "",
         Amount: row.amountNumeric,
         "Amount (display)": row.amountDisplay,
         Currency: row.currency,
@@ -96,14 +97,15 @@ export function downloadPartnerTransactionsPdf(rows: PartnerTransactionRow[]): v
     doc.text("Pharmasocii — transactions", 14, 12);
     doc.setFontSize(8);
 
-    const head = [["Date", "Type", "Description", "Group", "Amount", "Currency", "Status"]];
+    const head = [["Date", "Partner", "Business", "Type", "Description", "Group", "Amount", "Status"]];
     const body = rows.map((r) => [
         r.dateDisplay,
+        r.customerEmail || r.partnerId || "—",
+        r.businessName || "—",
         r.typeLabel,
         r.description,
         r.group || "—",
         r.amountDisplay,
-        r.currency,
         r.statusLabel,
     ]);
 

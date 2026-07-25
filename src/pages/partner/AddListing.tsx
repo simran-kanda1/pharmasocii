@@ -22,6 +22,7 @@ import {
     BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES,
     type SubcategoryEntry, type CategoriesDict,
 } from "../AllCategories";
+import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 
 // ─── Group config ───
 const GROUP_CONFIG: Record<string, { label: string; icon: any; dbGroup: string; collectionName: string }> = {
@@ -78,55 +79,9 @@ const EVENT_JOB_PLAN_DETAILS: Record<string, string[]> = {
 
 const AGENDA_HIGHLIGHTS_MAX = 500;
 
-const SERVICE_REGIONS = [
-    "North America", "South America", "Europe", "Asia Pacific",
-    "Middle East", "Africa", "Australia & Oceania",
-];
-
-const SERVICE_COUNTRIES = [
-    "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
-    "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia",
-    "Bosnia", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
-    "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia",
-    "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
-    "Denmark", "Djibouti", "Dominican Republic",
-    "Ecuador", "Egypt", "El Salvador", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
-    "Fiji", "Finland", "France",
-    "Gabon", "Georgia", "Germany", "Ghana", "Greece", "Guatemala", "Guyana",
-    "Haiti", "Honduras", "Hong Kong", "Hungary",
-    "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
-    "Jamaica", "Japan", "Jordan",
-    "Kazakhstan", "Kenya", "Korea", "Kosovo", "Kuwait", "Kyrgyzstan",
-    "Laos", "Latvia", "Lebanon", "Liberia", "Libya", "Lithuania", "Luxembourg",
-    "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Mauritius",
-    "Mexico", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
-    "Namibia", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "Norway",
-    "Oman",
-    "Pakistan", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
-    "Qatar",
-    "Romania", "Russia", "Rwanda",
-    "Saudi Arabia", "Senegal", "Serbia", "Sierra Leone", "Singapore", "Slovak Republic", "Slovenia",
-    "Somalia", "South Africa", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
-    "Taiwan", "Tanzania", "Thailand", "Togo", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan",
-    "UAE", "Uganda", "UK", "Ukraine", "United States", "Uruguay", "Uzbekistan",
-    "Venezuela", "Vietnam",
-    "Yemen",
-    "Zambia", "Zimbabwe",
-];
-
 const BSL_LEVELS = ["1", "2", "3", "4"];
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
 const OTHER_CERT_OPTION = "Others";
-
-const REGION_COUNTRY_MAP: Record<string, string[]> = {
-    "North America": ["Barbados", "Belize", "Canada", "Costa Rica", "Cuba", "Dominican Republic", "El Salvador", "Guatemala", "Haiti", "Honduras", "Jamaica", "Mexico", "Nicaragua", "Panama", "Trinidad and Tobago", "United States"],
-    "South America": ["Argentina", "Bolivia", "Brazil", "Chile", "Colombia", "Ecuador", "Guyana", "Paraguay", "Peru", "Suriname", "Uruguay", "Venezuela"],
-    "Europe": ["Albania", "Austria", "Belarus", "Belgium", "Bosnia", "Bulgaria", "Croatia", "Cyprus", "Czech Republic", "Denmark", "Estonia", "Finland", "France", "Germany", "Greece", "Hungary", "Iceland", "Ireland", "Italy", "Kosovo", "Latvia", "Lithuania", "Luxembourg", "Malta", "Moldova", "Monaco", "Montenegro", "Netherlands", "Norway", "Poland", "Portugal", "Romania", "Russia", "Serbia", "Slovak Republic", "Slovenia", "Spain", "Sweden", "Switzerland", "Turkey", "UK", "Ukraine"],
-    "Asia Pacific": ["Afghanistan", "Armenia", "Azerbaijan", "Bangladesh", "Bhutan", "Brunei", "Cambodia", "China", "Georgia", "Hong Kong", "India", "Indonesia", "Japan", "Kazakhstan", "Korea", "Kyrgyzstan", "Laos", "Malaysia", "Maldives", "Mongolia", "Myanmar", "Nepal", "Pakistan", "Philippines", "Singapore", "Sri Lanka", "Taiwan", "Thailand", "Turkmenistan", "Uzbekistan", "Vietnam"],
-    "Middle East": ["Bahrain", "Iran", "Iraq", "Israel", "Jordan", "Kuwait", "Lebanon", "Oman", "Palestine", "Qatar", "Saudi Arabia", "Syria", "UAE", "Yemen"],
-    "Africa": ["Algeria", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cameroon", "Central African Republic", "Chad", "Congo", "Djibouti", "Egypt", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Ghana", "Kenya", "Liberia", "Libya", "Madagascar", "Malawi", "Mali", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", "Rwanda", "Senegal", "Sierra Leone", "Somalia", "South Africa", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"],
-    "Australia & Oceania": ["Australia", "Fiji", "New Zealand", "Papua New Guinea"],
-};
 
 const getSubLabel = (entry: SubcategoryEntry): string => typeof entry === "string" ? entry : entry.label;
 const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcategories: string[] } => typeof entry !== "string";

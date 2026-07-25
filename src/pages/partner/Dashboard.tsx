@@ -3,8 +3,9 @@ import { useNavigate, Link } from "react-router-dom";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, query, onSnapshot, where, writeBatch, getDocs } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
-import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, updateEmail, reload } from "firebase/auth";
+import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, reload } from "firebase/auth";
 import { API_BASE_URL } from "@/apiConfig";
+import { changePartnerPrimaryEmail } from "@/lib/changePartnerPrimaryEmail";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
 import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
@@ -45,7 +46,7 @@ import {
     BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES,
     type SubcategoryEntry, type CategoriesDict,
 } from "../AllCategories";
-import { REGION_COUNTRY_MAP } from "@/constants/regions";
+import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 
 
 
@@ -71,7 +72,7 @@ const PLAN_CONFIGS: Record<string, PlanConfig> = {
     standard_mo: { label: "Standard", subtitle: "Multi country presence", price: "$200.00", period: "/month", maxCategories: 5, maxCountries: 3, features: ["Access to specialized categories — list up to 5", "List primary service countries — up to 3", "Company profile to highlight your key offerings", "Display your logo for branding", "Direct website link", "Add representative(s) for direct communication", "Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] },
     premium_mo: { label: "Premium", subtitle: "Broad scope & presence", price: "$400.00", period: "/month", maxCategories: 15, maxCountries: 15, features: ["Access to specialized categories — list up to 15", "List primary service countries — up to 15", "Company profile to highlight your key offerings", "Display your logo for branding", "Direct website link", "Add representative(s) for direct communication", "Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] },
     premium_plus_mo: { label: "Premium Plus", subtitle: "Global scale", price: "$1,000.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Access to specialized categories — Unlimited", "List primary service countries — Unlimited", "Company profile to highlight your key offerings", "Display your logo for branding", "Direct website link", "Add representative(s) for direct communication", "Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] },
-    // Business & Consulting — Yearly
+    // Business & Consulting — Annual
     basic_yr: { label: "Basic Annual", subtitle: "Getting started", price: "$1,080.00", period: "/year", maxCategories: 3, maxCountries: 1, features: ["Access to specialized categories — list up to 3", "List primary service country — 1", "Company profile to highlight your key offerings", "Display your logo for branding", "Direct website link", "Add representative(s) for direct communication", "Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] },
     standard_yr: { label: "Standard Annual", subtitle: "Multi country presence", price: "$2,184.00", period: "/year", maxCategories: 5, maxCountries: 3, features: ["Access to specialized categories — list up to 5", "List primary service countries — up to 3", "Company profile to highlight your key offerings", "Display your logo for branding", "Direct website link", "Add representative(s) for direct communication", "Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] },
     premium_yr: { label: "Premium Annual", subtitle: "Broad scope & presence", price: "$4,320.00", period: "/year", maxCategories: 15, maxCountries: 15, features: ["Access to specialized categories — list up to 15", "List primary service countries — up to 15", "Company profile to highlight your key offerings", "Display your logo for branding", "Direct website link", "Add representative(s) for direct communication", "Option to highlight certifications", "Optional BSL (Biosafety Level) disclosure"] },
@@ -117,37 +118,6 @@ function getAvailablePlanUpgradeIds(currentPlanId: string | undefined): string[]
         return false;
     });
 }
-
-const SERVICE_COUNTRIES = [
-    "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
-    "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia",
-    "Bosnia", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
-    "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia",
-    "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
-    "Denmark", "Djibouti", "Dominican Republic",
-    "Ecuador", "Egypt", "El Salvador", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
-    "Fiji", "Finland", "France",
-    "Gabon", "Georgia", "Germany", "Ghana", "Greece", "Guatemala", "Guyana",
-    "Haiti", "Honduras", "Hong Kong", "Hungary",
-    "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
-    "Jamaica", "Japan", "Jordan",
-    "Kazakhstan", "Kenya", "Korea", "Kosovo", "Kuwait", "Kyrgyzstan",
-    "Laos", "Latvia", "Lebanon", "Liberia", "Libya", "Lithuania", "Luxembourg",
-    "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Mauritius",
-    "Mexico", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
-    "Namibia", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "Norway",
-    "Oman",
-    "Pakistan", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
-    "Qatar",
-    "Romania", "Russia", "Rwanda",
-    "Saudi Arabia", "Senegal", "Serbia", "Sierra Leone", "Singapore", "Slovak Republic", "Slovenia",
-    "Somalia", "South Africa", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
-    "Taiwan", "Tanzania", "Thailand", "Togo", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan",
-    "UAE", "Uganda", "UK", "Ukraine", "United States", "Uruguay", "Uzbekistan",
-    "Venezuela", "Vietnam",
-    "Yemen",
-    "Zambia", "Zimbabwe",
-];
 
 const FEATURE_PLANS = [
     { id: "landing_page", label: "Landing Page Spotlight", description: "Featured on the category landing page for increased visibility", price: "$400.00", icon: Star },
@@ -858,7 +828,9 @@ export default function Dashboard() {
             if (auth.currentUser) {
                 const nextEmail = (profileForm.email || "").trim();
                 const currentEmail = auth.currentUser.email || "";
-                if (nextEmail && nextEmail !== currentEmail) {
+                let emailChanged = false;
+                let emailVerificationSent: boolean | null = null;
+                if (nextEmail && nextEmail.toLowerCase() !== currentEmail.toLowerCase()) {
                     if (!profileEmailReauthPassword.trim()) {
                         setProfileMsg("Enter your current account password below to change your email.");
                         setProfileSaving(false);
@@ -867,8 +839,11 @@ export default function Dashboard() {
                     try {
                         const cred = EmailAuthProvider.credential(currentEmail, profileEmailReauthPassword);
                         await reauthenticateWithCredential(auth.currentUser, cred);
-                        await updateEmail(auth.currentUser, nextEmail);
+                        const emailResult = await changePartnerPrimaryEmail(nextEmail);
                         setProfileEmailReauthPassword("");
+                        await reload(auth.currentUser);
+                        emailChanged = !emailResult.unchanged;
+                        emailVerificationSent = emailResult.verificationSent !== false;
                     } catch (emailError: any) {
                         if (emailError?.code === "auth/requires-recent-login") {
                             setProfileMsg("Please sign out and sign back in before changing your email.");
@@ -880,27 +855,19 @@ export default function Dashboard() {
                             setProfileSaving(false);
                             return;
                         }
-                        if (emailError?.code === "auth/email-already-in-use") {
+                        const code = String(emailError?.code || "");
+                        const msg = String(emailError?.message || "");
+                        if (code.includes("already-exists") || /already in use/i.test(msg)) {
                             setProfileMsg("This email is already in use by another account.");
                             setProfileSaving(false);
                             return;
                         }
-                        if (emailError?.code === "auth/invalid-email") {
+                        if (code.includes("invalid-argument") || /valid email/i.test(msg)) {
                             setProfileMsg("Enter a valid email address.");
                             setProfileSaving(false);
                             return;
                         }
-                        if (emailError?.code === "auth/operation-not-allowed") {
-                            setProfileMsg("Email changes are not available for this account. Contact support if you need to update your sign-in email.");
-                            setProfileSaving(false);
-                            return;
-                        }
-                        if (emailError?.code === "auth/email-change-needs-verification") {
-                            setProfileMsg("Check your inbox to verify the new email address, then sign in again with that email.");
-                            setProfileSaving(false);
-                            return;
-                        }
-                        setProfileMsg(emailError?.message || "Could not update your sign-in email. Check your password and try again.");
+                        setProfileMsg(msg || "Could not update your sign-in email. Check your password and try again.");
                         setProfileSaving(false);
                         return;
                     }
@@ -981,8 +948,14 @@ export default function Dashboard() {
                     }
                 });
 
-                setProfileMsg("Profile updated successfully!");
-                setTimeout(() => setProfileMsg(""), 3000);
+                setProfileMsg(
+                    emailChanged
+                        ? emailVerificationSent
+                            ? "Profile updated. Sign-in email replaced — check the new inbox for a verification link."
+                            : "Profile updated and email replaced, but the verification email could not be sent. Contact support if you need a new link."
+                        : "Profile updated successfully!"
+                );
+                setTimeout(() => setProfileMsg(""), 5000);
             }
         } catch (err: any) {
             console.error("Failed to update profile", err);
@@ -2437,7 +2410,7 @@ export default function Dashboard() {
                     </Button>
                 </div>
                 {profileMsg && (
-                    <div className={`p-3 rounded-lg text-sm font-medium ${profileMsg.includes("success") ? "bg-green-500/10 border border-green-500/30 text-green-700" : "bg-destructive/10 border border-destructive/30 text-destructive"}`}>{profileMsg}</div>
+                    <div className={`p-3 rounded-lg text-sm font-medium ${/success|updated|replaced/i.test(profileMsg) && !/could not|incorrect|failed|already in use|valid email|sign out|password/i.test(profileMsg) ? "bg-green-500/10 border border-green-500/30 text-green-700" : "bg-destructive/10 border border-destructive/30 text-destructive"}`}>{profileMsg}</div>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -2463,7 +2436,9 @@ export default function Dashboard() {
                                     className="bg-foreground/5 border-foreground/10 h-11"
                                     placeholder="Enter your login password"
                                 />
-                                <p className="text-xs text-muted-foreground">Firebase requires re-authentication before updating your sign-in email.</p>
+                                <p className="text-xs text-muted-foreground">
+                                    Changing email replaces your sign-in address and sends a verification link to the new inbox.
+                                </p>
                             </div>
                         )}
                     </div>
@@ -2921,13 +2896,6 @@ export default function Dashboard() {
 }
 
 // ─── CONSTANTS FOR EDIT MODAL ───
-const SERVICE_REGIONS = [
-    "North America", "South America", "Europe", "Asia Pacific",
-    "Middle East", "Africa", "Australia & Oceania",
-];
-
-// Use the global SERVICE_COUNTRIES defined above for local filtering as well
-
 const BSL_LEVELS = ["1", "2", "3", "4"];
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
 const OTHER_CERT_OPTION = "Others";

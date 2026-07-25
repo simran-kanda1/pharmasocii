@@ -44,6 +44,7 @@ import {
   canShareCommunityContent,
   communityAccessHint,
 } from "@/lib/communityAccess";
+import { looksLikeEmail } from "@/lib/community";
 
 import { cn } from "@/lib/utils";
 
@@ -418,7 +419,8 @@ export default function CommunityFeed() {
     });
   };
   const showMemberPanels = Boolean(canAccess && communityView !== "home");
-  const displayName = memberBio ? `${welcomeName} (${memberBio})` : welcomeName;
+  const safeBio = memberBio && !looksLikeEmail(memberBio) ? memberBio : "";
+  const displayName = safeBio ? `${welcomeName} (${safeBio})` : welcomeName;
 
   const composerBlock = canCompose ? (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-foreground/15 dark:bg-card">
@@ -706,7 +708,11 @@ export default function CommunityFeed() {
         }}
         displayName={displayName}
         profileInitials={profileInitials}
-        bio={memberAboutMe || memberBio}
+        bio={
+          looksLikeEmail(memberAboutMe || memberBio)
+            ? ""
+            : memberAboutMe || memberBio
+        }
         initialAction={createAction}
         onPublished={() => {
           reloadPosts();

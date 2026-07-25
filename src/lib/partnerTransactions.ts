@@ -4,6 +4,7 @@ export type CompanyRep = { firstName?: string; lastName?: string; email?: string
 
 export type PartnerTransactionRow = {
     id: string;
+    partnerId: string | null;
     createdAtIso: string;
     dateDisplay: string;
     type: string;
@@ -62,6 +63,7 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
 
     return {
         id: doc.id,
+        partnerId: t.partnerId ? String(t.partnerId) : null,
         createdAtIso,
         dateDisplay,
         type,

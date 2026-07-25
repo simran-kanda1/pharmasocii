@@ -5,7 +5,7 @@ import { auth, storage } from "@/firebase";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
-import { formatCategoryPlain, formatRelativeTime } from "@/lib/community";
+import { formatCategoryPlain, formatRelativeTime, publicCommunityAuthorLabel } from "@/lib/community";
 import { Bookmark, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -113,7 +113,11 @@ export function PostCard({
     post.subCategories ?? [],
     post.subSubCategories ?? [],
   );
-  const initials = (post.authorUserName || "?").slice(0, 2).toUpperCase();
+  const authorLabel = publicCommunityAuthorLabel({
+    authorUserName: post.authorUserName,
+    authorTagline: post.authorTagline,
+  });
+  const initials = (authorLabel.primary || "?").slice(0, 2).toUpperCase();
 
   useEffect(() => {
     const path = post.imageStoragePath;
@@ -163,7 +167,9 @@ export function PostCard({
           </Avatar>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 w-full">
-              <span className="font-semibold text-foreground text-sm">{post.authorTagline || "Anonymous"}</span>
+              <span className="font-semibold text-foreground text-sm">
+                {authorLabel.primary}
+              </span>
               <span className="text-xs text-muted-foreground">{formatRelativeTime(created)}</span>
               <div className="ml-auto flex items-center gap-1">
                 {isEditable && onEdit && (

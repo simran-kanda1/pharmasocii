@@ -15,6 +15,7 @@ import {
   Flag,
   Eye,
   FileText,
+  FileSpreadsheet,
   History,
   LayoutDashboard,
   Loader2,
@@ -102,6 +103,17 @@ import { AdminAddFeaturedPlan } from "@/components/admin/AdminAddFeaturedPlan";
 import { AdminSitePoliciesPanel } from "@/components/admin/AdminSitePoliciesPanel";
 import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
 import { AdminEditPlanModal } from "@/components/admin/AdminEditPlanModal";
+import { SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
+import {
+  formatPartnerTransaction,
+  sortPartnerTransactionsNewestFirst,
+  type PartnerTransactionRow,
+} from "@/lib/partnerTransactions";
+import {
+  downloadPartnerTransactionsCsv,
+  downloadPartnerTransactionsExcel,
+  downloadPartnerTransactionsPdf,
+} from "@/lib/transactionExport";
 
 type AdminTab =
   | "overview"
@@ -190,42 +202,6 @@ const splitCsv = (value: string) =>
     .split(",")
     .map((v) => v.trim())
     .filter(Boolean);
-
-const SERVICE_REGIONS = [
-  "North America", "South America", "Europe", "Asia Pacific",
-  "Middle East", "Africa", "Australia & Oceania",
-];
-
-const SERVICE_COUNTRIES = [
-  "Afghanistan", "Albania", "Algeria", "Argentina", "Armenia", "Australia", "Austria", "Azerbaijan",
-  "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia",
-  "Bosnia", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi",
-  "Cambodia", "Cameroon", "Canada", "Central African Republic", "Chad", "Chile", "China", "Colombia",
-  "Congo", "Costa Rica", "Croatia", "Cuba", "Cyprus", "Czech Republic",
-  "Denmark", "Djibouti", "Dominican Republic",
-  "Ecuador", "Egypt", "El Salvador", "Eritrea", "Estonia", "Eswatini", "Ethiopia",
-  "Fiji", "Finland", "France",
-  "Gabon", "Georgia", "Germany", "Ghana", "Greece", "Guatemala", "Guyana",
-  "Haiti", "Honduras", "Hong Kong", "Hungary",
-  "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Israel", "Italy",
-  "Jamaica", "Japan", "Jordan",
-  "Kazakhstan", "Kenya", "Korea", "Kosovo", "Kuwait", "Kyrgyzstan",
-  "Laos", "Latvia", "Lebanon", "Liberia", "Libya", "Lithuania", "Luxembourg",
-  "Madagascar", "Malawi", "Malaysia", "Maldives", "Mali", "Malta", "Mauritius",
-  "Mexico", "Moldova", "Monaco", "Mongolia", "Montenegro", "Morocco", "Mozambique", "Myanmar",
-  "Namibia", "Nepal", "Netherlands", "New Zealand", "Nicaragua", "Niger", "Nigeria", "Norway",
-  "Oman",
-  "Pakistan", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", "Portugal",
-  "Qatar",
-  "Romania", "Russia", "Rwanda",
-  "Saudi Arabia", "Senegal", "Serbia", "Sierra Leone", "Singapore", "Slovak Republic", "Slovenia",
-  "Somalia", "South Africa", "Spain", "Sri Lanka", "Sudan", "Suriname", "Sweden", "Switzerland", "Syria",
-  "Taiwan", "Tanzania", "Thailand", "Togo", "Trinidad and Tobago", "Tunisia", "Turkey", "Turkmenistan",
-  "UAE", "Uganda", "UK", "Ukraine", "United States", "Uruguay", "Uzbekistan",
-  "Venezuela", "Vietnam",
-  "Yemen",
-  "Zambia", "Zimbabwe",
-];
 
 const BSL_LEVELS = ["1", "2", "3", "4"];
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
@@ -745,10 +721,10 @@ const AVAILABLE_PLANS: Array<{
   { service: "Business Offerings / Consulting", planId: "standard_mo", label: "Standard (Monthly)", priceUsd: 200, billing: "Monthly" },
   { service: "Business Offerings / Consulting", planId: "premium_mo", label: "Premium (Monthly)", priceUsd: 400, billing: "Monthly" },
   { service: "Business Offerings / Consulting", planId: "premium_plus_mo", label: "Premium Plus (Monthly)", priceUsd: 1000, billing: "Monthly" },
-  { service: "Business Offerings / Consulting", planId: "basic_yr", label: "Basic (Annual)", priceUsd: 1080, billing: "Yearly" },
-  { service: "Business Offerings / Consulting", planId: "standard_yr", label: "Standard (Annual)", priceUsd: 2184, billing: "Yearly" },
-  { service: "Business Offerings / Consulting", planId: "premium_yr", label: "Premium (Annual)", priceUsd: 4320, billing: "Yearly" },
-  { service: "Business Offerings / Consulting", planId: "premium_plus_yr", label: "Premium Plus (Annual)", priceUsd: 10800, billing: "Yearly" },
+  { service: "Business Offerings / Consulting", planId: "basic_yr", label: "Basic (Annual)", priceUsd: 1080, billing: "Annual" },
+  { service: "Business Offerings / Consulting", planId: "standard_yr", label: "Standard (Annual)", priceUsd: 2184, billing: "Annual" },
+  { service: "Business Offerings / Consulting", planId: "premium_yr", label: "Premium (Annual)", priceUsd: 4320, billing: "Annual" },
+  { service: "Business Offerings / Consulting", planId: "premium_plus_yr", label: "Premium Plus (Annual)", priceUsd: 10800, billing: "Annual" },
   { service: "Events", planId: "basic_event", label: "Basic Event", priceUsd: 500, billing: "Monthly" },
   { service: "Events", planId: "standard_event", label: "Standard Event", priceUsd: 850, billing: "Monthly" },
   { service: "Events", planId: "premium_event", label: "Premium Event", priceUsd: 1250, billing: "Monthly" },
@@ -816,7 +792,7 @@ export default function AdminDashboard() {
   const [lastTrialEndMs, setLastTrialEndMs] = useState<number | null>(null); // for undo last extension
 
   const [selectedListing, setSelectedListing] = useState<ListingRecord | null>(null);
-  const [listingEditor, setListingEditor] = useState<Record<string, string>>({});
+  const [listingEditor, setListingEditor] = useState<Record<string, any>>({});
   const [listingEditorOpen, setListingEditorOpen] = useState(false);
 
   useEffect(() => {
@@ -1427,11 +1403,11 @@ export default function AdminDashboard() {
       status: listing.status || "Pending Review",
       active: `${listing.active ?? true}`,
       // Taxonomy
-      selectedCategoriesCsv: (listing.selectedCategories || []).join(", "),
-      selectedSubcategoriesCsv: (listing.selectedSubcategories || []).join(", "),
-      selectedSubSubcategoriesCsv: (listing.selectedSubSubcategories || []).join(", "),
-      serviceCountriesCsv: (listing.serviceCountries || []).join(", "),
-      serviceRegionsCsv: (listing.serviceRegions || []).join(", "),
+      selectedCategories: listing.selectedCategories || [],
+      selectedSubcategories: listing.selectedSubcategories || [],
+      selectedSubSubcategories: listing.selectedSubSubcategories || [],
+      serviceCountries: listing.serviceCountries || [],
+      serviceRegions: listing.serviceRegions || [],
       // Business/Consulting
       companyProfileText: listing.companyProfileText || "",
       businessAddress: listing.businessAddress || "",
@@ -1514,11 +1490,11 @@ export default function AdminDashboard() {
         status: listingEditor.status || "Pending Review",
         active: listingEditor.active === "true",
         // Taxonomy
-        selectedCategories: splitCsv(listingEditor.selectedCategoriesCsv || ""),
-        selectedSubcategories: splitCsv(listingEditor.selectedSubcategoriesCsv || ""),
-        selectedSubSubcategories: splitCsv(listingEditor.selectedSubSubcategoriesCsv || ""),
-        serviceCountries: splitCsv(listingEditor.serviceCountriesCsv || ""),
-        serviceRegions: splitCsv(listingEditor.serviceRegionsCsv || ""),
+        selectedCategories: listingEditor.selectedCategories || [],
+        selectedSubcategories: listingEditor.selectedSubcategories || [],
+        selectedSubSubcategories: listingEditor.selectedSubSubcategories || [],
+        serviceCountries: listingEditor.serviceCountries || [],
+        serviceRegions: listingEditor.serviceRegions || [],
         // Business/Consulting
         companyProfileText: (listingEditor.companyProfileText || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
         businessAddress: listingEditor.businessAddress || "",
@@ -2673,11 +2649,40 @@ export default function AdminDashboard() {
             <div className="border-b pb-2 pt-2 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Categories & Geography</h3>
             </div>
-            <Field label="Categories (comma separated)" value={listingEditor.selectedCategoriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedCategoriesCsv: v }))} />
-            <Field label="Subcategories (comma separated)" value={listingEditor.selectedSubcategoriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedSubcategoriesCsv: v }))} />
-            <Field label="Sub-subcategories (comma separated)" value={listingEditor.selectedSubSubcategoriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedSubSubcategoriesCsv: v }))} />
-            <Field label="Service Regions (comma separated)" value={listingEditor.serviceRegionsCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, serviceRegionsCsv: v }))} />
-            <Field label="Service Countries (comma separated)" value={listingEditor.serviceCountriesCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, serviceCountriesCsv: v }))} />
+            <CategoryTreeDropdown
+              selectedGroup={listingEditor.selectedGroup || "business_offerings"}
+              selectedCategories={listingEditor.selectedCategories || []}
+              selectedSubcategories={listingEditor.selectedSubcategories || []}
+              selectedSubSubcategories={listingEditor.selectedSubSubcategories || []}
+              onChange={(updates) => {
+                setListingEditor((prev) => ({
+                  ...prev,
+                  ...updates,
+                }));
+              }}
+            />
+            <MultiSelectDropdown
+              label="Service Countries"
+              items={SERVICE_COUNTRIES}
+              selected={listingEditor.serviceCountries || []}
+              onToggle={(v) => {
+                const current = listingEditor.serviceCountries || [];
+                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
+                setListingEditor((prev) => ({ ...prev, serviceCountries: updated }));
+              }}
+              placeholder="Select countries..."
+            />
+            <MultiSelectDropdown
+              label="Service Regions"
+              items={SERVICE_REGIONS}
+              selected={listingEditor.serviceRegions || []}
+              onToggle={(v) => {
+                const current = listingEditor.serviceRegions || [];
+                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
+                setListingEditor((prev) => ({ ...prev, serviceRegions: updated }));
+              }}
+              placeholder="Select regions..."
+            />
 
             {/* Section 4: Business Offering / Consulting specific */}
             <div className="border-b pb-2 pt-2 mb-2">
@@ -3165,7 +3170,7 @@ function PlansCatalogTab() {
                 <TableRow key={plan.planId || plan.id}>
                   <TableCell className="pl-6 font-medium">{plan.service}</TableCell>
                   <TableCell>{plan.label}</TableCell>
-                  <TableCell>{plan.billing}</TableCell>
+                  <TableCell>{plan.billing === "Yearly" ? "Annual" : plan.billing}</TableCell>
                   <TableCell className="font-semibold text-emerald-700">${Number(plan.priceUsd || 0).toLocaleString()}</TableCell>
                   <TableCell>{plan.maxCategories === -1 ? "Unlimited" : plan.maxCategories ?? "-"}</TableCell>
                   <TableCell>{plan.maxCountries === -1 ? "Unlimited" : plan.maxCountries ?? "-"}</TableCell>
@@ -3586,8 +3591,13 @@ function ListingsList({
                         <Clock className="w-4 h-4 mr-2 text-amber-600" /> Unapprove (pending review)
                       </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => onSetStatus(listing, "Disabled", false)}>
-                        <Ban className="w-4 h-4 mr-2 text-rose-600" /> Disable listing
+                        <Ban className="w-4 h-4 mr-2 text-rose-600" /> Deactivate listing
                       </DropdownMenuItem>
+                      {listing.status === "Disabled" || listing.active === false ? (
+                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Approved", true)}>
+                          <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Reactivate listing
+                        </DropdownMenuItem>
+                      ) : null}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
@@ -3602,73 +3612,168 @@ function ListingsList({
 }
 
 function TransactionList({ transactions }: { transactions: any[] }) {
-  if (transactions.length === 0) {
-    return (
-      <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
-        <Receipt className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
-        <h3 className="font-semibold">No transactions recorded</h3>
-        <p className="text-sm text-slate-500">Transactions appear here after checkout.</p>
-      </div>
-    );
-  }
+  const [search, setSearch] = useState("");
+
+  const rows = useMemo(
+    () =>
+      transactions
+        .map((t) => formatPartnerTransaction({ id: t.id, ...t }))
+        .sort(sortPartnerTransactionsNewestFirst),
+    [transactions],
+  );
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      const hay = [
+        r.dateDisplay,
+        r.typeLabel,
+        r.description,
+        r.group,
+        r.businessName,
+        r.customerEmail,
+        r.partnerId,
+        r.planId,
+        r.featureId,
+        r.listingId,
+        r.statusLabel,
+        r.amountDisplay,
+        r.collectionName,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }, [rows, search]);
+
+  const handleExport = (format: "csv" | "xlsx" | "pdf") => {
+    if (filtered.length === 0) return;
+    if (format === "csv") downloadPartnerTransactionsCsv(filtered);
+    else if (format === "xlsx") downloadPartnerTransactionsExcel(filtered);
+    else downloadPartnerTransactionsPdf(filtered);
+  };
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
-      <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-6">Partner</TableHead>
-              <TableHead>Business</TableHead>
-              <TableHead>Group</TableHead>
-              <TableHead>Plan ID</TableHead>
-              <TableHead>Listing ID</TableHead>
-              <TableHead>Partner ID</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead className="text-right pr-6">Date</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {transactions.map((t) => (
-              <TableRow key={t.id}>
-                <TableCell className="pl-6">
-                  <div className="space-y-0.5">
-                    <p>{t.customerEmail || "-"}</p>
-                    <p className="text-xs text-slate-500">{t.collectionName || "-"}</p>
-                  </div>
-                </TableCell>
-                <TableCell>{t.businessName || "-"}</TableCell>
-                <TableCell>{t.group?.replace(/_/g, " ") || "-"}</TableCell>
-                <TableCell className="font-mono text-xs">{t.planId || t.planName || "-"}</TableCell>
-                <TableCell className="font-mono text-xs">{t.listingId || "-"}</TableCell>
-                <TableCell className="font-mono text-xs max-w-[220px] truncate">{t.partnerId || "-"}</TableCell>
-                <TableCell>
-                  <Badge
-                    className={
-                      t.status === "succeeded"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : t.status === "pending"
-                          ? "bg-amber-50 text-amber-700 border-amber-200"
-                          : "bg-rose-50 text-rose-700 border-rose-200"
-                    }
-                  >
-                    {t.status || "-"}
-                  </Badge>
-                </TableCell>
-                <TableCell className="font-semibold text-emerald-700">
-                  {t.currency === "gbp" ? "£" : "$"}
-                  {typeof t.amount === "number" ? t.amount.toFixed(2) : "0.00"}
-                </TableCell>
-                <TableCell className="text-right pr-6 text-slate-500">
-                  {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "-"}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </CardContent>
-    </Card>
+    <div className="space-y-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm text-slate-600">
+            All partner checkout payments. Search the table, then export the filtered results.
+          </p>
+        </div>
+        <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search partner, business, plan, status…"
+              className="pl-9 h-10 w-full sm:w-72 bg-white"
+            />
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="h-10 shrink-0" disabled={filtered.length === 0}>
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem onClick={() => handleExport("csv")}>
+                <FileText className="w-4 h-4 mr-2" />
+                Download as CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("xlsx")}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" />
+                Download as Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleExport("pdf")}>
+                <FileText className="w-4 h-4 mr-2" />
+                Download as PDF
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
+          <Receipt className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+          <h3 className="font-semibold">No transactions recorded</h3>
+          <p className="text-sm text-slate-500">Transactions appear here after checkout.</p>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
+          <SearchX className="w-8 h-8 text-slate-300 mb-2 mx-auto" />
+          <p className="text-sm text-slate-600">No transactions match “{search.trim()}”.</p>
+        </div>
+      ) : (
+        <Card className="bg-white border-slate-200 shadow-sm">
+          <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table className="min-w-max">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Date</TableHead>
+                    <TableHead>Partner</TableHead>
+                    <TableHead>Business</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Group</TableHead>
+                    <TableHead>Listing ID</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right pr-6">Amount</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((t: PartnerTransactionRow) => (
+                    <TableRow key={t.id}>
+                      <TableCell className="pl-6 whitespace-nowrap text-slate-600">{t.dateDisplay}</TableCell>
+                      <TableCell>
+                        <div className="space-y-0.5 max-w-[200px]">
+                          <p className="truncate">{t.customerEmail || "—"}</p>
+                          <p className="text-xs text-slate-500 font-mono truncate" title={t.partnerId || ""}>
+                            {t.partnerId || "—"}
+                          </p>
+                        </div>
+                      </TableCell>
+                      <TableCell className="max-w-[160px] truncate">{t.businessName || "—"}</TableCell>
+                      <TableCell>{t.typeLabel}</TableCell>
+                      <TableCell className="max-w-[220px] truncate" title={t.description}>
+                        {t.description}
+                      </TableCell>
+                      <TableCell className="capitalize whitespace-nowrap">{t.group || "—"}</TableCell>
+                      <TableCell className="font-mono text-xs max-w-[120px] truncate">{t.listingId || "—"}</TableCell>
+                      <TableCell>
+                        <Badge
+                          className={
+                            t.statusRaw === "succeeded"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : t.statusRaw === "pending"
+                                ? "bg-amber-50 text-amber-700 border-amber-200"
+                                : "bg-rose-50 text-rose-700 border-rose-200"
+                          }
+                        >
+                          {t.statusLabel}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right pr-6 font-semibold text-emerald-700 tabular-nums whitespace-nowrap">
+                        {t.amountDisplay}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+            <div className="px-6 py-3 border-t border-slate-100 text-xs text-slate-500">
+              Showing {filtered.length} of {rows.length} transaction{rows.length === 1 ? "" : "s"}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
   );
 }
 
