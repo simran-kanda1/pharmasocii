@@ -475,9 +475,7 @@ export default function AllCategories() {
     );
 
     const normalizeToken = (value: any) => (typeof value === "string" ? value.trim().toLowerCase() : "");
-    const selectedCategoryTokens = selectedCategories.map(normalizeToken).filter(Boolean);
-    const selectedSubcategoryTokens = selectedSubcategories.map(normalizeToken).filter(Boolean);
-    const selectedSubSubcategoryTokens = selectedSubSubcategories.map(normalizeToken).filter(Boolean);
+
     const subToCategoryTokens = new Map<string, Set<string>>();
     const subSubToCategoryTokens = new Map<string, Set<string>>();
     Object.entries(currentCategoriesDict as CategoriesDict).forEach(([cat, entries]) => {
@@ -513,8 +511,6 @@ export default function AllCategories() {
             : Array.isArray(item.subSubcategories)
                 ? item.subSubcategories
                 : [];
-        const itemSubTokens = itemSubs.map(normalizeToken).filter(Boolean);
-        const itemSubSubTokens = itemSubSubs.map(normalizeToken).filter(Boolean);
         const itemCategories: string[] = Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
             ? item.selectedCategoriesDisplay
             : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
@@ -530,7 +526,6 @@ export default function AllCategories() {
                             : item.jobCategory
                                 ? [item.jobCategory]
                                 : [];
-        const itemCategoryTokens = itemCategories.map(normalizeToken).filter(Boolean);
 
         if (searchQuery.trim()) {
             const searchTerms = searchQuery.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -564,8 +559,8 @@ export default function AllCategories() {
                     item.certifications.some((c: string) => c.toLowerCase().includes(q)) : 
                     (item.certifications || "").toLowerCase().includes(q)) ||
                 item.selectedGroup?.toLowerCase().includes(q) ||
-                itemSubTokens.some((s: string) => s.includes(q)) ||
-                itemSubSubTokens.some((s: string) => s.includes(q))
+                itemSubs.some((s: string) => s.toLowerCase().includes(q)) ||
+                itemSubSubs.some((s: string) => s.toLowerCase().includes(q))
             );
 
             if (!matches) return false;
