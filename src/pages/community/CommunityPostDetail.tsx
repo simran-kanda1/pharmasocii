@@ -788,7 +788,9 @@ export default function CommunityPostDetail() {
                           <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                             <span className="inline-block w-3 h-px align-middle bg-foreground/25 mr-1.5" aria-hidden />
                             Replies to{" "}
-                            <span className="font-semibold normal-case text-foreground/80">Anonymous</span>
+                            <span className="font-semibold normal-case text-foreground/80">
+                              {publicCommunityAuthorLabel({ authorUserName: c.userName }).primary}
+                            </span>
                           </p>
                           <Button
                             type="button"
@@ -913,7 +915,9 @@ function CommentComposer({
       <div className="flex justify-between items-center mb-1">
         {isReply && replyToName ? (
           <p className="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
-            Replying to <span className="font-medium text-foreground">Anonymous</span>
+            Replying to <span className="font-medium text-foreground">
+              {publicCommunityAuthorLabel({ authorUserName: replyToName }).primary}
+            </span>
             {onCancel && (
               <Button type="button" variant="link" className="text-xs h-auto p-0" disabled={!canEngage} onClick={onCancel}>
                 Cancel
@@ -1123,11 +1127,15 @@ function CommentItem({
             <p className="text-[10px] text-muted-foreground mb-1.5 flex items-center gap-1.5">
               <span className="shrink-0 w-5 h-px bg-gradient-to-r from-primary/40 to-foreground/15" aria-hidden />
               <span>
-                Reply to <span className="font-medium text-foreground/75">Anonymous</span>
+                Reply to <span className="font-medium text-foreground/75">
+                  {publicCommunityAuthorLabel({ authorUserName: parentUserName }).primary}
+                </span>
               </span>
             </p>
           )}
-          <p className="text-sm font-semibold">Anonymous</p>
+          <p className="text-sm font-semibold">
+            {publicCommunityAuthorLabel({ authorUserName: comment.userName }).primary}
+          </p>
           <p className="text-xs text-muted-foreground">
             {comment.createdAt?.toDate ? formatRelativeTime(comment.createdAt.toDate()) : ""}
           </p>

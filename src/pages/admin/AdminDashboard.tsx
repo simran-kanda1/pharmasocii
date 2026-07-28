@@ -401,16 +401,20 @@ function CategoryTreeDropdown({
     }
   };
 
-  const toggleSubcategorySelection = (sub: string, hasSubSubs: boolean) => {
+  const toggleSubcategorySelection = (cat: string, sub: string, hasSubSubs: boolean) => {
+    const compositeKey = `${cat} > ${sub}`;
     if (hasSubSubs) {
       setExpandedSubs((prev) =>
-        prev.includes(sub) ? prev.filter((s) => s !== sub) : [...prev, sub]
+        prev.includes(compositeKey) || prev.includes(sub)
+          ? prev.filter((s) => s !== compositeKey && s !== sub)
+          : [...prev, compositeKey]
       );
     } else {
       const current = [...selectedSubcategories];
-      const updated = current.includes(sub)
-        ? current.filter((s) => s !== sub)
-        : [...current, sub];
+      const isChecked = current.includes(compositeKey) || current.includes(sub);
+      const updated = isChecked
+        ? current.filter((s) => s !== compositeKey && s !== sub)
+        : [...current, compositeKey];
       onChange({
         selectedCategories,
         selectedSubcategories: updated,
@@ -419,11 +423,13 @@ function CategoryTreeDropdown({
     }
   };
 
-  const toggleSubSubcategorySelection = (subSub: string) => {
+  const toggleSubSubcategorySelection = (cat: string, sub: string, subSub: string) => {
+    const compositeKey = `${cat} > ${sub} > ${subSub}`;
     const current = [...selectedSubSubcategories];
-    const updated = current.includes(subSub)
-      ? current.filter((ss) => ss !== subSub)
-      : [...current, subSub];
+    const isChecked = current.includes(compositeKey) || current.includes(subSub);
+    const updated = isChecked
+      ? current.filter((ss) => ss !== compositeKey && ss !== subSub)
+      : [...current, compositeKey];
     onChange({
       selectedCategories,
       selectedSubcategories,
@@ -468,42 +474,52 @@ function CategoryTreeDropdown({
                   </button>
                 </span>
               ))}
-              {selectedSubcategories.map((s) => (
-                <span
-                  key={s}
-                  className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-green-50 text-green-700 text-xs font-semibold rounded border border-green-100 animate-fadeIn"
-                >
-                  {s}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSubcategorySelection(s, false);
-                    }}
-                    className="hover:bg-green-100 rounded-full p-0.5 transition-colors"
+              {selectedSubcategories.map((s) => {
+                const parts = s.split(" > ");
+                const leaf = parts[parts.length - 1];
+                return (
+                  <span
+                    key={s}
+                    className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-green-50 text-green-700 text-xs font-semibold rounded border border-green-100 animate-fadeIn"
                   >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-              {selectedSubSubcategories.map((ss) => (
-                <span
-                  key={ss}
-                  className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-purple-50 text-purple-700 text-xs font-semibold rounded border border-purple-100 animate-fadeIn"
-                >
-                  {ss}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSubSubcategorySelection(ss);
-                    }}
-                    className="hover:bg-purple-100 rounded-full p-0.5 transition-colors"
+                    {leaf}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (parts.length >= 2) toggleSubcategorySelection(parts[0], parts[1], false);
+                        else toggleSubcategorySelection("", s, false);
+                      }}
+                      className="hover:bg-green-100 rounded-full p-0.5 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
+              {selectedSubSubcategories.map((ss) => {
+                const parts = ss.split(" > ");
+                const leaf = parts[parts.length - 1];
+                return (
+                  <span
+                    key={ss}
+                    className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-purple-50 text-purple-700 text-xs font-semibold rounded border border-purple-100 animate-fadeIn"
                   >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
+                    {leaf}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (parts.length >= 3) toggleSubSubcategorySelection(parts[0], parts[1], parts[2]);
+                        else toggleSubSubcategorySelection("", "", ss);
+                      }}
+                      className="hover:bg-purple-100 rounded-full p-0.5 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                );
+              })}
             </>
           )}
         </div>
@@ -560,14 +576,14 @@ function CategoryTreeDropdown({
                     </div>
                   </div>
 
-                  {/* Subcategories (Indented) */}
                   {hasSubs && isExpanded && (
                     <div className="ml-8 pl-3 border-l-2 border-green-500/30 space-y-1 mb-2">
                       {subs.map((entry: SubcategoryEntry) => {
                         const subLabel = getSubLabel(entry);
                         const isNested = isBusinessGroup && hasSubSub(entry);
-                        const isSubChecked = selectedSubcategories.includes(subLabel);
-                        const isSubExpanded = expandedSubs.includes(subLabel);
+                        const compositeSubKey = `${cat} > ${subLabel}`;
+                        const isSubChecked = selectedSubcategories.includes(compositeSubKey) || selectedSubcategories.includes(subLabel);
+                        const isSubExpanded = expandedSubs.includes(compositeSubKey) || expandedSubs.includes(subLabel);
 
                         return (
                           <div key={subLabel} className="flex flex-col">
@@ -578,7 +594,7 @@ function CategoryTreeDropdown({
                                   type="button"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    toggleSubcategorySelection(subLabel, true);
+                                    toggleSubcategorySelection(cat, subLabel, true);
                                   }}
                                   className="flex-shrink-0 text-slate-500 hover:text-slate-900"
                                 >
@@ -591,7 +607,7 @@ function CategoryTreeDropdown({
                               <Checkbox
                                 id={`admin-sub-${cat}-${subLabel}`}
                                 checked={isNested ? isSubExpanded : isSubChecked}
-                                onCheckedChange={() => toggleSubcategorySelection(subLabel, isNested)}
+                                onCheckedChange={() => toggleSubcategorySelection(cat, subLabel, isNested)}
                                 className={`${isSubChecked ? "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}`}
                               />
                               <label
@@ -606,13 +622,14 @@ function CategoryTreeDropdown({
                             {isNested && isSubExpanded && hasSubSub(entry) && (
                               <div className="ml-6 pl-3 border-l border-blue-500/20 space-y-0.5 mb-1">
                                 {entry.subSubcategories.map((ssLabel: string) => {
-                                  const isSsChecked = selectedSubSubcategories.includes(ssLabel);
+                                  const compositeSsKey = `${cat} > ${subLabel} > ${ssLabel}`;
+                                  const isSsChecked = selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ssLabel);
                                   return (
                                     <div key={ssLabel} className="flex items-center gap-2 py-0.5">
                                       <Checkbox
                                         id={`admin-ssub-${cat}-${subLabel}-${ssLabel}`}
                                         checked={isSsChecked}
-                                        onCheckedChange={() => toggleSubSubcategorySelection(ssLabel)}
+                                        onCheckedChange={() => toggleSubSubcategorySelection(cat, subLabel, ssLabel)}
                                         className={`${isSsChecked ? "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}`}
                                       />
                                       <label

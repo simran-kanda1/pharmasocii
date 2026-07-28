@@ -12,6 +12,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES } from "./AllCategories";
 import { REGION_COUNTRY_MAP } from "@/constants/regions";
+import { matchCategoryOrSub } from "@/lib/categorySelection";
 
 
 // Simple skeleton placeholder
@@ -247,19 +248,24 @@ export default function ListingDetail() {
                 const subLabel = typeof entry === "string" ? entry : entry.label;
 
                 // Flexible matching
-                const isSubSelected = allSelectedSubs.some((s: string) => normalize(s) === normalize(subLabel));
-                if (isSubSelected) claimedSubs.add(normalize(subLabel));
+                const matchedSub = allSelectedSubs.find((s: string) => matchCategoryOrSub(s, subLabel));
+                const isSubSelected = matchedSub !== undefined;
+                if (isSubSelected) claimedSubs.add(normalize(matchedSub));
 
                 let subSubItems: string[] = [];
                 if (typeof entry !== "string" && entry.subSubcategories) {
-                    subSubItems = (entry.subSubcategories as string[]).filter((ss: string) =>
-                        allSelectedSubSubs.some((selectedSS: string) => normalize(selectedSS) === normalize(ss))
-                    );
-                    subSubItems.forEach((ss: string) => claimedSubSubs.add(normalize(ss)));
+                    subSubItems = (entry.subSubcategories as string[]).filter((ss: string) => {
+                        const matchedSS = allSelectedSubSubs.find((selectedSS: string) => matchCategoryOrSub(selectedSS, ss));
+                        if (matchedSS) {
+                            claimedSubSubs.add(normalize(matchedSS));
+                            return true;
+                        }
+                        return false;
+                    });
                 }
 
                 if (isSubSelected || subSubItems.length > 0) {
-                    const originalSubLabel = allSelectedSubs.find((s: string) => normalize(s) === normalize(subLabel)) || subLabel;
+                    const originalSubLabel = matchedSub || subLabel;
                     return { label: originalSubLabel, subSubs: subSubItems };
                 }
                 return null;
@@ -798,12 +804,12 @@ export default function ListingDetail() {
                             <div className="p-8 flex flex-wrap gap-2">
                                 {item.selectedSubcategories.map((sub: string, idx: number) => (
                                     <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-primary/5 text-primary border-primary/10 font-medium">
-                                        {sub}
+                                        {sub.split(" > ").pop()}
                                     </Badge>
                                 ))}
                                 {Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.map((ss: string, idx: number) => (
                                     <Badge key={`ss-${idx}`} variant="outline" className="text-sm py-1.5 px-4 rounded-xl font-medium">
-                                        {ss}
+                                        {ss.split(" > ").pop()}
                                     </Badge>
                                 ))}
                             </div>
@@ -846,13 +852,13 @@ export default function ListingDetail() {
                                                         <div key={sIdx} className="space-y-1.5">
                                                             <p className="font-semibold text-foreground flex items-center gap-2">
                                                                 <span className="w-2 h-2 rounded-full bg-primary/40 shrink-0" />
-                                                                {sub.label}
+                                                                {sub.label.split(" > ").pop()}
                                                             </p>
                                                             {sub.subSubs && sub.subSubs.length > 0 && (
                                                                 <div className="flex flex-wrap gap-1.5 pl-4 pt-0.5">
                                                                     {sub.subSubs.map((ss: string, ssIdx: number) => (
                                                                         <Badge key={ssIdx} variant="secondary" className="text-[10px] py-0 px-2 rounded-md bg-primary/5 text-primary border-primary/10 font-medium uppercase tracking-tight">
-                                                                            {ss}
+                                                                            {ss.split(" > ").pop()}
                                                                         </Badge>
                                                                     ))}
                                                                 </div>

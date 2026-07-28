@@ -21,46 +21,91 @@ export function buildDisplayCategoryFields(
     selectedSubcategories: string[],
     selectedSubSubcategories: string[]
 ) {
-    if (!categoryDict) {
-        return {
-            selectedCategoriesDisplay: uniqueByNormalized(selectedCategories),
-            selectedSubcategoriesDisplay: uniqueByNormalized(selectedSubcategories),
-        };
-    }
+    const categoriesDisplay: string[] = [];
+    const subcategoriesDisplay: string[] = [];
 
-    const subToCategory = new Map<string, string>();
-    const subSubToSubAndCategory = new Map<string, { subcategory: string; category: string }>();
+    const unprocessedCategories: string[] = [];
+    const unprocessedSubcategories: string[] = [];
+    const unprocessedSubSubcategories: string[] = [];
 
-    Object.entries(categoryDict).forEach(([categoryLabel, entries]) => {
-        (entries || []).forEach((entry) => {
-            const subcategoryLabel = typeof entry === "string" ? entry : entry.label;
-            subToCategory.set(normalize(subcategoryLabel), categoryLabel);
+    selectedCategories.forEach(cat => {
+        if (cat.includes(" > ")) {
+            const parts = cat.split(" > ");
+            categoriesDisplay.push(parts[parts.length - 1]);
+        } else {
+            unprocessedCategories.push(cat);
+        }
+    });
 
-            if (typeof entry !== "string" && Array.isArray(entry.subSubcategories)) {
-                entry.subSubcategories.forEach((subSubLabel) => {
-                    subSubToSubAndCategory.set(normalize(subSubLabel), {
-                        subcategory: subcategoryLabel,
-                        category: categoryLabel,
+    selectedSubcategories.forEach(sub => {
+        if (sub.includes(" > ")) {
+            const parts = sub.split(" > ");
+            if (parts.length >= 2) {
+                categoriesDisplay.push(parts[0]);
+                subcategoriesDisplay.push(parts[1]);
+            } else {
+                subcategoriesDisplay.push(parts[0]);
+            }
+        } else {
+            unprocessedSubcategories.push(sub);
+        }
+    });
+
+    selectedSubSubcategories.forEach(subSub => {
+        if (subSub.includes(" > ")) {
+            const parts = subSub.split(" > ");
+            if (parts.length >= 3) {
+                categoriesDisplay.push(parts[0]);
+                subcategoriesDisplay.push(parts[1]);
+            } else if (parts.length === 2) {
+                subcategoriesDisplay.push(parts[0]);
+            }
+        } else {
+            unprocessedSubSubcategories.push(subSub);
+        }
+    });
+
+    if (categoryDict) {
+        const subToCategory = new Map<string, string>();
+        const subSubToSubAndCategory = new Map<string, { subcategory: string; category: string }>();
+
+        Object.entries(categoryDict).forEach(([categoryLabel, entries]) => {
+            (entries || []).forEach((entry) => {
+                const subcategoryLabel = typeof entry === "string" ? entry : entry.label;
+                subToCategory.set(normalize(subcategoryLabel), categoryLabel);
+
+                if (typeof entry !== "string" && Array.isArray(entry.subSubcategories)) {
+                    entry.subSubcategories.forEach((subSubLabel) => {
+                        subSubToSubAndCategory.set(normalize(subSubLabel), {
+                            subcategory: subcategoryLabel,
+                            category: categoryLabel,
+                        });
                     });
-                });
+                }
+            });
+        });
+
+        unprocessedCategories.forEach(cat => {
+            categoriesDisplay.push(cat);
+        });
+
+        unprocessedSubcategories.forEach((subcategory) => {
+            subcategoriesDisplay.push(subcategory);
+            const parentCategory = subToCategory.get(normalize(subcategory));
+            if (parentCategory) categoriesDisplay.push(parentCategory);
+        });
+
+        unprocessedSubSubcategories.forEach((subSubcategory) => {
+            const relation = subSubToSubAndCategory.get(normalize(subSubcategory));
+            if (relation) {
+                subcategoriesDisplay.push(relation.subcategory);
+                categoriesDisplay.push(relation.category);
             }
         });
-    });
-
-    const categoriesDisplay = [...selectedCategories];
-    const subcategoriesDisplay = [...selectedSubcategories];
-
-    selectedSubcategories.forEach((subcategory) => {
-        const parentCategory = subToCategory.get(normalize(subcategory));
-        if (parentCategory) categoriesDisplay.push(parentCategory);
-    });
-
-    selectedSubSubcategories.forEach((subSubcategory) => {
-        const relation = subSubToSubAndCategory.get(normalize(subSubcategory));
-        if (!relation) return;
-        subcategoriesDisplay.push(relation.subcategory);
-        categoriesDisplay.push(relation.category);
-    });
+    } else {
+        unprocessedCategories.forEach(cat => categoriesDisplay.push(cat));
+        unprocessedSubcategories.forEach(sub => subcategoriesDisplay.push(sub));
+    }
 
     return {
         selectedCategoriesDisplay: uniqueByNormalized(categoriesDisplay),
@@ -96,13 +141,112 @@ export function sanitizeLowestLevelSelections(
         });
     });
 
+    const getLeafName = (key: string) => key.split(" > ").pop()?.trim() || "";
+
+    const finalCategories = selectedCategories.filter((cat) => {
+        const catLeaf = getLeafName(cat);
+        const normCatLeaf = normalize(catLeaf);
+
+        if (!nonLeafCategoryTokens.has(normCatLeaf)) {
+            return true;
+        }
+
+        const hasSelectedChildren = 
+            selectedSubcategories.some(sub => {
+                if (sub.includes(" > ")) {
+                    const parts = sub.split(" > ");
+                    return normalize(parts[0]) === normCatLeaf;
+                }
+                return false;
+            }) ||
+            selectedSubSubcategories.some(ss => {
+                if (ss.includes(" > ")) {
+                    const parts = ss.split(" > ");
+                    return normalize(parts[0]) === normCatLeaf;
+                }
+                return false;
+            });
+
+        if (hasSelectedChildren) return false;
+
+        return !selectedSubcategories.some(sub => {
+            if (!sub.includes(" > ")) {
+                const entries = categoryDict[catLeaf] || [];
+                return entries.some(entry => normalize(getSubLabel(entry)) === normalize(sub));
+            }
+            return false;
+        });
+    });
+
+    const finalSubcategories = selectedSubcategories.filter((sub) => {
+        const subParts = sub.includes(" > ") ? sub.split(" > ") : [sub];
+        const subLeaf = subParts[subParts.length - 1];
+        const normSubLeaf = normalize(subLeaf);
+
+        if (!nonLeafSubcategoryTokens.has(normSubLeaf)) {
+            return true;
+        }
+
+        const hasSelectedSubSub = selectedSubSubcategories.some(ss => {
+            if (ss.includes(" > ")) {
+                const ssParts = ss.split(" > ");
+                if (sub.includes(" > ")) {
+                    return normalize(ssParts[0]) === normalize(subParts[0]) && normalize(ssParts[1]) === normSubLeaf;
+                }
+                return normalize(ssParts[1]) === normSubLeaf;
+            }
+            return false;
+        });
+
+        if (hasSelectedSubSub) return false;
+
+        return !selectedSubSubcategories.some(ss => {
+            if (!ss.includes(" > ")) {
+                let foundRelation = false;
+                Object.values(categoryDict).forEach(entries => {
+                    entries.forEach(entry => {
+                        if (typeof entry !== "string" && normalize(entry.label) === normSubLeaf) {
+                            if (entry.subSubcategories.some(item => normalize(item) === normalize(ss))) {
+                                foundRelation = true;
+                            }
+                        }
+                    });
+                });
+                return foundRelation;
+            }
+            return false;
+        });
+    });
+
     return {
-        selectedCategories: uniqueByNormalized(
-            selectedCategories.filter((category) => !nonLeafCategoryTokens.has(normalize(category)))
-        ),
-        selectedSubcategories: uniqueByNormalized(
-            selectedSubcategories.filter((subcategory) => !nonLeafSubcategoryTokens.has(normalize(subcategory)))
-        ),
+        selectedCategories: uniqueByNormalized(finalCategories),
+        selectedSubcategories: uniqueByNormalized(finalSubcategories),
         selectedSubSubcategories: uniqueByNormalized(selectedSubSubcategories),
     };
 }
+
+const getSubLabel = (entry: CategoryEntry): string =>
+    typeof entry === "string" ? entry : entry.label;
+
+export function matchCategoryOrSub(itemKey: string, filterKey: string): boolean {
+    const normItem = itemKey.trim().toLowerCase();
+    const normFilter = filterKey.trim().toLowerCase();
+    if (normItem === normFilter) return true;
+    
+    const itemIsComposite = normItem.includes(">");
+    const filterIsComposite = normFilter.includes(">");
+    
+    if (itemIsComposite && filterIsComposite) {
+        return normItem === normFilter;
+    }
+    if (itemIsComposite && !filterIsComposite) {
+        const itemLeaf = normItem.split(">").pop()?.trim() || "";
+        return itemLeaf === normFilter;
+    }
+    if (!itemIsComposite && filterIsComposite) {
+        const filterLeaf = normFilter.split(">").pop()?.trim() || "";
+        return normItem === filterLeaf;
+    }
+    return normItem === normFilter;
+}
+

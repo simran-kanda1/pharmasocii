@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Mail, Lock, ArrowRight, Activity, Eye, EyeOff } from "lucide-react";
+import { Activity, ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
@@ -53,98 +52,80 @@ export default function Login() {
     };
 
     return (
-        <div className="flex-1 flex flex-col md:flex-row w-full bg-background text-foreground">
-            {/* Left side banner */}
-            <div className="hidden md:flex flex-1 relative bg-muted/40 overflow-hidden items-center justify-center p-12">
-                <div className="absolute inset-0 bg-primary/20 mix-blend-overlay z-10" />
-                <div className="absolute inset-0 z-0">
-                    <img src="https://images.unsplash.com/photo-1579165466741-7f35e4755660?auto=format&fit=crop&q=80" className="w-full h-full object-cover opacity-30" alt="Microscope" />
+        <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground relative overflow-hidden min-h-[80vh] px-4">
+            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[128px] pointer-events-none" />
+            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-[128px] pointer-events-none" />
+
+            <div className="relative z-10 w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
+                <div className="inline-flex py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
+                    <Activity className="w-4 h-4 mr-2 text-secondary" /> Partner login
                 </div>
-                <div className="relative z-20 max-w-lg text-left">
-                    <div className="inline-flex py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 backdrop-blur-sm text-sm font-medium">
-                        <Activity className="w-4 h-4 mr-2 text-secondary" /> Partner login
+                <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
+                <p className="text-muted-foreground text-sm mb-6">
+                    Enter your credentials to access your partner account.
+                </p>
+
+                <form onSubmit={handleLogin} className="space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                            id="email"
+                            type="email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            required
+                            autoComplete="email"
+                            placeholder="researcher@biotech.com"
+                            className="bg-foreground/5 border-foreground/10"
+                        />
                     </div>
-                    <h2 className="text-4xl md:text-5xl font-bold mb-6 leading-tight">
-                        Discover. Connect. <span className="text-primary">Contribute.</span>
-                    </h2>
-                    <p className="text-lg text-muted-foreground">
-                        One community - A world of expertise.
-                    </p>
-                </div>
-            </div>
-
-            {/* Right side login form */}
-            <div className="flex-1 flex items-center justify-center p-8 bg-background relative overflow-hidden">
-
-                <Card className="w-full max-w-md bg-foreground/5 border-foreground/10 backdrop-blur-xl relative z-10 shadow-2xl">
-                    <CardHeader className="space-y-2 pb-8">
-                        <CardTitle className="text-3xl font-bold text-center tracking-tight">Welcome back</CardTitle>
-                        <CardDescription className="text-center text-base">Enter your credentials to access your account</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                        <form onSubmit={handleLogin} className="space-y-6">
-                            {error && (
-                                <div className="p-3 bg-destructive/20 border border-destructive/50 rounded-md text-destructive-foreground text-sm">
-                                    {error}
-                                </div>
-                            )}
-                            <div className="space-y-2">
-                                <Label htmlFor="email">Email format</Label>
-                                <div className="relative">
-                                    <Mail className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                    <Input
-                                        id="email"
-                                        type="email"
-                                        required
-                                        className="pl-10 h-10 border-foreground/10 bg-muted/40 focus:bg-foreground/5 transition-colors"
-                                        placeholder="researcher@biotech.com"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <Label htmlFor="password">Password</Label>
-                                    <Link to="/forgot-password" className="text-xs font-semibold text-primary hover:underline transition-all">Forgot password?</Link>
-                                </div>
-                                <div className="relative">
-                                    <Lock className="absolute left-3 top-2.5 h-5 w-5 text-muted-foreground" />
-                                    <Input
-                                        id="password"
-                                        type={showPassword ? "text" : "password"}
-                                        required
-                                        className="pl-10 pr-10 h-10 border-foreground/10 bg-muted/40 focus:bg-foreground/5 transition-colors"
-                                        placeholder="••••••••"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowPassword((prev) => !prev)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                                        aria-label={showPassword ? "Hide password" : "Show password"}
-                                    >
-                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                                    </button>
-                                </div>
-                            </div>
-
-                            <Button type="submit" className="w-full h-11 text-base font-semibold shadow-xl shadow-primary/20" disabled={isLoading}>
-                                {isLoading ? "Authenticating..." : (
-                                    <>Sign In <ArrowRight className="ml-2 h-4 w-4" /></>
-                                )}
-                            </Button>
-                        </form>
-
-                        <div className="mt-8 text-center text-sm text-muted-foreground">
-                            Don't have an account?{" "}
-                            <Link to="/signup" className="text-primary font-semibold hover:underline">
-                                Register now
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                            <Label htmlFor="password">Password</Label>
+                            <Link to="/forgot-password" className="text-xs font-semibold text-primary hover:underline">
+                                Forgot password?
                             </Link>
                         </div>
-                    </CardContent>
-                </Card>
+                        <div className="relative">
+                            <Input
+                                id="password"
+                                type={showPassword ? "text" : "password"}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required
+                                autoComplete="current-password"
+                                placeholder="••••••••"
+                                className="bg-foreground/5 border-foreground/10 pr-10"
+                            />
+                            <button
+                                type="button"
+                                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+                                onClick={() => setShowPassword(!showPassword)}
+                            >
+                                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                            </button>
+                        </div>
+                    </div>
+
+                    {error && <p className="text-sm text-destructive">{error}</p>}
+
+                    <Button type="submit" className="w-full" disabled={isLoading}>
+                        {isLoading ? "Signing in…" : <> Sign In <ArrowRight className="ml-2 h-4 w-4" /> </>}
+                    </Button>
+                </form>
+
+                <p className="text-sm text-muted-foreground mt-6 text-center">
+                    Don't have an account?{" "}
+                    <Link to="/signup" className="text-primary font-medium hover:underline">
+                        Register now
+                    </Link>
+                </p>
+
+                <Button variant="ghost" asChild className="w-full mt-4">
+                    <Link to="/" className="flex items-center justify-center gap-2">
+                        <ArrowLeft className="w-4 h-4" /> Back to Home
+                    </Link>
+                </Button>
             </div>
         </div>
     );

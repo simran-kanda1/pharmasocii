@@ -301,26 +301,30 @@ export default function CompleteProfile() {
         }
     };
 
-    const toggleSubcategorySelection = (sub: string, hasSubSubs: boolean) => {
+    const toggleSubcategorySelection = (cat: string, sub: string, hasSubSubs: boolean) => {
+        const compositeKey = `${cat} > ${sub}`;
         if (hasSubSubs) {
-            setSelectedSubcategories(prev => prev.filter(s => s !== sub));
-            toggleExpandSubcategory(sub);
+            setSelectedSubcategories(prev => prev.filter(s => s !== compositeKey && s !== sub));
+            toggleExpandSubcategory(compositeKey);
             return;
         }
-        if (selectedSubcategories.includes(sub)) {
-            setSelectedSubcategories(prev => prev.filter(s => s !== sub));
+        const isChecked = selectedSubcategories.includes(compositeKey) || selectedSubcategories.includes(sub);
+        if (isChecked) {
+            setSelectedSubcategories(prev => prev.filter(s => s !== compositeKey && s !== sub));
         } else {
             if (isCategoryLimitReached) return;
-            setSelectedSubcategories(prev => [...prev, sub]);
+            setSelectedSubcategories(prev => [...prev, compositeKey]);
         }
     };
 
-    const toggleSubSubcategorySelection = (subSub: string) => {
-        if (selectedSubSubcategories.includes(subSub)) {
-            setSelectedSubSubcategories(prev => prev.filter(s => s !== subSub));
+    const toggleSubSubcategorySelection = (cat: string, sub: string, subSub: string) => {
+        const compositeKey = `${cat} > ${sub} > ${subSub}`;
+        const isChecked = selectedSubSubcategories.includes(compositeKey) || selectedSubSubcategories.includes(subSub);
+        if (isChecked) {
+            setSelectedSubSubcategories(prev => prev.filter(s => s !== compositeKey && s !== subSub));
         } else {
             if (isCategoryLimitReached) return;
-            setSelectedSubSubcategories(prev => [...prev, subSub]);
+            setSelectedSubSubcategories(prev => [...prev, compositeKey]);
         }
     };
 
@@ -834,14 +838,15 @@ export default function CompleteProfile() {
                             {subs.map((entry: SubcategoryEntry) => {
                                 const subLabel = getSubLabel(entry);
                                 const isNested = isBusinessGroup && hasSubSub(entry);
-                                const isSubChecked = selectedSubcategories.includes(subLabel);
-                                const isSubExpanded = expandedSubcategories.includes(subLabel);
+                                const compositeSubKey = `${cat} > ${subLabel}`;
+                                const isSubChecked = selectedSubcategories.includes(compositeSubKey) || selectedSubcategories.includes(subLabel);
+                                const isSubExpanded = expandedSubcategories.includes(compositeSubKey) || expandedSubcategories.includes(subLabel);
 
                                 return (
                                     <div key={subLabel} className="flex flex-col">
                                         <div className="flex items-center gap-1.5 py-0.5">
                                             {isNested ? (
-                                                <button type="button" onClick={() => toggleExpandSubcategory(subLabel)} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                                                <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
                                                     {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                                                 </button>
                                             ) : <span className="w-3.5 h-3.5 flex-shrink-0" />}
@@ -849,7 +854,7 @@ export default function CompleteProfile() {
                                             <Checkbox
                                                 id={`sub-${cat}-${subLabel}`}
                                                 checked={isNested ? isSubExpanded : isSubChecked}
-                                                onCheckedChange={() => toggleSubcategorySelection(subLabel, isNested || false)}
+                                                onCheckedChange={() => toggleSubcategorySelection(cat, subLabel, isNested || false)}
                                                 disabled={!isNested && !isSubChecked && isCategoryLimitReached}
                                                 className={`${isSubChecked ? "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}`}
                                             />
@@ -861,18 +866,19 @@ export default function CompleteProfile() {
                                         {isNested && isSubExpanded && hasSubSub(entry) && (
                                             <div className="ml-6 pl-3 border-l border-primary/20 space-y-0.5 mb-1">
                                                 {entry.subSubcategories.map(ssLabel => {
-                                                    const isSsChecked = selectedSubSubcategories.includes(ssLabel);
+                                                    const compositeSsKey = `${cat} > ${subLabel} > ${ssLabel}`;
+                                                    const isSsChecked = selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ssLabel);
                                                     return (
                                                         <div key={ssLabel} className="flex items-center gap-2 py-0.5">
                                                             <Checkbox
                                                                 id={`ssub-${cat}-${subLabel}-${ssLabel}`}
                                                                 checked={isSsChecked}
-                                                                onCheckedChange={() => toggleSubSubcategorySelection(ssLabel)}
+                                                                onCheckedChange={() => toggleSubSubcategorySelection(cat, subLabel, ssLabel)}
                                                                 disabled={!isSsChecked && isCategoryLimitReached}
                                                                 className={`${isSsChecked ? "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}`}
                                                             />
                                                             <label htmlFor={`ssub-${cat}-${subLabel}-${ssLabel}`} className="text-xs text-muted-foreground cursor-pointer">
-                                                                {ssLabel}
+                                                                 {ssLabel}
                                                             </label>
                                                         </div>
                                                     );
@@ -909,10 +915,10 @@ export default function CompleteProfile() {
             subs.forEach((entry: SubcategoryEntry) => {
                 const subLabel = getSubLabel(entry);
                 if (isBusinessGroup && hasSubSub(entry)) {
-                    allNestedSubcategoryLabels.push(subLabel);
-                    entry.subSubcategories.forEach((ss) => allSubSubcategories.push(ss));
+                    allNestedSubcategoryLabels.push(`${cat} > ${subLabel}`);
+                    entry.subSubcategories.forEach((ss) => allSubSubcategories.push(`${cat} > ${subLabel} > ${ss}`));
                 } else {
-                    allLeafSubcategories.push(subLabel);
+                    allLeafSubcategories.push(`${cat} > ${subLabel}`);
                 }
             });
         });
@@ -1614,16 +1620,30 @@ export default function CompleteProfile() {
                                                         {c} <X className="w-3 h-3" />
                                                     </span>
                                                 ))}
-                                                {selectedSubcategories.map(s => (
-                                                    <span key={s} onClick={() => toggleSubcategorySelection(s, false)} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/10 text-green-600 dark:text-green-400 text-xs rounded-full border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors">
-                                                        {s} <X className="w-3 h-3" />
-                                                    </span>
-                                                ))}
-                                                {selectedSubSubcategories.map(ss => (
-                                                    <span key={ss} onClick={() => toggleSubSubcategorySelection(ss)} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 text-primary text-xs rounded-full border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors">
-                                                        {ss} <X className="w-3 h-3" />
-                                                    </span>
-                                                ))}
+                                                {selectedSubcategories.map(s => {
+                                                    const parts = s.split(" > ");
+                                                    const leaf = parts[parts.length - 1];
+                                                    return (
+                                                        <span key={s} onClick={() => {
+                                                            if (parts.length >= 2) toggleSubcategorySelection(parts[0], parts[1], false);
+                                                            else toggleSubcategorySelection("", s, false);
+                                                        }} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/10 text-green-600 dark:text-green-400 text-xs rounded-full border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors">
+                                                            {leaf} <X className="w-3 h-3" />
+                                                        </span>
+                                                    );
+                                                })}
+                                                {selectedSubSubcategories.map(ss => {
+                                                    const parts = ss.split(" > ");
+                                                    const leaf = parts[parts.length - 1];
+                                                    return (
+                                                        <span key={ss} onClick={() => {
+                                                            if (parts.length >= 3) toggleSubSubcategorySelection(parts[0], parts[1], parts[2]);
+                                                            else toggleSubSubcategorySelection("", "", ss);
+                                                        }} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 text-primary text-xs rounded-full border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors">
+                                                            {leaf} <X className="w-3 h-3" />
+                                                        </span>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>

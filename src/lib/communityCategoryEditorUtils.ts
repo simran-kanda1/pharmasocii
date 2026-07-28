@@ -46,15 +46,15 @@ export function ensureCommunityCategoryDoc(raw: unknown): CommunityCategoryDoc {
       label: String(m?.label ?? "").trim(),
       subs: Array.isArray(m?.subs)
         ? m.subs.map((s) => ({
-            id: String(s?.id ?? "").trim(),
-            label: String(s?.label ?? "").trim(),
-            subSubs: Array.isArray(s?.subSubs)
-              ? s.subSubs.map((ss) => ({
-                  id: String(ss?.id ?? "").trim(),
-                  label: String(ss?.label ?? "").trim(),
-                }))
-              : [],
-          }))
+          id: String(s?.id ?? "").trim(),
+          label: String(s?.label ?? "").trim(),
+          subSubs: Array.isArray(s?.subSubs)
+            ? s.subSubs.map((ss) => ({
+              id: String(ss?.id ?? "").trim(),
+              label: String(ss?.label ?? "").trim(),
+            }))
+            : [],
+        }))
         : [],
     })),
   };
@@ -108,3 +108,4 @@ export function normalizeForFirestore(doc: CommunityCategoryDoc): CommunityCateg
     })),
   };
 }
+

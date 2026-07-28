@@ -26,6 +26,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { toTitleCase } from "@/lib/utils";
+import { matchCategoryOrSub } from "@/lib/categorySelection";
 
 //Types 
 export type SubcategoryEntry = string | { label: string; subSubcategories: string[] };
@@ -400,17 +401,25 @@ export default function AllCategories() {
         setCurrentPage(1);
     };
 
-    const toggleSubcategory = (sub: string) => {
-        setSelectedSubcategories(prev =>
-            prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]
-        );
+    const toggleSubcategory = (cat: string, sub: string) => {
+        const compositeKey = `${cat} > ${sub}`;
+        setSelectedSubcategories(prev => {
+            const isChecked = prev.includes(compositeKey) || prev.includes(sub);
+            return isChecked
+                ? prev.filter(s => s !== compositeKey && s !== sub)
+                : [...prev, compositeKey];
+        });
         setCurrentPage(1);
     };
 
-    const toggleSubSubcategory = (subSub: string) => {
-        setSelectedSubSubcategories(prev =>
-            prev.includes(subSub) ? prev.filter(s => s !== subSub) : [...prev, subSub]
-        );
+    const toggleSubSubcategory = (cat: string, sub: string, subSub: string) => {
+        const compositeKey = `${cat} > ${sub} > ${subSub}`;
+        setSelectedSubSubcategories(prev => {
+            const isChecked = prev.includes(compositeKey) || prev.includes(subSub);
+            return isChecked
+                ? prev.filter(s => s !== compositeKey && s !== subSub)
+                : [...prev, compositeKey];
+        });
         setCurrentPage(1);
     };
 
@@ -420,9 +429,12 @@ export default function AllCategories() {
         );
     };
 
-    const toggleExpandSubcategory = (subLabel: string) => {
+    const toggleExpandSubcategory = (cat: string, subLabel: string) => {
+        const compositeKey = `${cat} > ${subLabel}`;
         setExpandedSubcategories(prev =>
-            prev.includes(subLabel) ? prev.filter(s => s !== subLabel) : [...prev, subLabel]
+            prev.includes(compositeKey) || prev.includes(subLabel)
+                ? prev.filter(s => s !== compositeKey && s !== subLabel)
+                : [...prev, compositeKey]
         );
     };
 
@@ -563,16 +575,20 @@ export default function AllCategories() {
         // Category-tree filtering by selected branches.
         // If a top-level category is selected with no child selections in that branch,
         // include all items in that category.
-        if (selectedCategoryTokens.length > 0) {
-            const hasBranchMatch = selectedCategoryTokens.some((categoryToken) => {
-                if (!itemCategoryTokens.includes(categoryToken)) return false;
+        if (selectedCategories.length > 0) {
+            const hasBranchMatch = selectedCategories.some((selCat) => {
+                const itemMatchesCat = itemCategories.some(itemCat => matchCategoryOrSub(itemCat, selCat));
+                if (!itemMatchesCat) return false;
 
-                const subFiltersForCategory = selectedSubcategoryTokens.filter(
-                    (subToken) => subToCategoryTokens.get(subToken)?.has(categoryToken)
-                );
-                const subSubFiltersForCategory = selectedSubSubcategoryTokens.filter(
-                    (subSubToken) => subSubToCategoryTokens.get(subSubToken)?.has(categoryToken)
-                );
+                const selCatToken = normalizeToken(selCat);
+                const subFiltersForCategory = selectedSubcategories.filter(sub => {
+                    if (sub.includes(" > ")) return sub.split(" > ")[0] === selCat;
+                    return subToCategoryTokens.get(normalizeToken(sub))?.has(selCatToken);
+                });
+                const subSubFiltersForCategory = selectedSubSubcategories.filter(ss => {
+                    if (ss.includes(" > ")) return ss.split(" > ")[0] === selCat;
+                    return subSubToCategoryTokens.get(normalizeToken(ss))?.has(selCatToken);
+                });
 
                 if (subFiltersForCategory.length === 0 && subSubFiltersForCategory.length === 0) {
                     return true;
@@ -580,22 +596,22 @@ export default function AllCategories() {
 
                 const subMatch =
                     subFiltersForCategory.length === 0 ||
-                    subFiltersForCategory.some((subToken) => itemSubTokens.includes(subToken));
+                    subFiltersForCategory.some((subFilter) => itemSubs.some(itemSub => matchCategoryOrSub(itemSub, subFilter)));
                 const subSubMatch =
                     subSubFiltersForCategory.length === 0 ||
-                    subSubFiltersForCategory.some((subSubToken) => itemSubSubTokens.includes(subSubToken));
+                    subSubFiltersForCategory.some((ssFilter) => itemSubSubs.some(itemSubSub => matchCategoryOrSub(itemSubSub, ssFilter)));
 
                 return subMatch && subSubMatch;
             });
             if (!hasBranchMatch) return false;
         } else {
             // No top-level category selected: apply sub/sub-sub filters globally.
-            if (selectedSubcategoryTokens.length > 0) {
-                const hasMatchingSubcategory = selectedSubcategoryTokens.some((sel) => itemSubTokens.includes(sel));
+            if (selectedSubcategories.length > 0) {
+                const hasMatchingSubcategory = selectedSubcategories.some((selSub) => itemSubs.some(itemSub => matchCategoryOrSub(itemSub, selSub)));
                 if (!hasMatchingSubcategory) return false;
             }
-            if (selectedSubSubcategoryTokens.length > 0) {
-                const hasMatchingSubSubcategory = selectedSubSubcategoryTokens.some((sel) => itemSubSubTokens.includes(sel));
+            if (selectedSubSubcategories.length > 0) {
+                const hasMatchingSubSubcategory = selectedSubSubcategories.some((selSubSub) => itemSubSubs.some(itemSubSub => matchCategoryOrSub(itemSubSub, selSubSub)));
                 if (!hasMatchingSubSubcategory) return false;
             }
         }
@@ -688,16 +704,20 @@ export default function AllCategories() {
                         </div>
                         {isExpanded && subs.length > 0 && (
                             <div className="pl-10 space-y-2 mb-2">
-                                {subs.map(sub => (
-                                    <div key={sub} className="flex items-center space-x-2">
-                                        <Checkbox
-                                            id={`${cat}-${sub}`}
-                                            checked={selectedSubcategories.includes(sub)}
-                                            onCheckedChange={() => toggleSubcategory(sub)}
-                                        />
-                                        <label htmlFor={`${cat}-${sub}`} className="text-sm font-light leading-none cursor-pointer text-muted-foreground">{sub}</label>
-                                    </div>
-                                ))}
+                                {subs.map(sub => {
+                                    const compositeKey = `${cat} > ${sub}`;
+                                    const isChecked = selectedSubcategories.includes(compositeKey) || selectedSubcategories.includes(sub);
+                                    return (
+                                        <div key={sub} className="flex items-center space-x-2">
+                                            <Checkbox
+                                                id={`${cat}-${sub}`}
+                                                checked={isChecked}
+                                                onCheckedChange={() => toggleSubcategory(cat, sub)}
+                                            />
+                                            <label htmlFor={`${cat}-${sub}`} className="text-sm font-light leading-none cursor-pointer text-muted-foreground">{sub}</label>
+                                        </div>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -736,14 +756,15 @@ export default function AllCategories() {
                             {subs.map((entry) => {
                                 const subLabel = getSubLabel(entry);
                                 const isNested = hasSubSub(entry);
-                                const isSubExpanded = expandedSubcategories.includes(subLabel);
-                                const isSubChecked = selectedSubcategories.includes(subLabel);
+                                const compositeSubKey = `${cat} > ${subLabel}`;
+                                const isSubExpanded = expandedSubcategories.includes(compositeSubKey) || expandedSubcategories.includes(subLabel);
+                                const isSubChecked = selectedSubcategories.includes(compositeSubKey) || selectedSubcategories.includes(subLabel);
 
                                 return (
                                     <div key={subLabel} className="flex flex-col gap-1">
                                         <div className="flex items-center gap-1">
                                             {isNested ? (
-                                                <button onClick={() => toggleExpandSubcategory(subLabel)} className="flex-shrink-0">
+                                                <button onClick={() => toggleExpandSubcategory(cat, subLabel)} className="flex-shrink-0">
                                                     {isSubExpanded
                                                         ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
                                                         : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
@@ -755,7 +776,7 @@ export default function AllCategories() {
                                                 <Checkbox
                                                     id={`${cat}-${subLabel}`}
                                                     checked={isSubChecked}
-                                                    onCheckedChange={() => toggleSubcategory(subLabel)}
+                                                    onCheckedChange={() => toggleSubcategory(cat, subLabel)}
                                                 />
                                                 <label htmlFor={`${cat}-${subLabel}`} className="text-sm font-light leading-none cursor-pointer text-muted-foreground">
                                                     {subLabel}
@@ -765,18 +786,22 @@ export default function AllCategories() {
 
                                         {isNested && isSubExpanded && (
                                             <div className="pl-6 space-y-1.5 mt-1">
-                                                {entry.subSubcategories.map((subSub) => (
-                                                    <div key={subSub} className="flex items-center space-x-2">
-                                                        <Checkbox
-                                                            id={`${cat}-${subLabel}-${subSub}`}
-                                                            checked={selectedSubSubcategories.includes(subSub)}
-                                                            onCheckedChange={() => toggleSubSubcategory(subSub)}
-                                                        />
-                                                        <label htmlFor={`${cat}-${subLabel}-${subSub}`} className="text-xs font-light leading-none cursor-pointer text-muted-foreground/80">
-                                                            {subSub}
-                                                        </label>
-                                                    </div>
-                                                ))}
+                                                {entry.subSubcategories.map((subSub) => {
+                                                    const compositeSsKey = `${cat} > ${subLabel} > ${subSub}`;
+                                                    const isSsChecked = selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(subSub);
+                                                    return (
+                                                        <div key={subSub} className="flex items-center space-x-2">
+                                                            <Checkbox
+                                                                id={`${cat}-${subLabel}-${subSub}`}
+                                                                checked={isSsChecked}
+                                                                onCheckedChange={() => toggleSubSubcategory(cat, subLabel, subSub)}
+                                                            />
+                                                            <label htmlFor={`${cat}-${subLabel}-${subSub}`} className="text-xs font-light leading-none cursor-pointer text-muted-foreground/80">
+                                                                {subSub}
+                                                            </label>
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         )}
                                     </div>
@@ -938,19 +963,33 @@ export default function AllCategories() {
                     <div className="flex flex-wrap gap-2 mb-4 max-w-7xl mx-auto">
                         {selectedCategories.map(s => (
                             <span key={s} onClick={() => toggleCategory(s)} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-primary text-primary-foreground cursor-pointer hover:bg-primary/80 transition-colors">
-                                {s} <X className="w-3 h-3" />
+                                {s.split(" > ").pop()} <X className="w-3 h-3" />
                             </span>
                         ))}
-                        {selectedSubcategories.map(s => (
-                            <span key={s} onClick={() => toggleSubcategory(s)} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-primary/10 text-primary border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors">
-                                {s} <X className="w-3 h-3" />
-                            </span>
-                        ))}
-                        {selectedSubSubcategories.map(s => (
-                            <span key={s} onClick={() => toggleSubSubcategory(s)} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-secondary/10 text-secondary-foreground border border-foreground/10 cursor-pointer hover:bg-foreground/10 transition-colors">
-                                {s} <X className="w-3 h-3" />
-                            </span>
-                        ))}
+                        {selectedSubcategories.map(s => {
+                            const parts = s.split(" > ");
+                            const leaf = parts[parts.length - 1];
+                            return (
+                                <span key={s} onClick={() => {
+                                    if (parts.length >= 2) toggleSubcategory(parts[0], parts[1]);
+                                    else toggleSubcategory("", s);
+                                }} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-primary/10 text-primary border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors">
+                                    {leaf} <X className="w-3 h-3" />
+                                </span>
+                            );
+                        })}
+                        {selectedSubSubcategories.map(s => {
+                            const parts = s.split(" > ");
+                            const leaf = parts[parts.length - 1];
+                            return (
+                                <span key={s} onClick={() => {
+                                    if (parts.length >= 3) toggleSubSubcategory(parts[0], parts[1], parts[2]);
+                                    else toggleSubSubcategory("", "", s);
+                                }} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-secondary/10 text-secondary-foreground border border-foreground/10 cursor-pointer hover:bg-foreground/10 transition-colors">
+                                    {leaf} <X className="w-3 h-3" />
+                                </span>
+                            );
+                        })}
                         <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors">
                             Clear all
                         </button>
@@ -1270,10 +1309,10 @@ export default function AllCategories() {
                                             <p className="font-bold mb-2 text-sm uppercase text-muted-foreground tracking-wider">Specializations</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {(selectedProfile.selectedSubcategoriesDisplay || selectedProfile.selectedSubcategories || []).map((s: string, i: number) => (
-                                                    <span key={i} className="bg-foreground/10 px-3 py-1 rounded-full text-xs">{s}</span>
+                                                    <span key={i} className="bg-foreground/10 px-3 py-1 rounded-full text-xs">{s.split(" > ").pop()}</span>
                                                 ))}
                                                 {Array.isArray(selectedProfile.selectedSubSubcategories) && selectedProfile.selectedSubSubcategories.map((s: string, i: number) => (
-                                                    <span key={`ss-${i}`} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs">{s}</span>
+                                                    <span key={`ss-${i}`} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs">{s.split(" > ").pop()}</span>
                                                 ))}
                                             </div>
                                         </div>

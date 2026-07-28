@@ -2827,7 +2827,7 @@ export default function Dashboard() {
                                             <dd className="flex flex-wrap gap-1.5">
                                                 {detail.selectedSubcategories.map((sub, i) => (
                                                     <Badge key={i} variant="outline" className="border-foreground/20 text-xs">
-                                                        {sub}
+                                                        {sub.split(" > ").pop()}
                                                     </Badge>
                                                 ))}
                                             </dd>
@@ -2839,7 +2839,7 @@ export default function Dashboard() {
                                             <dd className="flex flex-wrap gap-1.5">
                                                 {detail.selectedSubSubcategories.map((subSub, i) => (
                                                     <Badge key={i} variant="outline" className="border-primary/30 text-primary text-xs">
-                                                        {subSub}
+                                                        {subSub.split(" > ").pop()}
                                                     </Badge>
                                                 ))}
                                             </dd>
@@ -3022,25 +3022,29 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
             setSelectedCategories(prev => [...prev, cat]);
         }
     };
-    const toggleSubcategorySelection = (sub: string, hasSubSubs: boolean) => {
+    const toggleSubcategorySelection = (cat: string, sub: string, hasSubSubs: boolean) => {
+        const compositeKey = `${cat} > ${sub}`;
         if (hasSubSubs) {
-            setSelectedSubcategories(prev => prev.filter(s => s !== sub));
-            toggleExpandSubcategory(sub);
+            setSelectedSubcategories(prev => prev.filter(s => s !== compositeKey && s !== sub));
+            toggleExpandSubcategory(compositeKey);
             return;
         }
-        if (selectedSubcategories.includes(sub)) {
-            setSelectedSubcategories(prev => prev.filter(s => s !== sub));
+        const isChecked = selectedSubcategories.includes(compositeKey) || selectedSubcategories.includes(sub);
+        if (isChecked) {
+            setSelectedSubcategories(prev => prev.filter(s => s !== compositeKey && s !== sub));
         } else {
             if (isCategoryLimitReached) return;
-            setSelectedSubcategories(prev => [...prev, sub]);
+            setSelectedSubcategories(prev => [...prev, compositeKey]);
         }
     };
-    const toggleSubSubcategorySelection = (subSub: string) => {
-        if (selectedSubSubcategories.includes(subSub)) {
-            setSelectedSubSubcategories(prev => prev.filter(s => s !== subSub));
+    const toggleSubSubcategorySelection = (cat: string, sub: string, subSub: string) => {
+        const compositeKey = `${cat} > ${sub} > ${subSub}`;
+        const isChecked = selectedSubSubcategories.includes(compositeKey) || selectedSubSubcategories.includes(subSub);
+        if (isChecked) {
+            setSelectedSubSubcategories(prev => prev.filter(s => s !== compositeKey && s !== subSub));
         } else {
             if (isCategoryLimitReached) return;
-            setSelectedSubSubcategories(prev => [...prev, subSub]);
+            setSelectedSubSubcategories(prev => [...prev, compositeKey]);
         }
     };
 
@@ -3141,20 +3145,21 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             {subs.map((entry: SubcategoryEntry) => {
                                 const subLabel = getSubLabel(entry);
                                 const isNested = isBusinessGroup && hasSubSub(entry);
-                                const isSubChecked = selectedSubcategories.includes(subLabel);
-                                const isSubExpanded = expandedSubcategories.includes(subLabel);
+                                const compositeSubKey = `${cat} > ${subLabel}`;
+                                const isSubChecked = selectedSubcategories.includes(compositeSubKey) || selectedSubcategories.includes(subLabel);
+                                const isSubExpanded = expandedSubcategories.includes(compositeSubKey) || expandedSubcategories.includes(subLabel);
                                 return (
                                     <div key={subLabel} className="flex flex-col">
                                         <div className="flex items-center gap-1.5 py-0.5">
                                             {isNested ? (
-                                                <button type="button" onClick={() => toggleExpandSubcategory(subLabel)} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
+                                                <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
                                                     {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                                                 </button>
                                             ) : <span className="w-3.5 h-3.5 flex-shrink-0" />}
                                             <Checkbox
                                                 id={`edit-sub-${cat}-${subLabel}`}
                                                 checked={isNested ? isSubExpanded : isSubChecked}
-                                                onCheckedChange={() => toggleSubcategorySelection(subLabel, isNested || false)}
+                                                onCheckedChange={() => toggleSubcategorySelection(cat, subLabel, isNested || false)}
                                                 disabled={!isNested && !isSubChecked && isCategoryLimitReached}
                                                 className={isSubChecked ? "data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}
                                             />
@@ -3163,14 +3168,15 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         {isNested && isSubExpanded && hasSubSub(entry) && (
                                             <div className="ml-8 pl-3 border-l-2 border-primary/30 space-y-1 mb-1">
                                                 {entry.subSubcategories.map((ssLabel: string) => {
-                                                    const isSSChecked = selectedSubSubcategories.includes(ssLabel);
+                                                    const compositeSsKey = `${cat} > ${subLabel} > ${ssLabel}`;
+                                                    const isSSChecked = selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ssLabel);
                                                     return (
                                                         <div key={ssLabel} className="flex items-center gap-1.5 py-0.5">
                                                             <span className="w-3 h-3 flex-shrink-0" />
                                                             <Checkbox
                                                                 id={`edit-subsub-${cat}-${subLabel}-${ssLabel}`}
                                                                 checked={isSSChecked}
-                                                                onCheckedChange={() => toggleSubSubcategorySelection(ssLabel)}
+                                                                onCheckedChange={() => toggleSubSubcategorySelection(cat, subLabel, ssLabel)}
                                                                 disabled={!isSSChecked && isCategoryLimitReached}
                                                                 className={isSSChecked ? "data-[state=checked]:bg-primary data-[state=checked]:border-primary" : ""}
                                                             />
@@ -3209,10 +3215,10 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
             subs.forEach((entry: SubcategoryEntry) => {
                 const subLabel = getSubLabel(entry);
                 if (isBusinessGroup && hasSubSub(entry)) {
-                    allNestedSubcategoryLabels.push(subLabel);
-                    entry.subSubcategories.forEach((ss) => allSubSubcategories.push(ss));
+                    allNestedSubcategoryLabels.push(`${cat} > ${subLabel}`);
+                    entry.subSubcategories.forEach((ss) => allSubSubcategories.push(`${cat} > ${subLabel} > ${ss}`));
                 } else {
-                    allLeafSubcategories.push(subLabel);
+                    allLeafSubcategories.push(`${cat} > ${subLabel}`);
                 }
             });
         });
