@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Activity, ArrowLeft, ArrowRight, Eye, EyeOff } from "lucide-react";
+import { Activity, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -110,7 +110,7 @@ export default function Login() {
                     {error && <p className="text-sm text-destructive">{error}</p>}
 
                     <Button type="submit" className="w-full" disabled={isLoading}>
-                        {isLoading ? "Signing in…" : <> Sign In <ArrowRight className="ml-2 h-4 w-4" /> </>}
+                        {isLoading ? "Logging in…" : "Log in"}
                     </Button>
                 </form>
 

@@ -191,7 +191,7 @@ export default function MemberLogin() {
           {resendMsg && <p className="text-sm text-emerald-600">{resendMsg}</p>}
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Signing in…" : "Sign in"}
+            {isLoading ? "Logging in…" : "Log in"}
           </Button>
         </form>
 
