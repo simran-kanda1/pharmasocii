@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import type { FirebaseError } from "firebase/app";
+
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Activity, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import {
   onAuthStateChanged,
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
-import { ensureVerificationPending } from "@/lib/ensureVerificationPending";
+
 
 export default function MemberLogin() {
   const navigate = useNavigate();
@@ -25,8 +25,8 @@ export default function MemberLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [resendMsg, setResendMsg] = useState("");
-  const [verifyHint, setVerifyHint] = useState<string | null>(() => {
+
+  const [verifyHint] = useState<string | null>(() => {
     const s = location.state as { verifyEmailHint?: string } | null;
     return s?.verifyEmailHint ?? null;
   });
@@ -57,7 +57,7 @@ export default function MemberLogin() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    setResendMsg("");
+
     try {
       setIsLoading(true);
       const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
@@ -94,38 +94,7 @@ export default function MemberLogin() {
     }
   };
 
-  const handleResend = async () => {
-    setResendMsg("");
-    setError("");
-    setVerifyHint(null);
-    try {
-      if (!auth.currentUser) {
-        setError("Log in first, then resend verification.");
-        return;
-      }
-      const queue = await ensureVerificationPending();
-      if (queue.ok && queue.hasLink) {
-        setResendMsg(
-          "Verification email sent with your link. Check inbox and spam.",
-        );
-      } else if (queue.ok) {
-        setResendMsg(
-          queue.message ||
-            "Verification queued but the link could not be generated yet (rate limit). Try again in 15–30 minutes or use Admin → Overview → Generate link.",
-        );
-      } else {
-        setResendMsg(queue.message || "Could not queue verification. Try again or ask admin.");
-      }
-    } catch (err: unknown) {
-      const code =
-        typeof err === "object" && err !== null && "code" in err ? (err as FirebaseError).code : "";
-      if (code === "auth/too-many-requests") {
-        setError("Too many emails sent. Wait 15–30 minutes, or use Admin → Overview → Member email verification.");
-      } else {
-        setError("Could not send email. Try again later.");
-      }
-    }
-  };
+
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground relative overflow-hidden min-h-[80vh] px-4">
@@ -188,22 +157,14 @@ export default function MemberLogin() {
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {resendMsg && <p className="text-sm text-emerald-600">{resendMsg}</p>}
+
 
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Logging in…" : "Log in"}
           </Button>
         </form>
 
-        <div className="flex flex-col gap-2 mt-4">
-          <Button type="button" variant="outline" className="w-full" onClick={handleResend}>
-            Resend verification email
-          </Button>
-          <p className="text-xs text-muted-foreground text-center">
-            You must be logged in with an unverified session to resend (sign in with password
-            first).
-          </p>
-        </div>
+
 
         <p className="text-sm text-muted-foreground mt-6 text-center">
           New here?{" "}
@@ -212,7 +173,7 @@ export default function MemberLogin() {
           </Link>
           {" · "}
           <Link to="/member/register" className="text-primary font-medium hover:underline">
-            Create an account
+            Become a member
           </Link>
         </p>
 

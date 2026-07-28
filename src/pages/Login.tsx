@@ -117,7 +117,7 @@ export default function Login() {
                 <p className="text-sm text-muted-foreground mt-6 text-center">
                     Don't have an account?{" "}
                     <Link to="/signup" className="text-primary font-medium hover:underline">
-                        Register now
+                        Become a partner
                     </Link>
                 </p>
 
