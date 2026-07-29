@@ -30,6 +30,76 @@ function wrapText(bodyText) {
 }
 
 const templates = {
+    partner_welcome: {
+        subject: () => "Welcome to Pharma SocII",
+        text: (payload) => {
+            const siteUrl = String(payload.siteUrl || "").trim();
+            return wrapText(
+                "We've received your submission. Thank you for partnering with us.\n\n" +
+                    "Pharma SocII Team\n" +
+                    (siteUrl ? `\n${siteUrl}` : ""),
+            );
+        },
+        html: (payload) => {
+            const siteUrl = String(payload.siteUrl || "").trim();
+            const link = siteUrl
+                ? `<p><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
+                : "";
+            return wrapHtml(
+                `<p>We've received your submission. Thank you for partnering with us.</p>` +
+                    `<p>Pharma SocII Team</p>` +
+                    link,
+            );
+        },
+    },
+    partner_account_updated: {
+        subject: () => "Changes made to your account",
+        text: (payload) => {
+            const siteUrl = String(payload.siteUrl || "").trim();
+            return wrapText(
+                "We wanted to let you know that updates have been made to your profile details. " +
+                    "Please log in to review the changes. If you did not make these updates, " +
+                    "we recommend updating your security information and contacting us.\n\n" +
+                    "Pharma SocII Team\n" +
+                    (siteUrl ? `\n${siteUrl}` : ""),
+            );
+        },
+        html: (payload) => {
+            const siteUrl = String(payload.siteUrl || "").trim();
+            const link = siteUrl
+                ? `<p><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
+                : "";
+            return wrapHtml(
+                `<p>We wanted to let you know that updates have been made to your profile details. ` +
+                    `Please log in to review the changes. If you did not make these updates, ` +
+                    `we recommend updating your security information and contacting us.</p>` +
+                    `<p>Pharma SocII Team</p>` +
+                    link,
+            );
+        },
+    },
+    partner_plan_changed: {
+        subject: () => "Changes made to your plan",
+        text: (payload) => {
+            const siteUrl = String(payload.siteUrl || "").trim();
+            return wrapText(
+                "The changes to your plan have been successfully processed. Thank you for your continued partnership.\n\n" +
+                    "Pharma SocII Team\n" +
+                    (siteUrl ? `\n${siteUrl}` : ""),
+            );
+        },
+        html: (payload) => {
+            const siteUrl = String(payload.siteUrl || "").trim();
+            const link = siteUrl
+                ? `<p><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
+                : "";
+            return wrapHtml(
+                `<p>The changes to your plan have been successfully processed. Thank you for your continued partnership.</p>` +
+                    `<p>Pharma SocII Team</p>` +
+                    link,
+            );
+        },
+    },
     partner_email_verification: {
         subject: () => "Verify your new Pharma SocII partner email",
         text: ({ verifyLink, ...payload }) => {

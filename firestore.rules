@@ -101,6 +101,12 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Partner transactional email queue (Admin SDK / Cloud Functions only).
+    match /partnerEmailQueue/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /adminSettingsCollection/{docId} {
       allow read: if isAdmin();
       allow write: if isAdmin();

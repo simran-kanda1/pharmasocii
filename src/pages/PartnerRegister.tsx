@@ -11,6 +11,7 @@ import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import PhoneInput from 'react-phone-number-input';
+import { toPhoneInputValue } from "@/lib/phone";
 import 'react-phone-number-input/style.css';
 
 export default function PartnerRegister() {
@@ -228,7 +229,7 @@ export default function PartnerRegister() {
                             <PhoneInput
                                 id="phone"
                                 defaultCountry="US"
-                                value={formData.phone}
+                                value={toPhoneInputValue(formData.phone) || undefined}
                                 onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}
                                 className="flex h-10 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50 text-foreground"
                             />

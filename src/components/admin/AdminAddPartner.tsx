@@ -37,6 +37,7 @@ import {
 } from "lucide-react";
 import { API_BASE_URL } from "@/apiConfig";
 import PhoneInput from 'react-phone-number-input';
+import { toPhoneInputValue } from "@/lib/phone";
 import 'react-phone-number-input/style.css';
 import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
@@ -889,7 +890,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 </div>
                 <div>
                   <Label className="text-slate-600 font-medium">Phone <span className="text-red-500">*</span></Label>
-                  <PhoneInput defaultCountry="US" value={formData.phone}
+                  <PhoneInput defaultCountry="US" value={toPhoneInputValue(formData.phone) || undefined}
                     onChange={(value) => handleChange("phone", value || '')}
                     className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm mt-1.5" />
                 </div>
@@ -949,7 +950,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 </div>
                 <div>
                   <Label className="text-slate-600 font-medium">Business phone <span className="text-red-500">*</span></Label>
-                  <PhoneInput defaultCountry="US" value={formData.businessPhone}
+                  <PhoneInput defaultCountry="US" value={toPhoneInputValue(formData.businessPhone) || undefined}
                     onChange={(value) => handleChange("businessPhone", value || '')}
                     className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm mt-1.5" />
                 </div>

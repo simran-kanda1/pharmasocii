@@ -22,6 +22,7 @@ import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPd
 import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 import PhoneInput from 'react-phone-number-input'
+import { toPhoneInputValue } from '@/lib/phone'
 import 'react-phone-number-input/style.css'
 
 // Import actual categories from AllCategories
@@ -177,7 +178,9 @@ export default function CompleteProfile() {
                         ...prev,
                         firstName: fName || "", lastName: lNames.join(" ") || "",
                         email: data.primaryEmail || "", companyName: data.businessName || "",
-                        phone: data.phoneNumber || "",
+                        phone: toPhoneInputValue(data.phoneNumber || ""),
+                        businessPhone: toPhoneInputValue(data.businessPhoneNumber || ""),
+                        companyWebsite: data.companyWebsite || "",
                         altFirstName: data.secondaryFirstName || altFName || "",
                         altLastName: data.secondaryLastName || altLNames.join(" ") || "",
                         altEmail: data.secondaryEmail || "", billingEmail: data.billingEmailAddress || "",
@@ -1042,7 +1045,7 @@ export default function CompleteProfile() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="phone">Phone *</Label>
-                                    <PhoneInput id="phone" defaultCountry="US" value={formData.phone}
+                                    <PhoneInput id="phone" defaultCountry="US" value={toPhoneInputValue(formData.phone) || undefined}
                                         onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}
                                         className="flex h-10 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm" />
                                 </div>
@@ -1081,7 +1084,7 @@ export default function CompleteProfile() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="businessPhone">Business phone *</Label>
-                                    <PhoneInput id="businessPhone" defaultCountry="US" value={formData.businessPhone}
+                                    <PhoneInput id="businessPhone" defaultCountry="US" value={toPhoneInputValue(formData.businessPhone) || undefined}
                                         onChange={(value) => setFormData(prev => ({ ...prev, businessPhone: value || '' }))}
                                         className="flex h-10 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm" />
                                 </div>

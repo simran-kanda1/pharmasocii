@@ -41,6 +41,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import PhoneInput from 'react-phone-number-input';
+import { toPhoneInputValue } from "@/lib/phone";
 import 'react-phone-number-input/style.css';
 import {
     BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES,
@@ -518,7 +519,12 @@ export default function Dashboard() {
         const linked = listing ?? getLinkedListingForPlan(plan);
         return isSpotlightCancelPending(linked);
     };
-    const arePlanActionsLocked = (plan: any, linkedListing?: any) => {
+    /** Plan edit/upgrade locked only when the plan itself is ending or inactive — not when feature cancel is pending. */
+    const arePlanActionsLocked = (plan: any, _linkedListing?: any) => {
+        return isPlanLockedForChanges(plan);
+    };
+    /** Feature add/upgrade locked when plan is locked OR spotlight cancel is pending. */
+    const areFeatureActionsLocked = (plan: any, linkedListing?: any) => {
         if (isPlanLockedForChanges(plan)) return true;
         return isSpotlightCancelPendingForPlan(plan, linkedListing);
     };
@@ -543,12 +549,6 @@ export default function Dashboard() {
                 plan?.cancelAtPeriodEnd
                     ? "This plan is scheduled to end. Editing and upgrades are not available until you repurchase."
                     : "This plan is no longer active. Editing and upgrades are not available until you repurchase.",
-            );
-        }
-        const linkedListing = getLinkedListingForPlan(plan);
-        if (isSpotlightCancelPendingForPlan(plan, linkedListing)) {
-            throw new Error(
-                "This spotlight add-on is scheduled to end. Editing and plan changes are not available until that date passes.",
             );
         }
     };
@@ -630,10 +630,10 @@ export default function Dashboard() {
                     const [fName, ...lNames] = (data.primaryName || "").split(" ");
                     setProfileForm({
                         firstName: fName || "", lastName: lNames.join(" ") || "",
-                        email: data.primaryEmail || "", phone: data.phoneNumber || "",
+                        email: data.primaryEmail || "", phone: toPhoneInputValue(data.phoneNumber || ""),
                         altName: data.secondaryName || "", altEmail: data.secondaryEmail || "",
                         companyName: data.businessName || "", companyWebsite: data.companyWebsite || "",
-                        businessPhone: data.businessPhoneNumber || "", linkedin: data.linkedInProfileLink || "",
+                        businessPhone: toPhoneInputValue(data.businessPhoneNumber || ""), linkedin: data.linkedInProfileLink || "",
                         companyProfile: data.companyProfileText || "", businessAddress: data.businessAddress || "",
                         businessCountry: data.businessCountry || "",
                         billingEmail: data.billingEmailAddress || "",
@@ -1443,7 +1443,7 @@ export default function Dashboard() {
                 const successText =
                     cancelScope === "feature"
                         ? "Spotlight add-on scheduled to end at the close of your paid period. It will not renew."
-                        : "Subscription will end after the current billing period. Any separate spotlight add-on for this listing has been removed.";
+                        : "Subscription will end after the current billing period. Any separate spotlight add-on keeps running until its own paid period ends.";
                 setActionMessage({ type: "success", text: successText });
                 setPendingUpgradePlanId(null);
                 setShowCancelModal(false);
@@ -1902,9 +1902,10 @@ export default function Dashboard() {
                 effectiveSpotlightTier > 0 &&
                 !spotlightCancelPending;
             const isEnding = Boolean(plan.cancelAtPeriodEnd) && !isPast;
-            const actionsLocked = isPast || arePlanActionsLocked(plan, linkedListing);
+            const planActionsLocked = isPast || arePlanActionsLocked(plan, linkedListing);
+            const featureActionsLocked = isPast || areFeatureActionsLocked(plan, linkedListing);
             const canListingPlanUpgradeAction =
-                !isPast && getAvailablePlanUpgradeIds(plan.planId).length > 0 && !actionsLocked;
+                !isPast && getAvailablePlanUpgradeIds(plan.planId).length > 0 && !planActionsLocked;
             const pastStatusLabel = plan.cancelAtPeriodEnd ? "Cancelled" : plan.active === false ? "Expired" : "Ended";
             const cardShell = isPast
                 ? "rounded-xl border border-foreground/15 bg-muted/25 p-5 opacity-95"
@@ -1975,7 +1976,7 @@ export default function Dashboard() {
                                     <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
                                         Your spotlight add-on is scheduled to end on{" "}
                                         {standaloneSpotlightRenewal?.toLocaleDateString() || "the end of your paid period"}.
-                                        Add-ons and upgrades are disabled until that date passes; you can purchase again afterward.
+                                        Spotlight changes are disabled until that date; you can still edit the listing or upgrade the plan.
                                     </p>
                                 )}
                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
@@ -2052,14 +2053,12 @@ export default function Dashboard() {
                                         variant="outline"
                                         size="sm"
                                         className="border-foreground/20 text-foreground/80 hover:bg-foreground/5"
-                                        disabled={actionsLocked}
+                                        disabled={planActionsLocked}
                                         title={
-                                            actionsLocked
+                                            planActionsLocked
                                                 ? plan.cancelAtPeriodEnd
                                                     ? "Editing is unavailable while this plan is scheduled to end."
-                                                    : spotlightCancelPending
-                                                        ? "Editing is unavailable while spotlight cancellation is scheduled."
-                                                        : "Editing is unavailable while this plan is cancelled or ended."
+                                                    : "Editing is unavailable while this plan is cancelled or ended."
                                                 : undefined
                                         }
                                         onClick={() => {
@@ -2076,10 +2075,10 @@ export default function Dashboard() {
                                     variant="outline"
                                     size="sm"
                                     className={`border-primary/40 ${canListingPlanUpgradeAction ? "text-primary hover:bg-primary/10" : "text-muted-foreground border-foreground/15 opacity-60 cursor-not-allowed"}`}
-                                    disabled={actionsLocked || !canListingPlanUpgradeAction}
+                                    disabled={planActionsLocked || !canListingPlanUpgradeAction}
                                     title={
-                                        actionsLocked
-                                            ? "Upgrades are unavailable while this plan or spotlight add-on is scheduled to end."
+                                        planActionsLocked
+                                            ? "Upgrades are unavailable while this plan is scheduled to end."
                                             : !canListingPlanUpgradeAction
                                                 ? "No higher plan available."
                                                 : undefined
@@ -2096,7 +2095,7 @@ export default function Dashboard() {
                                     <Button
                                         size="sm"
                                         className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-semibold disabled:opacity-50"
-                                        disabled={actionsLocked}
+                                        disabled={featureActionsLocked}
                                         onClick={() => {
                                             setSelectedPlanForAction(plan);
                                             setSelectedListingForEdit(linkedListing);
@@ -2112,7 +2111,7 @@ export default function Dashboard() {
                                     <Button
                                         size="sm"
                                         className="bg-violet-700 text-white border border-violet-800 hover:bg-violet-800 hover:text-white shadow-sm font-semibold disabled:opacity-50"
-                                        disabled={actionsLocked}
+                                        disabled={featureActionsLocked}
                                         onClick={() => {
                                             setSelectedPlanForAction(plan);
                                             setSelectedListingForEdit(linkedListing);
@@ -2444,7 +2443,7 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-2 md:col-span-2">
                         <Label className="text-foreground/80">Phone <span className="text-red-400">*</span></Label>
-                        <PhoneInput defaultCountry="US" value={profileForm.phone} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, phone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
+                        <PhoneInput defaultCountry="US" value={toPhoneInputValue(profileForm.phone) || undefined} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, phone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
                     </div>
                 </div>
 
@@ -2471,7 +2470,7 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Business phone <span className="text-red-400">*</span></Label>
-                        <PhoneInput defaultCountry="US" value={profileForm.businessPhone} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, businessPhone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
+                        <PhoneInput defaultCountry="US" value={toPhoneInputValue(profileForm.businessPhone) || undefined} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, businessPhone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Linkedin profile</Label>
@@ -4162,7 +4161,7 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotligh
                                     }`}
                             >
                                 <span className="font-medium text-foreground">Cancel this subscription</span>
-                                <span className="text-xs text-muted-foreground block mt-1">Stops the plan after the billing date below. Any separate spotlight on this listing is removed.</span>
+                                <span className="text-xs text-muted-foreground block mt-1">Stops the plan after the billing date below. A separate spotlight add-on stays active until its own paid period ends.</span>
                             </button>
                         </div>
                     )}

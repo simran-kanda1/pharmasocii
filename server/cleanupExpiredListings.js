@@ -132,6 +132,26 @@ export async function cleanupExpiredListings(options = {}) {
             continue;
         }
 
+        // Keep listing live if a standalone spotlight add-on is still paid through.
+        const featurePaidThrough =
+            toDateValue(listingData.featureSpotlightPaidThrough) ||
+            toDateValue(listingData.featureSpotlightAccessEnd);
+        const hasFeatureDisplay = Boolean(
+            String(listingData.selectedAddon || listingData.featuredPlacement || "").trim(),
+        );
+        const featureSubId = listingData.featureSpotlightStripeSubscriptionId
+            ? String(listingData.featureSpotlightStripeSubscriptionId)
+            : null;
+        let keepForFeature = Boolean(
+            hasFeatureDisplay && featurePaidThrough && featurePaidThrough.getTime() > Date.now(),
+        );
+        if (!keepForFeature && featureSubId && stripe) {
+            keepForFeature = await stripeSubscriptionStillLive(stripe, featureSubId);
+        }
+        if (keepForFeature) {
+            continue;
+        }
+
         await listingRef.set(listingUpdateOnEnd, { merge: true });
         updatedListings += 1;
     }

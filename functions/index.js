@@ -6,6 +6,10 @@
  * requestVerificationEmailCc (resend) mirror links to verificationMirrors and optional SMTP
  * to VERIFICATION_CC_EMAIL (comma-separated; default includes simrankaurkanda42@gmail.com and singhamyw@outlook.com).
  *
+ * Partner emails: onPartnerEmailQueued (partnerEmailQueue) + onPartnerProfileUpdated
+ * (primaryEmail / businessName / companyWebsite → pri+sec). Welcome/plan emails are
+ * enqueued by the Stripe server after paid checkout.
+ *
  * Deploy: cd functions && npm install && cd .. && firebase deploy --only functions,firestore:rules
  *
  * Optional SMTP (Gmail example): set on both functions in Google Cloud Console → Environment variables:
@@ -1481,3 +1485,171 @@ exports.changePartnerPrimaryEmail = onCall({ region: "us-central1", cors: true }
         message: linkError || null,
     };
 });
+
+// ─── Partner transactional emails (welcome / account / plan) ─────────────────
+
+const PARTNER_EMAIL_PRIMARY_ONLY = new Set(["partner_welcome", "partner_plan_changed"]);
+const PARTNER_EMAIL_PRIMARY_AND_SECONDARY = new Set(["partner_account_updated"]);
+
+function getPartnerSiteUrl() {
+    return String(APP_PUBLIC_URL || "").replace(/\/$/, "") || "https://pharmasocii.firebaseapp.com";
+}
+
+function normalizeEmailAddress(value) {
+    const email = String(value || "").trim().toLowerCase();
+    if (!email || !email.includes("@")) return null;
+    return email;
+}
+
+function resolvePartnerEmailRecipients(partnerData, type) {
+    const primary = normalizeEmailAddress(partnerData?.primaryEmail);
+    const secondary = normalizeEmailAddress(
+        partnerData?.secondaryEmail || partnerData?.altEmail,
+    );
+    const emails = [];
+    if (PARTNER_EMAIL_PRIMARY_ONLY.has(type) || PARTNER_EMAIL_PRIMARY_AND_SECONDARY.has(type)) {
+        if (primary) emails.push(primary);
+    }
+    if (PARTNER_EMAIL_PRIMARY_AND_SECONDARY.has(type) && secondary && secondary !== primary) {
+        emails.push(secondary);
+    }
+    return emails;
+}
+
+async function sendPartnerEmailToRecipients({ type, partnerId, toEmails, payload = {} }) {
+    const siteUrl = getPartnerSiteUrl();
+    const merged = { siteUrl, ...payload };
+    const results = [];
+    for (const toEmail of toEmails) {
+        const result = await sendCommunityEmail({
+            type,
+            toEmail,
+            payload: { ...merged, partnerId: partnerId || null },
+        });
+        results.push({ toEmail, ...result });
+    }
+    return results;
+}
+
+/**
+ * Processes partnerEmailQueue docs written by the Stripe server (and optionally Functions).
+ * Resolves primary / secondary recipients from the partner profile.
+ */
+exports.onPartnerEmailQueued = onDocumentCreated(
+    {
+        document: "partnerEmailQueue/{queueId}",
+        region: "us-central1",
+    },
+    async (event) => {
+        const snap = event.data;
+        if (!snap) return;
+        const data = snap.data() || {};
+        const queueRef = snap.ref;
+        if (data.status && data.status !== "pending") return;
+
+        const type = String(data.type || "").trim();
+        const partnerId = String(data.partnerId || "").trim();
+        if (!type || !partnerId) {
+            await queueRef.set(
+                { status: "failed", error: "missing_type_or_partner", processedAt: FieldValue.serverTimestamp() },
+                { merge: true },
+            );
+            return;
+        }
+
+        try {
+            const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
+            if (!partnerSnap.exists) {
+                await queueRef.set(
+                    { status: "failed", error: "partner_not_found", processedAt: FieldValue.serverTimestamp() },
+                    { merge: true },
+                );
+                return;
+            }
+            const partnerData = partnerSnap.data() || {};
+            const toEmails = resolvePartnerEmailRecipients(partnerData, type);
+            if (!toEmails.length) {
+                await queueRef.set(
+                    { status: "skipped", error: "no_recipients", processedAt: FieldValue.serverTimestamp() },
+                    { merge: true },
+                );
+                return;
+            }
+
+            const results = await sendPartnerEmailToRecipients({
+                type,
+                partnerId,
+                toEmails,
+                payload: data.payload || {},
+            });
+            await queueRef.set(
+                {
+                    status: "sent",
+                    toEmails,
+                    sendResults: results,
+                    processedAt: FieldValue.serverTimestamp(),
+                },
+                { merge: true },
+            );
+        } catch (err) {
+            console.error("onPartnerEmailQueued", partnerId, type, err);
+            await queueRef.set(
+                {
+                    status: "failed",
+                    error: err?.message || String(err),
+                    processedAt: FieldValue.serverTimestamp(),
+                },
+                { merge: true },
+            );
+        }
+    },
+);
+
+/**
+ * Account-update email when primary email, company name, or website changes.
+ * Goes to primary + secondary contacts.
+ */
+exports.onPartnerProfileUpdated = onDocumentUpdated(
+    {
+        document: "partnersCollection/{partnerId}",
+        region: "us-central1",
+    },
+    async (event) => {
+        const before = event.data?.before?.data() || {};
+        const after = event.data?.after?.data() || {};
+        const partnerId = event.params.partnerId;
+
+        const norm = (v) => String(v || "").trim();
+        const normEmail = (v) => norm(v).toLowerCase();
+
+        const emailChanged = normEmail(before.primaryEmail) !== normEmail(after.primaryEmail);
+        const companyChanged =
+            norm(before.businessName) !== norm(after.businessName) ||
+            norm(before.companyName) !== norm(after.companyName);
+        const websiteChanged = norm(before.companyWebsite) !== norm(after.companyWebsite);
+
+        if (!emailChanged && !companyChanged && !websiteChanged) return;
+
+        // Prefer businessName; companyName alone changing to match businessName shouldn't double-fire if both change together — still one email.
+        const toEmails = resolvePartnerEmailRecipients(after, "partner_account_updated");
+        if (!toEmails.length) return;
+
+        try {
+            await sendPartnerEmailToRecipients({
+                type: "partner_account_updated",
+                partnerId,
+                toEmails,
+                payload: {
+                    firstName: after.firstName || after.primaryName || "",
+                    changedFields: {
+                        primaryEmail: emailChanged,
+                        companyName: companyChanged,
+                        companyWebsite: websiteChanged,
+                    },
+                },
+            });
+        } catch (err) {
+            console.error("onPartnerProfileUpdated email", partnerId, err);
+        }
+    },
+);

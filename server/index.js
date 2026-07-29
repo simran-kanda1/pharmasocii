@@ -1128,7 +1128,78 @@ async function recordPlanUpgradeWithoutCheckoutIfMissing({
         companyRepresentatives: detailSource?.companyRepresentatives || [],
     });
 
+    await notifyPartnerAfterPaidChange({
+        partnerId: partnerKey,
+        sessionId: upgradeDedupeKey,
+        kind: "plan",
+    });
+
     return { created: true, reason: "inserted" };
+}
+
+/**
+ * Queue a partner transactional email for Cloud Functions (SMTP) to send.
+ * Types: partner_welcome | partner_plan_changed | partner_account_updated
+ */
+async function enqueuePartnerEmail({ type, partnerId, dedupeKey = null, payload = {} }) {
+    const pid = partnerId && String(partnerId).trim();
+    const emailType = type && String(type).trim();
+    if (!pid || !emailType) return { queued: false, reason: "missing_context" };
+
+    if (dedupeKey) {
+        const existing = await db.collection("partnerEmailQueue")
+            .where("dedupeKey", "==", String(dedupeKey))
+            .limit(1)
+            .get();
+        if (!existing.empty) return { queued: false, reason: "duplicate" };
+    }
+
+    await db.collection("partnerEmailQueue").add({
+        type: emailType,
+        partnerId: pid,
+        dedupeKey: dedupeKey ? String(dedupeKey) : null,
+        payload: payload || {},
+        status: "pending",
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { queued: true };
+}
+
+/**
+ * After a paid listing goes live: welcome once (first time), else plan-changed.
+ * Upgrades / feature purchases always use plan-changed.
+ */
+async function notifyPartnerAfterPaidChange({
+    partnerId,
+    sessionId = null,
+    kind = "plan", // "listing" | "plan"
+}) {
+    const pid = partnerId && String(partnerId).trim();
+    if (!pid) return { queued: false, reason: "missing_partner" };
+
+    let type = "partner_plan_changed";
+    if (kind === "listing") {
+        const partnerRef = db.collection("partnersCollection").doc(pid);
+        const claimedWelcome = await db.runTransaction(async (tx) => {
+            const snap = await tx.get(partnerRef);
+            if (!snap.exists) return false;
+            if (snap.data()?.partnerWelcomeEmailSentAt) return false;
+            tx.set(
+                partnerRef,
+                { partnerWelcomeEmailSentAt: admin.firestore.FieldValue.serverTimestamp() },
+                { merge: true },
+            );
+            return true;
+        });
+        if (claimedWelcome) type = "partner_welcome";
+    }
+
+    const dedupeKey = sessionId
+        ? `${type}:${sessionId}`
+        : `${type}:${pid}:${kind}:${Date.now()}`;
+    const result = await enqueuePartnerEmail({ type, partnerId: pid, dedupeKey });
+    console.log(`   ✉ Partner email queued (${type}): ${result.queued ? "yes" : result.reason}`);
+    return { ...result, type };
 }
 
 const app = express();
@@ -1195,6 +1266,11 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     fromPlanId,
                     toPlanId,
                     group: session.metadata?.group || "jobs",
+                });
+                await notifyPartnerAfterPaidChange({
+                    partnerId,
+                    sessionId: session.id,
+                    kind: "plan",
                 });
                 break;
             }
@@ -1308,6 +1384,11 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     console.log(`   ℹ Upgrade transaction skipped for session ${session.id}: ${upgradeTxnResult.reason}`);
                 }
 
+                await notifyPartnerAfterPaidChange({
+                    partnerId,
+                    sessionId: session.id,
+                    kind: "plan",
+                });
                 break;
             }
 
@@ -1367,6 +1448,11 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         businessName: detailSource?.businessName || detailSource?.eventName || "",
                     });
                 }
+                await notifyPartnerAfterPaidChange({
+                    partnerId,
+                    sessionId: session.id,
+                    kind: "plan",
+                });
                 break;
             }
 
@@ -1567,6 +1653,16 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 }
             });
 
+            if (partnerId) {
+                const paidKind =
+                    listingId && resolvedCollectionName && !featureId ? "listing" : "plan";
+                await notifyPartnerAfterPaidChange({
+                    partnerId,
+                    sessionId: session.id,
+                    kind: paidKind,
+                });
+            }
+
             break;
         }
 
@@ -1586,7 +1682,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
         case "customer.subscription.deleted": {
             const subscription = event.data.object;
             console.log(`❌ Subscription deleted: ${subscription.id}`);
-            const listingUpdateOnEnd = {
+            const listingUpdateOnEndFull = {
                 active: false,
                 status: "Cancelled",
                 selectedAddon: admin.firestore.FieldValue.delete(),
@@ -1598,7 +1694,62 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.delete(),
                 featureSpotlightStripeSubscriptionId: admin.firestore.FieldValue.delete(),
                 featureSpotlightSubscriptionItemId: admin.firestore.FieldValue.delete(),
+                stripeSubscriptionId: admin.firestore.FieldValue.delete(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             };
+
+            const listingUpdateKeepStandaloneFeature = {
+                // Plan sub ended, but a longer paid spotlight add-on remains active.
+                active: true,
+                status: "Approved",
+                stripeSubscriptionId: admin.firestore.FieldValue.delete(),
+                planSubscriptionEndedAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+
+            async function shouldKeepStandaloneFeatureAfterPlanEnd(listingData) {
+                const featureSubId = toStripeSubscriptionId(listingData?.featureSpotlightStripeSubscriptionId);
+                const paidThrough =
+                    toDateValue(listingData?.featureSpotlightPaidThrough) ||
+                    toDateValue(listingData?.featureSpotlightAccessEnd);
+                const hasDisplay = Boolean(
+                    String(listingData?.selectedAddon || listingData?.featuredPlacement || "").trim(),
+                );
+                if (!hasDisplay && !featureSubId) return false;
+
+                if (paidThrough && paidThrough.getTime() > Date.now()) return true;
+
+                if (featureSubId) {
+                    try {
+                        const sub = await stripe.subscriptions.retrieve(featureSubId);
+                        const status = String(sub?.status || "").toLowerCase();
+                        if (["active", "trialing", "past_due", "unpaid"].includes(status)) {
+                            return true;
+                        }
+                    } catch (err) {
+                        console.warn(
+                            "   ⚠ Could not inspect feature sub after plan end:",
+                            err?.message || err,
+                        );
+                    }
+                }
+                return false;
+            }
+
+            async function applyPlanSubscriptionDeletedToListing(listingRef, partnerIdForListing, listingId, collectionName) {
+                const listingSnap = await listingRef.get();
+                const listingData = listingSnap.exists ? listingSnap.data() || {} : {};
+                const keepFeature = await shouldKeepStandaloneFeatureAfterPlanEnd(listingData);
+                if (keepFeature) {
+                    await listingRef.set(listingUpdateKeepStandaloneFeature, { merge: true });
+                    console.log(
+                        `   ✓ Plan sub ended; keeping standalone spotlight active for listing ${listingId}`,
+                    );
+                    return;
+                }
+                await listingRef.set(listingUpdateOnEndFull, { merge: true });
+                await deactivateIncludedPlanFeaturesForListing(partnerIdForListing || null, listingId, collectionName);
+            }
 
             const topLevelCollections = ["eventsCollection", "jobsCollection", "consultingServicesCollection", "consultingCollection"];
             for (const col of topLevelCollections) {
@@ -1617,12 +1768,12 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
             for (const col of topLevelCollections) {
                 const snap = await db.collection(col).where("stripeSubscriptionId", "==", subscription.id).get();
                 for (const lDoc of snap.docs) {
-                    await lDoc.ref.set(listingUpdateOnEnd, { merge: true });
                     const listingData = lDoc.data() || {};
-                    await deactivateIncludedPlanFeaturesForListing(
+                    await applyPlanSubscriptionDeletedToListing(
+                        lDoc.ref,
                         listingData.partnerId || null,
                         lDoc.id,
-                        col
+                        col,
                     );
                 }
             }
@@ -1641,8 +1792,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 for (const col of embeddedCols) {
                     const snap = await pDoc.ref.collection(col).where("stripeSubscriptionId", "==", subscription.id).get();
                     for (const lDoc of snap.docs) {
-                        await lDoc.ref.set(listingUpdateOnEnd, { merge: true });
-                        await deactivateIncludedPlanFeaturesForListing(pDoc.id, lDoc.id, col);
+                        await applyPlanSubscriptionDeletedToListing(lDoc.ref, pDoc.id, lDoc.id, col);
                     }
                 }
                 const pSnap = await pDoc.ref.collection("planCollection").where("stripeSubscriptionId", "==", subscription.id).get();
@@ -2003,7 +2153,7 @@ async function scheduleStandaloneSpotlightAddonCancellation({
 }
 
 /**
- * Preserve paid add-on spotlights on plan upgrade; cancel redundant standalone subs at period end.
+ * Preserve paid add-on spotlights on plan upgrade; for events/jobs, replace with the plan-included feature.
  */
 async function applyListingSpotlightAfterPlanUpgrade({
     listingRef,
@@ -2018,6 +2168,43 @@ async function applyListingSpotlightAfterPlanUpgrade({
     const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[newPlanId] || null;
     const standaloneSubId = toStripeSubscriptionId(listingData?.featureSpotlightStripeSubscriptionId);
     const currentDisplay = String(listingData?.selectedAddon || listingData?.featuredPlacement || "").trim();
+
+    // Events / Jobs: feature comes with the plan — always replace with the included tier.
+    if (includedSpotlight && (isEventOrJobPlanId(newPlanId) || isEventOrJobCollection(collectionName))) {
+        const patch = {
+            selectedAddon: includedSpotlight,
+            featuredPlacement: includedSpotlight,
+            isFeatured: true,
+            featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
+            featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
+            lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        if (accessThrough) {
+            patch.featureSpotlightPaidThrough = accessThrough;
+        }
+
+        if (standaloneSubId) {
+            await scheduleStandaloneSpotlightAddonCancellation({
+                listingRef,
+                listingData,
+                partnerRef,
+                listingId,
+                accessEnd: accessThrough || addDays(new Date(), 1),
+            });
+        }
+
+        await upsertIncludedPlanFeature(partnerRef, {
+            featureId: includedSpotlight,
+            listingId,
+            collectionName,
+            planId: newPlanId,
+            sessionId: sessionId || "",
+            accessThrough: accessThrough || null,
+        });
+        await deactivateSupersededPartnerFeatures(partnerRef, listingId, includedSpotlight);
+        return patch;
+    }
+
     const effectiveTier = resolveEffectiveSpotlightTier(listingData, includedSpotlight);
     const effectiveSpotlight = spotlightIdFromTier(effectiveTier);
 
@@ -3281,15 +3468,24 @@ async function applyListingAfterSpotlightAddonSubscriptionDeleted(partnerId, lis
             patch.isFeatured = true;
             patch.featureSpotlightPaidThrough = through;
             patch.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
+            patch.featureSpotlightCancelPending = admin.firestore.FieldValue.delete();
+            patch.featureSpotlightAccessEnd = admin.firestore.FieldValue.delete();
         } else {
             patch.selectedAddon = admin.firestore.FieldValue.delete();
             patch.featuredPlacement = admin.firestore.FieldValue.delete();
             patch.isFeatured = false;
+            patch.featureSpotlightCancelPending = admin.firestore.FieldValue.delete();
+            patch.featureSpotlightAccessEnd = admin.firestore.FieldValue.delete();
         }
     } else {
+        // No live plan left — end spotlight and deactivate listing (plan may have ended earlier).
         patch.selectedAddon = admin.firestore.FieldValue.delete();
         patch.featuredPlacement = admin.firestore.FieldValue.delete();
         patch.isFeatured = false;
+        patch.featureSpotlightCancelPending = admin.firestore.FieldValue.delete();
+        patch.featureSpotlightAccessEnd = admin.firestore.FieldValue.delete();
+        patch.active = false;
+        patch.status = "Cancelled";
     }
 
     await listingRef.set(patch, { merge: true });
@@ -4524,7 +4720,8 @@ app.post("/api/upgrade-subscription", async (req, res) => {
 
 /**
  * POST /api/cancel-plan
- * Cancel spotlight add-on only, or cancel the subscription (which also removes a paid add-on on the listing).
+ * Cancel spotlight add-on only, or cancel the plan subscription.
+ * Standalone business/consulting spotlights are independent of plan cancel and keep running until their paid period ends.
  * Body: { partnerId, planDocId, cancelScope }
  * cancelScope: "feature" | "plan" (plan_and_feature accepted as alias of plan for older clients)
  */
@@ -4688,45 +4885,8 @@ app.post("/api/cancel-plan", async (req, res) => {
                     }),
             }, { merge: true });
 
-            // Remove included spotlight visibility immediately when listing plan is cancelled.
-            const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[plan.planId] || null;
-            if (includedSpotlight && plan.listingId && plan.collectionName) {
-                const listingRef = await resolveListingDocRef(partnerId, plan.collectionName, plan.listingId);
-                if (listingRef) {
-                    const listingSnap = await listingRef.get();
-                    if (listingSnap.exists) {
-                        const listingData = listingSnap.data() || {};
-                        const currentSpotlight = String(
-                            listingData.selectedAddon || listingData.featuredPlacement || ""
-                        ).trim();
-                        if (!currentSpotlight || currentSpotlight === includedSpotlight) {
-                            await listingRef.set({
-                                selectedAddon: admin.firestore.FieldValue.delete(),
-                                featuredPlacement: admin.firestore.FieldValue.delete(),
-                                isFeatured: false,
-                                featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
-                                featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
-                                featureSpotlightPaidThrough: admin.firestore.FieldValue.delete(),
-                                lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.delete(),
-                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                            }, { merge: true });
-                        }
-                    }
-                }
-                const includedFeatureDocs = await partnerRef.collection("featuresCollection")
-                    .where("listingId", "==", plan.listingId)
-                    .where("collectionName", "==", plan.collectionName)
-                    .where("source", "==", "included_plan")
-                    .where("active", "==", true)
-                    .get();
-                for (const fDoc of includedFeatureDocs.docs) {
-                    await fDoc.ref.set({
-                        active: false,
-                        cancelPending: false,
-                        deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    }, { merge: true });
-                }
-            }
+            // Events/Jobs included spotlight ends with the plan at period end — do not strip early.
+            // Business/Consulting standalone spotlights are independent and are left untouched here.
             cancelledPlan = true;
         }
 
