@@ -467,7 +467,7 @@ export default function AllCategories() {
 
     const isMainCategoryTab = currentTab === "business" || currentTab === "consulting" || currentTab === "events" || currentTab === "jobs";
     const currentCategoriesDict = currentTab === "business" ? BUSINESS_CATEGORIES : currentTab === "consulting" ? CONSULTING_CATEGORIES : currentTab === "events" ? EVENTS_CATEGORIES : JOBS_CATEGORIES;
-    const featuredHeading = currentTab === "business" ? "Featured" : currentTab === "consulting" ? "Meet the Experts" : currentTab === "events" ? "Featured Events" : "Featured Jobs/Opportunities";
+    const featuredHeading = currentTab === "business" ? "Featured" : currentTab === "consulting" ? "Featured" : currentTab === "events" ? "Featured Events" : "Featured Jobs/Opportunities";
     const noFeaturedText = currentTab === "business" ? "No featured businesses available at the moment." : currentTab === "consulting" ? "No experts available at the moment." : currentTab === "events" ? "No featured events available at the moment." : "No featured jobs available at the moment.";
 
     const filteredHealthAuths = HEALTH_AUTHORITIES.filter((auth) =>
@@ -838,7 +838,7 @@ export default function AllCategories() {
                     <div className="relative flex-1 w-full">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
                         <Input
-                            placeholder={currentTab === "business" ? "search by company name, certification, country, or category" : currentTab === "consulting" ? "search by expert name, country, or category" : currentTab === "events" ? "search by event name, country, or category" : "search by job title, country, or category"}
+                            placeholder={currentTab === "business" ? "Search by company name, certification, country, or category" : currentTab === "consulting" ? "Search by expert name, country, or category" : currentTab === "events" ? "Search by event name, country, or category" : "Search by job title, country, or category"}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
@@ -1129,18 +1129,20 @@ export default function AllCategories() {
                                                 rel="noopener noreferrer"
                                                 className="group rounded-xl border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer overflow-hidden flex flex-col h-[320px]"
                                             >
-                                                <div className="p-8 flex-1 flex items-center justify-center bg-background border-b border-foreground/10 text-center relative overflow-hidden">
+                                                <div className="p-8 flex-1 flex items-center justify-center bg-background text-center relative overflow-hidden">
                                                     <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
                                                 </div>
-                                                <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24">
-                                                    {topLabel && <div className="text-xs font-semibold text-foreground tracking-wider mb-1">{topLabel}</div>}
-                                                    {bottomLabel && <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>}
-                                                    {categoryInfo.length > 0 && currentTab !== "business" && (
-                                                        <div className="text-[10px] text-muted-foreground/80 line-clamp-1 mt-1 text-center">
-                                                            {categoryInfo.join(" / ")}
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                {currentTab !== "consulting" && (
+                                                    <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24 border-t border-foreground/10">
+                                                        {topLabel && <div className="text-xs font-semibold text-foreground tracking-wider mb-1">{topLabel}</div>}
+                                                        {bottomLabel && <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>}
+                                                        {categoryInfo.length > 0 && currentTab !== "business" && (
+                                                            <div className="text-[10px] text-muted-foreground/80 line-clamp-1 mt-1 text-center">
+                                                                {categoryInfo.join(" / ")}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </Link>
                                         );
                                     })}
