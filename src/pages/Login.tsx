@@ -62,7 +62,7 @@ export default function Login() {
                         <Activity className="w-4 h-4 mr-2 text-secondary" /> Partner login
                     </div>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
-
+                    <p className="text-muted-foreground text-sm mb-6">Discover, Connect &amp; Collaborate</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-4">
