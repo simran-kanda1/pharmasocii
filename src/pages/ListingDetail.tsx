@@ -591,7 +591,7 @@ export default function ListingDetail() {
                                             {(item.companyWebsite || partner?.companyWebsite) && (
                                                 <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
                                                     <a href={item.companyWebsite || partner?.companyWebsite} target="_blank" rel="noopener noreferrer">
-                                                        Visit Website <ExternalLink className="ml-2 w-4 h-4" />
+                                                        Company Website <ExternalLink className="ml-2 w-4 h-4" />
                                                     </a>
                                                 </Button>
                                             )}
@@ -631,7 +631,7 @@ export default function ListingDetail() {
                                         <>
                                             <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
                                                 <a href={item.companyWebsite || partner?.companyWebsite || "#"} target="_blank" rel="noopener noreferrer">
-                                                    Visit Website <ExternalLink className="ml-2 w-4 h-4" />
+                                                    Company Website <ExternalLink className="ml-2 w-4 h-4" />
                                                 </a>
                                             </Button>
                                             <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
