@@ -417,7 +417,13 @@ export default function ListingDetail() {
                                         <div className="flex flex-col gap-1">
                                             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">BSL Level</span>
                                             <p className="text-sm font-semibold text-foreground">
-                                                {Array.isArray(item.bioSafetyLevel) ? item.bioSafetyLevel.join(", ") : item.bioSafetyLevel || partner?.bioSafetyLevel || "N/A"}
+                                                {(() => {
+                                                    const rawBsl = item.bioSafetyLevel || partner?.bioSafetyLevel;
+                                                    if (Array.isArray(rawBsl)) {
+                                                        return [...rawBsl].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
+                                                    }
+                                                    return rawBsl || "N/A";
+                                                })()}
                                             </p>
                                         </div>
                                     </div>
