@@ -102,13 +102,15 @@ export default function MemberLogin() {
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-[128px] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
-        <div className="inline-flex py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
-          <Activity className="w-4 h-4 mr-2 text-primary" /> Member login
+        <div className="flex flex-col items-center text-center">
+          <div className="inline-flex items-center py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
+            <Activity className="w-4 h-4 mr-2 text-primary" /> Member login
+          </div>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
+          <p className="text-muted-foreground text-sm mb-6">
+            Verify your email to post, comment, save, and report spam.
+          </p>
         </div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
-        <p className="text-muted-foreground text-sm mb-6">
-          Verify your email to post, comment, save, and report spam.
-        </p>
 
         {verifyBanner && (
           <div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
@@ -135,7 +137,12 @@ export default function MemberLogin() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Password</Label>
+              <Link to="/member/forgot-password" className="text-xs font-semibold text-primary hover:underline">
+                Forgot password?
+              </Link>
+            </div>
             <div className="relative">
               <Input
                 id="password"
@@ -167,11 +174,6 @@ export default function MemberLogin() {
 
 
         <p className="text-sm text-muted-foreground mt-6 text-center">
-          New here?{" "}
-          <Link to="/member/forgot-password" className="text-primary font-medium hover:underline">
-            Forgot password?
-          </Link>
-          {" · "}
           <Link to="/member/register" className="text-primary font-medium hover:underline">
             Become a member
           </Link>

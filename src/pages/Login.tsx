@@ -57,13 +57,15 @@ export default function Login() {
             <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-[128px] pointer-events-none" />
 
             <div className="relative z-10 w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
-                <div className="inline-flex py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
-                    <Activity className="w-4 h-4 mr-2 text-secondary" /> Partner login
+                <div className="flex flex-col items-center text-center">
+                    <div className="inline-flex items-center py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
+                        <Activity className="w-4 h-4 mr-2 text-secondary" /> Partner login
+                    </div>
+                    <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
+                    <p className="text-muted-foreground text-sm mb-6">
+                        Enter your credentials to access your partner account.
+                    </p>
                 </div>
-                <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
-                <p className="text-muted-foreground text-sm mb-6">
-                    Enter your credentials to access your partner account.
-                </p>
 
                 <form onSubmit={handleLogin} className="space-y-4">
                     <div className="space-y-2">
@@ -115,7 +117,6 @@ export default function Login() {
                 </form>
 
                 <p className="text-sm text-muted-foreground mt-6 text-center">
-                    Don't have an account?{" "}
                     <Link to="/signup" className="text-primary font-medium hover:underline">
                         Become a partner
                     </Link>
