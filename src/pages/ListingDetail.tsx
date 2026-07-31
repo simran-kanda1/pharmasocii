@@ -418,7 +418,7 @@ export default function ListingDetail() {
                                                                     onClick={() => setShowAllCerts(!showAllCerts)}
                                                                     className="text-xs text-primary hover:underline mt-0.5 font-bold"
                                                                 >
-                                                                    {showAllCerts ? "View Less" : "View More"}
+                                                                    {showAllCerts ? "View less" : "View more"}
                                                                 </button>
                                                             )}
                                                         </>
