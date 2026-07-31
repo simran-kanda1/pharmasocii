@@ -383,7 +383,19 @@ export default function ListingDetail() {
 
                                 {/* ── Business-only: certifications & BSL ── */}
                                 {type === "business" && (
-                                    <div className="flex flex-wrap items-center gap-x-8 gap-y-4 pt-2">
+                                    <div className="flex flex-col items-start gap-y-4 pt-2">
+                                        <div className="flex flex-col gap-1">
+                                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">BSL Level</span>
+                                            <p className="text-sm font-semibold text-foreground">
+                                                {(() => {
+                                                    const rawBsl = item.bioSafetyLevel || partner?.bioSafetyLevel;
+                                                    if (Array.isArray(rawBsl)) {
+                                                        return [...rawBsl].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
+                                                    }
+                                                    return rawBsl || "N/A";
+                                                })()}
+                                            </p>
+                                        </div>
                                         <div className="flex flex-col gap-1">
                                             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Certifications</span>
                                             <div className="text-sm font-semibold capitalize text-foreground flex flex-col items-start gap-0.5">
@@ -413,18 +425,6 @@ export default function ListingDetail() {
                                                     );
                                                 })()}
                                             </div>
-                                        </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">BSL Level</span>
-                                            <p className="text-sm font-semibold text-foreground">
-                                                {(() => {
-                                                    const rawBsl = item.bioSafetyLevel || partner?.bioSafetyLevel;
-                                                    if (Array.isArray(rawBsl)) {
-                                                        return [...rawBsl].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
-                                                    }
-                                                    return rawBsl || "N/A";
-                                                })()}
-                                            </p>
                                         </div>
                                     </div>
                                 )}
