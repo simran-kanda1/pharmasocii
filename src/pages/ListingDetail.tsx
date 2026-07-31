@@ -629,16 +629,20 @@ export default function ListingDetail() {
                                         </div>
                                     ) : (
                                         <>
-                                            <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
-                                                <a href={item.companyWebsite || partner?.companyWebsite || "#"} target="_blank" rel="noopener noreferrer">
-                                                    Company Website <ExternalLink className="ml-2 w-4 h-4" />
-                                                </a>
-                                            </Button>
-                                            <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
-                                                <a href={item.linkedInProfileLink || partner?.linkedInProfileLink || "#"} target="_blank" rel="noopener noreferrer">
-                                                    <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
-                                                </a>
-                                            </Button>
+                                            {(item.companyWebsite || partner?.companyWebsite) && (
+                                                <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
+                                                    <a href={item.companyWebsite || partner?.companyWebsite} target="_blank" rel="noopener noreferrer">
+                                                        Company Website <ExternalLink className="ml-2 w-4 h-4" />
+                                                    </a>
+                                                </Button>
+                                            )}
+                                            {(item.linkedInProfileLink || partner?.linkedInProfileLink) && (
+                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
+                                                    <a href={item.linkedInProfileLink || partner?.linkedInProfileLink} target="_blank" rel="noopener noreferrer">
+                                                        <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
+                                                    </a>
+                                                </Button>
+                                            )}
                                         </>
                                     )}
                                 </div>
@@ -833,12 +837,7 @@ export default function ListingDetail() {
                                 </h3>
                             </div>
                             <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-muted/10 border-b border-foreground/10">
-                                        <th className="px-8 py-5 text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest w-1/3">Areas</th>
-                                        <th className="px-8 py-5 text-[10px] font-extrabold text-muted-foreground uppercase tracking-widest">Categories</th>
-                                    </tr>
-                                </thead>
+
                                 <tbody>
                                     {groupedCategories.map((group: any, idx: number) => (
                                         <tr key={idx} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
@@ -872,7 +871,7 @@ export default function ListingDetail() {
                                                         </div>
                                                     ))
                                                 ) : (
-                                                    <p className="text-muted-foreground/50 italic text-xs">No categories selected</p>
+                                                    null
                                                 )}
                                             </td>
                                         </tr>
