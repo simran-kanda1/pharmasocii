@@ -395,7 +395,7 @@ function PlanCard({
         <div className={`relative flex flex-col justify-between rounded-2xl bg-white border ${plan.isFeatured ? "border-slate-800 shadow-md" : "border-slate-200/90 shadow-sm"} p-6 transition-all hover:shadow-md`}>
             {/* Top Badge */}
             <div className="text-center mb-4">
-                <span className="inline-block bg-slate-900 text-white font-bold text-xs px-4 py-1 rounded-full uppercase tracking-wider">
+                <span className="inline-block bg-slate-900 text-white font-bold text-xs px-4 py-1 rounded-full tracking-wider">
                     {plan.badge}
                 </span>
             </div>

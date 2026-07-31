@@ -25,7 +25,7 @@ function SubSubRow({
   return (
     <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-100 bg-slate-50/80 p-3 dark:border-foreground/10 dark:bg-muted/20">
       <div className="min-w-[140px] flex-1 space-y-1">
-        <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+        <label className="text-[10px] font-medium tracking-wide text-muted-foreground">
           Sub-sub label
         </label>
         <Input
@@ -37,7 +37,7 @@ function SubSubRow({
         />
       </div>
       <div className="w-full min-w-[120px] sm:w-40 space-y-1">
-        <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Id</label>
+        <label className="text-[10px] font-medium tracking-wide text-muted-foreground">Id</label>
         <Input
           value={ss.id}
           onChange={(e) => onChange({ id: e.target.value })}
@@ -103,7 +103,7 @@ function SubBlock({
     <div className="rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-foreground/15 dark:bg-card">
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-[160px] flex-1 space-y-1">
-          <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+          <label className="text-[10px] font-medium tracking-wide text-muted-foreground">
             Sub-category label
           </label>
           <Input
@@ -115,7 +115,7 @@ function SubBlock({
           />
         </div>
         <div className="w-full min-w-[120px] sm:w-44 space-y-1">
-          <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Id</label>
+          <label className="text-[10px] font-medium tracking-wide text-muted-foreground">Id</label>
           <Input
             value={sub.id}
             onChange={(e) => onChangeSub({ id: e.target.value })}
@@ -235,7 +235,7 @@ function MainBlock({
         <div className="p-4 space-y-4">
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[180px] flex-1 space-y-1">
-              <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              <label className="text-[10px] font-medium tracking-wide text-muted-foreground">
                 Main label
               </label>
               <Input
@@ -247,7 +247,7 @@ function MainBlock({
               />
             </div>
             <div className="w-full min-w-[120px] sm:w-48 space-y-1">
-              <label className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Id</label>
+              <label className="text-[10px] font-medium tracking-wide text-muted-foreground">Id</label>
               <Input
                 value={main.id}
                 onChange={(e) => onChangeMain({ id: e.target.value })}

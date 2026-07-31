@@ -63,7 +63,7 @@ export function AdminAddPlan({ onCancel, onSuccess }: { onCancel: () => void; on
     <div className="bg-slate-50 min-h-full">
       <div className="bg-white rounded-lg border shadow-sm max-w-5xl mx-auto p-6 my-6">
         <div className="flex justify-between items-center mb-6 pb-4 border-b">
-          <h2 className="text-xl font-bold tracking-tight text-slate-900 uppercase">Add Plan</h2>
+          <h2 className="text-xl font-bold tracking-tight text-slate-900">Add Plan</h2>
           <div className="text-sm text-slate-500">
             Home / Plans / Add Plan
           </div>

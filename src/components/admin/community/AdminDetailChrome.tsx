@@ -13,7 +13,7 @@ export function AdminDetailChrome({ title, breadcrumb, onBack, backLabel = "Back
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-        <h2 className="text-lg font-bold tracking-tight uppercase">{title}</h2>
+        <h2 className="text-lg font-bold tracking-tight">{title}</h2>
         {breadcrumb && breadcrumb.length > 0 && (
           <p className="text-xs text-muted-foreground flex items-center gap-1">
             <Home className="h-3.5 w-3.5" />

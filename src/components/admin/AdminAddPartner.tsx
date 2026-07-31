@@ -831,7 +831,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">ADD PARTNER INFORMATION</h2>
           <p className="text-sm text-slate-500 mt-1">Configure and publish a new partner listing immediately</p>
         </div>
-        <div className="inline-flex items-center gap-2 bg-blue-50/50 border border-blue-100 px-4 py-2 rounded-full text-xs text-blue-700 font-bold uppercase tracking-wider">
+        <div className="inline-flex items-center gap-2 bg-blue-50/50 border border-blue-100 px-4 py-2 rounded-full text-xs text-blue-700 font-bold tracking-wider">
           <Building2 className="w-4 h-4 text-blue-600" /> Admin Access Mode
         </div>
       </div>
@@ -1142,7 +1142,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
               {formData.selectedPlan && formData.selectedPlan !== "none" && (
                 <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 space-y-2.5">
-                  <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider mb-2">Plan Features Included</h4>
+                  <h4 className="font-bold text-slate-800 text-xs tracking-wider mb-2">Plan Features Included</h4>
                   {getPlanDetailsText(formData.selectedPlan).map((f, i) => (
                     <div key={i} className="flex items-start gap-2 text-xs text-slate-600 font-medium">
                       <Check className={`w-4 h-4 shrink-0 mt-0.5 ${f.includes("Extra Feature") ? "text-blue-600" : "text-green-500"}`} />

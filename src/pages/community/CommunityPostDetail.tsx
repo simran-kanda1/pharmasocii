@@ -785,7 +785,7 @@ export default function CommunityPostDetail() {
                     ) : (
                       <div className="rounded-lg border border-foreground/8 bg-muted/15 dark:bg-muted/10 py-3 pr-3 space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2 pl-0.5">
-                          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                          <p className="text-[11px] tracking-wide text-muted-foreground">
                             <span className="inline-block w-3 h-px align-middle bg-foreground/25 mr-1.5" aria-hidden />
                             Replies to{" "}
                             <span className="font-semibold normal-case text-foreground/80">

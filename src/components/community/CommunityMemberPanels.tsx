@@ -677,7 +677,7 @@ export function CommunityMemberPanels({
               />
               <ul className="text-xs text-muted-foreground space-y-0.5">
                 <li className={passwordChecks.minLength ? "text-emerald-600" : ""}>At least 8 characters</li>
-                <li className={passwordChecks.uppercase ? "text-emerald-600" : ""}>At least 1 uppercase letter</li>
+                <li className={passwordChecks.uppercase ? "text-emerald-600" : ""}>At least 1 letter</li>
                 <li className={passwordChecks.lowercase ? "text-emerald-600" : ""}>At least 1 lowercase letter</li>
                 <li className={passwordChecks.special ? "text-emerald-600" : ""}>At least 1 special character</li>
               </ul>

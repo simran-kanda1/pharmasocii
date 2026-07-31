@@ -33,7 +33,7 @@ export function Footer() {
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm uppercase tracking-wider">All Categories</h4>
+                        <h4 className="font-semibold text-sm tracking-wider">All Categories</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
                             <li><Link to="/all-categories/business" className="hover:text-primary transition-colors">Business Offerings</Link></li>
                             <li><Link to="/all-categories/consulting" className="hover:text-primary transition-colors">Consulting Services</Link></li>
@@ -43,7 +43,7 @@ export function Footer() {
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm uppercase tracking-wider">Company</h4>
+                        <h4 className="font-semibold text-sm tracking-wider">Company</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
                             <li><Link to="/about-us" className="hover:text-primary transition-colors">About Us</Link></li>
                             <li><Link to="/plans" className="hover:text-primary transition-colors">Plans</Link></li>
@@ -54,7 +54,7 @@ export function Footer() {
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm uppercase tracking-wider">Legal</h4>
+                        <h4 className="font-semibold text-sm tracking-wider">Legal</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
                             <li><Link to="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Privacy &amp; legal</Link></li>
                             <li><Link to="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Terms of Service</Link></li>

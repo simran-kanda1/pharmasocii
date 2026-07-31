@@ -322,12 +322,12 @@ export default function ListingDetail() {
                                     <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground">{listingTitle}</h1>
 
                                     {type === "events" && (
-                                        <Badge className="bg-primary/10 text-primary border-primary/20 font-bold uppercase tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
+                                        <Badge className="bg-primary/10 text-primary border-primary/20 font-bold tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
                                             <Calendar className="w-3 h-3" /> Event
                                         </Badge>
                                     )}
                                     {type === "jobs" && (
-                                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold uppercase tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
+                                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
                                             <Briefcase className="w-3 h-3" /> Job Opening
                                         </Badge>
                                     )}
@@ -337,7 +337,7 @@ export default function ListingDetail() {
                                 {type === "events" ? (
                                     <>
                                         {item.businessName && (
-                                            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
+                                            <p className="text-sm font-semibold text-muted-foreground tracking-widest">
                                                 Organized by {item.businessName}
                                             </p>
                                         )}
@@ -366,7 +366,7 @@ export default function ListingDetail() {
                                 ) : type === "jobs" ? (
                                     <>
                                         {(item.businessName || partner?.businessName) && (
-                                            <p className="text-sm font-semibold text-muted-foreground uppercase tracking-widest">
+                                            <p className="text-sm font-semibold text-muted-foreground tracking-widest">
                                                 {item.businessName || partner?.businessName}
                                             </p>
                                         )}
@@ -381,7 +381,7 @@ export default function ListingDetail() {
                                 {type === "business" && (
                                     <div className="flex flex-col items-start gap-y-4 pt-2">
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">BSL Level</span>
+                                            <span className="text-[10px] font-bold text-muted-foreground tracking-widest">BSL Level</span>
                                             <p className="text-sm font-semibold text-foreground">
                                                 {(() => {
                                                     const rawBsl = item.bioSafetyLevel || partner?.bioSafetyLevel;
@@ -393,7 +393,7 @@ export default function ListingDetail() {
                                             </p>
                                         </div>
                                         <div className="flex flex-col gap-1">
-                                            <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Certifications</span>
+                                            <span className="text-[10px] font-bold text-muted-foreground tracking-widest">Certifications</span>
                                             <div className="text-sm font-semibold capitalize text-foreground flex flex-col items-start gap-0.5">
                                                 {(() => {
                                                     const rawCerts = item.certifications || partner?.certifications;
@@ -432,7 +432,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <CalendarRange className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Date</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Date</p>
                                                     <p className="text-sm font-semibold text-foreground">
                                                         {eventStart}{eventEnd && eventEnd !== eventStart ? ` – ${eventEnd}` : ""}
                                                     </p>
@@ -443,7 +443,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
                                                     <p className="text-sm font-semibold text-foreground">{eventLocationLine}</p>
                                                 </div>
                                             </div>
@@ -460,13 +460,13 @@ export default function ListingDetail() {
                                                 <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10 h-full">
                                                     <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                     <div className="flex-1 min-w-0">
-                                                        <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
+                                                        <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
                                                         <div className="text-sm font-semibold text-foreground">
                                                             {showAllCategories ? cats.join(", ") : cats.slice(0, initialLimit).join(", ") + (hasMore ? "..." : "")}
                                                             {hasMore && (
                                                                 <button
                                                                     onClick={() => setShowAllCategories(!showAllCategories)}
-                                                                    className="ml-2 text-[10px] text-primary hover:underline uppercase font-bold tracking-tighter"
+                                                                    className="ml-2 text-[10px] text-primary hover:underline font-bold tracking-tighter"
                                                                 >
                                                                     {showAllCategories ? "Show less" : `+${cats.length - initialLimit} more`}
                                                                 </button>
@@ -486,7 +486,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Briefcase className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Industry</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Industry</p>
                                                     <p className="text-sm font-semibold text-foreground">{item.industry}</p>
                                                 </div>
                                             </div>
@@ -495,7 +495,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Job type</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Job type</p>
                                                     <p className="text-sm font-semibold text-foreground">{jobTypeLabel}</p>
                                                 </div>
                                             </div>
@@ -504,7 +504,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Work model</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Work model</p>
                                                     <p className="text-sm font-semibold text-foreground">{item.workModel}</p>
                                                 </div>
                                             </div>
@@ -513,7 +513,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Education</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Education</p>
                                                     <p className="text-sm font-semibold text-foreground">{item.education}</p>
                                                 </div>
                                             </div>
@@ -522,7 +522,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Calendar className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Application deadline</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Application deadline</p>
                                                     <p className="text-sm font-semibold text-foreground">{jobDeadlineFormatted}</p>
                                                 </div>
                                             </div>
@@ -531,7 +531,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Experience Level</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Experience Level</p>
                                                     <p className="text-sm font-semibold text-foreground">{item.experienceLevel}</p>
                                                 </div>
                                             </div>
@@ -540,7 +540,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
                                                     <p className="text-sm font-semibold text-foreground">{jobLocationLine}</p>
                                                 </div>
                                             </div>
@@ -549,7 +549,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Building2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-0.5">Company</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Company</p>
                                                     <p className="text-sm font-semibold text-foreground">{item.businessName || partner?.businessName}</p>
                                                 </div>
                                             </div>
@@ -652,7 +652,7 @@ export default function ListingDetail() {
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
                                     <Briefcase className="w-5 h-5 text-primary" /> Role Description
                                 </h3>
                             </div>
@@ -668,7 +668,7 @@ export default function ListingDetail() {
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10 flex flex-wrap items-center justify-between gap-4">
-                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
                                     <FileText className="w-5 h-5 text-primary" /> Full job description
                                 </h3>
                                 <Button asChild variant="outline" size="sm" className="rounded-full">
@@ -709,14 +709,14 @@ export default function ListingDetail() {
                             <div className="mb-12">
                                 <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                                     <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
-                                        <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                        <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
                                             <Globe className="w-5 h-5 text-primary" /> Job Categories & Specializations
                                         </h3>
                                     </div>
                                     <div className="p-8 space-y-4">
                                         {cats.length > 0 && (
                                             <div>
-                                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-2">Categories</p>
+                                                <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-2">Categories</p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {cats.map((c: string, i: number) => (
                                                         <Badge key={i} className="text-sm py-1.5 px-4 rounded-xl bg-emerald-500/10 text-emerald-700 border-emerald-500/20 font-semibold">{c}</Badge>
@@ -726,7 +726,7 @@ export default function ListingDetail() {
                                         )}
                                         {subs.length > 0 && (
                                             <div>
-                                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest mb-2">Specializations</p>
+                                                <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-2">Specializations</p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {subs.map((s: string, i: number) => (
                                                         <Badge key={i} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-primary/5 text-primary border-primary/10 font-medium">{s}</Badge>
@@ -759,7 +759,7 @@ export default function ListingDetail() {
                         <div className="mb-12">
                             <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                                 <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10 flex flex-wrap items-center justify-between gap-4">
-                                    <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                    <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
                                         <CalendarRange className="w-5 h-5 text-primary" /> Agenda
                                     </h3>
                                     {item.agendaPdfUrl && String(item.agendaPdfUrl).trim() !== "" && (
@@ -776,7 +776,7 @@ export default function ListingDetail() {
                                         if (!text) return null;
                                         return (
                                             <div className="space-y-3">
-                                                <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest">Agenda Highlights</p>
+                                                <p className="text-[10px] font-bold text-muted-foreground tracking-widest">Agenda Highlights</p>
                                                 <p className="text-foreground/80 text-base leading-relaxed whitespace-pre-line">{text}</p>
                                             </div>
                                         );
@@ -803,7 +803,7 @@ export default function ListingDetail() {
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
                                     <Globe className="w-5 h-5 text-primary" /> Event Specializations
                                 </h3>
                             </div>
@@ -828,7 +828,7 @@ export default function ListingDetail() {
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                                <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
                                     <Building2 className="w-5 h-5 text-primary" /> Areas & Categories
                                 </h3>
                             </div>
@@ -853,7 +853,7 @@ export default function ListingDetail() {
                                                             {sub.subSubs && sub.subSubs.length > 0 && (
                                                                 <div className="flex flex-wrap gap-1.5 pl-4 pt-0.5">
                                                                     {sub.subSubs.map((ss: string, ssIdx: number) => (
-                                                                        <Badge key={ssIdx} variant="secondary" className="text-[10px] py-0 px-2 rounded-md bg-primary/5 text-primary border-primary/10 font-medium uppercase tracking-tight">
+                                                                        <Badge key={ssIdx} variant="secondary" className="text-[10px] py-0 px-2 rounded-md bg-primary/5 text-primary border-primary/10 font-medium tracking-tight">
                                                                             {ss.split(" > ").pop()}
                                                                         </Badge>
                                                                     ))}
@@ -878,7 +878,7 @@ export default function ListingDetail() {
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden border-2 border-slate-200">
                             <div className="bg-slate-50 px-8 py-6 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground tracking-tight flex items-center gap-2 uppercase tracking-wider">
+                                <h3 className="text-lg font-black text-foreground tracking-tight flex items-center gap-2 tracking-wider">
                                     <MapPin className="w-5 h-5 text-slate-500" /> Geographic Availability
                                 </h3>
                             </div>
@@ -939,7 +939,7 @@ export default function ListingDetail() {
                                             <>
                                                 {/* Regions Tabs */}
                                                 <div className="space-y-4">
-                                                    <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest px-1 text-slate-400">Regions Served</h4>
+                                                    <h4 className="text-[10px] font-bold text-muted-foreground tracking-widest px-1 text-slate-400">Regions Served</h4>
                                                     <div className="flex flex-wrap gap-2">
                                                         {regionList.map((region) => (
                                                             <button
@@ -960,7 +960,7 @@ export default function ListingDetail() {
                                                 {currentActive && (
                                                     <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
                                                         <div className="flex items-center gap-2">
-                                                            <h4 className="text-[10px] uppercase font-bold text-muted-foreground tracking-widest px-1 text-slate-400">Markets in {currentActive}</h4>
+                                                            <h4 className="text-[10px] font-bold text-muted-foreground tracking-widest px-1 text-slate-400">Markets in {currentActive}</h4>
                                                             <div className="h-px flex-1 bg-foreground/5"></div>
                                                         </div>
                                                         <div className="flex flex-wrap gap-2">
@@ -992,7 +992,7 @@ export default function ListingDetail() {
                 {/* Representatives Section (listing-level only) */}
                 {Array.isArray(item.companyRepresentatives) && item.companyRepresentatives.length > 0 && (
                     <div className="space-y-4">
-                        <h3 className="text-xl font-black uppercase tracking-widest text-muted-foreground px-1">Representative(s)</h3>
+                        <h3 className="text-xl font-black tracking-widest text-muted-foreground px-1">Representative(s)</h3>
                         <div className="rounded-2xl border border-foreground/10 bg-background overflow-hidden shadow-sm">
                             <table className="w-full text-left border-collapse">
                                 <thead>

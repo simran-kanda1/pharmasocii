@@ -912,7 +912,7 @@ export default function AllCategories() {
                 {/* BSL filter pills — Business Offerings only */}
                 {currentTab === "business" && (
                     <div className="flex flex-wrap items-center gap-2 mb-4 max-w-7xl mx-auto">
-                        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mr-1 flex items-center gap-1">
+                        <span className="text-xs font-semibold text-muted-foreground tracking-widest mr-1 flex items-center gap-1">
                             <ShieldCheck className="w-3.5 h-3.5" /> BSL Level:
                         </span>
                         {BSL_FILTER_OPTIONS.map(bsl => (
@@ -1030,7 +1030,7 @@ export default function AllCategories() {
                                 {currentTab === "jobs" && (
                                     <div className="pt-6 border-t border-foreground/10 space-y-6">
                                         <div className="space-y-3">
-                                            <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Job Type</h4>
+                                            <h4 className="text-sm font-bold tracking-wider text-muted-foreground">Job Type</h4>
                                             <div className="space-y-2">
                                                 {JOB_TYPES.map(type => (
                                                     <div key={type} className="flex items-center gap-2">
@@ -1046,7 +1046,7 @@ export default function AllCategories() {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Work Model</h4>
+                                            <h4 className="text-sm font-bold tracking-wider text-muted-foreground">Work Model</h4>
                                             <div className="space-y-2">
                                                 {WORK_MODELS.map(model => (
                                                     <div key={model} className="flex items-center gap-2">
@@ -1062,7 +1062,7 @@ export default function AllCategories() {
                                         </div>
 
                                         <div className="space-y-3">
-                                            <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Location (City/State)</h4>
+                                            <h4 className="text-sm font-bold tracking-wider text-muted-foreground">Location (City/State)</h4>
                                             <Input 
                                                 placeholder="Enter city or state..." 
                                                 value={jobLocationSearch}
@@ -1133,7 +1133,7 @@ export default function AllCategories() {
                                                     <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
                                                 </div>
                                                 <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24">
-                                                    {topLabel && <div className="text-xs font-semibold text-foreground uppercase tracking-wider mb-1">{topLabel}</div>}
+                                                    {topLabel && <div className="text-xs font-semibold text-foreground tracking-wider mb-1">{topLabel}</div>}
                                                     {bottomLabel && <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>}
                                                     {categoryInfo.length > 0 && currentTab !== "business" && (
                                                         <div className="text-[10px] text-muted-foreground/80 line-clamp-1 mt-1 text-center">
@@ -1290,18 +1290,18 @@ export default function AllCategories() {
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
-                                            <p className="text-xs uppercase text-muted-foreground mb-1">Focus</p>
+                                            <p className="text-xs text-muted-foreground mb-1">Focus</p>
                                             <p className="font-semibold capitalize">{selectedProfile.selectedGroup?.replace(/_/g, ' ') || selectedProfile.focusArea || "N/A"}</p>
                                         </div>
                                         <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
-                                            <p className="text-xs uppercase text-muted-foreground mb-1">Classification</p>
+                                            <p className="text-xs text-muted-foreground mb-1">Classification</p>
                                             <p className="font-semibold capitalize">{selectedProfile.selectedPlan?.replace(/_/g, ' ') || selectedProfile.planId?.replace(/_/g, ' ') || "N/A"}</p>
                                         </div>
                                     </div>
                                     {(Array.isArray(selectedProfile.selectedSubcategoriesDisplay) && selectedProfile.selectedSubcategoriesDisplay.length > 0) ||
                                     (Array.isArray(selectedProfile.selectedSubcategories) && selectedProfile.selectedSubcategories.length > 0) ? (
                                         <div>
-                                            <p className="font-bold mb-2 text-sm uppercase text-muted-foreground tracking-wider">Specializations</p>
+                                            <p className="font-bold mb-2 text-sm text-muted-foreground tracking-wider">Specializations</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {(selectedProfile.selectedSubcategoriesDisplay || selectedProfile.selectedSubcategories || []).map((s: string, i: number) => (
                                                     <span key={i} className="bg-foreground/10 px-3 py-1 rounded-full text-xs">{s.split(" > ").pop()}</span>
@@ -1320,7 +1320,7 @@ export default function AllCategories() {
                                     )}
                                     {Array.isArray(selectedProfile.serviceCountries) && selectedProfile.serviceCountries.length > 0 && (
                                         <div>
-                                            <p className="font-bold mb-2 text-sm uppercase text-muted-foreground tracking-wider">Service Countries</p>
+                                            <p className="font-bold mb-2 text-sm text-muted-foreground tracking-wider">Service Countries</p>
                                             <p className="text-muted-foreground text-sm">{selectedProfile.serviceCountries.join(", ")}</p>
                                         </div>
                                     )}
@@ -1353,9 +1353,9 @@ export default function AllCategories() {
                                         <p className="text-lg font-medium text-muted-foreground flex items-center gap-2"><Calendar className="w-5 h-5" /> {selectedProfile.startDate}</p>
                                     </div>
                                     <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10 grid grid-cols-3 gap-4">
-                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">City</p><p className="font-semibold">{selectedProfile.city || "N/A"}</p></div>
-                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">State/Region</p><p className="font-semibold">{selectedProfile.stateRegion || selectedProfile.state || "N/A"}</p></div>
-                                        <div><p className="text-xs uppercase text-muted-foreground mb-1">Country</p><p className="font-semibold">{selectedProfile.eventCountry || selectedProfile.country || "N/A"}</p></div>
+                                        <div><p className="text-xs text-muted-foreground mb-1">City</p><p className="font-semibold">{selectedProfile.city || "N/A"}</p></div>
+                                        <div><p className="text-xs text-muted-foreground mb-1">State/Region</p><p className="font-semibold">{selectedProfile.stateRegion || selectedProfile.state || "N/A"}</p></div>
+                                        <div><p className="text-xs text-muted-foreground mb-1">Country</p><p className="font-semibold">{selectedProfile.eventCountry || selectedProfile.country || "N/A"}</p></div>
                                     </div>
                                     {selectedProfile.categories && (
                                         <div>

@@ -1959,7 +1959,7 @@ export default function AdminDashboard() {
             <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
             <SidebarItem label="Site Policies" icon={ShieldCheck} active={activeTab === "policies"} onClick={() => setActiveTab("policies")} />
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
+            <p className="text-[11px] font-semibold tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
             <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
             <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
             <SidebarItem label="Archive posts" icon={FileText} active={activeTab === "communityArchivePosts"} onClick={() => setActiveTab("communityArchivePosts")} />
@@ -2345,7 +2345,7 @@ export default function AdminDashboard() {
               return (
                 <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3 mt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Trial Period Status</span>
+                    <span className="text-xs font-semibold tracking-wider text-slate-500">Trial Period Status</span>
                     {trial.isExpired ? (
                       <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">Expired</Badge>
                     ) : (
@@ -2830,7 +2830,7 @@ function StatCard({
       <CardContent className="p-5">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-wide text-slate-500">{label}</p>
+            <p className="text-xs tracking-wide text-slate-500">{label}</p>
             <p className="text-2xl font-semibold mt-1">{value}</p>
           </div>
           <div className={`p-2 rounded-md ${iconClass}`}>

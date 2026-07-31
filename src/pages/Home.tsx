@@ -332,7 +332,7 @@ export default function Home() {
             {featuredBusinesses.length > 0 && (
                 <section className="py-12 bg-muted/20 border-y border-foreground/10 overflow-hidden">
                     <div className="container mx-auto px-4 mb-8">
-                        <h3 className="text-center text-sm font-semibold uppercase tracking-widest text-muted-foreground">Trusted by Leading Organizations</h3>
+                        <h3 className="text-center text-sm font-semibold tracking-widest text-muted-foreground">Trusted by Leading Organizations</h3>
                     </div>
                     <div className="relative flex w-full overflow-hidden">
                         {/* Gradient masks for smooth fading edges */}
@@ -508,7 +508,7 @@ export default function Home() {
                                     {featuredJobs.map((job, i) => (
                                         <Link to={`/listing/jobs/${job.id}`} target="_blank" rel="noopener noreferrer" key={`job-${job.id}-${i}`} className="flex flex-col p-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[360px] max-w-[360px] h-[160px] shrink-0">
                                             <div className="flex items-center justify-between mb-4">
-                                                <div className="text-xs font-bold text-primary uppercase tracking-wider border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
+                                                <div className="text-xs font-bold text-primary tracking-wider border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
                                                     {job.workModel || "Job Opening"}
                                                 </div>
                                                 <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
