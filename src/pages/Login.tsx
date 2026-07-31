@@ -62,9 +62,7 @@ export default function Login() {
                         <Activity className="w-4 h-4 mr-2 text-secondary" /> Partner login
                     </div>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
-                    <p className="text-muted-foreground text-sm mb-6">
-                        Enter your credentials to access your partner account.
-                    </p>
+
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-4">
@@ -77,7 +75,7 @@ export default function Login() {
                             onChange={(e) => setEmail(e.target.value)}
                             required
                             autoComplete="email"
-                            placeholder="researcher@biotech.com"
+
                             className="bg-foreground/5 border-foreground/10"
                         />
                     </div>
@@ -96,7 +94,7 @@ export default function Login() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 autoComplete="current-password"
-                                placeholder="••••••••"
+
                                 className="bg-foreground/5 border-foreground/10 pr-10"
                             />
                             <button
