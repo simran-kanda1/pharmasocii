@@ -838,7 +838,7 @@ export default function AllCategories() {
                     <div className="relative flex-1 w-full">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
                         <Input
-                            placeholder="search by business offerings, country, or category"
+                            placeholder={currentTab === "business" ? "search by company name, certification, country, or category" : currentTab === "consulting" ? "search by expert name, country, or category" : currentTab === "events" ? "search by event name, country, or category" : "search by job title, country, or category"}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
