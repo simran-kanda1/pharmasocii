@@ -209,10 +209,6 @@ export default function ListingDetail() {
             : "";
     const jobTypeLabel = type === "jobs" ? (item.jobtype || item.positionType || "") : "";
     const jobDeadlineFormatted = type === "jobs" && item.applicationDeadline ? formatDate(item.applicationDeadline) : null;
-    const normalizeToken = (value: any) => (typeof value === "string" ? value.trim().toLowerCase() : "");
-    const explicitCategoryTokens = new Set(
-        (Array.isArray(item.selectedCategories) ? item.selectedCategories : []).map(normalizeToken).filter(Boolean)
-    );
 
     // Helper to group subcategories by Area
     const getGroupedCategories = () => {
@@ -844,11 +840,6 @@ export default function ListingDetail() {
                                             <td className="px-8 py-6 align-top">
                                                 <p className="font-bold text-foreground text-lg flex items-center gap-2">
                                                     {group.area}
-                                                    {!explicitCategoryTokens.has(normalizeToken(group.area)) && (
-                                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
-                                                            inferred
-                                                        </span>
-                                                    )}
                                                 </p>
                                             </td>
                                             <td className="px-8 py-6 space-y-4 align-top">
