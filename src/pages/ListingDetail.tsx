@@ -378,52 +378,52 @@ export default function ListingDetail() {
                                 )}
 
                                 {/* ── Business-only: certifications & BSL ── */}
-                                {type === "business" && (
-                                    <div className="flex flex-col items-start gap-y-4 pt-2">
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[10px] font-bold text-muted-foreground tracking-widest">BSL Level</span>
-                                            <p className="text-sm font-semibold text-foreground">
-                                                {(() => {
-                                                    const rawBsl = item.bioSafetyLevel || partner?.bioSafetyLevel;
-                                                    if (Array.isArray(rawBsl)) {
-                                                        return [...rawBsl].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ");
-                                                    }
-                                                    return rawBsl || "N/A";
-                                                })()}
-                                            </p>
+                                {type === "business" && (() => {
+                                    const rawBsl = item.bioSafetyLevel || partner?.bioSafetyLevel;
+                                    const bslString = Array.isArray(rawBsl) ? [...rawBsl].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ") : rawBsl;
+                                    const hasBsl = !!bslString && bslString !== "N/A" && String(bslString).trim().length > 0;
+
+                                    const rawCerts = item.certifications || partner?.certifications;
+                                    const certsRawArray = Array.isArray(rawCerts)
+                                        ? rawCerts.flatMap((c: any) => typeof c === 'string' ? c.split(',').map((s: string) => s.trim()) : [c])
+                                        : (typeof rawCerts === 'string'
+                                            ? rawCerts.split(',').map((s: string) => s.trim())
+                                            : (rawCerts ? [rawCerts] : []));
+                                    const certsArray = Array.from(new Set(certsRawArray.filter(Boolean)));
+                                    const hasCerts = certsArray.length > 0;
+
+                                    if (!hasBsl && !hasCerts) return null;
+
+                                    certsArray.sort((a, b) => String(a).localeCompare(String(b)));
+                                    const displayCerts = showAllCerts ? certsArray : certsArray.slice(0, 3);
+
+                                    return (
+                                        <div className="flex flex-col items-start gap-y-4 pt-2">
+                                            {hasBsl && (
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-bold text-muted-foreground tracking-widest">BSL Level</span>
+                                                    <p className="text-sm font-semibold text-foreground">{bslString}</p>
+                                                </div>
+                                            )}
+                                            {hasCerts && (
+                                                <div className="flex flex-col gap-1">
+                                                    <span className="text-[10px] font-bold text-muted-foreground tracking-widest">Certifications</span>
+                                                    <div className="text-sm font-semibold capitalize text-foreground flex flex-col items-start gap-0.5">
+                                                        <span>{displayCerts.join(", ")}{!showAllCerts && certsArray.length > 3 ? "..." : ""}</span>
+                                                        {certsArray.length > 3 && (
+                                                            <button
+                                                                onClick={() => setShowAllCerts(!showAllCerts)}
+                                                                className="text-xs text-primary hover:underline mt-0.5 font-bold"
+                                                            >
+                                                                {showAllCerts ? "View less" : "View more"}
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
-                                        <div className="flex flex-col gap-1">
-                                            <span className="text-[10px] font-bold text-muted-foreground tracking-widest">Certifications</span>
-                                            <div className="text-sm font-semibold capitalize text-foreground flex flex-col items-start gap-0.5">
-                                                {(() => {
-                                                    const rawCerts = item.certifications || partner?.certifications;
-                                                    const certsRawArray = Array.isArray(rawCerts)
-                                                        ? rawCerts.flatMap((c: any) => typeof c === 'string' ? c.split(',').map((s: string) => s.trim()) : [c])
-                                                        : (typeof rawCerts === 'string'
-                                                            ? rawCerts.split(',').map((s: string) => s.trim())
-                                                            : (rawCerts ? [rawCerts] : []));
-                                                    const certsArray = Array.from(new Set(certsRawArray.filter(Boolean)));
-                                                    if (certsArray.length === 0) return <span>N/A</span>;
-                                                    certsArray.sort((a, b) => String(a).localeCompare(String(b)));
-                                                    const displayCerts = showAllCerts ? certsArray : certsArray.slice(0, 3);
-                                                    return (
-                                                        <>
-                                                            <span>{displayCerts.join(", ")}{!showAllCerts && certsArray.length > 3 ? "..." : ""}</span>
-                                                            {certsArray.length > 3 && (
-                                                                <button
-                                                                    onClick={() => setShowAllCerts(!showAllCerts)}
-                                                                    className="text-xs text-primary hover:underline mt-0.5 font-bold"
-                                                                >
-                                                                    {showAllCerts ? "View less" : "View more"}
-                                                                </button>
-                                                            )}
-                                                        </>
-                                                    );
-                                                })()}
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
+                                    );
+                                })()}
 
                                 {/* ── Event: key details row ── */}
                                 {type === "events" && (
