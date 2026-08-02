@@ -107,9 +107,7 @@ export default function MemberLogin() {
             <Activity className="w-4 h-4 mr-2 text-primary" /> Member login
           </div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
-          <p className="text-muted-foreground text-sm mb-6">
-            Discover, Connect &amp; Collaborate
-          </p>
+
         </div>
 
         {verifyBanner && (
