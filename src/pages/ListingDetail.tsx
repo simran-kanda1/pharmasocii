@@ -321,11 +321,7 @@ export default function ListingDetail() {
                                 <div className="flex flex-wrap items-center gap-3">
                                     <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground">{listingTitle}</h1>
 
-                                    {type === "events" && (
-                                        <Badge className="bg-primary/10 text-primary border-primary/20 font-bold tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
-                                            <Calendar className="w-3 h-3" /> Event
-                                        </Badge>
-                                    )}
+
                                     {type === "jobs" && (
                                         <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
                                             <Briefcase className="w-3 h-3" /> Job Opening
@@ -338,7 +334,7 @@ export default function ListingDetail() {
                                     <>
                                         {item.businessName && (
                                             <p className="text-sm font-semibold text-muted-foreground tracking-widest">
-                                                Organized by {item.businessName}
+                                                {item.businessName}
                                             </p>
                                         )}
                                         {item.eventProfile && (() => {
