@@ -391,6 +391,7 @@ export default function CommunityPostDetail() {
         createdAt: serverTimestamp(),
         archived: false,
         spamReportCount: 0,
+        likeCount: 0,
       });
       recordCommentNotification({
         postId,

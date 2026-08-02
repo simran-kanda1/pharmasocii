@@ -287,8 +287,8 @@ service cloud.firestore {
             canUseCommunityWrites()
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likeCount'])
             && (
-              request.resource.data.likeCount == resource.data.likeCount + 1
-              || (request.resource.data.likeCount == resource.data.likeCount - 1
+              request.resource.data.likeCount == ('likeCount' in resource.data ? resource.data.likeCount : 0) + 1
+              || (request.resource.data.likeCount == ('likeCount' in resource.data ? resource.data.likeCount : 0) - 1
                 && request.resource.data.likeCount >= 0)
             )
           )
