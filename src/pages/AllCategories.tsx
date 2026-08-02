@@ -205,7 +205,7 @@ const HEALTH_AUTHORITIES = [
 const CATEGORY_CONFIG = {
     business: {
         title: "Business Offerings",
-        description: "Explore curated life sciences providers, businesses, and expertise across specialized categories."
+        description: "Explore companies serving global life sciences markets across specialized categories."
     },
     consulting: {
         title: "Consulting Services",

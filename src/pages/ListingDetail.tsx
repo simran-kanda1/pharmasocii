@@ -992,7 +992,7 @@ export default function ListingDetail() {
                 {/* Representatives Section (listing-level only) */}
                 {Array.isArray(item.companyRepresentatives) && item.companyRepresentatives.length > 0 && (
                     <div className="space-y-4">
-                        <h3 className="text-xl font-black tracking-widest text-muted-foreground px-1">Representative(s)</h3>
+                        <h3 className="text-lg font-black text-foreground tracking-wider px-1">Representative(s)</h3>
                         <div className="rounded-2xl border border-foreground/10 bg-background overflow-hidden shadow-sm">
                             <table className="w-full text-left border-collapse">
                                 <thead>

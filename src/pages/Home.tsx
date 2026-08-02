@@ -389,7 +389,7 @@ export default function Home() {
                     <div className="text-center max-w-4xl mx-auto">
                         <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Business Offerings</h2>
                         <p className="text-xl md:text-2xl text-primary font-medium mb-4">Find the right industry partners for your next stage of growth.</p>
-                        <p className="text-muted-foreground text-lg">Explore curated life sciences providers, businesses, and expertise across specialized categories.</p>
+                        <p className="text-muted-foreground text-lg">Explore companies serving global life sciences markets across specialized categories.</p>
                     </div>
                 </div>
 
