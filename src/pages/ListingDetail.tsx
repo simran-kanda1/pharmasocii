@@ -6,7 +6,7 @@ import {
     buildLiveListingKeySet,
     isPartnerListingPublic,
 } from "@/lib/partnerListingPublic";
-import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText } from "lucide-react";
+import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -205,8 +205,12 @@ export default function ListingDetail() {
             : "";
     const jobLocationLine =
         type === "jobs"
-            ? [item.location, item.city, item.stateRegion, item.jobCountry].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
+            ? [item.city, item.stateRegion, item.jobCountry].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
             : "";
+    const jobCatsArray = type === "jobs" 
+        ? (Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0 ? item.selectedCategoriesDisplay : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0 ? item.selectedCategories : Array.isArray(item.categories) && item.categories.length > 0 ? item.categories : []) 
+        : [];
+    const jobCatsString = jobCatsArray.join(", ");
     const jobTypeLabel = type === "jobs" ? (item.jobtype || item.positionType || "") : "";
     const jobDeadlineFormatted = type === "jobs" && item.applicationDeadline ? formatDate(item.applicationDeadline) : null;
 
@@ -478,15 +482,6 @@ export default function ListingDetail() {
                                 {/* ── Job: key details row ── */}
                                 {type === "jobs" && (
                                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
-                                        {item.industry && (
-                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <Briefcase className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Industry</p>
-                                                    <p className="text-sm font-semibold text-foreground">{item.industry}</p>
-                                                </div>
-                                            </div>
-                                        )}
                                         {jobTypeLabel && (
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
@@ -496,12 +491,21 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {item.workModel && (
+                                        {jobDeadlineFormatted && (
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <Calendar className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Work model</p>
-                                                    <p className="text-sm font-semibold text-foreground">{item.workModel}</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Apply by</p>
+                                                    <p className="text-sm font-semibold text-foreground">{jobDeadlineFormatted}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {item.industry && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <Briefcase className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Industry</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.industry}</p>
                                                 </div>
                                             </div>
                                         )}
@@ -514,24 +518,6 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {jobDeadlineFormatted && (
-                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <Calendar className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Application deadline</p>
-                                                    <p className="text-sm font-semibold text-foreground">{jobDeadlineFormatted}</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {item.experienceLevel && (
-                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Experience Level</p>
-                                                    <p className="text-sm font-semibold text-foreground">{item.experienceLevel}</p>
-                                                </div>
-                                            </div>
-                                        )}
                                         {jobLocationLine && (
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
@@ -541,12 +527,30 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {(item.businessName || partner?.businessName) && (
+                                        {item.workModel && (
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <Building2 className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Company</p>
-                                                    <p className="text-sm font-semibold text-foreground">{item.businessName || partner?.businessName}</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Work model</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.workModel}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {item.experienceLevel && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Experience level</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.experienceLevel}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {jobCatsString && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <LayoutList className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
+                                                    <p className="text-sm font-semibold text-foreground line-clamp-2">{jobCatsString}</p>
                                                 </div>
                                             </div>
                                         )}
