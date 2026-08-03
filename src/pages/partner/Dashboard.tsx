@@ -2278,11 +2278,11 @@ export default function Dashboard() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><Mail className="w-4 h-4" /> Finance Email</p>
-                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.billingEmail || "N/A"}</p>
+                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.billingEmailAddress || "N/A"}</p>
                                 </div>
                                 <div>
                                     <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><FileText className="w-4 h-4" /> Business Tax ID</p>
-                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.businessId || "N/A"}</p>
+                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.VAT_ABN_EIN_businessId || "N/A"}</p>
                                 </div>
                             </div>
                         </CardContent>
