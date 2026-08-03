@@ -374,17 +374,13 @@ export default function PartnerRegister() {
                                     </p>
                                 </div>
 
-                                <div className="relative pl-10">
-                                    <div className="absolute left-0 top-1 w-6 h-6 rounded-full bg-foreground/5 border-2 border-foreground/20 flex items-center justify-center" />
-                                    <h3 className="text-xl font-semibold mb-2">Review and go live</h3>
-                                    <p className="text-muted-foreground leading-relaxed">
-                                        Business offerings and consulting services listings will be reviewed by our team before publishing. Events & conferences and jobs listings go live immediately after submission and successful payment.
-                                    </p>
-                                </div>
                             </div>
                         </div>
 
                         <div className="pt-8 border-t border-foreground/10">
+                            <p className="text-sm text-muted-foreground mb-4">
+                                Don't see a category that best fits your business? <a href="#" className="text-primary hover:underline">Contact us.</a>
+                            </p>
                             <p className="text-sm text-muted-foreground">
                                 <span className="font-semibold text-foreground">Need help?</span> visit our FAQs or <a href="#" className="text-primary hover:underline">contact us anytime</a> — we're here to support you.
                             </p>
