@@ -1051,15 +1051,15 @@ export default function CompleteProfile() {
                                 </div>
                                 <div className="space-y-2 pt-4 border-t border-foreground/10 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <Label htmlFor="altFirstName">Alternate contact first name *</Label>
+                                        <Label htmlFor="altFirstName">First name *</Label>
                                         <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="altLastName">Alternate contact last name *</Label>
+                                        <Label htmlFor="altLastName">Last name *</Label>
                                         <Input id="altLastName" value={formData.altLastName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                     <div className="space-y-2 md:col-span-2">
-                                        <Label htmlFor="altEmail">Alternate email address *</Label>
+                                        <Label htmlFor="altEmail">Email *</Label>
                                         <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                 </div>

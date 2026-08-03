@@ -247,17 +247,17 @@ export default function PartnerRegister() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altFirstName" className="text-foreground/80">Alternate contact first name *</Label>
+                            <Label htmlFor="altFirstName" className="text-foreground/80">First name *</Label>
                             <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altLastName" className="text-foreground/80">Alternate contact last name *</Label>
+                            <Label htmlFor="altLastName" className="text-foreground/80">Last name *</Label>
                             <Input id="altLastName" value={formData.altLastName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altEmail" className="text-foreground/80">Alternate contact email *</Label>
+                            <Label htmlFor="altEmail" className="text-foreground/80">Email *</Label>
                             <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
