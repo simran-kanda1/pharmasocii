@@ -2224,7 +2224,6 @@ export default function Dashboard() {
                         <CheckCircle2 className="w-8 h-8 text-primary shrink-0 mt-1 relative z-10" />
                         <div className="relative z-10">
                             <h3 className="text-xl font-bold text-primary">Profile Active</h3>
-                            <p className="text-foreground/80 mt-2 leading-relaxed max-w-2xl">Your paid listings are live and visible in All Categories.</p>
                         </div>
                     </div>
                 )}
