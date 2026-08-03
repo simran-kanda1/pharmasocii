@@ -1930,11 +1930,7 @@ export default function Dashboard() {
                                         <>
                                             <Badge variant="outline" className="bg-foreground/10 text-muted-foreground border-foreground/20">{pastStatusLabel}</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-                                            {cancelledAt && (
-                                                <span className="text-xs font-medium text-muted-foreground">
-                                                    Cancelled on {cancelledAt.toLocaleDateString()}
-                                                </span>
-                                            )}
+
                                             {billingEnd && (
                                                 <span className="text-xs font-medium text-muted-foreground">
                                                     Access ended {billingEnd.toLocaleDateString()}
@@ -1982,8 +1978,10 @@ export default function Dashboard() {
                                         <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
                                     </div>
                                     <div>
-                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Billing Cycle</p>
-                                        <p className="text-sm text-foreground font-medium capitalize">{billingCycleLabel}</p>
+                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">{isPast ? "Cancelled On" : "Billing Cycle"}</p>
+                                        <p className={isPast ? "text-sm text-foreground font-medium" : "text-sm text-foreground font-medium capitalize"}>
+                                            {isPast ? (cancelledAt ? cancelledAt.toLocaleDateString() : "N/A") : billingCycleLabel}
+                                        </p>
                                     </div>
                                     <div>
                                         <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Price</p>

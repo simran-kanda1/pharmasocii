@@ -25,6 +25,7 @@ import TermsOfUse from "./pages/TermsOfUse";
 import CommunityGuidelines from "./pages/CommunityGuidelines";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import Plans from "./pages/Plans";
+import AuthAction from "./pages/AuthAction";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -79,6 +80,7 @@ function App() {
       <Route path="/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
       <Route path="/partner/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
       <Route path="/partner/complete-profile" element={<AppLayout><CompleteProfile /></AppLayout>} />
+      <Route path="/auth/action" element={<AppLayout><AuthAction /></AppLayout>} />
 
       {/* Partner listing pages */}
       <Route path="/partner/add-listing/:type" element={<AppLayout><AddListing /></AppLayout>} />
