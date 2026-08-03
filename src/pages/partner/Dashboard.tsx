@@ -2440,9 +2440,7 @@ export default function Dashboard() {
                                     className="bg-foreground/5 border-foreground/10 h-11"
                                     placeholder="Enter your login password"
                                 />
-                                <p className="text-xs text-muted-foreground">
-                                    Changing email replaces your login address and sends a verification link to the new inbox.
-                                </p>
+
                             </div>
                         )}
                     </div>
