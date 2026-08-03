@@ -40,7 +40,7 @@ export default function AdminLogin() {
         setError("");
 
         try {
-            // Sign in with Firebase Auth
+            // Log in with Firebase Auth
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
             
             // Check if user is in adminCollection
@@ -129,7 +129,7 @@ export default function AdminLogin() {
 
                         <Button type="submit" className="w-full h-12 text-base font-semibold mt-4" disabled={isLoading}>
                             {isLoading ? "Authenticating..." : (
-                                <>Sign in <ArrowRight className="ml-2 h-5 w-5" /></>
+                                <>Log in <ArrowRight className="ml-2 h-5 w-5" /></>
                             )}
                         </Button>
                     </form>

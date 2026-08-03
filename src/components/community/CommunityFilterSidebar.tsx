@@ -193,7 +193,7 @@ export function CommunityFilterSidebar({
     <div className={cn("space-y-4", locked && "opacity-60 pointer-events-none select-none")}>
       {locked && (
         <p className="text-xs text-muted-foreground rounded-lg border border-dashed px-3 py-2">
-          Sign in and set up your member profile to use filters.
+          Log in and set up your member profile to use filters.
         </p>
       )}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">

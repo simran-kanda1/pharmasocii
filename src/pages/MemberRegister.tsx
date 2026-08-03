@@ -141,7 +141,7 @@ export default function MemberRegister() {
           const code = (verifyErr as FirebaseError).code;
           if (code === "auth/too-many-requests") {
             hint =
-              "Account created, but verification sends are rate-limited. Wait a few minutes, sign in, and use “Resend verification”; admins can still copy the link from Overview.";
+              "Account created, but verification sends are rate-limited. Wait a few minutes, log in, and use “Resend verification”; admins can still copy the link from Overview.";
           }
         }
         navigate("/member/login?verify=1", { replace: true, state: { verifyEmailHint: hint } });
@@ -353,7 +353,7 @@ export default function MemberRegister() {
               <p className="font-medium">You already have access with this email</p>
               <p className="text-muted-foreground leading-relaxed">
                 Pharmasocii uses one login per email for security. That still lets you use{" "}
-                <strong className="text-foreground">both</strong> partner listings and the community: sign in, then—if
+                <strong className="text-foreground">both</strong> partner listings and the community: log in, then—if
                 you have not yet—add your community profile (choose your community username there). Use the same
                 password you set for partner signup.
               </p>
@@ -362,7 +362,7 @@ export default function MemberRegister() {
                   to={`/member/login?email=${encodeURIComponent(form.email.trim())}`}
                   className="text-center"
                 >
-                  Sign in and finish community setup
+                  Log in and finish community setup
                 </Link>
               </Button>
             </div>

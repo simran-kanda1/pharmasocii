@@ -85,7 +85,7 @@ export function CommunityMemberSidebar({
         </nav>
       ) : (
         <Button variant="outline" className="w-full" onClick={() => navigate("/member/login")}>
-          Sign in
+          Log in
         </Button>
       )}
 

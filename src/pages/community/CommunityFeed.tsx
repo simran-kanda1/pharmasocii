@@ -469,7 +469,7 @@ export default function CommunityFeed() {
         <p className="text-xs text-muted-foreground">
           {memberRestricted
             ? "You have view-only access."
-            : "Sign in with a verified member profile to start a post."}
+            : "Log in with a verified member profile to start a post."}
         </p>
       </div>
       {!memberRestricted && (

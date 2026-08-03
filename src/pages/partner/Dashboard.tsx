@@ -442,7 +442,7 @@ export default function Dashboard() {
     });
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState("");
-    /** Required when changing sign-in email (Firebase recent-auth / re-auth). */
+    /** Required when changing login email (Firebase recent-auth / re-auth). */
     const [profileEmailReauthPassword, setProfileEmailReauthPassword] = useState("");
 
     // Password form state
@@ -867,7 +867,7 @@ export default function Dashboard() {
                             setProfileSaving(false);
                             return;
                         }
-                        setProfileMsg(msg || "Could not update your sign-in email. Check your password and try again.");
+                        setProfileMsg(msg || "Could not update your login email. Check your password and try again.");
                         setProfileSaving(false);
                         return;
                     }
@@ -951,7 +951,7 @@ export default function Dashboard() {
                 setProfileMsg(
                     emailChanged
                         ? emailVerificationSent
-                            ? "Profile updated. Sign-in email replaced — check the new inbox for a verification link."
+                            ? "A verification email has been sent to the new email address. Use this email as your login email going forward."
                             : "Profile updated and email replaced, but the verification email could not be sent. Contact support if you need a new link."
                         : "Profile updated successfully!"
                 );
@@ -2441,7 +2441,7 @@ export default function Dashboard() {
                                     placeholder="Enter your login password"
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Changing email replaces your sign-in address and sends a verification link to the new inbox.
+                                    Changing email replaces your login address and sends a verification link to the new inbox.
                                 </p>
                             </div>
                         )}

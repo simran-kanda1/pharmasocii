@@ -30,7 +30,7 @@ export async function publishCommunityPost(params: {
   imageFile: File | null;
 }) {
   const u = auth.currentUser;
-  if (!u) throw new Error("Sign in required.");
+  if (!u) throw new Error("Log in required.");
   await u.reload();
   if (!u.emailVerified) throw new Error("Verify your email before posting.");
   if (!params.categoryDoc) throw new Error("Categories are still loading. Try again in a moment.");
@@ -112,7 +112,7 @@ export async function updateCommunityPost(params: {
   keepExistingImage?: boolean;
 }) {
   const u = auth.currentUser;
-  if (!u) throw new Error("Sign in required.");
+  if (!u) throw new Error("Log in required.");
   await u.reload();
   if (!u.emailVerified) throw new Error("Verify your email before updating.");
   if (!params.categoryDoc) throw new Error("Categories are still loading. Try again in a moment.");

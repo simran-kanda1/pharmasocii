@@ -624,7 +624,7 @@ export function CommunityMemberPanels({
               }
               const user = auth.currentUser;
               if (!user?.email) {
-                setPasswordMsg("Sign in again to change your password.");
+                setPasswordMsg("Log in again to change your password.");
                 return;
               }
               setPasswordSaving(true);

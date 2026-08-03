@@ -285,10 +285,10 @@ export default function CommunityPostDetail() {
     ? "This post is archived."
     : communityAccessHint(memberRestricted, user, verified, hasMemberProfile);
   const shareHint = !canShare
-    ? (engageHint || "Sign in with a verified member profile to share.")
+    ? (engageHint || "Log in with a verified member profile to share.")
     : "May not work if this content is later archived due to spam activity";
   const reportHint = !canReport
-    ? (engageHint || "Sign in with a verified member profile to report.")
+    ? (engageHint || "Log in with a verified member profile to report.")
     : "";
 
   const shareLinkedIn = () => {

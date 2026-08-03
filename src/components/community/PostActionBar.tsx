@@ -63,7 +63,7 @@ export function PostActionBar({
 
   const requireEngage = (action?: () => void) => {
     if (!canEngage) {
-      showHint(engageHint || "Sign in with a verified member profile to use this.");
+      showHint(engageHint || "Log in with a verified member profile to use this.");
       return;
     }
     action?.();
@@ -71,7 +71,7 @@ export function PostActionBar({
 
   const requireSave = (action?: () => void) => {
     if (!canSave) {
-      showHint(engageHint || "Sign in with a verified member profile to save posts.");
+      showHint(engageHint || "Log in with a verified member profile to save posts.");
       return;
     }
     action?.();
@@ -79,7 +79,7 @@ export function PostActionBar({
 
   const requireShare = (action?: () => void) => {
     if (!canShare) {
-      showHint(engageHint || "Sign in with a verified member profile to share.");
+      showHint(engageHint || "Log in with a verified member profile to share.");
       return;
     }
     action?.();
@@ -87,7 +87,7 @@ export function PostActionBar({
 
   const requireReport = (action?: () => void) => {
     if (!canReport) {
-      showHint(engageHint || "Sign in with a verified member profile to report content.");
+      showHint(engageHint || "Log in with a verified member profile to report content.");
       return;
     }
     action?.();
@@ -127,9 +127,9 @@ export function PostActionBar({
 
   const currentUserId = auth.currentUser?.uid;
   const isOwnContent = Boolean(currentUserId && targetAuthorId && currentUserId === targetAuthorId);
-  const disabledTitle = engageHint || "Sign in with a verified member profile to use this.";
+  const disabledTitle = engageHint || "Log in with a verified member profile to use this.";
   const shareDisabledTitle = !canShare
-    ? engageHint || "Sign in with a verified member profile to share."
+    ? engageHint || "Log in with a verified member profile to share."
     : undefined;
   const ownContentTitle = "You cannot use this on your own post.";
 

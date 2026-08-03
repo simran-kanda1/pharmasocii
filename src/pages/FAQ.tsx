@@ -71,7 +71,7 @@ export default function FAQ() {
                                 <Link to="/community" className="text-primary hover:underline">
                                     Community
                                 </Link>{" "}
-                                is separate from partner listings and uses a member profile after sign-in.
+                                is separate from partner listings and uses a member profile after login.
                             </AccordionContent>
                         </AccordionItem>
                     </Accordion>
