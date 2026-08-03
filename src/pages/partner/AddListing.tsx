@@ -216,7 +216,7 @@ export default function AddListing() {
 
     // ─── Plan selection ───
     const [plan, setPlan] = useState("");
-    const [addon, setAddon] = useState("");
+
 
     // ─── Company info (pre-filled from partner doc) ───
     const [companyName, setCompanyName] = useState("");
@@ -979,18 +979,6 @@ export default function AddListing() {
                                             <Info className="w-3.5 h-3.5" /> Click here to check plan details
                                         </button>
                                     )}
-                                </div>
-                                <div className="space-y-3">
-                                    <Label>Feature Package (Optional)</Label>
-                                    <Select value={addon || "none"} onValueChange={setAddon} disabled>
-                                        <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10 opacity-70 cursor-not-allowed"><SelectValue placeholder="Available after plan payment" /></SelectTrigger>
-                                        <SelectContent className="bg-background/90 border-foreground/10">
-                                            <SelectItem value="none">Available after plan payment</SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <p className="text-xs text-muted-foreground">
-                                        Feature plans are unlocked in Dashboard only after this listing payment is completed.
-                                    </p>
                                 </div>
                             </div>
 
