@@ -1961,11 +1961,7 @@ export default function Dashboard() {
                                 {listingName && planSummaryParts.length > 0 && (
                                     <p className="text-sm text-muted-foreground mb-2">{planSummaryParts.join(" · ")}</p>
                                 )}
-                                {isPast && (
-                                    <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
-                                        This plan is no longer active. To subscribe again, use Add Listing on the dashboard when your account is eligible.
-                                    </p>
-                                )}
+
 
                                 {spotlightCancelPending && !isEnding && (
                                     <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
@@ -2340,9 +2336,7 @@ export default function Dashboard() {
                             {expiredPlans.length > 0 && (
                                 <div className="space-y-3">
                                     <h3 className="text-sm font-bold tracking-wider text-muted-foreground">Past Plans</h3>
-                                    <p className="text-xs text-muted-foreground">
-                                        Cancelled, expired, or replaced — no longer billing. Labels reflect subscription state in Stripe and your account.
-                                    </p>
+
                                     <div className="space-y-4">
                                         {expiredPlans.map((plan) => renderPlanSubscriptionCard(plan, "past"))}
                                     </div>
