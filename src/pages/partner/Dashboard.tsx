@@ -1966,12 +1966,7 @@ export default function Dashboard() {
                                         This plan is no longer active. To subscribe again, use Add Listing on the dashboard when your account is eligible.
                                     </p>
                                 )}
-                                {isEnding && (
-                                    <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
-                                        This plan is still active and accessible until the end date below. It is scheduled not to renew after that date.
-                                        Editing, plan upgrades, and spotlight changes are disabled while cancellation is scheduled.
-                                    </p>
-                                )}
+
                                 {spotlightCancelPending && !isEnding && (
                                     <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
                                         Your spotlight add-on is scheduled to end on{" "}
@@ -2001,11 +1996,8 @@ export default function Dashboard() {
                                 </div>
                                 {hasStandaloneAddon && (
                                     <div className="mt-4 pt-4 border-t border-foreground/10">
-                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-3">
-                                            Spotlight Add-on Subscription
-                                        </p>
-                                        <div className="flex items-center gap-3 mb-3 flex-wrap">
-                                            <h5 className="text-sm font-semibold text-foreground">
+                                        <div className="flex items-center gap-3 mb-1 flex-wrap">
+                                            <h5 className="text-lg font-bold text-foreground">
                                                 {standaloneSpotlightPlan?.label || "Spotlight add-on"}
                                             </h5>
                                             {spotlightCancelPending ? (
@@ -2017,6 +2009,9 @@ export default function Dashboard() {
                                             )}
                                             <Badge variant="outline" className="border-foreground/20">Monthly</Badge>
                                         </div>
+                                        <p className="text-sm text-muted-foreground mb-3">
+                                            Spotlight Add-on Subscription
+                                        </p>
                                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                                             <div>
                                                 <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Start Date</p>
@@ -2321,30 +2316,25 @@ export default function Dashboard() {
                     </Card>
                 </div>
 
-                {/* Plans & billing */}
+                {/* Plans & Billing */}
                 {(livePlans.length > 0 || expiredPlans.length > 0 || pendingPaymentListings.length > 0 || isApproved) && (
-                    <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
-                        <CardHeader className="pb-4 border-b border-foreground/10">
-                            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                                <div>
-                                    <CardTitle className="text-xl flex items-center gap-2">
-                                        <CreditCard className="w-5 h-5 text-primary" /> Plans &amp; billing
-                                    </CardTitle>
-                                    <p className="text-sm text-muted-foreground mt-1">
-                                        Active subscriptions, plans you have set to cancel at period end, and past plans that are no longer billing.
-                                    </p>
-                                </div>
-                                {isApproved && renderAddListingDropdown()}
+                    <div className="space-y-4">
+                        {isApproved && (
+                            <div className="flex justify-end">
+                                {renderAddListingDropdown()}
                             </div>
-                        </CardHeader>
-                        <CardContent className="pt-6 space-y-10">
-                            {livePlansSorted.length > 0 && (
-                                <div className="space-y-3">
-                                    <h3 className="text-sm font-bold tracking-wider text-muted-foreground">Active</h3>
-                                    <p className="text-xs text-muted-foreground">
-                                        Plans marked "Scheduled to end" remain active until the listed end date.
-                                    </p>
-                                    <div className="space-y-4">{livePlansSorted.map((plan) => renderPlanSubscriptionCard(plan, "active"))}</div>
+                        )}
+                        <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
+                            <CardHeader className="pb-4 border-b border-foreground/10">
+                                <CardTitle className="text-xl flex items-center gap-2">
+                                    <CreditCard className="w-5 h-5 text-primary" /> Plans &amp; Billing
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-6 space-y-10">
+                                {livePlansSorted.length > 0 && (
+                                    <div className="space-y-3">
+                                        <h3 className="text-sm font-bold tracking-wider text-muted-foreground">Active</h3>
+                                        <div className="space-y-4">{livePlansSorted.map((plan) => renderPlanSubscriptionCard(plan, "active"))}</div>
                                 </div>
                             )}
                             {expiredPlans.length > 0 && (
@@ -2398,6 +2388,7 @@ export default function Dashboard() {
                             )}
                         </CardContent>
                     </Card>
+                    </div>
                 )}
             </div>
         );
@@ -3329,7 +3320,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                     )}
                     {listingGroup === "events" && (
                         <div className="space-y-4 border border-foreground/10 rounded-lg p-4 bg-foreground/5">
-                            <h3 className="text-sm font-bold text-foreground">Event details</h3>
+                            <h3 className="text-sm font-bold text-foreground">Event Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <Label>Event name <span className="text-red-400">*</span></Label>
@@ -3449,7 +3440,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                     )}
                     {listingGroup === "jobs" && (
                         <div className="space-y-4 border border-foreground/10 rounded-lg p-4 bg-foreground/5">
-                            <h3 className="text-sm font-bold text-foreground">Job details</h3>
+                            <h3 className="text-sm font-bold text-foreground">Job Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
                                     <Label>Job title <span className="text-red-400">*</span></Label>
