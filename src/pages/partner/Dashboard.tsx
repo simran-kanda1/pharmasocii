@@ -2220,8 +2220,8 @@ export default function Dashboard() {
                 )}
 
                 {isApproved && (
-                    <div className="bg-primary/10 border border-primary/30 p-6 rounded-xl flex items-start flex-col sm:flex-row gap-4 relative overflow-hidden">
-                        <CheckCircle2 className="w-8 h-8 text-primary shrink-0 mt-1 relative z-10" />
+                    <div className="bg-primary/10 border border-primary/30 p-6 rounded-xl flex items-center gap-4 relative overflow-hidden">
+                        <CheckCircle2 className="w-8 h-8 text-primary shrink-0 relative z-10" />
                         <div className="relative z-10">
                             <h3 className="text-xl font-bold text-primary">Profile Active</h3>
                         </div>
@@ -2275,9 +2275,15 @@ export default function Dashboard() {
                                     </div>
                                 )}
                             </div>
-                            <div>
-                                <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><MapPin className="w-4 h-4" /> Registered Address</p>
-                                <p className="text-foreground/90 font-medium pl-6">{partnerData.businessAddress || "N/A"}</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><Mail className="w-4 h-4" /> Finance Email</p>
+                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.billingEmail || "N/A"}</p>
+                                </div>
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><FileText className="w-4 h-4" /> Business Tax ID</p>
+                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.businessId || "N/A"}</p>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
