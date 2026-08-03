@@ -688,67 +688,7 @@ export default function ListingDetail() {
                     </div>
                 )}
 
-                {/* ── Job Categories / Specializations card ── */}
-                {type === "jobs" && (
-                    () => {
-                        const cats: string[] = Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
-                            ? item.selectedCategoriesDisplay
-                            : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
-                                ? item.selectedCategories
-                                : Array.isArray(item.categories) && item.categories.length > 0
-                                    ? item.categories
-                                    : [];
-                        const subs: string[] = Array.isArray(item.selectedSubcategoriesDisplay) && item.selectedSubcategoriesDisplay.length > 0
-                            ? item.selectedSubcategoriesDisplay
-                            : Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0
-                                ? item.selectedSubcategories
-                                : [];
-                        const subSubs: string[] = Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : [];
-                        if (cats.length === 0 && subs.length === 0 && subSubs.length === 0) return null;
-                        return (
-                            <div className="mb-12">
-                                <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
-                                    <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
-                                        <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
-                                            <Globe className="w-5 h-5 text-primary" /> Job Categories & Specializations
-                                        </h3>
-                                    </div>
-                                    <div className="p-8 space-y-4">
-                                        {cats.length > 0 && (
-                                            <div>
-                                                <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-2">Categories</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {cats.map((c: string, i: number) => (
-                                                        <Badge key={i} className="text-sm py-1.5 px-4 rounded-xl bg-emerald-500/10 text-emerald-700 border-emerald-500/20 font-semibold">{c}</Badge>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {subs.length > 0 && (
-                                            <div>
-                                                <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-2">Specializations</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {subs.map((s: string, i: number) => (
-                                                        <Badge key={i} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-primary/5 text-primary border-primary/10 font-medium">{s}</Badge>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                        {subSubs.length > 0 && (
-                                            <div>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {subSubs.map((ss: string, i: number) => (
-                                                        <Badge key={i} variant="outline" className="text-sm py-1.5 px-4 rounded-xl font-medium">{ss}</Badge>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </Card>
-                            </div>
-                        );
-                    }
-                )()}
+
 
                 {/* Event agenda - moved up for prominence */}
                 {type === "events" && (() => {
