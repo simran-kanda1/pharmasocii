@@ -24,7 +24,7 @@ import {
     PlusCircle, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
     CreditCard, Star, Sparkles, Crown, Check, X,
-    Edit3, ArrowUpCircle, XCircle, AlertTriangle, Globe, Tag
+    Edit3, ArrowUpCircle, AlertTriangle, Globe, Tag
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -2112,7 +2112,7 @@ export default function Dashboard() {
                                             setShowCancelModal(true);
                                         }}
                                     >
-                                        <XCircle className="w-3.5 h-3.5 mr-1.5" /> Cancel
+                                        Cancel
                                     </Button>
                                 )}
                             </div>
@@ -3429,9 +3429,9 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <Label>Job summary <span className="text-red-400">*</span> <span className="text-muted-foreground font-normal">(max 500 characters)</span></Label>
+                                    <Label>Job summary <span className="text-red-400">*</span></Label>
                                     <Textarea value={jobSummary} onChange={(e) => setJobSummary(e.target.value.slice(0, 500))} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
-                                    <p className={`text-xs mt-1 ${jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobSummary.length}/500</p>
+                                    <p className={`text-xs text-right mt-1 ${jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobSummary.length}/500</p>
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
                                     <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
