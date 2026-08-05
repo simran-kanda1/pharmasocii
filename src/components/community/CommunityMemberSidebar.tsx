@@ -66,11 +66,10 @@ export function CommunityMemberSidebar({
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card space-y-4">
       <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-foreground/10">
-        <Avatar className="h-12 w-12">
-          <AvatarFallback className="bg-slate-800 text-white font-semibold dark:bg-primary">{profileInitials}</AvatarFallback>
+        <Avatar className="h-9 w-9">
+          <AvatarFallback className="text-sm bg-slate-800 text-white font-semibold dark:bg-primary">{profileInitials}</AvatarFallback>
         </Avatar>
         <div>
-          <p className="text-sm font-semibold mb-0.5">Welcome</p>
           <p className="font-semibold leading-tight">{welcomeName}</p>
         </div>
       </div>
