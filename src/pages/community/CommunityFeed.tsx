@@ -504,27 +504,29 @@ export default function CommunityFeed() {
       <div className="max-w-[1440px] mx-auto px-3 sm:px-4 lg:px-6 py-6 lg:py-8">
         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 lg:gap-8">
           <aside className="xl:col-span-3 order-2 xl:order-1">
-            <div className="xl:sticky xl:top-20 space-y-4">
-              <CommunityMemberSidebar
-                welcomeName={welcomeName}
-                profileInitials={profileInitials}
-                activeView={user ? communityView : "home"}
-                onViewChange={setCommunityView}
-                notificationUnread={notificationUnread}
-                selectedCountries={selectedCountries}
-                selectedFilterKeys={selectedFilterKeys}
-                categoryDoc={categoryDoc}
-                signedIn={Boolean(user)}
-                onRemoveCountry={user && hasMemberProfile ? removeCountryFilter : undefined}
-                onRemoveFilterKey={user && hasMemberProfile ? removeFilterKey : undefined}
-                onClearAllFilters={user && hasMemberProfile ? clearAllFilters : undefined}
-              />
-              {user && !hasMemberProfile && (
-                <Button className="w-full" asChild>
-                  <Link to="/member/setup">Create community profile</Link>
-                </Button>
-              )}
-            </div>
+            {user && (
+              <div className="xl:sticky xl:top-20 space-y-4">
+                <CommunityMemberSidebar
+                  welcomeName={welcomeName}
+                  profileInitials={profileInitials}
+                  activeView={communityView}
+                  onViewChange={setCommunityView}
+                  notificationUnread={notificationUnread}
+                  selectedCountries={selectedCountries}
+                  selectedFilterKeys={selectedFilterKeys}
+                  categoryDoc={categoryDoc}
+                  signedIn={true}
+                  onRemoveCountry={hasMemberProfile ? removeCountryFilter : undefined}
+                  onRemoveFilterKey={hasMemberProfile ? removeFilterKey : undefined}
+                  onClearAllFilters={hasMemberProfile ? clearAllFilters : undefined}
+                />
+                {!hasMemberProfile && (
+                  <Button className="w-full" asChild>
+                    <Link to="/member/setup">Create community profile</Link>
+                  </Button>
+                )}
+              </div>
+            )}
           </aside>
 
           <main className="xl:col-span-6 order-1 xl:order-2 space-y-5">
