@@ -26,6 +26,7 @@ export default function ListingDetail() {
     const [loading, setLoading] = useState(true);
     const [showAllCategories, setShowAllCategories] = useState(false);
     const [showAllCerts, setShowAllCerts] = useState(false);
+    const [showAllAreas, setShowAllAreas] = useState(false);
     const [activeRegion, setActiveRegion] = useState<string | null>(null);
 
     useEffect(() => {
@@ -775,40 +776,74 @@ export default function ListingDetail() {
                             <table className="w-full text-left border-collapse">
 
                                 <tbody>
-                                    {groupedCategories.map((group: any, idx: number) => (
-                                        <tr key={idx} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
-                                            <td className="px-8 py-6 align-top">
-                                                <p className="font-bold text-foreground text-lg flex items-center gap-2">
-                                                    {group.area}
-                                                </p>
-                                            </td>
-                                            <td className="px-8 py-6 space-y-4 align-top">
-                                                {group.subs.length > 0 ? (
-                                                    group.subs.map((sub: any, sIdx: number) => (
-                                                        <div key={sIdx} className="space-y-1.5">
-                                                            <p className="font-semibold text-foreground flex items-center gap-2">
-                                                                <span className="w-2 h-2 rounded-full bg-primary/40 shrink-0" />
-                                                                {sub.label.split(" > ").pop()}
-                                                            </p>
-                                                            {sub.subSubs && sub.subSubs.length > 0 && (
-                                                                <div className="flex flex-wrap gap-1.5 pl-4 pt-0.5">
-                                                                    {sub.subSubs.map((ss: string, ssIdx: number) => (
-                                                                        <Badge key={ssIdx} variant="secondary" className="text-[10px] py-0 px-2 rounded-md bg-primary/5 text-primary border-primary/10 font-medium tracking-tight">
-                                                                            {ss.split(" > ").pop()}
-                                                                        </Badge>
-                                                                    ))}
+                                    {(() => {
+                                        let currentCount = 0;
+                                        const renderedGroups = [];
+                                        
+                                        for (let idx = 0; idx < groupedCategories.length; idx++) {
+                                            const group = groupedCategories[idx];
+                                            const groupCount = 1 + group.subs.length;
+                                            
+                                            if (!showAllAreas && currentCount >= 10 && renderedGroups.length > 0) {
+                                                break;
+                                            }
+                                            
+                                            currentCount += groupCount;
+                                            renderedGroups.push(
+                                                <tr key={idx} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
+                                                    <td className="px-8 py-6 align-top">
+                                                        <p className="font-bold text-foreground text-lg flex items-center gap-2">
+                                                            {group.area}
+                                                        </p>
+                                                    </td>
+                                                    <td className="px-8 py-6 space-y-4 align-top">
+                                                        {group.subs.length > 0 ? (
+                                                            group.subs.map((sub: any, sIdx: number) => (
+                                                                <div key={sIdx} className="space-y-1.5">
+                                                                    <p className="font-semibold text-foreground flex items-center gap-2">
+                                                                        <span className="w-2 h-2 rounded-full bg-primary/40 shrink-0" />
+                                                                        {sub.label.split(" > ").pop()}
+                                                                    </p>
+                                                                    {sub.subSubs && sub.subSubs.length > 0 && (
+                                                                        <div className="flex flex-wrap gap-1.5 pl-4 pt-0.5">
+                                                                            {sub.subSubs.map((ss: string, ssIdx: number) => (
+                                                                                <Badge key={ssIdx} variant="secondary" className="text-[10px] py-0 px-2 rounded-md bg-primary/5 text-primary border-primary/10 font-medium tracking-tight">
+                                                                                    {ss.split(" > ").pop()}
+                                                                                </Badge>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
                                                                 </div>
-                                                            )}
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    null
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                            ))
+                                                        ) : (
+                                                            null
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        }
+                                        return renderedGroups;
+                                    })()}
                                 </tbody>
                             </table>
+                            
+                            {(() => {
+                                const totalCount = groupedCategories.reduce((acc: number, g: any) => acc + 1 + g.subs.length, 0);
+                                if (totalCount > 10) {
+                                    return (
+                                        <div className="p-4 border-t border-foreground/10 flex justify-center bg-muted/10">
+                                            <Button 
+                                                variant="ghost" 
+                                                className="text-primary hover:text-primary/80 font-bold"
+                                                onClick={() => setShowAllAreas(!showAllAreas)}
+                                            >
+                                                {showAllAreas ? "View less" : "View more"}
+                                            </Button>
+                                        </div>
+                                    );
+                                }
+                                return null;
+                            })()}
                         </Card>
                     </div>
                 )}
