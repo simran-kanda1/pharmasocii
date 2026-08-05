@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Activity, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut, sendEmailVerification } from "firebase/auth";
 import { auth, db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
 
@@ -15,11 +15,15 @@ export default function Login() {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
+    const [unverifiedUser, setUnverifiedUser] = useState(false);
+    const [resendSuccess, setResendSuccess] = useState("");
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
         setError("");
+        setResendSuccess("");
+        setUnverifiedUser(false);
 
         try {
             const userCredential = await signInWithEmailAndPassword(auth, email, password);
@@ -36,6 +40,12 @@ export default function Login() {
                     navigate("/partner/complete-profile");
                 }
             } else if (memberDoc.exists()) {
+                if (!user.emailVerified) {
+                    setError("Please verify your email for active participation in the community. Check your inbox or click resend below.");
+                    setUnverifiedUser(true);
+                    setIsLoading(false);
+                    return;
+                }
                 navigate("/community");
             } else {
                 setError(
@@ -51,6 +61,21 @@ export default function Login() {
         }
     };
 
+    const handleResend = async () => {
+        if (!auth.currentUser) return;
+        try {
+            setIsLoading(true);
+            await sendEmailVerification(auth.currentUser);
+            setResendSuccess("Verification email sent! Please check your inbox.");
+            setError("");
+        } catch (err: any) {
+            console.error(err);
+            setError("Failed to send verification email. Please try again later.");
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     return (
         <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground relative overflow-hidden min-h-[80vh] px-4">
             <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[128px] pointer-events-none" />
@@ -59,7 +84,7 @@ export default function Login() {
             <div className="relative z-10 w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
                 <div className="flex flex-col items-center text-center">
                     <div className="inline-flex items-center py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
-                        <Activity className="w-4 h-4 mr-2 text-secondary" /> Partner login
+                        Partner login
                     </div>
                     <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
 
@@ -108,10 +133,22 @@ export default function Login() {
                     </div>
 
                     {error && <p className="text-sm text-destructive">{error}</p>}
+                    {resendSuccess && <p className="text-sm text-emerald-600">{resendSuccess}</p>}
 
                     <Button type="submit" className="w-full" disabled={isLoading}>
                         {isLoading ? "Logging in…" : "Log in"}
                     </Button>
+
+                    {unverifiedUser && (
+                        <div className="pt-2">
+                            <Button type="button" variant="outline" className="w-full" disabled={isLoading} onClick={handleResend}>
+                                Resend verification email
+                            </Button>
+                            <p className="text-xs text-muted-foreground text-center mt-3">
+                                You must be logged in with an unverified session to resend login with password link.
+                            </p>
+                        </div>
+                    )}
                 </form>
 
                 <p className="text-sm text-muted-foreground mt-6 text-center">

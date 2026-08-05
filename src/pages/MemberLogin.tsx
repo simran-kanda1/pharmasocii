@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { Activity, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,7 @@ import { auth, db } from "@/firebase";
 import {
   signInWithEmailAndPassword,
   onAuthStateChanged,
+  sendEmailVerification
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 
@@ -25,6 +26,8 @@ export default function MemberLogin() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [unverifiedUser, setUnverifiedUser] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState("");
 
   const [verifyHint] = useState<string | null>(() => {
     const s = location.state as { verifyEmailHint?: string } | null;
@@ -57,6 +60,8 @@ export default function MemberLogin() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setResendSuccess("");
+    setUnverifiedUser(false);
 
     try {
       setIsLoading(true);
@@ -73,6 +78,7 @@ export default function MemberLogin() {
 
       if (!u.emailVerified) {
         setError("Please verify your email for active participation in the community. Check your inbox or click resend below.");
+        setUnverifiedUser(true);
         return;
       }
 
@@ -94,7 +100,20 @@ export default function MemberLogin() {
     }
   };
 
-
+  const handleResend = async () => {
+    if (!auth.currentUser) return;
+    try {
+      setIsLoading(true);
+      await sendEmailVerification(auth.currentUser);
+      setResendSuccess("Verification email sent! Please check your inbox.");
+      setError("");
+    } catch (err: any) {
+      console.error(err);
+      setError("Failed to send verification email. Please try again later.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground relative overflow-hidden min-h-[80vh] px-4">
@@ -104,10 +123,10 @@ export default function MemberLogin() {
       <div className="relative z-10 w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
         <div className="flex flex-col items-center text-center">
           <div className="inline-flex items-center py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
-            <Activity className="w-4 h-4 mr-2 text-primary" /> Member login
+            Member login
           </div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
-
+          <p className="text-sm text-muted-foreground mb-6">Verify your email to post, comment, save, and report spam.</p>
         </div>
 
 
@@ -158,11 +177,22 @@ export default function MemberLogin() {
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
-
+          {resendSuccess && <p className="text-sm text-emerald-600">{resendSuccess}</p>}
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Logging in…" : "Log in"}
+            {isLoading ? "Logging in…" : "Sign In"}
           </Button>
+          
+          {unverifiedUser && (
+            <div className="pt-2">
+              <Button type="button" variant="outline" className="w-full" disabled={isLoading} onClick={handleResend}>
+                Resend verification email
+              </Button>
+              <p className="text-xs text-muted-foreground text-center mt-3">
+                You must be logged in with an unverified session to resend login with password link.
+              </p>
+            </div>
+          )}
         </form>
 
 
