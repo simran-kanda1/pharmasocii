@@ -514,7 +514,7 @@ export function CommunityMemberPanels({
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-foreground/15 dark:bg-card">
         <h2 className="font-semibold mb-4">Update profile</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          Name/username are final at account creation.
+          Account identity features are fixed and cannot be changed after creation.
         </p>
         <form
           className="space-y-4 max-w-lg"
