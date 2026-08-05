@@ -6,7 +6,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
+import { Loader2, CheckCircle, AlertCircle, Eye, EyeOff } from "lucide-react";
+import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 
 export default function AuthAction() {
     const [searchParams] = useSearchParams();
@@ -20,6 +21,11 @@ export default function AuthAction() {
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showPassword, setShowPassword] = useState(false);
+
+    const passwordChecks = getPasswordPolicyChecks(newPassword);
+    const isPasswordValid = isPasswordPolicyValid(newPassword);
+    const passwordsMismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
 
     useEffect(() => {
         if (!mode || !oobCode) {
@@ -65,12 +71,12 @@ export default function AuthAction() {
 
     const handleResetPassword = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (newPassword !== confirmPassword) {
-            setMessage("Passwords do not match.");
+        if (!isPasswordValid) {
+            setMessage(PASSWORD_POLICY_ERROR_MESSAGE);
             return;
         }
-        if (newPassword.length < 6) {
-            setMessage("Password must be at least 6 characters.");
+        if (newPassword !== confirmPassword) {
+            setMessage("Passwords do not match.");
             return;
         }
 
@@ -113,25 +119,46 @@ export default function AuthAction() {
                             )}
                             <div className="space-y-2">
                                 <Label htmlFor="newPassword">New Password</Label>
-                                <Input
-                                    id="newPassword"
-                                    type="password"
-                                    required
-                                    value={newPassword}
-                                    onChange={(e) => setNewPassword(e.target.value)}
-                                    className="bg-foreground/5 border-foreground/10 h-11"
-                                />
+                                <div className="relative">
+                                    <Input
+                                        id="newPassword"
+                                        type={showPassword ? "text" : "password"}
+                                        required
+                                        value={newPassword}
+                                        onChange={(e) => setNewPassword(e.target.value)}
+                                        className="bg-foreground/5 border-foreground/10 h-11 pr-10"
+                                    />
+                                    <button
+                                        type="button"
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        tabIndex={-1}
+                                    >
+                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                    </button>
+                                </div>
+                                {newPassword && (
+                                    <ul className="text-xs text-muted-foreground space-y-1 mt-2 mb-2 bg-muted/30 p-3 rounded-md">
+                                        <li className={passwordChecks.minLength ? "text-emerald-600" : ""}>At least 8 characters</li>
+                                        <li className={passwordChecks.uppercase ? "text-emerald-600" : ""}>At least 1 uppercase letter</li>
+                                        <li className={passwordChecks.lowercase ? "text-emerald-600" : ""}>At least 1 lowercase letter</li>
+                                        <li className={passwordChecks.special ? "text-emerald-600" : ""}>At least 1 special character</li>
+                                    </ul>
+                                )}
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="confirmPassword">Confirm New Password</Label>
                                 <Input
                                     id="confirmPassword"
-                                    type="password"
+                                    type={showPassword ? "text" : "password"}
                                     required
                                     value={confirmPassword}
                                     onChange={(e) => setConfirmPassword(e.target.value)}
                                     className="bg-foreground/5 border-foreground/10 h-11"
                                 />
+                                {passwordsMismatch && (
+                                    <p className="text-xs text-destructive mt-1">Passwords do not match.</p>
+                                )}
                             </div>
                             <Button
                                 type="submit"
