@@ -14,7 +14,6 @@ import {
   canActivateMainInPicker,
   canAddSubInPicker,
   canAddSubSubInPicker,
-  categoryLimitHelpText,
   countActiveMainsInPicker,
   pickerLimitBlockReason,
   summarizePickerSelection,
@@ -349,11 +348,8 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       <div>
         <p className="text-sm font-medium">Categories</p>
         <p className="text-xs text-muted-foreground">
-          Select up to {POST_MAIN_CAT_MAX} main categories. For each selected main, you can add up to{" "}
-          {POST_SUB_PER_MAIN_MAX} sub-categories and up to {POST_SUBSUB_PER_SUB_MAX} sub-sub-categories per
-          sub when available.
+          Choose up to {POST_MAIN_CAT_MAX} main categories that best match your post. Add sub-categories and sub-topics where available to refine your discussion.
         </p>
-        <p className="text-xs text-muted-foreground mt-1">{categoryLimitHelpText()}</p>
         <p className="text-xs font-medium text-foreground/80 mt-1 sticky top-0 z-10 bg-background/95 backdrop-blur-sm py-1">
           {summarizePickerSelection(doc, value.subsByMain, value.subSubsByMainSub)}
         </p>
@@ -464,6 +460,9 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
           </div>
         );
       })}
+      <p className="text-xs text-muted-foreground pt-4 border-t border-foreground/10 mt-4">
+        You can select up to {POST_MAIN_CAT_MAX} main categories. Each main category supports up to {POST_SUB_PER_MAIN_MAX} sub-categories, and when available, up to {POST_SUBSUB_PER_SUB_MAX} sub-topics per sub-category.
+      </p>
     </div>
   );
 }
