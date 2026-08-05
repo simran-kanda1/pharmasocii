@@ -537,15 +537,15 @@ export function CommunityMemberPanels({
           }}
         >
           <div className="space-y-2">
-            <Label>Full name</Label>
+            <Label>Full name*</Label>
             <Input value={name} disabled className="bg-muted/40" />
           </div>
           <div className="space-y-2">
-            <Label>Username</Label>
+            <Label>Username*</Label>
             <Input value={userName} disabled className="bg-muted/40" />
           </div>
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>Email*</Label>
             <Input value={email} disabled className="bg-muted/40" />
           </div>
 
@@ -566,7 +566,7 @@ export function CommunityMemberPanels({
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="industry">Industry</Label>
+              <Label htmlFor="industry">Industry*</Label>
               <Input
                 id="industry"
                 value={industry}
@@ -656,7 +656,7 @@ export function CommunityMemberPanels({
             }}
           >
             <div className="space-y-2">
-              <Label htmlFor="current-password">Current password</Label>
+              <Label htmlFor="current-password">Current password*</Label>
               <Input
                 id="current-password"
                 type="password"
@@ -666,7 +666,7 @@ export function CommunityMemberPanels({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-password">New password</Label>
+              <Label htmlFor="new-password">New password*</Label>
               <Input
                 id="new-password"
                 type="password"
@@ -682,7 +682,7 @@ export function CommunityMemberPanels({
               </ul>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm new password</Label>
+              <Label htmlFor="confirm-password">Confirm new password*</Label>
               <Input
                 id="confirm-password"
                 type="password"
