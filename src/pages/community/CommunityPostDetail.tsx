@@ -39,7 +39,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { formatCategoryPlain, formatRelativeTime, COMMENT_MAX, REPLY_MAX, normalizeExternalLink, publicCommunityAuthorLabel, resolveAuthorUserNameForPost, looksLikeEmail } from "@/lib/community";
-import { CheckSquare, Link2, MessageSquare, Pencil } from "lucide-react";
+import { CheckSquare, Link2, MessageSquare, Pencil, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
 import { syncPostCommentCount, recordCommentNotification } from "@/lib/communityCallables";
@@ -879,6 +879,7 @@ function CommentComposer({
   onCancel,
   commentText,
   setCommentText,
+  commentFile,
   setCommentFile,
   commentLink,
   setCommentLink,
@@ -930,11 +931,6 @@ function CommentComposer({
             Comment
           </span>
         )}
-        {canEngage && (
-          <span className={`text-[11px] ${commentText.length >= maxLen ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
-            {commentText.length}/{maxLen}
-          </span>
-        )}
       </div>
       <Textarea
         value={commentText}
@@ -953,6 +949,13 @@ function CommentComposer({
         }
         className="bg-foreground/5 border-foreground/10 disabled:cursor-not-allowed"
       />
+      {canEngage && (
+        <div className="flex justify-end mt-1">
+          <span className={`text-[11px] ${commentText.length >= maxLen ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
+            {commentText.length}/{maxLen}
+          </span>
+        </div>
+      )}
       <div className="space-y-1">
         <Label htmlFor={linkId} className="text-xs text-muted-foreground flex items-center gap-1">
           <Link2 className="h-3 w-3" /> Optional link
@@ -971,14 +974,31 @@ function CommentComposer({
         <Label htmlFor={imgId} className="text-xs text-muted-foreground">
           Optional image (max 1.5 MB)
         </Label>
-        <Input
-          id={imgId}
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          disabled={!canEngage}
-          onChange={(e) => setCommentFile(e.target.files?.[0] ?? null)}
-          className="text-sm"
-        />
+        <div className="flex items-center gap-2">
+          <Input
+            id={imgId}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            disabled={!canEngage}
+            onChange={(e) => setCommentFile(e.target.files?.[0] ?? null)}
+            className="text-sm"
+          />
+          {commentFile && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+              onClick={() => {
+                setCommentFile(null);
+                const el = document.getElementById(imgId) as HTMLInputElement;
+                if (el) el.value = "";
+              }}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={!canEngage}>
