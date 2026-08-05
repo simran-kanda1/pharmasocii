@@ -327,11 +327,6 @@ export default function ListingDetail() {
                                     <h1 className="text-3xl md:text-5xl font-black tracking-tight text-foreground">{listingTitle}</h1>
 
 
-                                    {type === "jobs" && (
-                                        <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 font-bold tracking-wider text-[10px] px-3 py-1 rounded-full flex items-center gap-1">
-                                            <Briefcase className="w-3 h-3" /> Job Opening
-                                        </Badge>
-                                    )}
                                 </div>
 
                                 {/* ── Event: organizer name + description ── */}
@@ -501,12 +496,12 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {item.industry && (
+                                        {item.workModel && (
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <Briefcase className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Industry</p>
-                                                    <p className="text-sm font-semibold text-foreground">{item.industry}</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Work model</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.workModel}</p>
                                                 </div>
                                             </div>
                                         )}
@@ -519,30 +514,30 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {jobLocationLine && (
-                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
-                                                    <p className="text-sm font-semibold text-foreground">{jobLocationLine}</p>
-                                                </div>
-                                            </div>
-                                        )}
-                                        {item.workModel && (
-                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Work model</p>
-                                                    <p className="text-sm font-semibold text-foreground">{item.workModel}</p>
-                                                </div>
-                                            </div>
-                                        )}
                                         {item.experienceLevel && (
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
                                                     <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Experience level</p>
                                                     <p className="text-sm font-semibold text-foreground">{item.experienceLevel}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {item.industry && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <Briefcase className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Industry</p>
+                                                    <p className="text-sm font-semibold text-foreground">{item.industry}</p>
+                                                </div>
+                                            </div>
+                                        )}
+                                        {jobLocationLine && (
+                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
+                                                <MapPin className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                <div>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Location</p>
+                                                    <p className="text-sm font-semibold text-foreground">{jobLocationLine}</p>
                                                 </div>
                                             </div>
                                         )}
@@ -609,17 +604,17 @@ export default function ListingDetail() {
                                                     </a>
                                                 </Button>
                                             )}
-                                            {item.companyWebsiteLink && String(item.companyWebsiteLink).trim() !== "" && (
-                                                <Button asChild variant="outline" size="lg" className="rounded-xl px-6 font-bold">
-                                                    <a href={item.companyWebsiteLink} target="_blank" rel="noopener noreferrer">
-                                                        Company site <ExternalLink className="ml-2 w-4 h-4" />
+                                            {(item.companyWebsiteLink || item.companyWebsite || partner?.companyWebsite) && String(item.companyWebsiteLink || item.companyWebsite || partner?.companyWebsite).trim() !== "" && (
+                                                <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
+                                                    <a href={item.companyWebsiteLink || item.companyWebsite || partner?.companyWebsite} target="_blank" rel="noopener noreferrer">
+                                                        Company Website <ExternalLink className="ml-2 w-4 h-4" />
                                                     </a>
                                                 </Button>
                                             )}
-                                            {item.linkedInJob && String(item.linkedInJob).trim() !== "" && (
-                                                <Button asChild size="lg" className="rounded-xl px-6 font-bold bg-[#0077b5] hover:bg-[#005a8c] text-white border-none">
-                                                    <a href={item.linkedInJob} target="_blank" rel="noopener noreferrer">
-                                                        <Linkedin className="mr-2 w-5 h-5" /> LinkedIn
+                                            {(item.linkedInJob || item.linkedInProfileLink || partner?.linkedInProfileLink) && String(item.linkedInJob || item.linkedInProfileLink || partner?.linkedInProfileLink).trim() !== "" && (
+                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
+                                                    <a href={item.linkedInJob || item.linkedInProfileLink || partner?.linkedInProfileLink} target="_blank" rel="noopener noreferrer">
+                                                        <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
                                                     </a>
                                                 </Button>
                                             )}
