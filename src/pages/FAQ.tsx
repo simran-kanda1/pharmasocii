@@ -14,6 +14,15 @@ export default function FAQ() {
 
                 <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-150 fill-mode-both">
                     <Accordion type="single" collapsible className="w-full bg-foreground/5 p-8 md:p-12 rounded-3xl border border-foreground/10 shadow-xl backdrop-blur-sm">
+                        <AccordionItem value="open-beta" className="border-foreground/10">
+                            <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">
+                                Open Beta Statement
+                            </AccordionTrigger>
+                            <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8">
+                                Pharma SocII is currently offered as an open beta. All core features are available, but the Platform may evolve as we assess performance and gather feedback. During this phase, features may be modified, suspended, or discontinued, and you may encounter occasional bugs or limitations. We appreciate your participation and input as we improve the Platform.
+                            </AccordionContent>
+                        </AccordionItem>
+
                         <AccordionItem value="discovery" className="border-foreground/10">
                             <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">
                                 How does partner discovery work?

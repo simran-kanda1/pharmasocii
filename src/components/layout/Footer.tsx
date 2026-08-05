@@ -64,9 +64,14 @@ export function Footer() {
                 </div>
 
                 <div className="pt-8 border-t border-foreground/10 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <p className="text-xs text-muted-foreground text-center">
-                        &copy; {new Date().getFullYear()} Pharmasocii. All rights reserved.
-                    </p>
+                    <div className="flex flex-col items-center md:items-start gap-1">
+                        <p className="text-xs text-muted-foreground text-center md:text-left">
+                            &copy; {new Date().getFullYear()} Pharmasocii. All rights reserved.
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/80 max-w-sm text-center md:text-left">
+                            This product is in open beta. We welcome your input as we continue to refine the experience.
+                        </p>
+                    </div>
                     <div className="flex items-center gap-6 text-xs text-muted-foreground">
                         <span>Discover, Connect & Collaborate</span>
                     </div>
