@@ -1932,22 +1932,11 @@ export default function Dashboard() {
                                         <>
                                             <Badge variant="outline" className="bg-foreground/10 text-muted-foreground border-foreground/20">{pastStatusLabel}</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-
-                                            {billingEnd && (
-                                                <span className="text-xs font-medium text-muted-foreground">
-                                                    Access ended {billingEnd.toLocaleDateString()}
-                                                </span>
-                                            )}
                                         </>
                                     ) : isEnding ? (
                                         <>
                                             <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#78350f', borderColor: '#d97706' }}>Scheduled to end</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-                                            {billingEnd && (
-                                                <span className="text-xs font-medium" style={{ color: '#78350f' }}>
-                                                    Access through {billingEnd.toLocaleDateString()}
-                                                </span>
-                                            )}
                                         </>
                                     ) : (
                                         <>
