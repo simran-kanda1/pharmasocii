@@ -611,10 +611,10 @@ export default function ListingDetail() {
                                                     </a>
                                                 </Button>
                                             )}
-                                            {(item.linkedInJob || item.linkedInProfileLink || partner?.linkedInProfileLink) && String(item.linkedInJob || item.linkedInProfileLink || partner?.linkedInProfileLink).trim() !== "" && (
+                                            {item.linkedInJob && String(item.linkedInJob).trim() !== "" && (
                                                 <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
-                                                    <a href={item.linkedInJob || item.linkedInProfileLink || partner?.linkedInProfileLink} target="_blank" rel="noopener noreferrer">
-                                                        <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
+                                                    <a href={item.linkedInJob} target="_blank" rel="noopener noreferrer">
+                                                        <Linkedin className="mr-2 w-5 h-5" /> LinkedIn
                                                     </a>
                                                 </Button>
                                             )}
