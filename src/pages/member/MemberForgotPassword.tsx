@@ -32,12 +32,12 @@ export default function MemberForgotPassword() {
         /* mirror optional until functions deployed */
       }
       setMsg(
-        "If an account exists for this email, a reset link was sent. Check spam. Admins can also view the link under Email log.",
+        "If an account exists for this email, we've sent a reset link. Be sure to check your spam folder.",
       );
     } catch (err: unknown) {
       console.error(err);
       setMsg(
-        "If an account exists for this email, a reset link was sent. Check spam. Admins can also view the link under Email log.",
+        "If an account exists for this email, we've sent a reset link. Be sure to check your spam folder.",
       );
     } finally {
       setLoading(false);
@@ -51,7 +51,7 @@ export default function MemberForgotPassword() {
           <ArrowLeft className="w-4 h-4" /> Back to login
         </Link>
       </Button>
-      <h1 className="text-2xl font-bold mb-2">Reset password</h1>
+      <h1 className="text-3xl font-bold tracking-tight mb-2">Reset password</h1>
       <p className="text-sm text-muted-foreground mb-6">
         Community member accounts only. Enter the email you used to register.
       </p>
