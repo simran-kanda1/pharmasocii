@@ -89,9 +89,9 @@ export function CommunityMemberSidebar({
         </Button>
       )}
 
-      <div>
-        <div className="flex items-center justify-between gap-2 mb-3">
-          <p className="text-sm font-semibold text-foreground">Interest(s)</p>
+      <div className="pt-4 border-t border-slate-100 dark:border-foreground/10">
+        <div className="flex items-center justify-between gap-2 mb-1">
+          <p className="text-sm font-semibold text-foreground">Personalize your feed</p>
           {hasFilters && onClearAllFilters && signedIn && (
             <button
               type="button"
@@ -104,7 +104,7 @@ export function CommunityMemberSidebar({
         </div>
         {!hasFilters ? (
           <p className="text-xs text-muted-foreground">
-            Use the filters on the right to choose countries and categories. Your selections are saved for next visit.
+            Choose the countries and categories that align with your interests.
           </p>
         ) : (
           <div className="space-y-3">
