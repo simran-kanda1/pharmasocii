@@ -777,18 +777,15 @@ export default function ListingDetail() {
 
                                 <tbody>
                                     {(() => {
-                                        let currentCount = 0;
                                         const renderedGroups = [];
                                         
                                         for (let idx = 0; idx < groupedCategories.length; idx++) {
                                             const group = groupedCategories[idx];
-                                            const groupCount = 1 + group.subs.length;
                                             
-                                            if (!showAllAreas && currentCount >= 10 && renderedGroups.length > 0) {
+                                            if (!showAllAreas && idx >= 10) {
                                                 break;
                                             }
                                             
-                                            currentCount += groupCount;
                                             renderedGroups.push(
                                                 <tr key={idx} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
                                                     <td className="px-8 py-6 align-top">
@@ -828,8 +825,7 @@ export default function ListingDetail() {
                             </table>
                             
                             {(() => {
-                                const totalCount = groupedCategories.reduce((acc: number, g: any) => acc + 1 + g.subs.length, 0);
-                                if (totalCount > 10) {
+                                        if (groupedCategories.length > 10) {
                                     return (
                                         <div className="p-4 border-t border-foreground/10 flex justify-center bg-muted/10">
                                             <Button 
