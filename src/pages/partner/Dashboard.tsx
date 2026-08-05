@@ -1968,7 +1968,7 @@ export default function Dashboard() {
                                         Spotlight changes are disabled until that date; you can still edit the listing or upgrade the plan.
                                     </p>
                                 )}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2">
+                                <div className={isPast ? "grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2" : "grid grid-cols-2 sm:grid-cols-3 gap-4 mt-2"}>
                                     <div>
                                         <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">
                                             {isPast ? "Last Period Start" : "Current Period Start"}
@@ -1979,12 +1979,14 @@ export default function Dashboard() {
                                         <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">{isPast ? "Ended On" : isEnding ? "Ends On" : "Renewal Date"}</p>
                                         <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
                                     </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">{isPast ? "Cancelled On" : "Billing Cycle"}</p>
-                                        <p className={isPast ? "text-sm text-foreground font-medium" : "text-sm text-foreground font-medium capitalize"}>
-                                            {isPast ? (cancelledAt ? cancelledAt.toLocaleDateString() : "N/A") : billingCycleLabel}
-                                        </p>
-                                    </div>
+                                    {isPast && (
+                                        <div>
+                                            <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Cancelled On</p>
+                                            <p className="text-sm text-foreground font-medium">
+                                                {cancelledAt ? cancelledAt.toLocaleDateString() : "N/A"}
+                                            </p>
+                                        </div>
+                                    )}
                                     <div>
                                         <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Price</p>
                                         <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
@@ -2008,7 +2010,7 @@ export default function Dashboard() {
                                         <p className="text-sm text-muted-foreground mb-3">
                                             Spotlight Add-on Subscription
                                         </p>
-                                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                             <div>
                                                 <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Start Date</p>
                                                 <p className="text-sm text-foreground font-medium">
@@ -2022,10 +2024,6 @@ export default function Dashboard() {
                                                 <p className="text-sm text-foreground font-medium">
                                                     {standaloneSpotlightRenewal ? standaloneSpotlightRenewal.toLocaleDateString() : "N/A"}
                                                 </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Billing Cycle</p>
-                                                <p className="text-sm text-foreground font-medium">Monthly</p>
                                             </div>
                                             <div>
                                                 <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Price</p>
