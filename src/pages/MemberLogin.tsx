@@ -180,7 +180,7 @@ export default function MemberLogin() {
           {resendSuccess && <p className="text-sm text-emerald-600">{resendSuccess}</p>}
 
           <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "Logging in…" : "Sign In"}
+            {isLoading ? "Logging in…" : "Log in"}
           </Button>
           
           {unverifiedUser && (

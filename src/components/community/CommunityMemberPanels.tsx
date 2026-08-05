@@ -605,10 +605,7 @@ export function CommunityMemberPanels({
         </form>
 
         <div className="mt-10 pt-8 border-t border-slate-200 dark:border-foreground/15 max-w-lg space-y-4">
-          <h3 className="font-semibold">Change password</h3>
-          <p className="text-xs text-muted-foreground">
-            Password updates are recorded in the audit trail.
-          </p>
+          <h3 className="font-semibold mb-4">Change password</h3>
           <form
             className="space-y-4"
             onSubmit={async (e) => {

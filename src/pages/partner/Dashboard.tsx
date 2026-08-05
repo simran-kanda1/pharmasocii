@@ -846,7 +846,7 @@ export default function Dashboard() {
                         emailVerificationSent = emailResult.verificationSent !== false;
                     } catch (emailError: any) {
                         if (emailError?.code === "auth/requires-recent-login") {
-                            setProfileMsg("Please sign out and sign back in before changing your email.");
+                            setProfileMsg("Please log out and log back in before changing your email.");
                             setProfileSaving(false);
                             return;
                         }
@@ -965,7 +965,7 @@ export default function Dashboard() {
             } else if (code === "auth/invalid-email") {
                 setProfileMsg("Enter a valid email address.");
             } else if (code === "auth/requires-recent-login") {
-                setProfileMsg("For security, sign out and sign back in before changing your email.");
+                setProfileMsg("For security, log out and log back in before changing your email.");
             } else if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
                 setProfileMsg("Current password is incorrect. Your profile was not saved.");
             } else {
@@ -2397,7 +2397,7 @@ export default function Dashboard() {
                     </Button>
                 </div>
                 {profileMsg && (
-                    <div className={`p-3 rounded-lg text-sm font-medium ${/success|updated|replaced/i.test(profileMsg) && !/could not|incorrect|failed|already in use|valid email|sign out|password/i.test(profileMsg) ? "bg-green-500/10 border border-green-500/30 text-green-700" : "bg-destructive/10 border border-destructive/30 text-destructive"}`}>{profileMsg}</div>
+                    <div className={`p-3 rounded-lg text-sm font-medium ${/success|updated|replaced/i.test(profileMsg) && !/could not|incorrect|failed|already in use|valid email|log out|password/i.test(profileMsg) ? "bg-green-500/10 border border-green-500/30 text-green-700" : "bg-destructive/10 border border-destructive/30 text-destructive"}`}>{profileMsg}</div>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

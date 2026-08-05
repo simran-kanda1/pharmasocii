@@ -103,9 +103,11 @@ export function CommunityMemberSidebar({
           )}
         </div>
         {!hasFilters ? (
-          <p className="text-xs text-muted-foreground">
-            Choose the countries and categories that align with your interests.
-          </p>
+          signedIn ? (
+            <p className="text-xs text-muted-foreground">
+              Choose the countries and categories that align with your interests.
+            </p>
+          ) : null
         ) : (
           <div className="space-y-3">
             {selectedCountries.length > 0 && (
