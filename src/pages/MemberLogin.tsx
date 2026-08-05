@@ -201,7 +201,7 @@ export default function MemberLogin() {
 
         <p className="text-sm text-muted-foreground mt-6 text-center">
           <Link to="/member/register" className="text-primary font-medium hover:underline">
-            Become a member
+            Join community
           </Link>
         </p>
 
