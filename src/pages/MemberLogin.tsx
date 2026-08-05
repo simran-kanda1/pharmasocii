@@ -17,7 +17,7 @@ export default function MemberLogin() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
-  const verifyBanner = searchParams.get("verify") === "1";
+
   const emailFromUrl = searchParams.get("email") || "";
 
   const [email, setEmail] = useState(() => emailFromUrl);
@@ -110,11 +110,7 @@ export default function MemberLogin() {
 
         </div>
 
-        {verifyBanner && (
-          <div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-foreground">
-            Account created. Check your email and click the verification link before logging in.
-          </div>
-        )}
+
         {verifyHint && (
           <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:text-amber-100">
             {verifyHint}
