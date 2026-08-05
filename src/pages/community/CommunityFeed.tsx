@@ -629,11 +629,7 @@ export default function CommunityFeed() {
                       Latest Updates
                     </button>
                   </div>
-                  {sidebarFiltered.length > 0 && (
-                    <p className="text-sm text-muted-foreground pb-2 tabular-nums">
-                      {sidebarFiltered.length} post{sidebarFiltered.length === 1 ? "" : "s"}
-                    </p>
-                  )}
+
                 </div>
                 {loading || categoriesLoading ? (
                   <p className="text-muted-foreground text-center py-12">Loading…</p>
