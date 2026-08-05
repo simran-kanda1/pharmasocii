@@ -10,10 +10,8 @@ import {
   canEnableMainFilterKey,
   canEnableSubFilterKey,
   canEnableSubSubFilterKey,
-  categoryLimitHelpText,
   filterLimitBlockReason,
   isMainActiveInFilterKeys,
-  summarizeFilterSelection,
 } from "@/lib/communityCategoryLimits";
 import { cn } from "@/lib/utils";
 
@@ -254,11 +252,7 @@ export function CommunityFilterSidebar({
       </div>
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
-        <p className="text-sm font-semibold mb-1">Categories</p>
-        <p className="text-xs text-muted-foreground mb-1">{categoryLimitHelpText()}</p>
-        <p className="text-xs font-medium text-foreground/80 mb-3">
-          {summarizeFilterSelection(categoryDoc, selectedFilterKeys)}
-        </p>
+        <p className="text-sm font-semibold mb-3">Categories</p>
         {limitError && (
           <p
             role="alert"
