@@ -1598,7 +1598,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 }
             }
 
-            if (partnerRef) {
+            if (partnerRef && !featureId) {
                 await partnerRef.set({
                     partnerStatus: "Approved",
                     lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
@@ -1606,6 +1606,12 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     stripeCustomerId: toStripeCustomerId(session.customer),
                 }, { merge: true });
                 console.log(`   ✓ Partner ${partnerId} marked as Approved`);
+            } else if (partnerRef && featureId) {
+                await partnerRef.set({
+                    lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    stripeCustomerId: toStripeCustomerId(session.customer),
+                }, { merge: true });
             }
 
             // Create global transaction record with listing details
@@ -1675,6 +1681,10 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
         case "customer.subscription.updated": {
             const subscription = event.data.object;
             console.log(`🔄 Subscription updated: ${subscription.id} (status: ${subscription.status})`);
+            if (isSpotlightAddonSubscription(subscription) || await isKnownSpotlightAddonSubscriptionId(subscription.id, subscription)) {
+                console.log(`   ℹ Skipping plan sync for spotlight add-on subscription ${subscription.id}`);
+                break;
+            }
             await syncPlansAndListingsFromStripeSubscription(subscription, { reason: "subscription_updated" });
             break;
         }
@@ -1682,6 +1692,9 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
         case "customer.subscription.deleted": {
             const subscription = event.data.object;
             console.log(`❌ Subscription deleted: ${subscription.id}`);
+            const deletedIsSpotlightAddon =
+                isSpotlightAddonSubscription(subscription) ||
+                await isKnownSpotlightAddonSubscriptionId(subscription.id, subscription);
             const listingUpdateOnEndFull = {
                 active: false,
                 status: "Cancelled",
@@ -1765,6 +1778,24 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 }
             }
 
+            const partners = await db.collection("partnersCollection").get();
+            for (const pDoc of partners.docs) {
+                const embeddedCols = ["businessOfferingsCollection", "consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"];
+                for (const col of embeddedCols) {
+                    const addonSnap = await pDoc.ref.collection(col)
+                        .where("featureSpotlightStripeSubscriptionId", "==", subscription.id)
+                        .get();
+                    for (const lDoc of addonSnap.docs) {
+                        await applyListingAfterSpotlightAddonSubscriptionDeleted(pDoc.id, lDoc.id, col, subscription.id);
+                    }
+                }
+            }
+
+            if (deletedIsSpotlightAddon) {
+                console.log(`   ℹ Spotlight add-on subscription ${subscription.id} ended; leaving listing plans untouched.`);
+                break;
+            }
+
             for (const col of topLevelCollections) {
                 const snap = await db.collection(col).where("stripeSubscriptionId", "==", subscription.id).get();
                 for (const lDoc of snap.docs) {
@@ -1778,17 +1809,8 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 }
             }
 
-            const partners = await db.collection("partnersCollection").get();
             for (const pDoc of partners.docs) {
                 const embeddedCols = ["businessOfferingsCollection", "consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"];
-                for (const col of embeddedCols) {
-                    const addonSnap = await pDoc.ref.collection(col)
-                        .where("featureSpotlightStripeSubscriptionId", "==", subscription.id)
-                        .get();
-                    for (const lDoc of addonSnap.docs) {
-                        await applyListingAfterSpotlightAddonSubscriptionDeleted(pDoc.id, lDoc.id, col, subscription.id);
-                    }
-                }
                 for (const col of embeddedCols) {
                     const snap = await pDoc.ref.collection(col).where("stripeSubscriptionId", "==", subscription.id).get();
                     for (const lDoc of snap.docs) {
@@ -1984,9 +2006,17 @@ function inferCurrentPlanIdFromSubscription(subscription, subscriptionItem) {
         }
     }
 
+    const preferredFamily = planCatalogFamily(metaId) || planCatalogFamily(normalizedMetaId);
+
     if (ua != null) {
-        for (const [pid, p] of Object.entries(PLAN_PRICES)) {
-            if (p.amount !== ua) continue;
+        const amountMatches = Object.entries(PLAN_PRICES).filter(([, p]) => p.amount === ua);
+        const familyMatches = preferredFamily
+            ? amountMatches.filter(([pid]) => planCatalogFamily(pid) === preferredFamily)
+            : amountMatches;
+        const pool = familyMatches.length
+            ? familyMatches
+            : amountMatches.filter(([pid]) => planCatalogFamily(pid) === "business");
+        for (const [pid, p] of pool) {
             if (STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0) return pid;
             if (p.interval === iv) return pid;
         }
@@ -2093,6 +2123,74 @@ function isEventOrJobPlanId(planId) {
 
 function isEventOrJobCollection(collectionName) {
     return collectionName === "eventsCollection" || collectionName === "jobsCollection";
+}
+
+function planCatalogFamily(planId) {
+    const id = String(planId || "");
+    if (id.includes("_event")) return "event";
+    if (id.includes("_job")) return "job";
+    if (id.includes("_mo") || id.includes("_yr")) return "business";
+    return null;
+}
+
+function isSpotlightAddonSubscription(subscription) {
+    const meta = subscription?.metadata || {};
+    if (String(meta.purchaseType || "") === "spotlight_addon") return true;
+    if (meta.featureId && !meta.planId && !meta.upgradeFlow) return true;
+    return false;
+}
+
+async function findSpotlightAddonFeatureDocs(subscriptionId) {
+    if (!subscriptionId) return [];
+    const featSnap = await db.collectionGroup("featuresCollection")
+        .where("stripeSubscriptionId", "==", subscriptionId)
+        .get();
+    return featSnap.docs.filter((d) => (d.data() || {}).source === "spotlight_addon");
+}
+
+async function isKnownSpotlightAddonSubscriptionId(subscriptionId, subscription = null) {
+    if (!subscriptionId) return false;
+    if (subscription && isSpotlightAddonSubscription(subscription)) return true;
+    const docs = await findSpotlightAddonFeatureDocs(subscriptionId);
+    return docs.length > 0;
+}
+
+async function resolveDistinctSpotlightSubscriptionId({
+    candidateSubId,
+    planSubId,
+    listingPlanSubId,
+    featureDocs = [],
+    stripeCustomerId = null,
+}) {
+    const blocked = new Set([planSubId, listingPlanSubId].filter(Boolean));
+    const candidates = [
+        candidateSubId,
+        ...featureDocs.map((d) => toStripeSubscriptionId((d.data() || {}).stripeSubscriptionId)),
+    ].filter(Boolean);
+
+    for (const id of candidates) {
+        if (!blocked.has(id)) return id;
+    }
+
+    if (!stripeCustomerId) return null;
+    try {
+        const subs = await stripe.subscriptions.list({
+            customer: stripeCustomerId,
+            status: "all",
+            limit: 30,
+        });
+        for (const sub of subs.data || []) {
+            if (!isSpotlightAddonSubscription(sub)) continue;
+            if (blocked.has(sub.id)) continue;
+            const status = String(sub.status || "").toLowerCase();
+            if (["active", "trialing", "past_due", "unpaid"].includes(status) || sub.cancel_at_period_end) {
+                return sub.id;
+            }
+        }
+    } catch (err) {
+        console.warn("resolveDistinctSpotlightSubscriptionId:", err?.message || err);
+    }
+    return null;
 }
 
 function shouldCancelStandaloneSpotlightAfterPlanUpgrade({
@@ -2776,6 +2874,10 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
     const subId = toStripeSubscriptionId(subscriptionInput?.id || subscriptionInput);
     if (!subId) return { updatedPlans: 0, updatedListings: 0, subscriptionId: null };
 
+    if (await isKnownSpotlightAddonSubscriptionId(subId, subscriptionInput)) {
+        return { updatedPlans: 0, updatedListings: 0, subscriptionId: subId, skipped: "spotlight_addon" };
+    }
+
     let subscription = subscriptionInput;
     if (!subscription?.current_period_end || typeof subscription?.status !== "string") {
         try {
@@ -3002,6 +3104,55 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
 
     if (!subscriptionId) {
         console.log("   ℹ No subscription ID on invoice, skipping subscription renewal sync.");
+        return;
+    }
+
+    let invoiceSubscription = null;
+    if (subIdForPeriod) {
+        try {
+            invoiceSubscription = await stripe.subscriptions.retrieve(subIdForPeriod);
+        } catch (_) {
+            invoiceSubscription = null;
+        }
+    }
+    if (await isKnownSpotlightAddonSubscriptionId(subscriptionId, invoiceSubscription)) {
+        console.log(`   ℹ Invoice ${invoice.id} belongs to a spotlight add-on subscription.`);
+        const collidingPlans = options.partnerId
+            ? await db.collection("partnersCollection")
+                .doc(options.partnerId)
+                .collection("planCollection")
+                .where("stripeSubscriptionId", "==", subscriptionId)
+                .get()
+            : await db.collectionGroup("planCollection")
+                .where("stripeSubscriptionId", "==", subscriptionId)
+                .get();
+        for (const planDoc of collidingPlans.docs) {
+            const planData = planDoc.data() || {};
+            const partnerId = partnerIdFromPartnersPlanRef(planDoc.ref);
+            let restoredSubId = null;
+            if (partnerId && planData.listingId && planData.collectionName) {
+                const listingRef = await resolveListingDocRef(partnerId, planData.collectionName, planData.listingId);
+                if (listingRef) {
+                    const listingSnap = await listingRef.get();
+                    const listingSubId = toStripeSubscriptionId(listingSnap.exists ? listingSnap.data()?.stripeSubscriptionId : null);
+                    if (listingSubId && listingSubId !== subscriptionId) restoredSubId = listingSubId;
+                }
+            }
+            await planDoc.ref.set({
+                stripeSubscriptionId: restoredSubId || admin.firestore.FieldValue.delete(),
+                featureSubscriptionIdMistakenlyStored: subscriptionId,
+            }, { merge: true });
+            console.warn(
+                `   ⚠ Detached spotlight sub ${subscriptionId} from plan ${planDoc.id}${restoredSubId ? `; restored ${restoredSubId}` : ""}`,
+            );
+        }
+        await tryProcessSpotlightAddonInvoicePaid({
+            invoice,
+            subscriptionId,
+            customerId,
+            billingReason,
+            billingPeriodEnd,
+        });
         return;
     }
 
@@ -4779,6 +4930,11 @@ app.post("/api/cancel-plan", async (req, res) => {
 
         // Standalone spotlight: schedule removal at billing-period end; do not strip visibility immediately.
         if (cancelFeatureOnly) {
+            if (isEventOrJobPlanId(plan.planId) || isEventOrJobCollection(plan.collectionName)) {
+                return res.status(400).json({
+                    error: "Event and job spotlights are included in the plan and cannot be cancelled separately.",
+                });
+            }
             if (!plan.listingId || !plan.collectionName) {
                 return res.status(400).json({ error: "Feature cancellation requires a listing-backed plan." });
             }
@@ -4810,17 +4966,42 @@ app.post("/api/cancel-plan", async (req, res) => {
                 });
             }
 
+            const planSubId = toStripeSubscriptionId(plan.stripeSubscriptionId);
+            const listingPlanSubId = toStripeSubscriptionId(listingData.stripeSubscriptionId);
+            const distinctFeatureSubId = await resolveDistinctSpotlightSubscriptionId({
+                candidateSubId: spotlightCtx.featureSubId || toStripeSubscriptionId(listingData.featureSpotlightStripeSubscriptionId),
+                planSubId,
+                listingPlanSubId,
+                featureDocs: spotlightCtx.featureDocs,
+                stripeCustomerId:
+                    toStripeCustomerId(listingData.stripeCustomerId) ||
+                    toStripeCustomerId(plan.stripeCustomerId),
+            });
+
             const accessEnd = await resolveSpotlightAddonAccessEndDate(
-                { ...listingData, featureSpotlightStripeSubscriptionId: spotlightCtx.featureSubId || listingData.featureSpotlightStripeSubscriptionId },
+                {
+                    ...listingData,
+                    featureSpotlightStripeSubscriptionId:
+                        distinctFeatureSubId || listingData.featureSpotlightStripeSubscriptionId,
+                },
                 plan,
             );
 
-            if (spotlightCtx.featureSubId) {
+            if (distinctFeatureSubId) {
                 try {
-                    await stripe.subscriptions.update(spotlightCtx.featureSubId, { cancel_at_period_end: true });
+                    await stripe.subscriptions.update(distinctFeatureSubId, { cancel_at_period_end: true });
+                    if (distinctFeatureSubId !== listingData.featureSpotlightStripeSubscriptionId) {
+                        await applyListingPatchEverywhere(partnerId, plan.collectionName, plan.listingId, {
+                            featureSpotlightStripeSubscriptionId: distinctFeatureSubId,
+                        });
+                    }
                 } catch (stripeErr) {
                     console.warn("   ⚠ Could not set Stripe spotlight cancel_at_period_end:", stripeErr?.message || stripeErr);
                 }
+            } else if (spotlightCtx.featureSubId && (spotlightCtx.featureSubId === planSubId || spotlightCtx.featureSubId === listingPlanSubId)) {
+                console.warn(
+                    "   ⚠ Refusing to cancel spotlight using the listing plan subscription id; marking feature cancel locally only.",
+                );
             }
 
             const listingPatch = {

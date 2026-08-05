@@ -169,13 +169,14 @@ const getEffectiveSpotlightFeatureId = (listing: any, planId?: string | null) =>
 
 const hasStandaloneSpotlightAddon = (listing: any, planId?: string | null) => {
     if (!listing) return false;
-    if (listing.featureSpotlightStripeSubscriptionId) return true;
+    if (isEventOrJobListing(planId, listing)) return false;
+    const listingPlanSubId = String(listing.stripeSubscriptionId || "").trim();
+    const featureSubId = String(listing.featureSpotlightStripeSubscriptionId || "").trim();
+    if (featureSubId && featureSubId !== listingPlanSubId) return true;
     const addon = getSpotlightAddonTierId(listing);
     if (!addon) return false;
     const included = planId ? PLAN_CONFIGS[planId]?.featurePlan : null;
-    if (included && addon === included && !listing.featureSpotlightStripeSubscriptionId) {
-        return false;
-    }
+    if (included && addon === included) return false;
     return Boolean(
         listing.lastFeaturePaymentReceivedAt ||
         listing.featureSpotlightPaidThrough ||
@@ -537,6 +538,7 @@ export default function Dashboard() {
     };
     const isFeatureEligiblePlan = (plan: any) => {
         if (isPlanLockedForChanges(plan) || !plan.listingId || !plan.collectionName) return false;
+        if (isEventOrJobListing(plan?.planId, getLinkedListingForPlan(plan))) return false;
         if (isSpotlightCancelPendingForPlan(plan)) return false;
         const linkedListing = getLinkedListingForPlan(plan);
         if (!linkedListing) return false;
