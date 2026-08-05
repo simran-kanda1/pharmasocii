@@ -114,7 +114,7 @@ export function CommunityMemberSidebar({
               <div>
                 <p className="text-[10px] font-medium text-muted-foreground mb-1.5">Countries</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {selectedCountries.map((c) => (
+                  {[...selectedCountries].sort((a, b) => a.localeCompare(b)).map((c) => (
                     <span
                       key={c}
                       className="inline-flex items-center gap-1 max-w-full rounded-md bg-slate-100 dark:bg-muted px-2 py-0.5 text-[11px]"

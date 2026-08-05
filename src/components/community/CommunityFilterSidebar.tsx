@@ -206,7 +206,7 @@ export function CommunityFilterSidebar({
             {selectedCountries.length
               ? selectedCountries.length > 2
                 ? `${selectedCountries.length} countries`
-                : selectedCountries.join(", ")
+                : [...selectedCountries].sort((a, b) => a.localeCompare(b)).join(", ")
               : "Select Country(ies)"}
           </span>
           <ChevronDown className={cn("h-4 w-4 shrink-0 opacity-50 transition-transform", countryOpen && "rotate-180")} />
