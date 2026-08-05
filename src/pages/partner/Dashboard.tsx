@@ -3591,7 +3591,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             </div>
                             {countries.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5 mt-2">
-                                    {countries.map(country => (
+                                    {[...countries].sort((a, b) => a.localeCompare(b)).map(country => (
                                         <span
                                             key={country}
                                             onClick={() => toggleCountry(country)}

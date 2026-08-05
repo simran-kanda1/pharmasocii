@@ -191,7 +191,7 @@ function MultiSelectDropdown({ label, items, selected, onToggle, open, onToggleO
             )}
             {selected.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                    {selected.map(v => (
+                    {[...selected].sort((a, b) => a.localeCompare(b)).map(v => (
                         <span key={v} onClick={() => onToggle(v)} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full cursor-pointer hover:bg-primary/20 transition-colors">
                             {v} <X className="w-3 h-3" />
                         </span>

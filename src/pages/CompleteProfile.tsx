@@ -948,7 +948,7 @@ export default function CompleteProfile() {
                     {selected.length === 0 ? (
                         <span className="text-muted-foreground">Choose your {label.toLowerCase()} (multi-select enabled)</span>
                     ) : (
-                        selected.map(s => (
+                        [...selected].sort((a, b) => a.localeCompare(b)).map(s => (
                             <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 bg-foreground/10 text-foreground text-xs rounded-md border border-foreground/10">
                                 <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={(e) => { e.stopPropagation(); onToggle(s); }} />
                                 {s}
