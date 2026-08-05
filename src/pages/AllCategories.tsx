@@ -911,7 +911,7 @@ export default function AllCategories() {
 
                 {/* BSL filter pills — Business Offerings only */}
                 {currentTab === "business" && (
-                    <div className="flex flex-wrap items-center gap-2 mb-4 max-w-7xl mx-auto">
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
                         <span className="text-xs font-semibold text-muted-foreground tracking-widest mr-1 flex items-center gap-1">
                             <ShieldCheck className="w-3.5 h-3.5" /> BSL Level:
                         </span>
@@ -939,7 +939,7 @@ export default function AllCategories() {
 
                 {/* Job filter pills */}
                 {currentTab === "jobs" && (
-                    <div className="flex flex-wrap items-center gap-2 mb-4 max-w-7xl mx-auto">
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
                         {selectedJobTypes.length > 0 && selectedJobTypes.map(type => (
                             <button key={type} onClick={() => toggleJobType(type)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-primary text-primary-foreground shadow-sm">
                                 <X className="w-3 h-3" /> {type}
@@ -955,7 +955,7 @@ export default function AllCategories() {
 
                 {/* Active filter chips */}
                 {isMainCategoryTab && (selectedCategories.length > 0 || selectedSubcategories.length > 0 || selectedSubSubcategories.length > 0) && (
-                    <div className="flex flex-wrap gap-2 mb-4 max-w-7xl mx-auto">
+                    <div className="flex flex-wrap gap-2 mb-4">
                         {selectedCategories.map(s => (
                             <span key={s} onClick={() => toggleCategory(s)} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-primary text-primary-foreground cursor-pointer hover:bg-primary/80 transition-colors">
                                 {s.split(" > ").pop()} <X className="w-3 h-3" />
