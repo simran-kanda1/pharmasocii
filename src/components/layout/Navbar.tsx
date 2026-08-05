@@ -165,7 +165,7 @@ export default function Navbar() {
                                     <DropdownMenuSeparator className="bg-foreground/10" />
                                     <DropdownMenuItem className="p-3 focus:bg-destructive/20 focus:text-destructive cursor-pointer" onClick={handleSignOut}>
                                         <LogOut className="w-4 h-4 mr-2" />
-                                        <span>Log out</span>
+                                        <span>Logout</span>
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
