@@ -2255,10 +2255,6 @@ export default function Dashboard() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><Mail className="w-4 h-4" /> Finance Email</p>
-                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.billingEmailAddress || "N/A"}</p>
-                                </div>
-                                <div>
                                     <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><FileText className="w-4 h-4" /> Business Tax ID</p>
                                     <p className="text-foreground/90 font-medium pl-6">{partnerData.VAT_ABN_EIN_businessId || "N/A"}</p>
                                 </div>
@@ -2273,7 +2269,7 @@ export default function Dashboard() {
                         </CardHeader>
                         <CardContent className="space-y-5 pt-6">
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground tracking-wider mb-1">Primary Rep</p>
+                                <p className="text-sm font-medium text-muted-foreground tracking-wider mb-1">Primary Representative</p>
                                 <p className="text-xl text-foreground font-bold">{partnerData.primaryName}</p>
                             </div>
                             <div className="space-y-4">
@@ -3292,13 +3288,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                     </button>
                 </div>
                 <div className="p-6 space-y-6 overflow-y-auto flex-1">
-                    {(listingGroup === "business_offerings" || listingGroup === "consulting") && (
-                        <div className="p-4 border border-foreground/10 rounded-lg bg-foreground/5 space-y-1">
-                            <Label className="text-muted-foreground">Listing Title (Inherited from Company Name)</Label>
-                            <p className="text-sm font-semibold text-foreground">{listing.businessName || listing.companyName || "Unnamed Business"}</p>
-                            <p className="text-xs text-muted-foreground">This listing is published under your company name and displays exactly as typed (original capitalization preserved). You can edit this in your Partner Profile details below.</p>
-                        </div>
-                    )}
+
                     {listingGroup === "events" && (
                         <div className="space-y-4 border border-foreground/10 rounded-lg p-4 bg-foreground/5">
                             <h3 className="text-sm font-bold text-foreground">Event Details</h3>
