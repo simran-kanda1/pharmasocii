@@ -466,11 +466,11 @@ export default function CommunityFeed() {
             Join the conversation
           </p>
         )}
-        <p className="text-xs text-muted-foreground">
-          {memberRestricted
-            ? "You have view-only access."
-            : "Log in with a verified member profile to start a post."}
-        </p>
+        {memberRestricted && (
+          <p className="text-xs text-muted-foreground">
+            You have view-only access.
+          </p>
+        )}
       </div>
       {!memberRestricted && (
         <div className="flex flex-wrap gap-2">
@@ -491,7 +491,7 @@ export default function CommunityFeed() {
           )}
           {!user && (
             <Button size="sm" variant="outline" asChild>
-              <Link to="/member/register">Register</Link>
+              <Link to="/member/register">Join</Link>
             </Button>
           )}
         </div>
