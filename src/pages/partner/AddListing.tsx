@@ -1243,8 +1243,9 @@ export default function AddListing() {
                                             <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Job summary <span className="text-red-400">*</span></Label>
-                                            <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" />
+                                            <Label>Job summary <span className="text-red-400">*</span> <span className="text-muted-foreground font-normal">(max 500 characters)</span></Label>
+                                            <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" />
+                                            <p className={`text-xs ${jobData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobData.jobSummary.length}/500</p>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
                                             <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>

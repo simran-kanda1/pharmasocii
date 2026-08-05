@@ -2103,9 +2103,9 @@ export default function Dashboard() {
                                 )}
                                 {!isEnding && !plan.cancelAtPeriodEnd && (
                                     <Button
-                                        variant="outline"
+                                        variant="ghost"
                                         size="sm"
-                                        className="border-red-500/50 text-red-400 hover:bg-red-500/10"
+                                        className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
                                         onClick={() => {
                                             setSelectedPlanForAction(plan);
                                             setPendingUpgradePlanId(null);
@@ -3428,7 +3428,11 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     <Input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" />
                                     <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
                                 </div>
-                                <div className="md:col-span-2"><Label>Job summary <span className="text-red-400">*</span></Label><Textarea value={jobSummary} onChange={(e) => setJobSummary(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" /></div>
+                                <div className="md:col-span-2">
+                                    <Label>Job summary <span className="text-red-400">*</span> <span className="text-muted-foreground font-normal">(max 500 characters)</span></Label>
+                                    <Textarea value={jobSummary} onChange={(e) => setJobSummary(e.target.value.slice(0, 500))} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
+                                    <p className={`text-xs mt-1 ${jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobSummary.length}/500</p>
+                                </div>
                                 <div className="md:col-span-2 space-y-2">
                                     <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
                                     <Input

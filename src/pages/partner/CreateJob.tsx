@@ -139,8 +139,9 @@ export default function CreateJob() {
                                     <Input id="positionLink" type="url" required placeholder="https://example.com/apply" value={formData.positionLink} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="jobSummary" className="text-foreground/80">Job Summary</Label>
-                                    <Textarea id="jobSummary" placeholder="Provide a brief summary of the role and responsibilities..." value={formData.jobSummary} onChange={handleChange} className="min-h-[120px] bg-muted/40 border-foreground/10 text-foreground" />
+                                    <Label htmlFor="jobSummary" className="text-foreground/80">Job Summary <span className="text-muted-foreground font-normal text-sm">(max 500 characters)</span></Label>
+                                    <Textarea id="jobSummary" placeholder="Provide a brief summary of the role and responsibilities..." value={formData.jobSummary} onChange={(e) => setFormData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} className="min-h-[120px] bg-muted/40 border-foreground/10 text-foreground" />
+                                    <p className={`text-xs ${formData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.jobSummary.length}/500</p>
                                 </div>
                             </div>
 
