@@ -150,6 +150,8 @@ export function PostCard({
   const postHref = communityPostDetailPath(post.id, rememberFeedScroll);
   const postLinkProps = {
     to: postHref,
+    target: "_blank" as const,
+    rel: "noopener noreferrer",
     onClick: beforeOpenPost,
   };
 
