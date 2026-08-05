@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { MapPin, ChevronDown, ChevronRight } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
@@ -7,10 +7,6 @@ import { buildFilterKeys } from "@/lib/community";
 import { getAllCommunityCountries } from "@/lib/communityCountries";
 import {
   activeSubLabelsForMainFilterKeys,
-  canEnableMainFilterKey,
-  canEnableSubFilterKey,
-  canEnableSubSubFilterKey,
-  filterLimitBlockReason,
   isMainActiveInFilterKeys,
 } from "@/lib/communityCategoryLimits";
 import { cn } from "@/lib/utils";
@@ -46,13 +42,6 @@ export function CommunityFilterSidebar({
   const [expandedSubs, setExpandedSubs] = useState<Set<string>>(new Set());
   const [countryOpen, setCountryOpen] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
-  const [limitError, setLimitError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!limitError) return;
-    const t = window.setTimeout(() => setLimitError(null), 6000);
-    return () => window.clearTimeout(t);
-  }, [limitError]);
 
   const toggleCountry = (c: string) => {
     if (locked) return;
@@ -75,20 +64,12 @@ export function CommunityFilterSidebar({
   };
 
   const setFilterKeys = (next: string[]) => {
-    setLimitError(null);
     onFilterKeysChange([...new Set(next)]);
   };
 
   const onMainCheck = (mainLabel: string, checked: boolean) => {
     const key = `main:${mainLabel}`;
     if (checked) {
-      const reason = filterLimitBlockReason(selectedFilterKeys, "main", mainLabel, {
-        doc: categoryDoc,
-      });
-      if (reason) {
-        setLimitError(reason);
-        return;
-      }
       const prefix = `sub:${mainLabel}:`;
       const ssPrefix = `ss:${mainLabel}:`;
       const next = selectedFilterKeys.filter(
@@ -113,15 +94,6 @@ export function CommunityFilterSidebar({
       (sub.subSubs ?? []).map((ss) => `ss:${mainLabel}:${ss.label}`);
 
     if (checked) {
-      const reason = filterLimitBlockReason(selectedFilterKeys, "sub", mainLabel, {
-        subLabel,
-        mainSubs: mainSubs ?? [],
-        doc: categoryDoc,
-      });
-      if (reason) {
-        setLimitError(reason);
-        return;
-      }
       // Drop whole-main key so filter stays specific to this sub.
       const next = selectedFilterKeys.filter((k) => k !== mainKey);
       if (!next.includes(key)) next.push(key);
@@ -139,24 +111,11 @@ export function CommunityFilterSidebar({
     subLabel: string,
     subSubLabel: string,
     checked: boolean,
-    sub: NonNullable<typeof categoryDoc.mains[0]["subs"]>[number],
-    mainSubs: typeof categoryDoc.mains[0]["subs"],
   ) => {
     const key = `ss:${mainLabel}:${subSubLabel}`;
     const mainKey = `main:${mainLabel}`;
     const subKey = `sub:${mainLabel}:${subLabel}`;
     if (checked) {
-      const reason = filterLimitBlockReason(selectedFilterKeys, "subsub", mainLabel, {
-        subLabel,
-        subSubLabel,
-        sub,
-        mainSubs: mainSubs ?? [],
-        doc: categoryDoc,
-      });
-      if (reason) {
-        setLimitError(reason);
-        return;
-      }
       // Drop whole-main / whole-sub keys so filter stays specific to this sub-sub.
       let next = selectedFilterKeys.filter((k) => k !== mainKey && k !== subKey);
       if (!next.includes(key)) next.push(key);
@@ -165,7 +124,6 @@ export function CommunityFilterSidebar({
       setExpandedSubs((prev) => new Set(prev).add(keyMainSub(mainLabel, subLabel)));
     } else {
       toggleFilterKey(key, false);
-      setLimitError(null);
     }
   };
 
@@ -253,20 +211,11 @@ export function CommunityFilterSidebar({
 
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">
         <p className="text-sm font-semibold mb-3">Categories</p>
-        {limitError && (
-          <p
-            role="alert"
-            className="mb-3 text-sm text-red-600 dark:text-red-400 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2"
-          >
-            {limitError}
-          </p>
-        )}
         <div className="max-h-[min(60vh,420px)] overflow-y-auto space-y-1 pr-1">
           {(categoryDoc.mains ?? []).map((main) => {
             const hasSubs = (main.subs?.length ?? 0) > 0;
             const mainExpanded = expandedMains.has(main.label);
             const mainChecked = isMainActiveInFilterKeys(selectedFilterKeys, main.label, categoryDoc);
-            const canMain = canEnableMainFilterKey(selectedFilterKeys, main.label, categoryDoc);
             const activeSubs = activeSubLabelsForMainFilterKeys(
               selectedFilterKeys,
               main.label,
@@ -294,7 +243,6 @@ export function CommunityFilterSidebar({
                   <label
                     className={cn(
                       "flex items-start gap-2 text-sm cursor-pointer flex-1 py-0.5",
-                      !mainChecked && !canMain && "opacity-60",
                     )}
                   >
                     <Checkbox
@@ -314,13 +262,6 @@ export function CommunityFilterSidebar({
                       const subKey = `sub:${main.label}:${sub.label}`;
                       const subChecked =
                         selectedFilterKeys.includes(subKey) || activeSubs.has(sub.label);
-                      const canSub = canEnableSubFilterKey(
-                        selectedFilterKeys,
-                        main.label,
-                        sub.label,
-                        main.subs ?? [],
-                        categoryDoc,
-                      );
                       return (
                         <div key={sub.id}>
                           <div className="flex items-start gap-1">
@@ -342,7 +283,6 @@ export function CommunityFilterSidebar({
                             <label
                               className={cn(
                                 "flex items-start gap-2 text-sm cursor-pointer flex-1",
-                                !subChecked && !canSub && "opacity-60",
                               )}
                             >
                               <Checkbox
@@ -360,20 +300,11 @@ export function CommunityFilterSidebar({
                               {(sub.subSubs ?? []).map((ss) => {
                                 const ssKey = `ss:${main.label}:${ss.label}`;
                                 const ssChecked = selectedFilterKeys.includes(ssKey);
-                                const canSs = canEnableSubSubFilterKey(
-                                  selectedFilterKeys,
-                                  main.label,
-                                  sub,
-                                  ss.label,
-                                  main.subs ?? [],
-                                  categoryDoc,
-                                );
                                 return (
                                   <label
                                     key={ss.id}
                                     className={cn(
                                       "flex items-start gap-2 text-xs cursor-pointer pl-1",
-                                      !ssChecked && !canSs && "opacity-60",
                                     )}
                                   >
                                     <Checkbox
@@ -384,9 +315,7 @@ export function CommunityFilterSidebar({
                                           main.label,
                                           sub.label,
                                           ss.label,
-                                          v === true,
-                                          sub,
-                                          main.subs,
+                                          v === true
                                         )
                                       }
                                     />
@@ -412,7 +341,6 @@ export function CommunityFilterSidebar({
             size="sm"
             className={cn("mt-3 h-8 px-2 text-xs")}
             onClick={() => {
-              setLimitError(null);
               onFilterKeysChange([]);
             }}
           >
