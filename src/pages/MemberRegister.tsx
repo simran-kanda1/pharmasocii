@@ -68,7 +68,7 @@ export default function MemberRegister() {
       setError("Username cannot exceed 15 characters.");
       return;
     }
-    if (!form.name.trim() || !form.email.trim() || !form.country || !form.institution.trim() || !form.industry.trim() || !form.aboutMe.trim()) {
+    if (!form.name.trim() || !form.email.trim() || !form.industry.trim()) {
       setError("Please fill in all required fields.");
       return;
     }
@@ -184,7 +184,7 @@ export default function MemberRegister() {
 
         <form onSubmit={handleRegister} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="name">Full name</Label>
+            <Label htmlFor="name">Full name*</Label>
             <Input
               id="name"
               value={form.name}
@@ -195,7 +195,7 @@ export default function MemberRegister() {
           </div>
           <div className="space-y-2">
             <div className="flex justify-between items-center">
-              <Label htmlFor="userName">Username</Label>
+              <Label htmlFor="userName">Username*</Label>
               <span className={`text-[11px] ${form.userName.length >= 15 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/15</span>
             </div>
             <Input
@@ -209,7 +209,7 @@ export default function MemberRegister() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="email">Email*</Label>
             <Input
               id="email"
               type="email"
@@ -231,7 +231,6 @@ export default function MemberRegister() {
                 id="country"
                 value={form.country}
                 onChange={(e) => setForm((f) => ({ ...f, country: e.target.value }))}
-                required
                 className="w-full bg-foreground/5 border border-foreground/10 h-10 px-3 rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary/20 text-sm appearance-none"
               >
                 <option value="" disabled className="bg-background">Select Country</option>
@@ -241,7 +240,7 @@ export default function MemberRegister() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="industry">Industry</Label>
+              <Label htmlFor="industry">Industry*</Label>
               <Input
                 id="industry"
                 value={form.industry}
@@ -259,7 +258,6 @@ export default function MemberRegister() {
               id="institution"
               value={form.institution}
               onChange={(e) => setForm((f) => ({ ...f, institution: e.target.value }))}
-              required
               placeholder="e.g. University of Toronto, Pfizer"
               className="bg-foreground/5 border-foreground/10"
             />
@@ -274,14 +272,13 @@ export default function MemberRegister() {
               id="aboutMe"
               value={form.aboutMe}
               onChange={(e) => setForm((f) => ({ ...f, aboutMe: e.target.value.slice(0, 25) }))}
-              required
               maxLength={25}
               placeholder="e.g. Clinical Pharmacist"
               className="bg-foreground/5 border-foreground/10"
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Password*</Label>
             <div className="relative">
               <Input
                 id="password"
@@ -307,7 +304,7 @@ export default function MemberRegister() {
             </ul>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Label htmlFor="confirmPassword">Confirm password*</Label>
             <Input
               id="confirmPassword"
               type={showPassword ? "text" : "password"}
