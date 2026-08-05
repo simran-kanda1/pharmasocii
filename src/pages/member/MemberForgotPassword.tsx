@@ -25,7 +25,9 @@ export default function MemberForgotPassword() {
     }
     setLoading(true);
     try {
-      await sendPasswordResetEmail(auth, trimmed);
+      await sendPasswordResetEmail(auth, trimmed, {
+        url: window.location.origin + "/auth/action",
+      });
       try {
         await mirrorPasswordResetEmail(trimmed);
       } catch {

@@ -53,7 +53,7 @@ export default function AuthAction() {
                         // Apply the email verification
                         await applyActionCode(auth, oobCode);
                         setStatus("success");
-                        setMessage("Your email address has been successfully verified.");
+                        setMessage("Your email has been verified. You can now sign in and access your PharmasocII account.");
                         break;
                     default:
                         setStatus("error");

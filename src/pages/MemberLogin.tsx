@@ -104,7 +104,9 @@ export default function MemberLogin() {
     if (!auth.currentUser) return;
     try {
       setIsLoading(true);
-      await sendEmailVerification(auth.currentUser);
+      await sendEmailVerification(auth.currentUser, {
+        url: window.location.origin + "/auth/action",
+      });
       setResendSuccess("Verification email sent! Please check your inbox.");
       setError("");
     } catch (err: any) {

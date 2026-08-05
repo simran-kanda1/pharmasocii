@@ -464,7 +464,7 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
 function getVerificationActionCodeSettings() {
     const base = APP_PUBLIC_URL.replace(/\/$/, "");
     return {
-        url: `${base}/member/login?verify=1`,
+        url: `${base}/auth/action`,
         handleCodeInApp: false,
     };
 }
