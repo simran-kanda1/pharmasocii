@@ -76,7 +76,6 @@ export default function CommunityFeed() {
   const [postToEdit, setPostToEdit] = useState<PostCardPost | null>(null);
   const [refreshPostsKey, setRefreshPostsKey] = useState(0);
   const [feedTab, setFeedTab] = useState<"all" | "latest">("all");
-  const [hasNewPosts, setHasNewPosts] = useState(false);
 
   const filtersHydratedRef = useRef(false);
   const skipNextFilterSaveRef = useRef(false);
@@ -288,41 +287,6 @@ export default function CommunityFeed() {
       }
     })();
   }, [refreshPostsKey, search, selectedCountries, selectedFilterKeys, feedTab]);
-
-  useEffect(() => {
-    if (loading || posts.length === 0) return;
-    const isSearchingOrFiltering = !!(
-      search.trim() ||
-      selectedCountries.length > 0 ||
-      selectedFilterKeys.length > 0
-    );
-    if (isSearchingOrFiltering) return;
-
-    const interval = setInterval(async () => {
-      try {
-        const latestPost = posts.reduce((a, b) => {
-          const aTime = (a.createdAt as any)?.toMillis?.() || 0;
-          const bTime = (b.createdAt as any)?.toMillis?.() || 0;
-          return aTime > bTime ? a : b;
-        }, posts[0]);
-        if (!latestPost || !latestPost.createdAt) return;
-
-        const q = query(
-          collection(db, "postsCollection"),
-          where("archived", "==", false),
-          where("createdAt", ">", latestPost.createdAt),
-          limit(1)
-        );
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          setHasNewPosts(true);
-        }
-      } catch (e) {
-        // ignore
-      }
-    }, 15000);
-    return () => clearInterval(interval);
-  }, [posts, loading, search, selectedCountries, selectedFilterKeys]);
 
   useEffect(() => {
     const q = searchParams.get("search") || "";
@@ -667,19 +631,6 @@ export default function CommunityFeed() {
                   </div>
 
                 </div>
-                {hasNewPosts && (
-                  <Button 
-                    onClick={() => {
-                       setHasNewPosts(false);
-                       setRefreshPostsKey(k => k + 1);
-                       window.scrollTo({ top: 0, behavior: "smooth" });
-                    }}
-                    variant="outline"
-                    className="w-full mb-4 shadow-sm border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
-                  >
-                    ↑ New posts available
-                  </Button>
-                )}
                 {loading || categoriesLoading ? (
                   <p className="text-muted-foreground text-center py-12">Loading…</p>
                 ) : sidebarFiltered.length === 0 ? (
