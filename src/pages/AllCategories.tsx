@@ -834,7 +834,7 @@ export default function AllCategories() {
             </div>
 
             <div className="container mx-auto px-4 mt-8 flex-1">
-                <div className="w-full mb-10 flex flex-col lg:flex-row items-center gap-4">
+                <div className={`w-full mb-10 flex flex-col items-center gap-4 ${currentTab === "jobs" ? "lg:flex-row" : "max-w-4xl mx-auto md:flex-row"}`}>
                     <div className="relative flex-1 w-full">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
                         <Input
