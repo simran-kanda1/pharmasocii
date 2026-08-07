@@ -576,7 +576,7 @@ export default function ListingDetail() {
                                             {item.eventLink && item.eventLink !== "" && (
                                                 <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
                                                     <a href={item.eventLink} target="_blank" rel="noopener noreferrer">
-                                                        <Ticket className="mr-2 w-5 h-5" /> Register / Visit Event
+                                                        <Ticket className="mr-2 w-5 h-5" /> Register / View Event
                                                     </a>
                                                 </Button>
                                             )}
