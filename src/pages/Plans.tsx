@@ -252,8 +252,11 @@ export default function Plans() {
                 {/* Header */}
                 <div className="text-center max-w-3xl mx-auto space-y-6 mb-12">
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
-                        Plans that fit every business size, budget, and stage. Choose yours today!
+                        Plans that fit every business size, budget, and stage.
                     </h1>
+                    <p className="text-lg md:text-xl text-slate-600 font-medium">
+                        Choose yours today!
+                    </p>
 
                     {/* Monthly / Annual Toggle */}
                     <div className="inline-flex items-center gap-3 pt-4">
