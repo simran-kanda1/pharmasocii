@@ -1100,27 +1100,9 @@ export default function AllCategories() {
                                         const bottomLabel = currentTab === "business"
                                             ? (certsDisplay ? certsDisplay : null)
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
-                                                : currentTab === "events" ? ([item.city, item.stateRegion || item.state, item.eventCountry || item.country].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Online")
+                                                : currentTab === "events" ? ([item.stateRegion || item.state, item.eventCountry || item.country].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Online")
                                                     : `${item.businessName || "Company"} • ${toTitleCase(item.jobtype || "Role")}`;
-                                        const categoryInfo = [
-                                            ...(Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
-                                                ? item.selectedCategoriesDisplay
-                                                : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
-                                                    ? item.selectedCategories
-                                                : Array.isArray(item.categories) && item.categories.length > 0
-                                                    ? item.categories
-                                                    : item.category
-                                                        ? [item.category]
-                                                        : item.consultingCategory
-                                                            ? [item.consultingCategory]
-                                                            : item.eventCategory
-                                                                ? [item.eventCategory]
-                                                                : item.jobCategory
-                                                                    ? [item.jobCategory]
-                                                                    : []),
-                                            ...(Array.isArray(item.selectedSubcategoriesDisplay) ? item.selectedSubcategoriesDisplay : Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories : []),
-                                            ...(Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories : []),
-                                        ];
+
                                         return (
                                             <Link
                                                 key={currentTab === "business" ? `${item.partnerId || "na"}-${item.id}` : item.id}
@@ -1136,11 +1118,7 @@ export default function AllCategories() {
                                                     <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24 border-t border-foreground/10">
                                                         {topLabel && <div className="text-xs font-semibold text-foreground tracking-wider mb-1">{topLabel}</div>}
                                                         {bottomLabel && <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>}
-                                                        {categoryInfo.length > 0 && currentTab !== "business" && (
-                                                            <div className="text-[10px] text-muted-foreground/80 line-clamp-1 mt-1 text-center">
-                                                                {categoryInfo.join(" / ")}
-                                                            </div>
-                                                        )}
+
                                                     </div>
                                                 )}
                                             </Link>

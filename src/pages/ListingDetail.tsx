@@ -202,7 +202,7 @@ export default function ListingDetail() {
     const eventEnd = type === "events" ? formatDate(item.endDate) : null;
     const eventLocationLine =
         type === "events"
-            ? [item.city, item.stateRegion || item.state, item.eventCountry || item.country].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
+            ? [item.stateRegion || item.state, item.eventCountry || item.country].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
             : "";
     const jobLocationLine =
         type === "jobs"
