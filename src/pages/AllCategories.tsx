@@ -227,7 +227,7 @@ const CATEGORY_CONFIG = {
 
 const BSL_FILTER_OPTIONS = ["1", "2", "3", "4"];
 
-const JOB_TYPES = ["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"];
+
 const WORK_MODELS = ["Hybrid", "Remote", "On-site"];
 
 
@@ -834,16 +834,44 @@ export default function AllCategories() {
             </div>
 
             <div className="container mx-auto px-4 mt-8 flex-1">
-                <div className="w-full max-w-4xl mx-auto mb-10 flex flex-col md:flex-row items-center gap-4">
+                <div className="w-full mb-10 flex flex-col lg:flex-row items-center gap-4">
                     <div className="relative flex-1 w-full">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
                         <Input
-                            placeholder={currentTab === "business" ? "Search by company name, certification, country, or category" : currentTab === "consulting" ? "Search by company name, country, or category" : currentTab === "events" ? "Search by event name, country, or category" : "Search by job title, country, or category"}
+                            placeholder={currentTab === "business" ? "Search by company name, certification, country, or category" : currentTab === "consulting" ? "Search by company name, country, or category" : currentTab === "events" ? "Search by event name, country, or category" : "Search by job title, location, job type, country, or category"}
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
                             className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
                         />
                     </div>
+
+                    {currentTab === "jobs" && (
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" className="h-[52px] px-6 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm hover:bg-foreground/5 flex items-center gap-3 min-w-[200px] justify-between transition-colors">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-muted-foreground">{selectedWorkModels.length > 0 ? selectedWorkModels.join(", ") : "Work Model"}</span>
+                                    </div>
+                                    <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-[200px] rounded-xl p-2 bg-background border-foreground/10 shadow-xl">
+                                {WORK_MODELS.map(model => (
+                                    <DropdownMenuItem
+                                        key={model}
+                                        onClick={(e) => { e.preventDefault(); toggleWorkModel(model); }}
+                                        className="p-3 cursor-pointer rounded-lg mb-1 focus:bg-primary/10 flex items-center gap-2"
+                                    >
+                                        <Checkbox 
+                                            checked={selectedWorkModels.includes(model)} 
+                                            className="pointer-events-none" 
+                                        />
+                                        <span>{model}</span>
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    )}
 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -1027,52 +1055,7 @@ export default function AllCategories() {
                                     {renderSidebarCategories()}
                                 </div>
 
-                                {currentTab === "jobs" && (
-                                    <div className="pt-6 border-t border-foreground/10 space-y-6">
-                                        <div className="space-y-3">
-                                            <h4 className="text-sm font-bold tracking-wider text-muted-foreground">Job Type</h4>
-                                            <div className="space-y-2">
-                                                {JOB_TYPES.map(type => (
-                                                    <div key={type} className="flex items-center gap-2">
-                                                        <Checkbox 
-                                                            id={`job-type-${type}`} 
-                                                            checked={selectedJobTypes.includes(type)}
-                                                            onCheckedChange={() => toggleJobType(type)}
-                                                        />
-                                                        <label htmlFor={`job-type-${type}`} className="text-sm font-medium cursor-pointer">{type}</label>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
 
-                                        <div className="space-y-3">
-                                            <h4 className="text-sm font-bold tracking-wider text-muted-foreground">Work Model</h4>
-                                            <div className="space-y-2">
-                                                {WORK_MODELS.map(model => (
-                                                    <div key={model} className="flex items-center gap-2">
-                                                        <Checkbox 
-                                                            id={`work-model-${model}`} 
-                                                            checked={selectedWorkModels.includes(model)}
-                                                            onCheckedChange={() => toggleWorkModel(model)}
-                                                        />
-                                                        <label htmlFor={`work-model-${model}`} className="text-sm font-medium cursor-pointer">{model}</label>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            <h4 className="text-sm font-bold tracking-wider text-muted-foreground">Location (City/State)</h4>
-                                            <Input 
-                                                placeholder="Enter city or state..." 
-                                                value={jobLocationSearch}
-                                                onChange={(e) => setJobLocationSearch(e.target.value)}
-                                                className="bg-muted/30 border-foreground/10 h-9 text-sm"
-                                            />
-                                        </div>
-
-                                    </div>
-                                )}
                             </div>
                         </div>
 
@@ -1088,7 +1071,7 @@ export default function AllCategories() {
                                         const rawTitle = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
                                         const title = rawTitle || "";
                                         const bslDisplay = Array.isArray(item.bioSafetyLevel) ? [...item.bioSafetyLevel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ") : item.bioSafetyLevel;
-                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : ([item.city, item.stateRegion || item.state].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Remote");
+                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : ([item.city, item.stateRegion || item.state].filter((x: any) => typeof x === "string" && x.trim()).map((x: string) => toTitleCase(x.trim())).join(", ") || "Remote");
                                         const certsRawArray = Array.isArray(item.certifications)
                                             ? item.certifications.flatMap((c: any) => typeof c === 'string' ? c.split(',').map((s: string) => s.trim()) : [c])
                                             : (typeof item.certifications === 'string'
