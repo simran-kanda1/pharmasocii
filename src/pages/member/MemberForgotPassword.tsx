@@ -55,7 +55,7 @@ export default function MemberForgotPassword() {
       </Button>
       <h1 className="text-3xl font-bold tracking-tight mb-2">Reset password</h1>
       <p className="text-sm text-muted-foreground mb-6">
-        Community member accounts only. Enter the email you used to register.
+        Enter the email you used to register.
       </p>
       <form onSubmit={submit} className="space-y-4">
         <div className="space-y-2">
