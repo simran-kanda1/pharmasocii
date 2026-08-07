@@ -263,7 +263,8 @@ export default function AllCategories() {
     const [selectedJobTypes, setSelectedJobTypes] = useState<string[]>([]);
     const [selectedWorkModels, setSelectedWorkModels] = useState<string[]>([]);
     const [jobLocationSearch, setJobLocationSearch] = useState("");
-    const [sortBy, setSortBy] = useState<"recent" | "default">("recent");
+    const [sortBy, setSortBy] = useState<"recent" | "default">("default");
+
 
     const [healthAuthSearch, setHealthAuthSearch] = useState("");
     const [showAllCategories, setShowAllCategories] = useState(true);
@@ -648,11 +649,13 @@ export default function AllCategories() {
         return true;
     });
 
-    filteredBusinesses.sort((a, b) => {
-        const titleA = currentTab === "business" ? a.businessName : currentTab === "consulting" ? (a.primaryName || a.businessName || a.companyName || "") : currentTab === "events" ? a.eventName : a.jobTitle;
-        const titleB = currentTab === "business" ? b.businessName : currentTab === "consulting" ? (b.primaryName || b.businessName || b.companyName || "") : currentTab === "events" ? b.eventName : b.jobTitle;
-        return String(titleA || "").localeCompare(String(titleB || ""));
-    });
+    if (sortBy === "default") {
+        filteredBusinesses.sort((a, b) => {
+            const titleA = currentTab === "business" ? a.businessName : currentTab === "consulting" ? (a.primaryName || a.businessName || a.companyName || "") : currentTab === "events" ? a.eventName : a.jobTitle;
+            const titleB = currentTab === "business" ? b.businessName : currentTab === "consulting" ? (b.primaryName || b.businessName || b.companyName || "") : currentTab === "events" ? b.eventName : b.jobTitle;
+            return String(titleA || "").localeCompare(String(titleB || ""));
+        });
+    }
 
     const totalPages = Math.ceil(filteredBusinesses.length / itemsPerPage);
     const paginatedBusinesses = filteredBusinesses.slice(

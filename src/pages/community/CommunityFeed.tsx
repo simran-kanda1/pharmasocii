@@ -537,7 +537,7 @@ export default function CommunityFeed() {
             )}
 
             {(communityView === "home" || communityView === "my-space") && (
-              <div className="sticky top-16 z-30 space-y-4 -mx-1 px-1 pb-3 bg-slate-100/95 backdrop-blur-md dark:bg-background/95">
+              <div className="sticky top-16 z-30 space-y-4 -mx-1 px-1 pb-3 bg-slate-100 dark:bg-background">
                 {composerBlock}
                 {communityView === "home" && (
                   <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card">

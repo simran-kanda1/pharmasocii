@@ -27,6 +27,20 @@ export default function CreateJob() {
         workModel: ""
     });
 
+    const [companyRepresentatives, setCompanyRepresentatives] = useState<{firstName: string, lastName: string, email: string}[]>([]);
+
+    const addRepresentative = () => {
+        setCompanyRepresentatives(prev => [...prev, { firstName: "", lastName: "", email: "" }]);
+    };
+
+    const updateRepresentative = (index: number, field: string, value: string) => {
+        setCompanyRepresentatives(prev => prev.map((rep, i) => (i === index ? { ...rep, [field]: value } : rep)));
+    };
+
+    const removeRepresentative = (index: number) => {
+        setCompanyRepresentatives(prev => prev.filter((_, i) => i !== index));
+    };
+
     useEffect(() => {
         const fetchPartner = async () => {
             if (auth.currentUser) {
@@ -51,10 +65,19 @@ export default function CreateJob() {
 
             const jobsRef = collection(db, "jobsCollection");
 
+            const normalizedRepresentatives = companyRepresentatives
+                .filter(rep => rep.firstName.trim() || rep.lastName.trim() || rep.email.trim())
+                .map(rep => ({
+                    firstName: rep.firstName.trim(),
+                    lastName: rep.lastName.trim(),
+                    email: rep.email.trim()
+                }));
+
             await addDoc(jobsRef, {
                 ...formData,
                 partnerId: auth.currentUser.uid,
                 businessName: businessName,
+                companyRepresentatives: normalizedRepresentatives,
                 active: true,
                 isFeatured: true,
                 createdAt: serverTimestamp()
@@ -142,6 +165,48 @@ export default function CreateJob() {
                                     <Label htmlFor="jobSummary" className="text-foreground/80">Job Summary</Label>
                                     <Textarea id="jobSummary" placeholder="Provide a brief summary of the role and responsibilities..." value={formData.jobSummary} onChange={(e) => setFormData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} className="min-h-[120px] bg-muted/40 border-foreground/10 text-foreground" />
                                     <p className={`text-xs text-right ${formData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.jobSummary.length}/500</p>
+                                </div>
+                                <div className="pt-6 border-t border-foreground/10 space-y-4 md:col-span-2">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-base font-semibold">Company representative(s) (Optional)</Label>
+                                        <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
+                                    </div>
+                                    <div className="space-y-3">
+                                        {companyRepresentatives.map((rep, index) => (
+                                            <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3 relative">
+                                                <Input
+                                                    value={rep.firstName}
+                                                    onChange={(e) => updateRepresentative(index, "firstName", e.target.value)}
+                                                    placeholder="First name"
+                                                    className="bg-muted/40 border-foreground/10"
+                                                />
+                                                <Input
+                                                    value={rep.lastName}
+                                                    onChange={(e) => updateRepresentative(index, "lastName", e.target.value)}
+                                                    placeholder="Last name"
+                                                    className="bg-muted/40 border-foreground/10"
+                                                />
+                                                <div className="relative">
+                                                    <Input
+                                                        type="email"
+                                                        value={rep.email}
+                                                        onChange={(e) => updateRepresentative(index, "email", e.target.value)}
+                                                        placeholder="Email address"
+                                                        className="bg-muted/40 border-foreground/10 pr-10"
+                                                    />
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 text-muted-foreground hover:text-red-500 hover:bg-transparent"
+                                                        onClick={() => removeRepresentative(index)}
+                                                    >
+                                                        ✕
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
                             </div>
 
