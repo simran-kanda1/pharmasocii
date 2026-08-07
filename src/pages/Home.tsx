@@ -512,7 +512,7 @@ export default function Home() {
                                                     {job.workModel || "Job Opening"}
                                                 </div>
                                                 <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
-                                                    <MapPin className="w-3.5 h-3.5" /> {job.city || "Remote"}
+                                                    <MapPin className="w-3.5 h-3.5" /> {[job.city, job.stateRegion || job.state].filter(Boolean).join(", ") || "Remote"}
                                                 </div>
                                             </div>
                                             <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle || ""}</h3>

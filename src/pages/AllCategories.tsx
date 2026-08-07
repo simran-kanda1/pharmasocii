@@ -1088,7 +1088,7 @@ export default function AllCategories() {
                                         const rawTitle = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
                                         const title = rawTitle || "";
                                         const bslDisplay = Array.isArray(item.bioSafetyLevel) ? [...item.bioSafetyLevel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ") : item.bioSafetyLevel;
-                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : `Location: ${item.jobCountry || item.location || "Remote"}`;
+                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : ([item.city, item.stateRegion || item.state].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Remote");
                                         const certsRawArray = Array.isArray(item.certifications)
                                             ? item.certifications.flatMap((c: any) => typeof c === 'string' ? c.split(',').map((s: string) => s.trim()) : [c])
                                             : (typeof item.certifications === 'string'

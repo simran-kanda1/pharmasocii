@@ -206,7 +206,7 @@ export default function ListingDetail() {
             : "";
     const jobLocationLine =
         type === "jobs"
-            ? [item.city, item.stateRegion, item.jobCountry].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
+            ? [item.city, item.stateRegion || item.state].filter((x: any) => typeof x === "string" && x.trim()).join(", ")
             : "";
     const jobCatsArray = type === "jobs" 
         ? (Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0 ? item.selectedCategoriesDisplay : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0 ? item.selectedCategories : Array.isArray(item.categories) && item.categories.length > 0 ? item.categories : []) 
