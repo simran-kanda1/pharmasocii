@@ -96,17 +96,47 @@ const PLAN_UPGRADE_TIER_ORDER: Record<string, number> = {
     standard_job: 1, premium_job: 2, premium_plus_job: 3,
 };
 
-function getAvailablePlanUpgradeIds(currentPlanId: string | undefined): string[] {
+function planFamilyFromId(planId?: string | null): "business" | "event" | "job" | null {
+    const id = String(planId || "");
+    if (id.includes("_event")) return "event";
+    if (id.includes("_job")) return "job";
+    if (id.includes("_mo") || id.includes("_yr")) return "business";
+    return null;
+}
+
+function planFamilyFromCollection(collectionName?: string | null): "business" | "event" | "job" | null {
+    const name = String(collectionName || "");
+    if (name === "eventsCollection") return "event";
+    if (name === "jobsCollection") return "job";
+    if (
+        name === "businessOfferingsCollection" ||
+        name === "consultingServicesCollection" ||
+        name === "consultingCollection"
+    ) {
+        return "business";
+    }
+    return null;
+}
+
+function getAvailablePlanUpgradeIds(
+    currentPlanId: string | undefined,
+    collectionName?: string | null,
+): string[] {
     if (!currentPlanId) return [];
+    const collectionFamily = planFamilyFromCollection(collectionName);
+    const planFamily = planFamilyFromId(currentPlanId);
+    // Prefer listing type when planId was corrupted onto the wrong catalog family.
+    const family = collectionFamily || planFamily;
+    if (collectionFamily && planFamily && collectionFamily !== planFamily) {
+        return [];
+    }
     const currentTier = PLAN_UPGRADE_TIER_ORDER[currentPlanId] || 0;
     const isBusinessMonthly = currentPlanId.includes("_mo");
     const isBusinessYearly = currentPlanId.includes("_yr");
-    const isEvent = currentPlanId.includes("_event");
-    const isJob = currentPlanId.includes("_job");
     return Object.keys(PLAN_CONFIGS).filter((id) => {
         const targetTier = PLAN_UPGRADE_TIER_ORDER[id] || 0;
-        if (isEvent) return id.includes("_event") && targetTier > currentTier;
-        if (isJob) return id.includes("_job") && targetTier > currentTier;
+        if (family === "event") return id.includes("_event") && targetTier > currentTier;
+        if (family === "job") return id.includes("_job") && targetTier > currentTier;
         const targetMo = id.includes("_mo");
         const targetYr = id.includes("_yr");
         if (!targetMo && !targetYr) return false;
@@ -1104,11 +1134,23 @@ export default function Dashboard() {
             upgradeCheckoutContextRef.current?.eventDates ??
             null;
         const origin = window.location.origin;
+        const linkedListing = getLinkedListingForPlan(planForCheckout);
+        const listingSpotlightSubId = String(
+            linkedListing?.featureSpotlightStripeSubscriptionId || "",
+        ).trim();
+        let planSubscriptionId = String(planForCheckout.stripeSubscriptionId || "").trim() || null;
+        // Never send the spotlight add-on subscription as the plan subscription to upgrade.
+        if (planSubscriptionId && listingSpotlightSubId && planSubscriptionId === listingSpotlightSubId) {
+            planSubscriptionId = String(linkedListing?.stripeSubscriptionId || "").trim() || null;
+            if (planSubscriptionId === listingSpotlightSubId) {
+                planSubscriptionId = null;
+            }
+        }
         const resp = await fetch(`${API_BASE_URL}/api/upgrade-subscription`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-                subscriptionId: planForCheckout.stripeSubscriptionId || null,
+                subscriptionId: planSubscriptionId,
                 newPlanId,
                 currentPlanId: planForCheckout.planId || null,
                 partnerId: auth.currentUser.uid,
@@ -1907,7 +1949,7 @@ export default function Dashboard() {
             const planActionsLocked = isPast || arePlanActionsLocked(plan, linkedListing);
             const featureActionsLocked = isPast || areFeatureActionsLocked(plan, linkedListing);
             const canListingPlanUpgradeAction =
-                !isPast && getAvailablePlanUpgradeIds(plan.planId).length > 0 && !planActionsLocked;
+                !isPast && getAvailablePlanUpgradeIds(plan.planId, plan.collectionName).length > 0 && !planActionsLocked;
             const pastStatusLabel = plan.cancelAtPeriodEnd ? "Cancelled" : plan.active === false ? "Expired" : "Ended";
             const cardShell = isPast
                 ? "rounded-xl border border-foreground/15 bg-muted/25 p-5 opacity-95"
@@ -3937,7 +3979,7 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
 
     const currentPrice = parsePrice(currentPlanConfig?.price || "0");
 
-    const upgradePlanIds = getAvailablePlanUpgradeIds(currentPlan.planId);
+    const upgradePlanIds = getAvailablePlanUpgradeIds(currentPlan.planId, currentPlan.collectionName);
     const upgradePlans = upgradePlanIds
         .map((id) => [id, allPlans[id]] as const)
         .filter(([, config]) => Boolean(config))

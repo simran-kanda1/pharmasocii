@@ -1971,12 +1971,16 @@ function resolveTierRank({ planId = null, amount = null, interval = null }) {
     return 0;
 }
 
-function inferCurrentPlanIdFromSubscription(subscription, subscriptionItem) {
+function inferCurrentPlanIdFromSubscription(subscription, subscriptionItem, options = {}) {
     const metaId = subscription?.metadata?.planId;
     const recurringInterval = subscriptionItem?.price?.recurring?.interval || null;
     const recurringIntervalCount = subscriptionItem?.price?.recurring?.interval_count || null;
     const ua = subscriptionItem?.price?.unit_amount;
     const iv = recurringInterval;
+    const familyHint =
+        planCatalogFamily(options.preferredPlanId) ||
+        planCatalogFamily(metaId) ||
+        null;
 
     // Prefer explicit Stripe subscription metadata (e.g. standard_job vs premium_mo both $400/mo).
     if (metaId && PLAN_PRICES[metaId]) {
@@ -2006,7 +2010,12 @@ function inferCurrentPlanIdFromSubscription(subscription, subscriptionItem) {
         }
     }
 
-    const preferredFamily = planCatalogFamily(metaId) || planCatalogFamily(normalizedMetaId);
+    // Never treat a spotlight add-on subscription as a listing plan.
+    if (isSpotlightAddonSubscription(subscription)) {
+        return null;
+    }
+
+    const preferredFamily = familyHint || planCatalogFamily(normalizedMetaId);
 
     if (ua != null) {
         const amountMatches = Object.entries(PLAN_PRICES).filter(([, p]) => p.amount === ua);
@@ -2133,6 +2142,20 @@ function planCatalogFamily(planId) {
     return null;
 }
 
+function familyFromCollectionName(collectionName) {
+    const name = String(collectionName || "");
+    if (name === "eventsCollection") return "event";
+    if (name === "jobsCollection") return "job";
+    if (
+        name === "businessOfferingsCollection" ||
+        name === "consultingServicesCollection" ||
+        name === "consultingCollection"
+    ) {
+        return "business";
+    }
+    return null;
+}
+
 function isSpotlightAddonSubscription(subscription) {
     const meta = subscription?.metadata || {};
     if (String(meta.purchaseType || "") === "spotlight_addon") return true;
@@ -2152,7 +2175,26 @@ async function isKnownSpotlightAddonSubscriptionId(subscriptionId, subscription 
     if (!subscriptionId) return false;
     if (subscription && isSpotlightAddonSubscription(subscription)) return true;
     const docs = await findSpotlightAddonFeatureDocs(subscriptionId);
-    return docs.length > 0;
+    if (docs.length > 0) return true;
+    try {
+        const listingSnap = await db.collectionGroup("businessOfferingsCollection")
+            .where("featureSpotlightStripeSubscriptionId", "==", subscriptionId)
+            .limit(1)
+            .get();
+        if (!listingSnap.empty) return true;
+    } catch (_) {
+        // collection group index may be missing; fall through
+    }
+    try {
+        const consultingSnap = await db.collectionGroup("consultingServicesCollection")
+            .where("featureSpotlightStripeSubscriptionId", "==", subscriptionId)
+            .limit(1)
+            .get();
+        if (!consultingSnap.empty) return true;
+    } catch (_) {
+        // ignore
+    }
+    return false;
 }
 
 async function resolveDistinctSpotlightSubscriptionId({
@@ -3007,12 +3049,160 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
     return { updatedPlans, updatedListings, subscriptionId: subId, status };
 }
 
+async function healPartnerPlanCatalogFamilies(partnerId) {
+    if (!partnerId) return { healed: 0 };
+    const planSnap = await db.collection("partnersCollection")
+        .doc(partnerId)
+        .collection("planCollection")
+        .get();
+
+    let healed = 0;
+    const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
+    const customerId = toStripeCustomerId(partnerSnap.data()?.stripeCustomerId);
+    let customerSubs = null;
+
+    const loadCustomerSubs = async () => {
+        if (customerSubs || !customerId) return customerSubs;
+        customerSubs = await stripe.subscriptions.list({
+            customer: customerId,
+            status: "all",
+            limit: 100,
+        });
+        return customerSubs;
+    };
+
+    for (const planDoc of planSnap.docs) {
+        const planData = planDoc.data() || {};
+        if (planData.active === false) continue;
+        const collectionName = planData.collectionName || null;
+        const listingId = planData.listingId || null;
+        const collectionFamily = familyFromCollectionName(collectionName);
+        if (!collectionFamily || !listingId) continue;
+
+        let subId = toStripeSubscriptionId(planData.stripeSubscriptionId);
+        let subscription = null;
+
+        if (subId) {
+            try {
+                subscription = await stripe.subscriptions.retrieve(subId);
+            } catch (_) {
+                subscription = null;
+            }
+        }
+
+        const subIsSpotlight =
+            (subscription && isSpotlightAddonSubscription(subscription)) ||
+            (subId && (await isKnownSpotlightAddonSubscriptionId(subId, subscription)));
+
+        if (!subscription || subIsSpotlight) {
+            const list = await loadCustomerSubs();
+            const liveStatuses = new Set(["active", "trialing", "past_due", "unpaid"]);
+            const match = (list?.data || []).find((sub) => {
+                if (!liveStatuses.has(sub.status)) return false;
+                if (isSpotlightAddonSubscription(sub)) return false;
+                const metaPlanId = sub.metadata?.planId || "";
+                if (!metaPlanId || !PLAN_PRICES[metaPlanId]) return false;
+                if (planCatalogFamily(metaPlanId) !== collectionFamily) return false;
+                const metaListingId = sub.metadata?.listingId || "";
+                if (metaListingId && metaListingId !== listingId) return false;
+                return Boolean(sub.items?.data?.[0]?.price?.recurring?.interval);
+            });
+            if (match) {
+                subscription = match;
+                subId = match.id;
+            }
+        }
+
+        if (!subscription || !subId) continue;
+
+        const item = subscription.items?.data?.[0];
+        const metaPlanId =
+            subscription.metadata?.planId && PLAN_PRICES[subscription.metadata.planId]
+                ? subscription.metadata.planId
+                : null;
+        const preferredForInfer =
+            (metaPlanId && planCatalogFamily(metaPlanId) === collectionFamily ? metaPlanId : null) ||
+            (planCatalogFamily(planData.planId) === collectionFamily ? planData.planId : null) ||
+            null;
+        const inferred = inferCurrentPlanIdFromSubscription(subscription, item, {
+            preferredPlanId: preferredForInfer,
+        });
+        const healedPlanId =
+            (metaPlanId && planCatalogFamily(metaPlanId) === collectionFamily ? metaPlanId : null) ||
+            (inferred && planCatalogFamily(inferred) === collectionFamily ? inferred : null);
+
+        const planIdFamily = planCatalogFamily(planData.planId);
+        const needsPlanIdHeal = Boolean(
+            healedPlanId &&
+            planIdFamily &&
+            planIdFamily !== collectionFamily
+        );
+        const needsSubHeal = toStripeSubscriptionId(planData.stripeSubscriptionId) !== subId;
+
+        if (!needsPlanIdHeal && !needsSubHeal) continue;
+
+        if (needsPlanIdHeal && healedPlanId && subscription.metadata?.planId !== healedPlanId) {
+            try {
+                await stripe.subscriptions.update(subId, {
+                    metadata: {
+                        ...(subscription.metadata || {}),
+                        planId: healedPlanId,
+                        listingId: listingId || subscription.metadata?.listingId || "",
+                        collectionName: collectionName || subscription.metadata?.collectionName || "",
+                    },
+                });
+            } catch (err) {
+                console.warn("   Could not rewrite Stripe plan metadata during heal:", err?.message || err);
+            }
+        }
+
+        const patch = {
+            stripeSubscriptionId: subId,
+            updatedAt: new Date(),
+        };
+        if (needsPlanIdHeal) {
+            patch.planId = healedPlanId;
+            patch.planName = healedPlanId.replace(/_/g, " ");
+        }
+        await planDoc.ref.set(patch, { merge: true });
+
+        const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
+        if (listingRef) {
+            const listingPatch = {
+                stripeSubscriptionId: subId,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            };
+            if (needsPlanIdHeal) listingPatch.selectedPlan = healedPlanId;
+            await listingRef.set(listingPatch, { merge: true });
+        }
+
+        console.warn("   Healed partner plan catalog family mismatch:", {
+            partnerId,
+            planDocId: planDoc.id,
+            listingId,
+            fromPlanId: planData.planId,
+            toPlanId: needsPlanIdHeal ? healedPlanId : planData.planId,
+            subscriptionId: subId,
+        });
+        healed += 1;
+    }
+
+    return { healed };
+}
+
 async function syncPartnerPlansFromStripe(partnerId, options = {}) {
     if (!partnerId) return { ok: false, error: "partnerId is required", synced: 0 };
 
     let clockState = null;
     if (options.waitForClock !== false) {
         clockState = await ensurePartnerTestClockReady(partnerId);
+    }
+
+    let healResult = { healed: 0 };
+    try {
+        healResult = await healPartnerPlanCatalogFamilies(partnerId);
+    } catch (err) {
+        console.warn("healPartnerPlanCatalogFamilies:", err?.message || err);
     }
 
     const planSnap = await db.collection("partnersCollection")
@@ -3045,7 +3235,7 @@ async function syncPartnerPlansFromStripe(partnerId, options = {}) {
 
     const warnings = await collectPartnerSubscriptionIntervalWarnings(partnerId);
 
-    return { ok: true, synced, subscriptions: results, clockState, invoiceSync, warnings };
+    return { ok: true, synced, subscriptions: results, clockState, invoiceSync, warnings, healResult };
 }
 
 async function syncAllPlansFromStripe() {
@@ -4412,6 +4602,36 @@ app.post("/api/upgrade-subscription", async (req, res) => {
         }
 
         let effectiveSubscriptionId = toStripeSubscriptionId(subscriptionId);
+        let firestorePlanDoc = null;
+        if (partnerId && listingId && collectionName) {
+            firestorePlanDoc = await findLivePlanDocForListing(partnerId, listingId, collectionName);
+            let planSubFromDoc = toStripeSubscriptionId(firestorePlanDoc?.data()?.stripeSubscriptionId);
+            if (planSubFromDoc && (await isKnownSpotlightAddonSubscriptionId(planSubFromDoc))) {
+                console.warn("   planCollection points at a spotlight subscription; will resolve the real plan sub.", {
+                    planDocId: firestorePlanDoc?.id,
+                    badSubscriptionId: planSubFromDoc,
+                });
+                planSubFromDoc = null;
+            }
+            if (planSubFromDoc) {
+                // Prefer the planCollection subscription over any spotlight add-on id the client may send.
+                if (
+                    !effectiveSubscriptionId ||
+                    effectiveSubscriptionId === planSubFromDoc ||
+                    (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId))
+                ) {
+                    if (effectiveSubscriptionId && effectiveSubscriptionId !== planSubFromDoc) {
+                        console.log("   Using planCollection subscription instead of requested/spotlight id:", {
+                            requestedSubscriptionId: effectiveSubscriptionId,
+                            planCollectionSubscriptionId: planSubFromDoc,
+                        });
+                    }
+                    effectiveSubscriptionId = planSubFromDoc;
+                }
+            } else if (effectiveSubscriptionId && (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId))) {
+                effectiveSubscriptionId = null;
+            }
+        }
         if (!effectiveSubscriptionId && partnerId) {
             const partnerPlanQuery = db.collection("partnersCollection").doc(partnerId).collection("planCollection");
             if (listingId) {
@@ -4422,8 +4642,9 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     .get();
                 for (const planDoc of listingPlanSnap.docs) {
                     const candidate = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
-                    if (candidate) {
+                    if (candidate && !(await isKnownSpotlightAddonSubscriptionId(candidate))) {
                         effectiveSubscriptionId = candidate;
+                        firestorePlanDoc = firestorePlanDoc || planDoc;
                         break;
                     }
                 }
@@ -4435,9 +4656,44 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     .get();
                 for (const planDoc of anyActivePlanSnap.docs) {
                     const candidate = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
-                    if (candidate) {
+                    if (candidate && !(await isKnownSpotlightAddonSubscriptionId(candidate))) {
                         effectiveSubscriptionId = candidate;
+                        firestorePlanDoc = firestorePlanDoc || planDoc;
                         break;
+                    }
+                }
+            }
+            // Last resort: find a live Stripe plan subscription for this listing via partner customer.
+            if (!effectiveSubscriptionId) {
+                const partnerSnap = await db.collection("partnersCollection").doc(partnerId).get();
+                const customerId = toStripeCustomerId(partnerSnap.data()?.stripeCustomerId);
+                const expectedFamily = planCatalogFamily(expectedCurrentPlanId) || planCatalogFamily(newPlanId);
+                if (customerId) {
+                    const allCustomerSubscriptions = await stripe.subscriptions.list({
+                        customer: customerId,
+                        status: "all",
+                        limit: 100,
+                    });
+                    const liveStatuses = new Set(["active", "trialing", "past_due", "unpaid"]);
+                    const match = (allCustomerSubscriptions.data || []).find((sub) => {
+                        if (!liveStatuses.has(sub.status)) return false;
+                        if (isSpotlightAddonSubscription(sub)) return false;
+                        const metaPlanId = sub.metadata?.planId || "";
+                        if (!metaPlanId || !PLAN_PRICES[metaPlanId]) return false;
+                        if (expectedFamily && planCatalogFamily(metaPlanId) !== expectedFamily) return false;
+                        if (listingId) {
+                            const metaListingId = sub.metadata?.listingId || "";
+                            if (metaListingId && metaListingId !== listingId) return false;
+                        }
+                        if (expectedCurrentPlanId && metaPlanId !== expectedCurrentPlanId) {
+                            // Still allow if family matches and listing matches.
+                            if (!listingId || (sub.metadata?.listingId || "") !== listingId) return false;
+                        }
+                        return Boolean(sub.items?.data?.[0]?.price?.recurring?.interval);
+                    });
+                    if (match) {
+                        effectiveSubscriptionId = match.id;
+                        console.log("   Recovered plan subscription from Stripe customer list:", match.id);
                     }
                 }
             }
@@ -4450,10 +4706,18 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             });
         }
 
+        if (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId)) {
+            return res.status(400).json({
+                error:
+                    "This upgrade targeted a spotlight add-on subscription instead of the listing plan. Refresh the dashboard and try again.",
+            });
+        }
+
         {
             let subscription = await stripe.subscriptions.retrieve(effectiveSubscriptionId);
             const customerIdForLookup = typeof subscription.customer === "string" ? subscription.customer : null;
             const expectedCurrentPlan = PLAN_PRICES[expectedCurrentPlanId] || null;
+            const expectedFamily = planCatalogFamily(expectedCurrentPlanId) || planCatalogFamily(newPlanId);
 
             if (customerIdForLookup) {
                 const allCustomerSubscriptions = await stripe.subscriptions.list({
@@ -4463,16 +4727,33 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 });
 
                 const liveStatuses = new Set(["active", "trialing", "past_due", "unpaid"]);
-                const list = allCustomerSubscriptions.data || [];
+                const list = (allCustomerSubscriptions.data || []).filter(
+                    (sub) => !isSpotlightAddonSubscription(sub),
+                );
                 const hasExpectedListingContext = Boolean(listingId);
                 const collectionMatchRequired = Boolean(collectionName);
-                const byListing = hasExpectedListingContext
+
+                const byPlanMetadata = list.find((sub) => {
+                    if (!liveStatuses.has(sub.status)) return false;
+                    const metaPlanId = sub.metadata?.planId || "";
+                    if (!metaPlanId || !PLAN_PRICES[metaPlanId]) return false;
+                    if (expectedCurrentPlanId && metaPlanId !== expectedCurrentPlanId) return false;
+                    if (hasExpectedListingContext) {
+                        const metaListingId = sub.metadata?.listingId || "";
+                        if (metaListingId && metaListingId !== listingId) return false;
+                    }
+                    return Boolean(sub.items?.data?.[0]?.price?.recurring?.interval);
+                });
+
+                const byListingPlan = hasExpectedListingContext
                     ? list.find((sub) => {
                         if (!liveStatuses.has(sub.status)) return false;
+                        if (!sub.metadata?.planId) return false;
                         const metaListingId = sub.metadata?.listingId || "";
                         const metaCollection = sub.metadata?.collectionName || "";
                         if (metaListingId !== listingId) return false;
                         if (collectionMatchRequired && metaCollection && metaCollection !== collectionName) return false;
+                        if (expectedFamily && planCatalogFamily(sub.metadata.planId) !== expectedFamily) return false;
                         return Boolean(sub.items?.data?.[0]?.price?.recurring?.interval);
                     })
                     : null;
@@ -4480,9 +4761,11 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 const byExpectedPlan = expectedCurrentPlan
                     ? list.find((sub) => {
                         if (!liveStatuses.has(sub.status)) return false;
+                        // Require plan metadata so a same-priced spotlight never wins.
+                        if (!sub.metadata?.planId) return false;
+                        if (expectedFamily && planCatalogFamily(sub.metadata.planId) !== expectedFamily) return false;
                         const item = sub.items?.data?.[0];
                         const amt = item?.price?.unit_amount ?? null;
-                        const iv = item?.price?.recurring?.interval || null;
                         return amt === expectedCurrentPlan.amount &&
                             stripeRecurringMatchesCatalog(
                                 item?.price?.recurring,
@@ -4491,12 +4774,23 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     })
                     : null;
 
-                const resolvedSubscription = byListing || byExpectedPlan || subscription;
+                const resolvedSubscription =
+                    byPlanMetadata || byListingPlan || byExpectedPlan || subscription;
                 if (resolvedSubscription.id !== subscription.id) {
                     console.log("   Resolved upgrade subscription mismatch:", {
                         requestedSubscriptionId: effectiveSubscriptionId,
                         resolvedSubscriptionId: resolvedSubscription.id,
-                        strategy: byListing ? "listing-metadata" : "expected-current-plan",
+                        strategy: byPlanMetadata
+                            ? "plan-metadata"
+                            : byListingPlan
+                                ? "listing-plan-metadata"
+                                : "expected-current-plan",
+                    });
+                }
+                if (await isKnownSpotlightAddonSubscriptionId(resolvedSubscription.id, resolvedSubscription)) {
+                    return res.status(400).json({
+                        error:
+                            "Could not resolve the listing plan subscription for upgrade (spotlight add-on matched instead). Refresh and try again.",
                     });
                 }
                 subscription = resolvedSubscription;
@@ -4508,9 +4802,132 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 return res.status(400).json({ error: "Unable to locate active subscription item for upgrade." });
             }
 
+            const collectionFamily = familyFromCollectionName(collectionName);
+            const newPlanFamily = planCatalogFamily(newPlanId);
+            if (collectionFamily && newPlanFamily && collectionFamily !== newPlanFamily) {
+                return res.status(400).json({
+                    error:
+                        "That upgrade target does not match this listing type. Refresh the dashboard and try again.",
+                });
+            }
+
             const currentAmount = subscriptionItem.price?.unit_amount || 0;
             const currentInterval = subscriptionItem.price?.recurring?.interval || null;
-            const currentPlanId = inferCurrentPlanIdFromSubscription(subscription, subscriptionItem);
+            const stripeMetaPlanId =
+                subscription.metadata?.planId && PLAN_PRICES[subscription.metadata.planId]
+                    ? subscription.metadata.planId
+                    : null;
+            let firestorePlanId = firestorePlanDoc?.data()?.planId || expectedCurrentPlanId || null;
+
+            // Heal listings that were previously flipped to the wrong catalog family (e.g. business → job).
+            if (
+                firestorePlanDoc &&
+                collectionFamily &&
+                firestorePlanId &&
+                planCatalogFamily(firestorePlanId) &&
+                planCatalogFamily(firestorePlanId) !== collectionFamily
+            ) {
+                const healedId =
+                    (stripeMetaPlanId && planCatalogFamily(stripeMetaPlanId) === collectionFamily
+                        ? stripeMetaPlanId
+                        : null) ||
+                    (expectedCurrentPlanId &&
+                    planCatalogFamily(expectedCurrentPlanId) === collectionFamily
+                        ? expectedCurrentPlanId
+                        : null) ||
+                    inferCurrentPlanIdFromSubscription(subscription, subscriptionItem, {
+                        preferredPlanId:
+                            (stripeMetaPlanId && planCatalogFamily(stripeMetaPlanId) === collectionFamily
+                                ? stripeMetaPlanId
+                                : null) ||
+                            (newPlanFamily === collectionFamily ? newPlanId : null) ||
+                            null,
+                    });
+                if (healedId && planCatalogFamily(healedId) === collectionFamily) {
+                    console.warn("   Healing cross-family planId on planCollection/listing:", {
+                        from: firestorePlanId,
+                        to: healedId,
+                        collectionName,
+                        subscriptionId: subscription.id,
+                    });
+                    await firestorePlanDoc.ref.set(
+                        {
+                            planId: healedId,
+                            planName: healedId.replace(/_/g, " "),
+                            stripeSubscriptionId: subscription.id,
+                            updatedAt: new Date(),
+                        },
+                        { merge: true },
+                    );
+                    const listingRefForHeal = await resolveListingDocRef(partnerId, collectionName, listingId);
+                    if (listingRefForHeal) {
+                        await listingRefForHeal.set(
+                            {
+                                selectedPlan: healedId,
+                                stripeSubscriptionId: subscription.id,
+                                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                            },
+                            { merge: true },
+                        );
+                    }
+                    firestorePlanId = healedId;
+                } else {
+                    return res.status(400).json({
+                        error:
+                            "This listing’s saved plan type looks corrupted (business/consulting vs job/event). Refresh and try again, or contact support.",
+                    });
+                }
+            }
+
+            // Keep planCollection pointed at the real plan subscription (not a spotlight add-on).
+            if (
+                firestorePlanDoc &&
+                toStripeSubscriptionId(firestorePlanDoc.data()?.stripeSubscriptionId) !== subscription.id
+            ) {
+                await firestorePlanDoc.ref.set(
+                    {
+                        stripeSubscriptionId: subscription.id,
+                        stripeCustomerId: subscription.customer || null,
+                        updatedAt: new Date(),
+                    },
+                    { merge: true },
+                );
+            }
+
+            let currentPlanId = inferCurrentPlanIdFromSubscription(subscription, subscriptionItem, {
+                preferredPlanId: firestorePlanId || expectedCurrentPlanId || newPlanId,
+            });
+
+            // Trust the live Firestore/client plan id when Stripe amount inference is ambiguous or wrong-family.
+            if (
+                firestorePlanId &&
+                PLAN_PRICES[firestorePlanId] &&
+                planCatalogFamily(firestorePlanId) === (planCatalogFamily(newPlanId) || planCatalogFamily(firestorePlanId))
+            ) {
+                if (
+                    !currentPlanId ||
+                    planCatalogFamily(currentPlanId) !== planCatalogFamily(firestorePlanId)
+                ) {
+                    console.log("   Preferring Firestore/client current plan id over Stripe inference:", {
+                        inferred: currentPlanId,
+                        firestorePlanId,
+                    });
+                    currentPlanId = firestorePlanId;
+                }
+            }
+
+            if (
+                collectionFamily &&
+                currentPlanId &&
+                planCatalogFamily(currentPlanId) &&
+                planCatalogFamily(currentPlanId) !== collectionFamily
+            ) {
+                return res.status(400).json({
+                    error:
+                        "Could not match this listing to the correct plan subscription. Refresh the dashboard and try again.",
+                });
+            }
+
             console.log("   Upgrade validation input:", {
                 effectiveSubscriptionId,
                 expectedCurrentPlanId: expectedCurrentPlanId || null,
@@ -4528,13 +4945,17 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 });
             }
 
+            // Only sync Firestore when Stripe metadata explicitly confirms a same-family plan id change.
+            // Never rewrite from amount-only inference — that previously flipped business plans to job plans.
             if (
                 partnerId &&
                 listingId &&
                 collectionName &&
                 expectedCurrentPlanId &&
+                stripeMetaPlanId &&
+                stripeMetaPlanId === currentPlanId &&
                 expectedCurrentPlanId !== currentPlanId &&
-                !String(expectedCurrentPlanId).includes("_job")
+                planCatalogFamily(expectedCurrentPlanId) === planCatalogFamily(currentPlanId)
             ) {
                 const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
                 if (listingRef) {
@@ -4574,6 +4995,21 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                         updatedAt: new Date(),
                     }, { merge: true });
                 }
+            } else if (
+                expectedCurrentPlanId &&
+                currentPlanId &&
+                planCatalogFamily(expectedCurrentPlanId) &&
+                planCatalogFamily(currentPlanId) &&
+                planCatalogFamily(expectedCurrentPlanId) !== planCatalogFamily(currentPlanId)
+            ) {
+                console.warn("   Refusing cross-family plan id rewrite during upgrade:", {
+                    expectedCurrentPlanId,
+                    currentPlanId,
+                });
+                return res.status(400).json({
+                    error:
+                        "Could not match this listing to the correct plan subscription (a spotlight add-on may have been selected). Refresh the dashboard and try again.",
+                });
             }
 
             if (currentPlanId === newPlanId) {
@@ -4587,8 +5023,8 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             if (!isAllowedSubscriptionUpgrade({
                 currentPlanId,
                 newPlanId,
-                currentAmount,
-                currentInterval,
+                currentAmount: PLAN_PRICES[currentPlanId]?.amount ?? currentAmount,
+                currentInterval: PLAN_PRICES[currentPlanId]?.interval ?? currentInterval,
             })) {
                 return res.status(400).json({
                     error:
@@ -4596,7 +5032,11 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 });
             }
 
-            // Time-based proration for the remainder of the current Stripe billing period.
+            // Use catalog amounts for proration when Stripe item amount is a spotlight / mismatched price.
+            const catalogCurrentAmount = PLAN_PRICES[currentPlanId]?.amount ?? currentAmount;
+            const catalogCurrentInterval = PLAN_PRICES[currentPlanId]?.interval ?? currentInterval;
+            const prorationCurrentAmount =
+                currentAmount === catalogCurrentAmount ? currentAmount : catalogCurrentAmount;
             const periodStart = subscription.current_period_start || Math.floor(Date.now() / 1000);
             const periodEnd = subscription.current_period_end || periodStart;
             const now = Math.floor(Date.now() / 1000);
@@ -4605,20 +5045,20 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             const remainingRatio = Math.min(Math.max(remainingSeconds / totalSeconds, 0), 1);
 
             const newInterval = newPlan.interval;
-            const normalizedCurrentIv = currentInterval || null;
+            const normalizedCurrentIv = catalogCurrentInterval || currentInterval || null;
             const normalizedNewIv = newInterval || null;
             const alignedBillingIntervals = normalizedCurrentIv === normalizedNewIv;
 
             let proratedDiffAmount;
             if (alignedBillingIntervals) {
-                const planDiffAmount = newPlan.amount - currentAmount;
+                const planDiffAmount = newPlan.amount - prorationCurrentAmount;
                 if (planDiffAmount <= 0) {
                     return res.status(400).json({ error: "Selected plan is not higher than the current plan." });
                 }
                 proratedDiffAmount = Math.max(Math.round(planDiffAmount * remainingRatio), 0);
             } else {
                 // e.g. monthly → annual: credit unused monthly prepayment, charge annual slice for the same wall time.
-                const creditCents = Math.round(currentAmount * remainingRatio);
+                const creditCents = Math.round(prorationCurrentAmount * remainingRatio);
                 if (normalizedCurrentIv === "month" && normalizedNewIv === "year") {
                     // For monthly -> annual upgrades, charge annual price now minus unused monthly credit.
                     // This avoids accidental $0 upgrades caused by prorating annual cost to only the remaining month.
@@ -4643,19 +5083,19 @@ app.post("/api/upgrade-subscription", async (req, res) => {
 
             const currentTierRank = resolveTierRank({
                 planId: currentPlanId,
-                amount: currentAmount,
-                interval: currentInterval,
+                amount: prorationCurrentAmount,
+                interval: catalogCurrentInterval,
             });
             const newTierRank = resolveTierRank({
                 planId: newPlanId,
                 amount: newPlan.amount,
                 interval: newPlan.interval,
             });
-            const isPaidTierUpgrade = newTierRank > currentTierRank && newPlan.amount > currentAmount;
+            const isPaidTierUpgrade = newTierRank > currentTierRank && newPlan.amount > prorationCurrentAmount;
 
             // Avoid silent $0 upgrades when moving to a higher tier — always collect via Checkout when owed.
             if (proratedDiffAmount <= 0 && isPaidTierUpgrade) {
-                const fullDiff = newPlan.amount - currentAmount;
+                const fullDiff = newPlan.amount - prorationCurrentAmount;
                 proratedDiffAmount = Math.max(
                     50,
                     Math.round(fullDiff * Math.max(remainingRatio, 0.05))
