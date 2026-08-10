@@ -1356,7 +1356,7 @@ export default function Dashboard() {
                 await updateDoc(listingRef, updateObj);
 
                 if (upgradePlanId) {
-                    setActionMessage({ type: "success", text: "Details saved. Redirecting to Stripe for upgrade payment..." });
+                    setActionMessage({ type: "success", text: "Details saved. Redirecting to secure checkout for upgrade payment..." });
                     const checkoutResult = await startUpgradeCheckout(
                         upgradePlanId,
                         deferredEventDates,
@@ -1408,7 +1408,7 @@ export default function Dashboard() {
             setSelectedListingForEdit(linkedListing);
             setShowUpgradeModal(false);
             setShowEditListingModal(true);
-            setActionMessage({ type: "success", text: "Update your listing details before continuing to Stripe." });
+            setActionMessage({ type: "success", text: "Update your listing details before continuing to secure checkout." });
             return;
         }
 
@@ -3951,7 +3951,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             (showServiceLocations && countries.length === 0)
                         }
                     >
-                        {jobPdfUploading || eventAgendaPdfUploading ? "Uploading PDF…" : processing ? "Saving..." : isUpgradeFlow ? "Save & Continue to Stripe" : "Save Changes"}
+                        {jobPdfUploading || eventAgendaPdfUploading ? "Uploading PDF…" : processing ? "Saving..." : isUpgradeFlow ? "Save & Continue" : "Save Changes"}
                     </Button>
                 </div>
             </div>

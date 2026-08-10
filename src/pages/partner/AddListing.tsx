@@ -1497,7 +1497,7 @@ export default function AddListing() {
                             {isLoading ? (
                                 <span className="flex items-center gap-2">
                                     <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                    Redirecting to Stripe...
+                                    Redirecting...
                                 </span>
                             ) : (
                                 <><ArrowRight className="mr-2 h-5 w-5" /> Continue to Payment</>
