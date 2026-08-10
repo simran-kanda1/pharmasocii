@@ -1859,7 +1859,11 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 });
                 const featSnap = await db.collectionGroup("featuresCollection")
                     .where("stripeSubscriptionId", "==", subscriptionId)
-                    .get();
+                    .get()
+                    .catch((err) => {
+                        console.warn("invoice.payment_failed featuresCollection query:", err?.message || err);
+                        return { docs: [] };
+                    });
                 featSnap.docs.forEach((p) => {
                     const partnerId = partnerIdFromPartnersPlanRef(p.ref);
                     if (partnerId) partnerIds.add(partnerId);
@@ -2163,38 +2167,34 @@ function isSpotlightAddonSubscription(subscription) {
     return false;
 }
 
-async function findSpotlightAddonFeatureDocs(subscriptionId) {
+async function findSpotlightAddonFeatureDocs(subscriptionId, partnerId = null) {
     if (!subscriptionId) return [];
-    const featSnap = await db.collectionGroup("featuresCollection")
-        .where("stripeSubscriptionId", "==", subscriptionId)
-        .get();
-    return featSnap.docs.filter((d) => (d.data() || {}).source === "spotlight_addon");
+    try {
+        // Prefer partner-scoped query — no collection-group index required.
+        if (partnerId) {
+            const featSnap = await db.collection("partnersCollection")
+                .doc(partnerId)
+                .collection("featuresCollection")
+                .where("stripeSubscriptionId", "==", subscriptionId)
+                .get();
+            return featSnap.docs.filter((d) => (d.data() || {}).source === "spotlight_addon");
+        }
+        const featSnap = await db.collectionGroup("featuresCollection")
+            .where("stripeSubscriptionId", "==", subscriptionId)
+            .get();
+        return featSnap.docs.filter((d) => (d.data() || {}).source === "spotlight_addon");
+    } catch (err) {
+        // Missing COLLECTION_GROUP index must never break upgrades / dashboard sync.
+        console.warn("findSpotlightAddonFeatureDocs:", err?.message || err);
+        return [];
+    }
 }
 
-async function isKnownSpotlightAddonSubscriptionId(subscriptionId, subscription = null) {
+async function isKnownSpotlightAddonSubscriptionId(subscriptionId, subscription = null, partnerId = null) {
     if (!subscriptionId) return false;
     if (subscription && isSpotlightAddonSubscription(subscription)) return true;
-    const docs = await findSpotlightAddonFeatureDocs(subscriptionId);
-    if (docs.length > 0) return true;
-    try {
-        const listingSnap = await db.collectionGroup("businessOfferingsCollection")
-            .where("featureSpotlightStripeSubscriptionId", "==", subscriptionId)
-            .limit(1)
-            .get();
-        if (!listingSnap.empty) return true;
-    } catch (_) {
-        // collection group index may be missing; fall through
-    }
-    try {
-        const consultingSnap = await db.collectionGroup("consultingServicesCollection")
-            .where("featureSpotlightStripeSubscriptionId", "==", subscriptionId)
-            .limit(1)
-            .get();
-        if (!consultingSnap.empty) return true;
-    } catch (_) {
-        // ignore
-    }
-    return false;
+    const docs = await findSpotlightAddonFeatureDocs(subscriptionId, partnerId);
+    return docs.length > 0;
 }
 
 async function resolveDistinctSpotlightSubscriptionId({
@@ -2765,7 +2765,11 @@ async function tryProcessSpotlightAddonInvoicePaid({
 }) {
     const featSnap = await db.collectionGroup("featuresCollection")
         .where("stripeSubscriptionId", "==", subscriptionId)
-        .get();
+        .get()
+        .catch((err) => {
+            console.warn("tryProcessSpotlightAddonInvoicePaid featuresCollection query:", err?.message || err);
+            return { docs: [] };
+        });
     const addonDocs = featSnap.docs.filter((d) => (d.data() || {}).source === "spotlight_addon");
     if (addonDocs.length === 0) {
         console.log(`   ⚠ No spotlight add-on feature record for subscription ${subscriptionId}`);
@@ -3092,7 +3096,7 @@ async function healPartnerPlanCatalogFamilies(partnerId) {
 
         const subIsSpotlight =
             (subscription && isSpotlightAddonSubscription(subscription)) ||
-            (subId && (await isKnownSpotlightAddonSubscriptionId(subId, subscription)));
+            (subId && (await isKnownSpotlightAddonSubscriptionId(subId, subscription, partnerId)));
 
         if (!subscription || subIsSpotlight) {
             const list = await loadCustomerSubs();
@@ -4606,7 +4610,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
         if (partnerId && listingId && collectionName) {
             firestorePlanDoc = await findLivePlanDocForListing(partnerId, listingId, collectionName);
             let planSubFromDoc = toStripeSubscriptionId(firestorePlanDoc?.data()?.stripeSubscriptionId);
-            if (planSubFromDoc && (await isKnownSpotlightAddonSubscriptionId(planSubFromDoc))) {
+            if (planSubFromDoc && (await isKnownSpotlightAddonSubscriptionId(planSubFromDoc, null, partnerId))) {
                 console.warn("   planCollection points at a spotlight subscription; will resolve the real plan sub.", {
                     planDocId: firestorePlanDoc?.id,
                     badSubscriptionId: planSubFromDoc,
@@ -4618,7 +4622,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 if (
                     !effectiveSubscriptionId ||
                     effectiveSubscriptionId === planSubFromDoc ||
-                    (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId))
+                    (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId, null, partnerId))
                 ) {
                     if (effectiveSubscriptionId && effectiveSubscriptionId !== planSubFromDoc) {
                         console.log("   Using planCollection subscription instead of requested/spotlight id:", {
@@ -4628,7 +4632,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     }
                     effectiveSubscriptionId = planSubFromDoc;
                 }
-            } else if (effectiveSubscriptionId && (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId))) {
+            } else if (effectiveSubscriptionId && (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId, null, partnerId))) {
                 effectiveSubscriptionId = null;
             }
         }
@@ -4642,7 +4646,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     .get();
                 for (const planDoc of listingPlanSnap.docs) {
                     const candidate = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
-                    if (candidate && !(await isKnownSpotlightAddonSubscriptionId(candidate))) {
+                    if (candidate && !(await isKnownSpotlightAddonSubscriptionId(candidate, null, partnerId))) {
                         effectiveSubscriptionId = candidate;
                         firestorePlanDoc = firestorePlanDoc || planDoc;
                         break;
@@ -4656,7 +4660,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     .get();
                 for (const planDoc of anyActivePlanSnap.docs) {
                     const candidate = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
-                    if (candidate && !(await isKnownSpotlightAddonSubscriptionId(candidate))) {
+                    if (candidate && !(await isKnownSpotlightAddonSubscriptionId(candidate, null, partnerId))) {
                         effectiveSubscriptionId = candidate;
                         firestorePlanDoc = firestorePlanDoc || planDoc;
                         break;
@@ -4706,7 +4710,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
             });
         }
 
-        if (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId)) {
+        if (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId, null, partnerId)) {
             return res.status(400).json({
                 error:
                     "This upgrade targeted a spotlight add-on subscription instead of the listing plan. Refresh the dashboard and try again.",
@@ -4787,7 +4791,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                                 : "expected-current-plan",
                     });
                 }
-                if (await isKnownSpotlightAddonSubscriptionId(resolvedSubscription.id, resolvedSubscription)) {
+                if (await isKnownSpotlightAddonSubscriptionId(resolvedSubscription.id, resolvedSubscription, partnerId)) {
                     return res.status(400).json({
                         error:
                             "Could not resolve the listing plan subscription for upgrade (spotlight add-on matched instead). Refresh and try again.",
