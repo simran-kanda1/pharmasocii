@@ -3971,14 +3971,6 @@ interface UpgradePlanModalProps {
 function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, onUpgrade, processing }: UpgradePlanModalProps) {
     const [selectedPlan, setSelectedPlan] = useState<string>("");
 
-    const isBusinessMonthly = currentPlan.planId?.includes("_mo");
-
-    const parsePrice = (priceStr: string) => {
-        return parseFloat(priceStr.replace(/[$,]/g, '')) || 0;
-    };
-
-    const currentPrice = parsePrice(currentPlanConfig?.price || "0");
-
     const upgradePlanIds = getAvailablePlanUpgradeIds(currentPlan.planId, currentPlan.collectionName);
     const upgradePlans = upgradePlanIds
         .map((id) => [id, allPlans[id]] as const)
@@ -3991,13 +3983,6 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
             if (a[0].includes("_yr") && b[0].includes("_mo")) return 1;
             return 0;
         });
-
-    const selectedPlanConfig = selectedPlan ? allPlans[selectedPlan] : null;
-    const selectedPrice = selectedPlanConfig ? parsePrice(selectedPlanConfig.price) : 0;
-    const priceDifference = selectedPrice - currentPrice;
-    const selectedIsAnnual = Boolean(selectedPlan?.includes('_yr'));
-    const crossIntervalBusinessUpgrade =
-        Boolean(isBusinessMonthly && selectedIsAnnual);
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -4069,23 +4054,7 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                         </>
                     )}
                 </div>
-                {selectedPlan && (
-                    <div className="px-6 py-3 bg-primary/5 border-t border-primary/20">
-                        <div className="flex items-center justify-between gap-3">
-                            <div>
-                                <p className="text-sm text-muted-foreground">Upgrade cost (prorated)</p>
-                                <p className="text-xs text-muted-foreground">Next step: update listing details, then complete payment on Stripe.</p>
-                            </div>
-                            {crossIntervalBusinessUpgrade ? (
-                                <p className="text-sm font-semibold text-primary text-right shrink-0">
-                                    Based on your billing period
-                                </p>
-                            ) : (
-                                <p className="text-xl font-bold text-primary shrink-0">+${priceDifference.toFixed(2)}</p>
-                            )}
-                        </div>
-                    </div>
-                )}
+
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3 shrink-0">
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
                     <Button onClick={() => onUpgrade(selectedPlan)} disabled={!selectedPlan || processing || upgradePlans.length === 0}>
