@@ -3,7 +3,6 @@ logs
 *.log
 npm-debug.log*
 yarn-debug.log*
-yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
@@ -22,6 +21,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Env / secrets
 .env
 .env.local
 .env.*.local
@@ -34,3 +35,13 @@ server/pharmasocii_admin.json
 pharmasocii-admin.json
 pharmasocii_admin.json
 *admin*.json
+
+# One-off local junk (do not commit)
+scratch/
+scripts/e2e-output/
+server/migration-logs/
+server/*_dump.json
+*_dump.json
+closing_divs.txt
+opening_divs.txt
+div_balance.txt
