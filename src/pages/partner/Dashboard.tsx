@@ -2253,17 +2253,15 @@ export default function Dashboard() {
                                         <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-2">Active Plans</p>
                                         <ul className="space-y-2">
                                             {livePlansSorted.map((plan) => {
-                                                const linked = getLinkedListingForPlan(plan);
+
                                                 const planConfig = PLAN_CONFIGS[plan.planId];
                                                 const groupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
                                                 const tierLabel = formatPlanTierLabel(plan, planConfig);
-                                                const name = getListingDisplayName(linked, plan);
+
                                                 return (
                                                     <li key={plan.id} className="text-sm text-foreground">
-                                                        <span className="font-medium">{name || `${groupLabel} · ${tierLabel}`}</span>
-                                                        {name && (
-                                                            <span className="text-muted-foreground"> — {groupLabel} · {tierLabel}</span>
-                                                        )}
+                                                        <span className="font-medium">{partnerData.businessName || "Unnamed Business"}</span>
+                                                        <span className="text-muted-foreground"> — {groupLabel} · {tierLabel}</span>
                                                     </li>
                                                 );
                                             })}
@@ -2285,7 +2283,7 @@ export default function Dashboard() {
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
                                     <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><FileText className="w-4 h-4" /> Business Tax ID</p>
-                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.VAT_ABN_EIN_businessId || "N/A"}</p>
+                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.VAT_ABN_EIN_businessId || "To be added"}</p>
                                 </div>
                             </div>
                         </CardContent>
@@ -3212,7 +3210,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
     const [startDate, setStartDate] = useState(listing.startDate || "");
     const [endDate, setEndDate] = useState(listing.endDate || "");
     const [eventCountry, setEventCountry] = useState(listing.eventCountry || "");
-    const [eventLocation, setEventLocation] = useState(listing.location || "");
+
     const [eventProfile, setEventProfile] = useState(listing.eventProfile || "");
     const [agendaHighlights, setAgendaHighlights] = useState(
         (listing.agendaHighlights || listing.agenda || "") as string
@@ -3345,13 +3343,9 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     <Label>City/Town <span className="text-red-400">*</span></Label>
                                     <Input value={eventCity} onChange={(e) => setEventCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
                                 </div>
-                                <div className="md:col-span-2">
-                                    <Label>Venue / location <span className="text-red-400">*</span></Label>
-                                    <Input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
-                                </div>
                                 <div className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <div>
-                                        <Label>Agenda highlights <span className="text-red-400">*</span> <span className="text-muted-foreground font-normal">(max {AGENDA_HIGHLIGHTS_MAX})</span></Label>
+                                        <Label>Agenda highlights <span className="text-red-400">*</span></Label>
                                         <Textarea
                                             value={agendaHighlights}
                                             onChange={(e) => setAgendaHighlights(e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX))}
@@ -3359,29 +3353,41 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         />
                                         <p className="text-xs text-muted-foreground mt-1">{agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                     </div>
-                                    <div>
+                                    <div className="space-y-2">
                                         <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>
-                                        <Input
-                                            type="file"
-                                            accept=".pdf,application/pdf"
-                                            className="bg-foreground/5 border-foreground/10 mt-1 cursor-pointer"
-                                            onChange={(e) => {
-                                                const f = e.target.files?.[0] || null;
-                                                setEventAgendaPdfFile(f);
-                                                setEventAgendaPdfUploadError("");
-                                                if (f) setAgendaPdfUrl("");
-                                            }}
-                                        />
-                                        {eventAgendaPdfFile && <p className="text-xs text-muted-foreground mt-1">Selected: {eventAgendaPdfFile.name}</p>}
-                                        <p className="text-xs text-muted-foreground mt-1">Or paste a hosted PDF link.</p>
-                                        <Input
-                                            type="url"
-                                            placeholder="https://…"
-                                            value={agendaPdfUrl}
-                                            onChange={(e) => setAgendaPdfUrl(e.target.value)}
-                                            disabled={!!eventAgendaPdfFile}
-                                            className="bg-foreground/5 border-foreground/10 mt-1"
-                                        />
+                                        {!eventAgendaPdfFile && !agendaPdfUrl && (
+                                            <Input
+                                                type="file"
+                                                accept=".pdf,application/pdf"
+                                                className="bg-foreground/5 border-foreground/10 mt-1 cursor-pointer"
+                                                onChange={(e) => {
+                                                    const f = e.target.files?.[0] || null;
+                                                    setEventAgendaPdfFile(f);
+                                                    setEventAgendaPdfUploadError("");
+                                                    if (f) setAgendaPdfUrl("");
+                                                }}
+                                            />
+                                        )}
+                                        {eventAgendaPdfFile && (
+                                            <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                <span className="text-xs text-foreground flex items-center gap-1">
+                                                    <FileText className="w-4 h-4" /> {eventAgendaPdfFile.name}
+                                                </span>
+                                                <button type="button" onClick={() => setEventAgendaPdfFile(null)} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
+                                        {agendaPdfUrl && !eventAgendaPdfFile && (
+                                            <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                <a href={agendaPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                                                    <FileText className="w-4 h-4" /> View existing PDF
+                                                </a>
+                                                <button type="button" onClick={() => setAgendaPdfUrl("")} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        )}
                                         {eventAgendaPdfUploadError && <p className="text-xs text-red-500 mt-1">{eventAgendaPdfUploadError}</p>}
                                     </div>
                                 </div>
@@ -3840,7 +3846,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         startDate,
                                         endDate,
                                         eventCountry,
-                                        location: eventLocation,
+
                                         eventProfile,
                                         agendaHighlights: agendaHighlights.trim(),
                                         agenda: agendaHighlights.trim(),
@@ -3891,7 +3897,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     !eventCountry.trim() ||
                                     !eventStateRegion.trim() ||
                                     !eventCity.trim() ||
-                                    !eventLocation.trim() ||
+
                                     !agendaHighlights.trim() ||
                                     (!agendaPdfUrl.trim() && !eventAgendaPdfFile) ||
                                     !eventProfile.trim() ||
