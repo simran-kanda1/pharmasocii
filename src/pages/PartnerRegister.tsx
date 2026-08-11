@@ -150,7 +150,22 @@ export default function PartnerRegister() {
                         </p>
                     </div>
                 ) : (
-                    <form onSubmit={handleRegister} className="space-y-5 text-left relative z-10 text-foreground/90">
+                    <form 
+                        onSubmit={handleRegister} 
+                        onInvalid={(e) => {
+                            const target = e.target as unknown as HTMLInputElement;
+                            if (target.type === 'checkbox' && target.required && !target.checked) {
+                                target.setCustomValidity("Please check this box to proceed.");
+                            }
+                        }}
+                        onChange={(e) => {
+                            const target = e.target as unknown as HTMLInputElement;
+                            if (target.type === 'checkbox') {
+                                target.setCustomValidity("");
+                            }
+                        }}
+                        className="space-y-5 text-left relative z-10 text-foreground/90"
+                    >
                         {error && (
                             <div className="p-3 bg-destructive/20 border border-destructive/50 rounded-md text-destructive-foreground text-sm">
                                 {error}

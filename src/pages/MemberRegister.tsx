@@ -182,7 +182,22 @@ export default function MemberRegister() {
           Name/username are final at account creation.
         </p>
 
-        <form onSubmit={handleRegister} className="space-y-4">
+        <form 
+          onSubmit={handleRegister} 
+          onInvalid={(e) => {
+            const target = e.target as unknown as HTMLInputElement;
+            if (target.type === 'checkbox' && target.required && !target.checked) {
+              target.setCustomValidity("Please check this box to proceed.");
+            }
+          }}
+          onChange={(e) => {
+            const target = e.target as unknown as HTMLInputElement;
+            if (target.type === 'checkbox') {
+              target.setCustomValidity("");
+            }
+          }}
+          className="space-y-4"
+        >
           <div className="space-y-2">
             <Label htmlFor="name">Full name*</Label>
             <Input

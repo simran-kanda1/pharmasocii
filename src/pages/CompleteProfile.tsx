@@ -1199,9 +1199,6 @@ export default function CompleteProfile() {
                                                 <SelectItem value="none">Available after plan payment</SelectItem>
                                             </SelectContent>
                                         </Select>
-                                        <p className="text-xs text-muted-foreground">
-                                            Feature plans are unlocked in Dashboard only after this listing payment is completed.
-                                        </p>
                                     </div>
                                 )}
                             </CardContent>
