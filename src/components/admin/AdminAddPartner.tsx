@@ -603,7 +603,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           className="flex min-h-[42px] w-full items-center gap-2 flex-wrap rounded-md border border-slate-300 bg-white px-3 py-2 text-sm cursor-pointer hover:border-slate-400 transition-colors"
         >
           {selected.length === 0 ? (
-            <span className="text-slate-400">Choose {label.toLowerCase()} (multi-select)</span>
+            <span className="text-slate-400">Choose {label.toLowerCase()} (multi-select){label.toLowerCase() === 'service regions' ? ' - Premium plus plans only' : ''}</span>
           ) : (
             selected.map(s => (
               <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-800 text-xs rounded border border-slate-200">
@@ -1217,9 +1217,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                         setShowCountriesDropdown(false);
                       }}
                     />
-                    {!canUseRegionHelper && (
-                      <p className="text-[10px] text-slate-400 mt-1">Region helper is available only on plans with unlimited countries.</p>
-                    )}
                   </div>
                   <div className="space-y-2" onClick={e => e.stopPropagation()}>
                     <Label className="text-slate-600 font-semibold">
@@ -1256,9 +1253,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                         setShowCountriesDropdown(false);
                       }}
                     />
-                    {!canUseRegionHelper && (
-                      <p className="text-[10px] text-slate-400 mt-1">Region helper is available only on plans with unlimited countries.</p>
-                    )}
                   </div>
                   <div className="space-y-2" onClick={e => e.stopPropagation()}>
                     <Label className="text-slate-600 font-semibold">

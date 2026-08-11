@@ -946,7 +946,7 @@ export default function CompleteProfile() {
                     className="flex min-h-[44px] w-full items-center gap-2 flex-wrap rounded-md border border-foreground/10 bg-background px-3 py-2 text-sm cursor-pointer hover:border-foreground/20 transition-colors"
                 >
                     {selected.length === 0 ? (
-                        <span className="text-muted-foreground">Choose your {label.toLowerCase()} (multi-select enabled)</span>
+                        <span className="text-muted-foreground">Choose your {label.toLowerCase()} (multi-select enabled){label.toLowerCase() === 'service regions' ? ' - Premium plus plans only' : ''}</span>
                     ) : (
                         [...selected].sort((a, b) => a.localeCompare(b)).map(s => (
                             <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 bg-foreground/10 text-foreground text-xs rounded-md border border-foreground/10">
@@ -1280,9 +1280,6 @@ export default function CompleteProfile() {
                                                             setShowCountriesDropdown(false);
                                                         }}
                                                     />
-                                                    {!canUseRegionHelper && (
-                                                        <p className="text-xs text-muted-foreground">Region helper is available only on plans with unlimited countries.</p>
-                                                    )}
                                                 </div>
                                                 <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                     <Label>
@@ -1317,9 +1314,6 @@ export default function CompleteProfile() {
                                                         setShowCountriesDropdown(false);
                                                     }}
                                                 />
-                                                {!canUseRegionHelper && (
-                                                    <p className="text-xs text-muted-foreground">Region helper is available only on plans with unlimited countries.</p>
-                                                )}
                                             </div>
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                 <Label>

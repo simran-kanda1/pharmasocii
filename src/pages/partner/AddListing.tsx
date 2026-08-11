@@ -166,7 +166,7 @@ function MultiSelectDropdown({ label, items, selected, onToggle, open, onToggleO
             <button type="button" onClick={onToggleOpen}
                 className="w-full h-10 px-3 text-left text-sm bg-muted/40 border border-foreground/10 rounded-md flex items-center justify-between hover:border-primary/50 transition-colors">
                 <span className="text-muted-foreground truncate">
-                    {selected.length > 0 ? `${selected.length} selected` : `Choose your ${label} (multi-select enabled)`}
+                    {selected.length > 0 ? `${selected.length} selected` : `Choose your ${label} (multi-select enabled)${label === 'service regions' ? ' - Premium plus plans only' : ''}`}
                 </span>
                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
@@ -1063,9 +1063,6 @@ export default function AddListing() {
                                                         setShowCertsDropdown(false);
                                                         setShowCountriesDropdown(false);
                                                     }} />
-                                                {!canUseRegionHelper && (
-                                                    <p className="text-xs text-muted-foreground">Region helper is available only on plans with unlimited countries.</p>
-                                                )}
                                             </div>
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                 <Label>
@@ -1094,9 +1091,6 @@ export default function AddListing() {
                                                     setShowRegionsDropdown(!showRegionsDropdown);
                                                     setShowCountriesDropdown(false);
                                                 }} />
-                                            {!canUseRegionHelper && (
-                                                <p className="text-xs text-muted-foreground">Region helper is available only on plans with unlimited countries.</p>
-                                            )}
                                         </div>
                                         <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                             <Label>

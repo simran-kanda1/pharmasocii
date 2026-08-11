@@ -1920,7 +1920,6 @@ export default function Dashboard() {
             const isYearly = plan.billingInterval === "year" || plan.planId?.includes("_yr");
             const billingCycleLabel = isYearly ? "Annual" : "Monthly";
             const linkedListing = getLinkedListingForPlan(plan);
-            const planRepresentatives = linkedListing?.companyRepresentatives || plan.companyRepresentatives || [];
             const hasFeature = linkedListing?.selectedAddon && linkedListing?.selectedAddon !== "" && linkedListing?.selectedAddon !== "none";
             const includedPlanFeature = planConfig?.featurePlan;
             const effectiveSpotlightId = getEffectiveSpotlightFeatureId(linkedListing, plan.planId);
@@ -2176,18 +2175,6 @@ export default function Dashboard() {
                                 )}
                             </div>
                         )}
-                        {planRepresentatives?.length > 0 && (
-                            <div className="pt-3 border-t border-foreground/10">
-                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1.5">Company Representatives</p>
-                                <div className="space-y-1.5">
-                                    {planRepresentatives.map((rep: any, i: number) => (
-                                        <p key={i} className="text-sm text-foreground/90">
-                                            {rep.firstName} {rep.lastName} — {rep.email}
-                                        </p>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
             );
@@ -2200,7 +2187,7 @@ export default function Dashboard() {
         const renderAddListingDropdown = (buttonClassName?: string) => (
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button className={buttonClassName || "bg-white text-black hover:bg-white/90"}>
+                    <Button className={buttonClassName || "bg-blue-600 text-white hover:bg-blue-700"}>
                         <PlusCircle className="w-4 h-4 mr-2" /> Add Listing
                     </Button>
                 </DropdownMenuTrigger>
@@ -2879,19 +2866,7 @@ export default function Dashboard() {
                                             )}
                                         </div>
                                     )}
-                                    {detail.companyRepresentatives.length > 0 && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Company Representatives</dt>
-                                            <dd className="space-y-1">
-                                                {detail.companyRepresentatives.map((rep, i) => (
-                                                    <p key={i} className="text-xs text-foreground/90">
-                                                        {[rep.firstName, rep.lastName].filter(Boolean).join(" ")}
-                                                        {rep.email ? ` · ${rep.email}` : ""}
-                                                    </p>
-                                                ))}
-                                            </dd>
-                                        </div>
-                                    )}
+
                                 </dl>
                             </div>
                             <div className="px-5 py-3 border-t border-foreground/10 flex justify-end bg-muted/30">
