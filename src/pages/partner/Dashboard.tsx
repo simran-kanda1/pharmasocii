@@ -3281,7 +3281,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
     const [jobCountry, setJobCountry] = useState(listing.jobCountry || "");
     const [jobStateRegion, setJobStateRegion] = useState(listing.stateRegion || "");
     const [jobCity, setJobCity] = useState(listing.city || "");
-    const [jobLocationLine, setJobLocationLine] = useState(listing.location || "");
+
     const [education, setEducation] = useState(listing.education || "");
     const [applicationDeadline, setApplicationDeadline] = useState(
         typeof listing.applicationDeadline === "string" ? listing.applicationDeadline : ""
@@ -3290,8 +3290,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
     const [jobPdfFile, setJobPdfFile] = useState<File | null>(null);
     const [jobPdfUploadError, setJobPdfUploadError] = useState("");
     const [jobPdfUploading, setJobPdfUploading] = useState(false);
-    const [companyWebsiteLink, setCompanyWebsiteLink] = useState(listing.companyWebsiteLink || "");
-    const [linkedInJob, setLinkedInJob] = useState(listing.linkedInJob || "");
+
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -3454,20 +3453,42 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         }}
                                     />
                                     {jobPdfFile && <p className="text-xs text-muted-foreground">Selected: {jobPdfFile.name}</p>}
-                                    <p className="text-xs text-muted-foreground">Or paste a hosted PDF link if you are not uploading a file.</p>
-                                    <Input
-                                        type="url"
-                                        placeholder="https://…"
-                                        value={jobDescriptionPdfUrl}
-                                        onChange={(e) => setJobDescriptionPdfUrl(e.target.value)}
-                                        disabled={!!jobPdfFile}
-                                        className="bg-foreground/5 border-foreground/10 mt-1"
-                                    />
+                                    {jobDescriptionPdfUrl && !jobPdfFile && (
+                                        <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                            <a href={jobDescriptionPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                                                <FileText className="w-4 h-4" /> View existing PDF
+                                            </a>
+                                            <button type="button" onClick={() => setJobDescriptionPdfUrl("")} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
                                     {jobPdfUploadError && <p className="text-xs text-red-500">{jobPdfUploadError}</p>}
                                 </div>
-                                <div><Label>Industry</Label><Input value={industry} onChange={(e) => setIndustry(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div><Label>Job type <span className="text-red-400">*</span></Label><Input value={jobType} onChange={(e) => setJobType(e.target.value)} placeholder="e.g. Full-time" className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div><Label>Country <span className="text-red-400">*</span></Label><Input value={jobCountry} onChange={(e) => setJobCountry(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>Industry</Label>
+                                    <Select value={industry} onValueChange={setIndustry}>
+                                        <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select industry" /></SelectTrigger>
+                                        <SelectContent>
+                                            {["Biotechnology", "Pharmaceuticals", "Medical Device", "Radiopharmaceuticals", "Clinical Research", "Healthcare", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div><Label>Job type <span className="text-red-400">*</span></Label>
+                                    <Select value={jobType} onValueChange={setJobType}>
+                                        <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select type" /></SelectTrigger>
+                                        <SelectContent>
+                                            {["Full-time", "Part-time", "Contract", "Internship", "Temporary", "Freelance"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <div><Label>Country <span className="text-red-400">*</span></Label>
+                                    <Select value={jobCountry} onValueChange={setJobCountry}>
+                                        <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select country" /></SelectTrigger>
+                                        <SelectContent>
+                                            {SERVICE_COUNTRIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
                                 <div><Label>State/Province/Region <span className="text-red-400">*</span></Label><Input value={jobStateRegion} onChange={(e) => setJobStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
                                 <div><Label>City/Town <span className="text-red-400">*</span></Label><Input value={jobCity} onChange={(e) => setJobCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
                                 <div><Label>Education</Label>
@@ -3502,9 +3523,6 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 </div>
                                 <div className="md:col-span-2"><Label>Position link (Apply URL) <span className="text-red-400">*</span></Label><Input type="url" value={positionLink} onChange={(e) => setPositionLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
                                 <div><Label>Application deadline</Label><Input type="date" value={applicationDeadline} onChange={(e) => setApplicationDeadline(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div className="md:col-span-2"><Label>Company website link</Label><Input type="url" value={companyWebsiteLink} onChange={(e) => setCompanyWebsiteLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div className="md:col-span-2"><Label>LinkedIn</Label><Input value={linkedInJob} onChange={(e) => setLinkedInJob(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div className="md:col-span-2"><Label>Location (combined display)</Label><Input value={jobLocationLine} onChange={(e) => setJobLocationLine(e.target.value)} placeholder="Optional extra location text" className="bg-foreground/5 border-foreground/10 mt-1" /></div>
                             </div>
                         </div>
                     )}
@@ -3872,12 +3890,11 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         jobCountry,
                                         stateRegion: jobStateRegion,
                                         city: jobCity,
-                                        location: jobLocationLine,
+
                                         education,
                                         applicationDeadline,
                                         jobDescriptionPdfUrl: jobPdfUrlOut,
-                                        companyWebsiteLink,
-                                        linkedInJob,
+
                                     }
                                     : {}),
                             });
