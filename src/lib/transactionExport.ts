@@ -94,7 +94,7 @@ export function downloadPartnerTransactionsPdf(rows: PartnerTransactionRow[]): v
     if (rows.length === 0) return;
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
     doc.setFontSize(11);
-    doc.text("Pharmasocii — transactions", 14, 12);
+    doc.text("Pharma SocII — transactions", 14, 12);
     doc.setFontSize(8);
 
     const head = [["Date", "Partner", "Business", "Type", "Description", "Group", "Amount", "Status"]];

@@ -129,14 +129,6 @@ export default function PartnerRegister() {
             <div className="w-full md:w-[450px] lg:w-[500px] bg-background/90 p-8 md:p-12 overflow-y-auto border-r border-foreground/10 shrink-0 relative">
 
 
-                <div className="mb-8">
-                    <Link to="/" className="flex items-center gap-2 mb-8">
-                        <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
-                            <div className="h-3 w-3 bg-foreground/20 rounded-full" />
-                        </div>
-                        <span className="font-bold text-lg tracking-tight text-foreground">Pharmasocii</span>
-                    </Link>
-                </div>
 
                 {success ? (
                     <div className="flex flex-col items-center justify-center h-full text-center space-y-6 py-20">
@@ -313,6 +305,10 @@ export default function PartnerRegister() {
 
 
                 <div className="max-w-3xl mx-auto space-y-12 relative z-10">
+                    <div className="text-center space-y-2 mb-2">
+                        <h2 className="text-3xl font-bold text-foreground">Discover, Connect & Collaborate</h2>
+                        <p className="text-xl text-muted-foreground">Gain visibility, expand your network, and drive impactful collaborations</p>
+                    </div>
 
                     {/* Top informative banner boxes */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-foreground/5 border border-foreground/10 rounded-2xl p-6 lg:p-8 backdrop-blur-sm">

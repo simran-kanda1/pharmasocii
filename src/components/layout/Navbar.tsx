@@ -82,7 +82,7 @@ export default function Navbar() {
                             <div className="h-4 w-4 bg-foreground/20 rounded-full" />
                         </div>
                         <span className="font-bold text-xl tracking-tight text-foreground">
-                            Pharmasocii
+                            Pharma SocII
                         </span>
                     </Link>
 

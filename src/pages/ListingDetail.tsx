@@ -311,8 +311,8 @@ export default function ListingDetail() {
                         <div className="flex flex-col md:flex-row gap-8 items-start">
                             {/* Icon */}
                             <div className="w-24 h-24 rounded-2xl bg-background border border-foreground/10 flex items-center justify-center shrink-0 shadow-sm overflow-hidden">
-                                {partner?.logoUrl || item.logoUrl ? (
-                                    <img src={partner?.logoUrl || item.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                                {partner?.logoUrl || item.logoUrl || partner?.companyLogoUrl || item.companyLogoUrl ? (
+                                    <img src={partner?.logoUrl || item.logoUrl || partner?.companyLogoUrl || item.companyLogoUrl} alt="Logo" className="w-full h-full object-contain" />
                                 ) : type === "events" ? (
                                     <Calendar className="w-12 h-12 text-primary/40" />
                                 ) : type === "jobs" ? (

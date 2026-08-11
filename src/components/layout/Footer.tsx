@@ -11,7 +11,7 @@ export function Footer() {
                             <div className="h-6 w-6 rounded-full bg-primary flex items-center justify-center">
                                 <div className="h-3 w-3 bg-foreground/20 rounded-full" />
                             </div>
-                            <span className="font-bold text-lg tracking-tight">Pharmasocii</span>
+                            <span className="font-bold text-lg tracking-tight">Pharma SocII</span>
                         </Link>
                         <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
                             Discover, Connect & Collaborate Building connections across the life sciences ecosystem.
@@ -66,7 +66,7 @@ export function Footer() {
                 <div className="pt-8 border-t border-foreground/10 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex flex-col items-center md:items-start gap-1">
                         <p className="text-xs text-muted-foreground text-center md:text-left">
-                            &copy; {new Date().getFullYear()} Pharmasocii. All rights reserved.
+                            &copy; {new Date().getFullYear()} Pharma SocII. All rights reserved.
                         </p>
                         <p className="text-[11px] text-muted-foreground/80 max-w-sm text-center md:text-left">
                             This product is in open beta. We welcome your input as we continue to refine the experience.

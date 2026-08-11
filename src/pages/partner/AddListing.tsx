@@ -236,8 +236,7 @@ export default function AddListing() {
 
     // ─── Event fields ───
     const [eventData, setEventData] = useState({
-        eventName: "", eventLink: "", startDate: "", endDate: "",
-        eventCountry: "", stateRegion: "", city: "", location: "", eventProfile: "", agendaHighlights: "", agendaPdfUrl: "",
+        eventName: "", eventLink: "", startDate: "", endDate: "", eventCountry: "", stateRegion: "", city: "", eventProfile: "", agendaHighlights: "", agendaPdfUrl: ""
     });
 
     // ─── Job fields ───
@@ -358,7 +357,7 @@ export default function AddListing() {
 
     const isCategoryLimitReached = currentLimits.maxCategories !== -1 && categoryCount >= currentLimits.maxCategories;
     const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
-    const canSelectAllCategories = currentLimits.maxCategories === -1;
+
 
     function getCategoriesForGroup(group: string): CategoriesDict | Record<string, string[]> | null {
         switch (group) {
@@ -581,7 +580,7 @@ export default function AddListing() {
         }
 
         if (dbGroup === "events") {
-            const { eventName, eventLink, startDate, endDate, eventCountry, stateRegion, city, location, eventProfile, agendaHighlights, agendaPdfUrl } = eventData;
+            const { eventName, eventLink, startDate, endDate, eventCountry, stateRegion, city, eventProfile, agendaHighlights, agendaPdfUrl } = eventData;
             const highlights = agendaHighlights.trim();
             const hasAgendaPdf = !!eventAgendaPdfFile || agendaPdfUrl.trim().length > 0;
             if (
@@ -592,7 +591,6 @@ export default function AddListing() {
                 !eventCountry ||
                 !stateRegion.trim() ||
                 !city.trim() ||
-                !location.trim() ||
                 !eventProfile.trim() ||
                 !highlights ||
                 !hasAgendaPdf
@@ -729,7 +727,7 @@ export default function AddListing() {
                     eventCountry: eventData.eventCountry,
                     stateRegion: eventData.stateRegion,
                     city: eventData.city,
-                    location: eventData.location,
+
                     eventProfile: eventData.eventProfile,
                     agendaHighlights: highlights,
                     agendaPdfUrl: eventAgendaPdfResolved,
@@ -883,40 +881,7 @@ export default function AddListing() {
         });
     }
 
-    const handleSelectAllCategories = () => {
-        const catDict = getCategoriesForGroup(dbGroup);
-        if (!catDict || !canSelectAllCategories) return;
 
-        const allLeafCategories: string[] = [];
-        const allLeafSubcategories: string[] = [];
-        const allSubSubcategories: string[] = [];
-        const allCategoryKeys = Object.keys(catDict);
-        const allNestedSubcategoryLabels: string[] = [];
-        const isBusinessGroup = dbGroup === "business_offerings";
-
-        Object.entries(catDict).forEach(([cat, subs]) => {
-            if (!subs.length) {
-                allLeafCategories.push(cat);
-                return;
-            }
-
-            subs.forEach((entry: SubcategoryEntry) => {
-                const subLabel = getSubLabel(entry);
-                if (isBusinessGroup && hasSubSub(entry)) {
-                    allNestedSubcategoryLabels.push(`${cat} > ${subLabel}`);
-                    entry.subSubcategories.forEach((ss) => allSubSubcategories.push(`${cat} > ${subLabel} > ${ss}`));
-                } else {
-                    allLeafSubcategories.push(`${cat} > ${subLabel}`);
-                }
-            });
-        });
-
-        setSelectedCategories(Array.from(new Set(allLeafCategories)));
-        setSelectedSubcategories(Array.from(new Set(allLeafSubcategories)));
-        setSelectedSubSubcategories(Array.from(new Set(allSubSubcategories)));
-        setExpandedCategories(allCategoryKeys);
-        setExpandedSubcategories(Array.from(new Set(allNestedSubcategoryLabels)));
-    };
 
     if (!config) {
         return (
@@ -1178,10 +1143,6 @@ export default function AddListing() {
                                             <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Venue / location <span className="text-red-400">*</span></Label>
-                                            <Input placeholder="Venue name or online details" value={eventData.location} onChange={e => setEventData(prev => ({ ...prev, location: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
-                                        </div>
-                                        <div className="space-y-2 md:col-span-2">
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                 <div className="space-y-2">
                                                     <Label>Agenda highlights <span className="text-red-400">*</span> <span className="text-muted-foreground font-normal">(max {AGENDA_HIGHLIGHTS_MAX} characters)</span></Label>
@@ -1365,15 +1326,9 @@ export default function AddListing() {
                                 <div className="pt-6 border-t border-foreground/10">
                                     <div className="flex items-center justify-between mb-4">
                                         <div>
-                                            <Label className="text-base font-semibold">Area(s) <span className="text-red-400">*</span></Label>
-                                            <p className="text-xs text-muted-foreground mt-1">Select areas from the lowest level. Parent areas with categories expand when clicked.</p>
+                                            <Label className="text-base font-semibold">Categories <span className="text-red-400">*</span></Label>
                                         </div>
                                         <div className="flex items-center gap-2">
-                                            {canSelectAllCategories && (
-                                                <Button type="button" variant="outline" size="sm" onClick={handleSelectAllCategories}>
-                                                    Select all
-                                                </Button>
-                                            )}
                                             <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>
                                                 {categoryCount} / {currentLimits.maxCategories === -1 ? "∞" : currentLimits.maxCategories}
                                             </div>

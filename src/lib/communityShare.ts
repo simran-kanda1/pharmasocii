@@ -6,7 +6,7 @@ export function buildPostShareUrl(postId: string): string {
 
 export function buildLinkedInShareUrl(postId: string, title: string): string {
   const url = buildPostShareUrl(postId);
-  const safeTitle = (title || "Pharmasocii community post").trim();
+  const safeTitle = (title || "Pharma SocII community post").trim();
   const text = `${safeTitle}\n${url}`;
   return `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text)}`;
 }

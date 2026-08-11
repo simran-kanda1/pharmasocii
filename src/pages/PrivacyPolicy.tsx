@@ -45,12 +45,12 @@ export default function PrivacyPolicy() {
             ) : (
               <>
                 <p>
-                  <strong>PharmaSocii</strong> (“we,” “our,” “us”) respects your privacy. This Privacy Policy explains how we collect, use, share, and protect your information when you use our Platform.
+                  <strong>Pharma SocII</strong> (“we,” “our,” “us”) respects your privacy. This Privacy Policy explains how we collect, use, share, and protect your information when you use our Platform.
                 </p>
 
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">1. Information We Collect</h2>
-              <p>We may collect the following information when you use PharmaSocii:</p>
+              <p>We may collect the following information when you use Pharma SocII:</p>
               <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
                 <li><strong>Account Information:</strong> Username, email address, and password.</li>
                 <li><strong>User-Generated Content:</strong> Posts, comments, discussions, and other contributions you make on the Platform.</li>
@@ -99,7 +99,7 @@ export default function PrivacyPolicy() {
               <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
                 <li><strong>Service Providers:</strong> With trusted vendors who provide hosting, analytics, security, or other business services under strict confidentiality obligations.</li>
                 <li><strong>Legal & Compliance:</strong> Where required by law, regulation, or valid legal request.</li>
-                <li><strong>Business Transfers:</strong> If PharmaSocii is involved in a merger, acquisition, or sale of assets.</li>
+                <li><strong>Business Transfers:</strong> If Pharma SocII is involved in a merger, acquisition, or sale of assets.</li>
               </ul>
             </section>
 

@@ -45,7 +45,7 @@ export default function CommunityGuidelines() {
             ) : (
               <>
                 <p>
-                  <strong>PharmaSocii</strong> is a professional community designed to foster collaboration, knowledge-sharing, and problem-solving across the life sciences ecosystem. This is <strong>not</strong> a forum for marketing, recruitment, or product promotion. By participating, you agree to follow these guidelines to ensure a safe, respectful, and productive environment for all members.
+                  <strong>Pharma SocII</strong> is a professional community designed to foster collaboration, knowledge-sharing, and problem-solving across the life sciences ecosystem. This is <strong>not</strong> a forum for marketing, recruitment, or product promotion. By participating, you agree to follow these guidelines to ensure a safe, respectful, and productive environment for all members.
                 </p>
 
             <section className="space-y-3">
@@ -107,7 +107,7 @@ export default function CommunityGuidelines() {
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">8. Moderation Rights</h2>
               <p>
-                PharmaSocii may, at its <strong>sole discretion</strong>, review and remove any content, and suspend or terminate accounts that violate these Guidelines or the{" "}
+                Pharma SocII may, at its <strong>sole discretion</strong>, review and remove any content, and suspend or terminate accounts that violate these Guidelines or the{" "}
                 <Link to="/terms" className="text-primary hover:underline font-medium">
                   Terms of Use
                 </Link>
@@ -124,7 +124,7 @@ export default function CommunityGuidelines() {
                 <li>Off-label promotion, solicitation of patients, or unverified medical/regulatory claims.</li>
               </ul>
               <p className="mt-4">
-                Content posted in the community cannot be edited or deleted by users once published. Even if content is removed from public view by PharmaSocii, copies may remain in system backups, logs, or archives for an <em>undefined period of time</em>.
+                Content posted in the community cannot be edited or deleted by users once published. Even if content is removed from public view by Pharma SocII, copies may remain in system backups, logs, or archives for an <em>undefined period of time</em>.
               </p>
             </section>
 
@@ -138,7 +138,7 @@ export default function CommunityGuidelines() {
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">10. Disclaimer</h2>
               <p>
-                The views expressed by users are their own. PharmaSocii does not endorse, verify, or guarantee the accuracy, reliability, or completeness of user-submitted content. Discussions are for informational and community-building purposes only and do not constitute medical, legal, or regulatory advice.
+                The views expressed by users are their own. Pharma SocII does not endorse, verify, or guarantee the accuracy, reliability, or completeness of user-submitted content. Discussions are for informational and community-building purposes only and do not constitute medical, legal, or regulatory advice.
               </p>
             </section>
 
@@ -152,7 +152,7 @@ export default function CommunityGuidelines() {
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">12. Responsibility</h2>
               <p>
-                You are responsible for the information and materials you share in the PharmaSocii community. Please ensure your posts are accurate, respectful, and lawful. Content that violates these Guidelines or our Terms of Use may be removed, and repeat violations may result in account suspension.
+                You are responsible for the information and materials you share in the Pharma SocII community. Please ensure your posts are accurate, respectful, and lawful. Content that violates these Guidelines or our Terms of Use may be removed, and repeat violations may result in account suspension.
               </p>
             </section>
 

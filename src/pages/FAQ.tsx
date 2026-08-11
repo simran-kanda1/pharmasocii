@@ -9,7 +9,7 @@ export default function FAQ() {
             <div className="container mx-auto px-6 max-w-4xl relative z-10">
                 <div className="text-center mb-20 animate-in fade-in slide-in-from-bottom-8 duration-700">
                     <h1 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-6 text-foreground">Frequently Asked Questions</h1>
-                    <p className="text-xl md:text-2xl text-primary font-medium">How Pharmasocii works for partners and visitors.</p>
+                    <p className="text-xl md:text-2xl text-primary font-medium">How Pharma SocII works for partners and visitors.</p>
                 </div>
 
                 <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-150 fill-mode-both">

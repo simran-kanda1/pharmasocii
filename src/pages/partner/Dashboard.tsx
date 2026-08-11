@@ -17,6 +17,7 @@ import {
 } from "@/lib/transactionExport";
 import { normalizeServiceCountriesToArray } from "@/lib/utils";
 import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
+import { uploadCompanyLogo, validateCompanyLogo } from "@/lib/companyLogoUpload";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut, Download, FileSpreadsheet, FileText, Info,
@@ -475,6 +476,11 @@ export default function Dashboard() {
     const [profileMsg, setProfileMsg] = useState("");
     /** Required when changing login email (Firebase recent-auth / re-auth). */
     const [profileEmailReauthPassword, setProfileEmailReauthPassword] = useState("");
+    
+    // Logo upload state
+    const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
+    const [companyLogoPreview, setCompanyLogoPreview] = useState<string>("");
+    const [companyLogoError, setCompanyLogoError] = useState("");
 
     // Password form state
     const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -502,7 +508,7 @@ export default function Dashboard() {
     const [actionProcessing, setActionProcessing] = useState(false);
     const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
     const [cancelModalError, setCancelModalError] = useState("");
-    const profileCompanyProfileTooLong = (profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH;
+
     const getStandaloneFeatureRecordForPlan = (plan: any) => {
         if (!plan?.listingId) return null;
         const matches = partnerFeatures.filter((feature) => {
@@ -659,17 +665,23 @@ export default function Dashboard() {
                         body: JSON.stringify({ partnerId: user.uid }),
                     }).catch((err) => console.warn("Partner billing sync:", err?.message || err));
 
-                    const [fName, ...lNames] = (data.primaryName || "").split(" ");
                     setProfileForm({
-                        firstName: fName || "", lastName: lNames.join(" ") || "",
-                        email: data.primaryEmail || "", phone: toPhoneInputValue(data.phoneNumber || ""),
-                        altName: data.secondaryName || "", altEmail: data.secondaryEmail || "",
-                        companyName: data.businessName || "", companyWebsite: data.companyWebsite || "",
-                        businessPhone: toPhoneInputValue(data.businessPhoneNumber || ""), linkedin: data.linkedInProfileLink || "",
-                        companyProfile: data.companyProfileText || "", businessAddress: data.businessAddress || "",
+                        firstName: data.firstName || "",
+                        lastName: data.lastName || "",
+                        email: data.primaryEmail || "",
+                        phone: toPhoneInputValue(data.phoneNumber || ""),
+                        altName: data.secondaryName || "",
+                        altEmail: data.secondaryEmail || "",
+                        companyName: data.businessName || "",
+                        companyWebsite: data.companyWebsite || "",
+                        businessPhone: toPhoneInputValue(data.businessPhoneNumber || ""),
+                        linkedin: data.linkedInProfileLink || "",
+                        companyProfile: data.companyProfileText || "",
+                        businessAddress: data.businessAddress || "",
                         businessCountry: data.businessCountry || "",
                         billingEmail: data.billingEmailAddress || "",
                         businessId: data.VAT_ABN_EIN_businessId || "",
+                        companyLogoUrl: data.companyLogoUrl || "",
                     });
 
                     const sortAndDedupeOfferings = (items: any[]) => {
@@ -836,11 +848,8 @@ export default function Dashboard() {
     const handleProfileSave = async () => {
         setProfileSaving(true);
         setProfileMsg("");
-        if (profileCompanyProfileTooLong) {
-            setProfileMsg(`Company profile cannot exceed ${COMPANY_PROFILE_MAX_LENGTH} characters.`);
-            setProfileSaving(false);
-            return;
-        }
+        setCompanyLogoError("");
+
         if (!profileForm.businessCountry) {
             setProfileMsg("Please select your business headquarters country.");
             setProfileSaving(false);
@@ -905,6 +914,17 @@ export default function Dashboard() {
                     }
                 }
 
+                let finalLogoUrl = profileForm.companyLogoUrl || "";
+                if (companyLogoFile) {
+                    try {
+                        finalLogoUrl = await uploadCompanyLogo(auth.currentUser.uid, companyLogoFile);
+                    } catch (err: any) {
+                        setCompanyLogoError(err.message || "Failed to upload logo.");
+                        setProfileSaving(false);
+                        return;
+                    }
+                }
+
                 const docRef = doc(db, "partnersCollection", auth.currentUser.uid);
                 await updateDoc(docRef, {
                     primaryName: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
@@ -917,6 +937,7 @@ export default function Dashboard() {
                     businessCountry: profileForm.businessCountry || "",
                     billingEmailAddress: profileForm.billingEmail || "",
                     VAT_ABN_EIN_businessId: profileForm.businessId || "",
+                    companyLogoUrl: finalLogoUrl,
                 });
 
                 const newBusinessName = (profileForm.companyName || "").trim();
@@ -925,6 +946,7 @@ export default function Dashboard() {
                     companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                     businessAddress: profileForm.businessAddress,
                     businessCountry: profileForm.businessCountry || "",
+                    companyLogoUrl: finalLogoUrl,
                     updatedAt: new Date(),
                 };
                 if (auth.currentUser) {
@@ -2404,7 +2426,7 @@ export default function Dashboard() {
             <div className="max-w-5xl space-y-8">
                 <div className="flex items-center justify-between">
                     <h1 className="text-2xl font-bold tracking-tight text-foreground">Partner Information</h1>
-                    <Button onClick={handleProfileSave} disabled={profileSaving || profileCompanyProfileTooLong} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    <Button onClick={handleProfileSave} disabled={profileSaving} className="bg-primary text-primary-foreground hover:bg-primary/90">
                         <Save className="w-4 h-4 mr-2" />{profileSaving ? "Saving..." : "Save Changes"}
                     </Button>
                 </div>
@@ -2487,10 +2509,38 @@ export default function Dashboard() {
                 <div className="pt-2 border-t border-foreground/10">
                     <Label className="text-foreground/80 mb-3 block">Company logo</Label>
                     <div className="flex items-center gap-4">
-                        <div className="h-16 w-16 flex-shrink-0 bg-foreground/5 rounded-lg border border-dashed border-foreground/20 flex items-center justify-center text-muted-foreground"><UploadCloud className="h-5 w-5" /></div>
+                        <div className="h-16 w-16 flex-shrink-0 bg-foreground/5 rounded-lg border border-dashed border-foreground/20 flex items-center justify-center text-muted-foreground overflow-hidden">
+                            {companyLogoPreview || profileForm.companyLogoUrl ? (
+                                <img src={companyLogoPreview || profileForm.companyLogoUrl} alt="Company Logo" className="w-full h-full object-cover" />
+                            ) : (
+                                <UploadCloud className="h-5 w-5" />
+                            )}
+                        </div>
                         <div className="flex-1">
-                            <Input type="file" className="bg-foreground/5 border-foreground/10 text-sm h-10 pt-2 cursor-pointer" accept="image/jpeg, image/png" />
-                            <p className="text-xs text-muted-foreground mt-1.5">Formats: JPG, JPEG, PNG | Max size: 2MB | Dimensions: 200px x 200px</p>
+                            <Input 
+                                type="file" 
+                                className="bg-foreground/5 border-foreground/10 text-sm h-10 pt-2 cursor-pointer" 
+                                accept="image/jpeg, image/png, image/jpg" 
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) {
+                                        const err = validateCompanyLogo(file);
+                                        if (err) {
+                                            setCompanyLogoError(err);
+                                            e.target.value = '';
+                                            return;
+                                        }
+                                        setCompanyLogoFile(file);
+                                        setCompanyLogoPreview(URL.createObjectURL(file));
+                                        setCompanyLogoError("");
+                                    } else {
+                                        setCompanyLogoFile(null);
+                                        setCompanyLogoPreview("");
+                                    }
+                                }}
+                            />
+                            <p className="text-xs text-muted-foreground mt-1.5">Formats: JPG, JPEG, PNG | Max size: 2MB</p>
+                            {companyLogoError && <p className="text-xs text-red-500 mt-1">{companyLogoError}</p>}
                         </div>
                     </div>
                 </div>
@@ -2500,13 +2550,10 @@ export default function Dashboard() {
                         <Label className="text-foreground/80">Company profile <span className="text-red-400">*</span></Label>
                         <Textarea
                             value={profileForm.companyProfile}
-                            onChange={e => setProfileForm({ ...profileForm, companyProfile: e.target.value })}
-                            className={`h-40 bg-foreground/5 resize-none text-sm ${profileCompanyProfileTooLong ? "border-red-500 focus-visible:ring-red-500" : "border-foreground/10"}`}
+                            onChange={e => setProfileForm({ ...profileForm, companyProfile: e.target.value.slice(0, COMPANY_PROFILE_MAX_LENGTH) })}
+                            className={`h-40 bg-foreground/5 resize-none text-sm border-foreground/10`}
                             placeholder="Briefly describe your company's mission and offerings..."
                         />
-                        {profileCompanyProfileTooLong && (
-                            <p className="text-xs text-red-500">Company profile cannot exceed {COMPANY_PROFILE_MAX_LENGTH} characters.</p>
-                        )}
                         <p className={`text-xs ${(profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">

@@ -34,7 +34,7 @@ export default function TermsOfUse() {
             Terms of Use
           </h1>
           <p className="text-lg md:text-xl text-primary font-medium">
-            PharmaSocii Platform Terms of Service
+            Pharma SocII Platform Terms of Service
           </p>
         </div>
 
@@ -45,7 +45,7 @@ export default function TermsOfUse() {
             ) : (
               <>
                 <p>
-                  Welcome to <strong>PharmaSocii</strong> (“Platform”), operated by PharmaSocii (“we, our, us”). These Terms of Service (“Terms”) govern your access to and use of the Platform.
+                  Welcome to <strong>Pharma SocII</strong> (“Platform”), operated by Pharma SocII (“we, our, us”). These Terms of Service (“Terms”) govern your access to and use of the Platform.
                 </p>
 
             <section className="space-y-3">
@@ -62,7 +62,7 @@ export default function TermsOfUse() {
                 (collectively, the “Agreement”).
               </p>
               <p>
-                The Agreement constitutes the entire agreement between you and PharmaSocii regarding your use of the Platform and supersedes any prior or contemporaneous agreements, representations, or understandings, whether written or oral. Continued use of the Platform after updates to these Terms constitutes acceptance of those updates.
+                The Agreement constitutes the entire agreement between you and Pharma SocII regarding your use of the Platform and supersedes any prior or contemporaneous agreements, representations, or understandings, whether written or oral. Continued use of the Platform after updates to these Terms constitutes acceptance of those updates.
               </p>
             </section>
 
@@ -99,11 +99,11 @@ export default function TermsOfUse() {
               <ul className="list-disc pl-5 space-y-2">
                 <li>You retain ownership of any intellectual property rights in content you post.</li>
                 <li>
-                  By posting or submitting content, you grant PharmaSocii a <strong>worldwide, non-exclusive, royalty-free, transferable, and sublicensable license</strong> to use, reproduce, modify, adapt, publish, translate, create derivative works from, distribute, publicly display, and publicly perform such content for the purposes of:
+                  By posting or submitting content, you grant Pharma SocII a <strong>worldwide, non-exclusive, royalty-free, transferable, and sublicensable license</strong> to use, reproduce, modify, adapt, publish, translate, create derivative works from, distribute, publicly display, and publicly perform such content for the purposes of:
                   <ul className="list-circle pl-6 mt-1 space-y-1 text-muted-foreground">
                     <li>Operating and maintaining the Platform,</li>
                     <li>Improving and developing new features, and</li>
-                    <li>Promoting and marketing PharmaSocii and the community.</li>
+                    <li>Promoting and marketing Pharma SocII and the community.</li>
                   </ul>
                 </li>
                 <li>You are solely responsible for the content you post and for ensuring you have the necessary rights to share it.</li>
@@ -148,7 +148,7 @@ export default function TermsOfUse() {
                 <li>Anonymous usernames do not guarantee privacy or anonymity, particularly if you choose to share identifying details in your posts or if content is copied or distributed outside the Platform.</li>
                 <li>Content may be visible to other users, external parties, and may be discoverable through third-party search engines.</li>
                 <li>Deleted or removed content may continue to exist in system backups or logs for a period of time.</li>
-                <li>PharmaSocii is not responsible for any misuse, copying, distribution, or re-identification attempts by other users or third parties.</li>
+                <li>Pharma SocII is not responsible for any misuse, copying, distribution, or re-identification attempts by other users or third parties.</li>
               </ul>
             </section>
 
@@ -157,7 +157,7 @@ export default function TermsOfUse() {
               <ul className="list-disc pl-5 space-y-2">
                 <li>The Platform enables businesses and professionals to post jobs, services, offerings, and event listings.</li>
                 <li>You are solely responsible for the legality, accuracy, and content of your listings, including compliance with all applicable laws and regulations (such as advertising, employment, data protection, and promotion of medical or life sciences products and services).</li>
-                <li>PharmaSocii does not verify or guarantee any listings, does not endorse any users or businesses, and is not a party to any transaction, agreement, or arrangement between users.</li>
+                <li>Pharma SocII does not verify or guarantee any listings, does not endorse any users or businesses, and is not a party to any transaction, agreement, or arrangement between users.</li>
                 <li>Fees paid for posting or subscription services relate only to hosting your listing on the Platform and do not guarantee exposure, reach, leads, or business outcomes.</li>
                 <li>Any engagement, negotiation, or transaction between users is undertaken entirely at your own risk. Disputes must be resolved directly between the parties.</li>
                 <li>We reserve the right (but not the obligation) to remove, suspend, or modify any posting that we reasonably believe violates these Terms, the Community Guidelines, or applicable law.</li>
@@ -167,10 +167,10 @@ export default function TermsOfUse() {
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">7. Regulatory, Compliance & Life Sciences Discussions</h2>
               <ul className="list-disc pl-5 space-y-2">
-                <li>Discussions on regulatory, medical, legal, compliance, or <strong>any other life sciences–related topics</strong> reflect the personal opinions and experiences of users, not PharmaSocii.</li>
-                <li>PharmaSocii does not monitor, verify, endorse, or guarantee the accuracy, completeness, or reliability of such content.</li>
+                <li>Discussions on regulatory, medical, legal, compliance, or <strong>any other life sciences–related topics</strong> reflect the personal opinions and experiences of users, not Pharma SocII.</li>
+                <li>Pharma SocII does not monitor, verify, endorse, or guarantee the accuracy, completeness, or reliability of such content.</li>
                 <li>Nothing on the Platform constitutes medical advice, legal advice, compliance guidance, or other professional advice. You should not rely on any content as a substitute for consultation with qualified professionals.</li>
-                <li>You are solely responsible for evaluating and relying on information obtained through the Platform. PharmaSocii disclaims all liability for decisions made or actions taken based on such content.</li>
+                <li>You are solely responsible for evaluating and relying on information obtained through the Platform. Pharma SocII disclaims all liability for decisions made or actions taken based on such content.</li>
                 <li>Content is intended for <strong>general informational and community-building purposes only</strong>.</li>
               </ul>
             </section>
@@ -209,7 +209,7 @@ export default function TermsOfUse() {
               <h2 className="text-xl font-bold text-foreground">10. Disclaimer</h2>
               <ul className="list-disc pl-5 space-y-2">
                 <li>The Platform and all content, features, and services are provided on an <strong>“AS IS” and “AS AVAILABLE” basis</strong>, without warranties of any kind. Access may be interrupted, suspended, or discontinued without notice.</li>
-                <li>The views expressed by users are their own and do not reflect the views of PharmaSocii. We do not endorse any user content, nor do we offer medical, legal, compliance, or other professional advice through the Platform.</li>
+                <li>The views expressed by users are their own and do not reflect the views of Pharma SocII. We do not endorse any user content, nor do we offer medical, legal, compliance, or other professional advice through the Platform.</li>
                 <li>We disclaim all warranties, express or implied, including but not limited to merchantability, fitness for a particular purpose, accuracy, availability, security, and non-infringement.</li>
                 <li>We do not guarantee that the Platform or its content will always meet your requirements or expectations, or that access will be uninterrupted, timely, secure, or error-free. While we take reasonable measures to protect the Platform, we do not warrant that it will be free from defects, viruses, or harmful code.</li>
                 <li>Nothing in this Disclaimer affects any <strong>non-waivable statutory rights</strong> that may apply under local law.</li>
@@ -220,7 +220,7 @@ export default function TermsOfUse() {
               <h2 className="text-xl font-bold text-foreground">11. Intellectual Property (IP) & Notices</h2>
               <ul className="list-disc pl-5 space-y-2">
                 <li>
-                  <strong>Our IP:</strong> The Platform and all related materials — including software, design, databases, compilations, features, functionality, trademarks, logos, and content provided by us — are the property of PharmaSocii or our licensors and are protected by intellectual property laws. Except as expressly permitted under these Terms, no license or right is granted to you in or to our IP.
+                  <strong>Our IP:</strong> The Platform and all related materials — including software, design, databases, compilations, features, functionality, trademarks, logos, and content provided by us — are the property of Pharma SocII or our licensors and are protected by intellectual property laws. Except as expressly permitted under these Terms, no license or right is granted to you in or to our IP.
                 </li>
                 <li>
                   <strong>User Restrictions:</strong> You may not copy, reproduce, distribute, display, or create derivative works from Platform materials, except as expressly permitted by these Terms, for personal use, or with our prior written consent.
@@ -241,9 +241,9 @@ export default function TermsOfUse() {
               <h2 className="text-xl font-bold text-foreground">12. Third-Party Services, Listings & Links</h2>
               <ul className="list-disc pl-5 space-y-2">
                 <li>The Platform may contain listings, profiles, or links to third-party businesses, services, events, or resources. These are provided for informational and marketplace purposes only.</li>
-                <li>All such listings and content are created by third parties, not by PharmaSocii. We do not control, endorse, or assume responsibility for the accuracy, legality, or reliability of third-party content, products, or services.</li>
+                <li>All such listings and content are created by third parties, not by Pharma SocII. We do not control, endorse, or assume responsibility for the accuracy, legality, or reliability of third-party content, products, or services.</li>
                 <li>Accessing third-party sites or engaging with third-party businesses is at your own risk. We disclaim all liability arising from such interactions, including for loss, damage, or disputes that result from reliance on or dealings with third parties.</li>
-                <li>Any contracts, transactions, or arrangements made through or as a result of the Platform are strictly between you and the third party. PharmaSocii is not a party to those arrangements and has no obligations or liability in connection with them.</li>
+                <li>Any contracts, transactions, or arrangements made through or as a result of the Platform are strictly between you and the third party. Pharma SocII is not a party to those arrangements and has no obligations or liability in connection with them.</li>
               </ul>
             </section>
 
@@ -252,13 +252,13 @@ export default function TermsOfUse() {
               <p>To the maximum extent permitted by applicable law:</p>
               <ul className="list-disc pl-5 space-y-2">
                 <li>
-                  <strong>Exclusions:</strong> PharmaSocii shall not be liable for any indirect, incidental, consequential, special, or exemplary damages, including without limitation lost profits, lost opportunities, reputational harm, data loss, or business interruption, even if advised of the possibility of such damages.
+                  <strong>Exclusions:</strong> Pharma SocII shall not be liable for any indirect, incidental, consequential, special, or exemplary damages, including without limitation lost profits, lost opportunities, reputational harm, data loss, or business interruption, even if advised of the possibility of such damages.
                 </li>
                 <li>
-                  <strong>Aggregate Cap:</strong> PharmaSocii's total liability for any claims arising out of or relating to the Platform shall not exceed CAD $100, regardless of the form of action or number of claims.
+                  <strong>Aggregate Cap:</strong> Pharma SocII's total liability for any claims arising out of or relating to the Platform shall not exceed CAD $100, regardless of the form of action or number of claims.
                 </li>
                 <li>
-                  <strong>Community-Only Use:</strong> If you use the Platform solely for free community access without paying fees, you acknowledge that PharmaSocii shall have no liability to you.
+                  <strong>Community-Only Use:</strong> If you use the Platform solely for free community access without paying fees, you acknowledge that Pharma SocII shall have no liability to you.
                 </li>
                 <li>
                   <strong>Scope:</strong> These limitations apply to all legal theories of liability (including contract, tort, negligence, equity, and statutory claims), except to the extent such limitations are prohibited by applicable law.
@@ -270,13 +270,13 @@ export default function TermsOfUse() {
               <h2 className="text-xl font-bold text-foreground">14. Termination, Suspension & Effect</h2>
               <ul className="list-disc pl-5 space-y-2">
                 <li>
-                  <strong>Our Rights:</strong> PharmaSocii may suspend or terminate your access to the Platform at any time, including if we reasonably believe you have violated these Terms, applicable law, or engaged in conduct that may harm the Platform, other users, or PharmaSocii. We will provide notice where reasonable, but immediate suspension may occur if necessary to protect the Platform or its users.
+                  <strong>Our Rights:</strong> Pharma SocII may suspend or terminate your access to the Platform at any time, including if we reasonably believe you have violated these Terms, applicable law, or engaged in conduct that may harm the Platform, other users, or Pharma SocII. We will provide notice where reasonable, but immediate suspension may occur if necessary to protect the Platform or its users.
                 </li>
                 <li>
-                  <strong>Effect of Termination:</strong> Upon termination, your right to access and use the Platform will cease immediately. PharmaSocii may, but is not obligated to, retain or remove any User Content you submitted.
+                  <strong>Effect of Termination:</strong> Upon termination, your right to access and use the Platform will cease immediately. Pharma SocII may, but is not obligated to, retain or remove any User Content you submitted.
                 </li>
                 <li>
-                  <strong>Survival:</strong> Licenses you granted to PharmaSocii will continue with respect to copies already made or used in connection with the Platform. Any sections of these Terms which by their nature should survive termination (including Intellectual Property, Limitation of Liability, Indemnity, and Dispute Resolution) shall remain in effect.
+                  <strong>Survival:</strong> Licenses you granted to Pharma SocII will continue with respect to copies already made or used in connection with the Platform. Any sections of these Terms which by their nature should survive termination (including Intellectual Property, Limitation of Liability, Indemnity, and Dispute Resolution) shall remain in effect.
                 </li>
               </ul>
             </section>
@@ -284,14 +284,14 @@ export default function TermsOfUse() {
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">15. User Content and Responsibility</h2>
               <p>
-                Users are solely responsible for the information, listings, communications, and other materials (“User Content”) they make available through the Platform. You represent and warrant that you own or have the necessary rights to such User Content and that it does not violate any law or third-party rights. PharmaSocii does not endorse, verify, or control User Content and disclaims any liability for it. We may remove or restrict access to User Content that we reasonably believe violates these Terms, our Community Guidelines, or applicable law.
+                Users are solely responsible for the information, listings, communications, and other materials (“User Content”) they make available through the Platform. You represent and warrant that you own or have the necessary rights to such User Content and that it does not violate any law or third-party rights. Pharma SocII does not endorse, verify, or control User Content and disclaims any liability for it. We may remove or restrict access to User Content that we reasonably believe violates these Terms, our Community Guidelines, or applicable law.
               </p>
             </section>
 
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">16. Indemnity</h2>
               <p>
-                To the fullest extent permitted by law, you agree to defend, indemnify, and hold harmless PharmaSocii, its affiliates, and their respective officers, directors, employees, contractors, and agents from and against any and all claims, demands, damages, losses, liabilities, costs, and expenses (including reasonable legal fees and court costs) arising out of or related to:
+                To the fullest extent permitted by law, you agree to defend, indemnify, and hold harmless Pharma SocII, its affiliates, and their respective officers, directors, employees, contractors, and agents from and against any and all claims, demands, damages, losses, liabilities, costs, and expenses (including reasonable legal fees and court costs) arising out of or related to:
               </p>
               <ol className="list-decimal pl-5 space-y-1.5 text-muted-foreground">
                 <li>Your Content: Any information, listings, materials, or communications you submit, post, or make available through the Platform;</li>
@@ -300,7 +300,7 @@ export default function TermsOfUse() {
                 <li>User Disputes: Any dispute, interaction, or transaction between you and another user or third party arising from or related to your use of the Platform.</li>
               </ol>
               <p>
-                PharmaSocii reserves the right, at your expense, to assume the exclusive defense and control of any matter for which you are required to indemnify us, and you agree to fully cooperate with such defense. You agree not to settle any such matter without PharmaSocii’s prior written consent.
+                Pharma SocII reserves the right, at your expense, to assume the exclusive defense and control of any matter for which you are required to indemnify us, and you agree to fully cooperate with such defense. You agree not to settle any such matter without Pharma SocII’s prior written consent.
               </p>
             </section>
 
@@ -316,7 +316,7 @@ export default function TermsOfUse() {
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">18. Force Majeure</h2>
               <p>
-                PharmaSocii shall not be liable or responsible for any delay or failure in performance resulting from events beyond its reasonable control, including but not limited to acts of God, natural disasters, epidemics or pandemics, labor disputes, power or internet failures, cyberattacks, government actions, or other events of similar nature. During such events, PharmaSocii’s obligations will be suspended for the duration of the event and will resume once performance is reasonably possible.
+                Pharma SocII shall not be liable or responsible for any delay or failure in performance resulting from events beyond its reasonable control, including but not limited to acts of God, natural disasters, epidemics or pandemics, labor disputes, power or internet failures, cyberattacks, government actions, or other events of similar nature. During such events, Pharma SocII’s obligations will be suspended for the duration of the event and will resume once performance is reasonably possible.
               </p>
             </section>
 
@@ -342,7 +342,7 @@ export default function TermsOfUse() {
               <h2 className="text-xl font-bold text-foreground">20. Notices</h2>
               <ul className="list-disc pl-5 space-y-2">
                 <li>
-                  <strong>Delivery:</strong> PharmaSocii may provide notices to you by email, through in-Platform notifications, or by posting updates on the Platform.
+                  <strong>Delivery:</strong> Pharma SocII may provide notices to you by email, through in-Platform notifications, or by posting updates on the Platform.
                 </li>
                 <li>
                   <strong>Responsibility:</strong> You are responsible for keeping your account contact details accurate and current.
@@ -356,7 +356,7 @@ export default function TermsOfUse() {
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">21. Changes to Terms</h2>
               <p>
-                PharmaSocii may update these Terms at any time. Updated Terms are effective upon posting to the Platform. Your continued use of the Platform after updates constitutes acceptance of the revised Terms.
+                Pharma SocII may update these Terms at any time. Updated Terms are effective upon posting to the Platform. Your continued use of the Platform after updates constitutes acceptance of the revised Terms.
               </p>
             </section>
 

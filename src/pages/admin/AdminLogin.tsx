@@ -82,7 +82,7 @@ export default function AdminLogin() {
                     <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-2 border border-primary/20">
                         <ShieldAlert className="w-8 h-8 text-primary" />
                     </div>
-                    <CardTitle className="text-3xl font-bold tracking-tight text-slate-900">Pharmasocii Admin</CardTitle>
+                    <CardTitle className="text-3xl font-bold tracking-tight text-slate-900">Pharma SocII Admin</CardTitle>
                     <CardDescription className="text-base text-slate-500">Secure administrative portal access</CardDescription>
                 </CardHeader>
                 <CardContent>
