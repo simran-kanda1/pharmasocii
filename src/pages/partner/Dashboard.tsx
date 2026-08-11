@@ -2963,7 +2963,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
     const maxCategories = typeof planConfig?.maxCategories === "number" ? planConfig.maxCategories : -1;
     const maxCountries = typeof planConfig?.maxCountries === "number" ? planConfig.maxCountries : -1;
     const canUseRegionHelper = maxCountries === -1;
-    const canSelectAllCategories = maxCategories === -1;
+
 
     const categoryCount = useMemo(() => {
         const selectedUnits = new Set<string>();
@@ -3182,40 +3182,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
             );
         });
     }
-    const handleSelectAllCategories = () => {
-        const catDict = getCategoriesForGroup(listingGroup);
-        if (!catDict || !canSelectAllCategories) return;
 
-        const allLeafCategories: string[] = [];
-        const allLeafSubcategories: string[] = [];
-        const allSubSubcategories: string[] = [];
-        const allCategoryKeys = Object.keys(catDict);
-        const allNestedSubcategoryLabels: string[] = [];
-        const isBusinessGroup = listingGroup === "business_offerings";
-
-        Object.entries(catDict).forEach(([cat, subs]) => {
-            if (!subs.length) {
-                allLeafCategories.push(cat);
-                return;
-            }
-
-            subs.forEach((entry: SubcategoryEntry) => {
-                const subLabel = getSubLabel(entry);
-                if (isBusinessGroup && hasSubSub(entry)) {
-                    allNestedSubcategoryLabels.push(`${cat} > ${subLabel}`);
-                    entry.subSubcategories.forEach((ss) => allSubSubcategories.push(`${cat} > ${subLabel} > ${ss}`));
-                } else {
-                    allLeafSubcategories.push(`${cat} > ${subLabel}`);
-                }
-            });
-        });
-
-        setSelectedCategories(Array.from(new Set(allLeafCategories)));
-        setSelectedSubcategories(Array.from(new Set(allLeafSubcategories)));
-        setSelectedSubSubcategories(Array.from(new Set(allSubSubcategories)));
-        setExpandedCategories(allCategoryKeys);
-        setExpandedSubcategories(Array.from(new Set(allNestedSubcategoryLabels)));
-    };
     const addRepresentative = () => {
         setRepresentatives(prev => [...prev, { firstName: "", lastName: "", email: "" }]);
     };
@@ -3441,18 +3408,29 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
                                     <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
-                                    <Input
-                                        type="file"
-                                        accept=".pdf,application/pdf"
-                                        className="bg-foreground/5 border-foreground/10 mt-1 cursor-pointer"
-                                        onChange={(e) => {
-                                            const f = e.target.files?.[0] || null;
-                                            setJobPdfFile(f);
-                                            setJobPdfUploadError("");
-                                            if (f) setJobDescriptionPdfUrl("");
-                                        }}
-                                    />
-                                    {jobPdfFile && <p className="text-xs text-muted-foreground">Selected: {jobPdfFile.name}</p>}
+                                    {!jobPdfFile && !jobDescriptionPdfUrl && (
+                                        <Input
+                                            type="file"
+                                            accept=".pdf,application/pdf"
+                                            className="bg-foreground/5 border-foreground/10 mt-1 cursor-pointer"
+                                            onChange={(e) => {
+                                                const f = e.target.files?.[0] || null;
+                                                setJobPdfFile(f);
+                                                setJobPdfUploadError("");
+                                                if (f) setJobDescriptionPdfUrl("");
+                                            }}
+                                        />
+                                    )}
+                                    {jobPdfFile && (
+                                        <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                            <span className="text-xs text-foreground flex items-center gap-1">
+                                                <FileText className="w-4 h-4" /> {jobPdfFile.name}
+                                            </span>
+                                            <button type="button" onClick={() => setJobPdfFile(null)} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                <X className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    )}
                                     {jobDescriptionPdfUrl && !jobPdfFile && (
                                         <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
                                             <a href={jobDescriptionPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
@@ -3533,13 +3511,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 <Tag className="w-4 h-4" /> Categories
                                 {maxCategories !== -1 && <span className="text-xs text-muted-foreground">({categoryCount}/{maxCategories} max)</span>}
                             </Label>
-                            {canSelectAllCategories && (
-                                <Button type="button" variant="outline" size="sm" onClick={handleSelectAllCategories}>
-                                    Select all
-                                </Button>
-                            )}
                         </div>
-                        <p className="text-xs text-muted-foreground mb-2">Select from category, subcategory, or sub-subcategory levels.</p>
                         <div className="max-h-[500px] overflow-y-auto border border-foreground/10 rounded-lg p-3 bg-foreground/5">
                             {renderCategoryTree()}
                         </div>
