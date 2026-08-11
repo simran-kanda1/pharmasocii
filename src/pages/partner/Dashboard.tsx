@@ -2475,7 +2475,7 @@ export default function Dashboard() {
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Company name <span className="text-red-400">*</span></Label>
                         <Input value={profileForm.companyName} onChange={e => setProfileForm({ ...profileForm, companyName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
-                        <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
+                        <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Company website <span className="text-red-400">*</span></Label>
@@ -3338,7 +3338,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 <div className="md:col-span-2">
                                     <Label>Event name <span className="text-red-400">*</span></Label>
                                     <Input value={eventName} onChange={(e) => setEventName(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
-                                    <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                 </div>
                                 <div className="md:col-span-2">
                                     <Label>Event link <span className="text-red-400">*</span></Label>
@@ -3458,7 +3458,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 <div className="md:col-span-2">
                                     <Label>Job title <span className="text-red-400">*</span></Label>
                                     <Input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" />
-                                    <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                 </div>
                                 <div className="md:col-span-2">
                                     <Label>Job summary <span className="text-red-400">*</span></Label>

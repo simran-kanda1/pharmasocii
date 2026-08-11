@@ -1076,7 +1076,7 @@ export default function CompleteProfile() {
                                 <div className="space-y-2">
                                     <Label htmlFor="companyName">Company name *</Label>
                                     <div className="relative"><Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="companyName" value={formData.companyName} onChange={handleChange} required className="pl-9 bg-muted/40 border-foreground/10" /></div>
-                                    <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="companyWebsite">Company website *</Label>
@@ -1348,7 +1348,7 @@ export default function CompleteProfile() {
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Event name <span className="text-red-400">*</span></Label>
                                                 <Input value={eventData.eventName} onChange={e => setEventData(prev => ({ ...prev, eventName: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
-                                                <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
+                                                <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Event link <span className="text-red-400">*</span></Label>
@@ -1467,7 +1467,7 @@ export default function CompleteProfile() {
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Job title <span className="text-red-400">*</span></Label>
                                                 <Input value={jobData.jobTitle} onChange={e => setJobData(prev => ({ ...prev, jobTitle: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
-                                                <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
+                                                <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Job summary <span className="text-red-400">*</span></Label>

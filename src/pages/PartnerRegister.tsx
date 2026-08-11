@@ -238,7 +238,7 @@ export default function PartnerRegister() {
                         <div className="space-y-1.5">
                             <Label htmlFor="companyName" className="text-foreground/80">Company name *</Label>
                             <Input id="companyName" value={formData.companyName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
-                            <p className="text-xs text-muted-foreground mt-1">Note: This will display exactly as you type it (original capitalization preserved).</p>
+                            <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                         </div>
 
                         {/* Alternate Contact Section */}
