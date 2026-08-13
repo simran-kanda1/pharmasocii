@@ -12,8 +12,8 @@ export function Footer() {
                             <li><Link to="/all-categories/business" className="hover:text-primary transition-colors">Business Offerings</Link></li>
                             <li><Link to="/all-categories/consulting" className="hover:text-primary transition-colors">Consulting Services</Link></li>
                             <li><Link to="/all-categories/events" className="hover:text-primary transition-colors">Events</Link></li>
-                            <li><Link to="/all-categories/compliance" className="hover:text-primary transition-colors">Global Health Authority Sites</Link></li>
                             <li><Link to="/all-categories/jobs" className="hover:text-primary transition-colors">Jobs</Link></li>
+                            <li><Link to="/all-categories/compliance" className="hover:text-primary transition-colors">Global Health Authority Sites</Link></li>
                             <li><Link to="/community" className="hover:text-primary transition-colors">Community</Link></li>
                         </ul>
                     </div>
