@@ -7,12 +7,14 @@ export function Footer() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
 
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm tracking-wider">All Categories</h4>
+                        <h4 className="font-semibold text-sm tracking-wider">Explore</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
                             <li><Link to="/all-categories/business" className="hover:text-primary transition-colors">Business Offerings</Link></li>
                             <li><Link to="/all-categories/consulting" className="hover:text-primary transition-colors">Consulting Services</Link></li>
                             <li><Link to="/all-categories/events" className="hover:text-primary transition-colors">Events</Link></li>
+                            <li><Link to="/all-categories/compliance" className="hover:text-primary transition-colors">Global Health Authority Sites</Link></li>
                             <li><Link to="/all-categories/jobs" className="hover:text-primary transition-colors">Jobs</Link></li>
+                            <li><Link to="/community" className="hover:text-primary transition-colors">Community</Link></li>
                         </ul>
                     </div>
 
@@ -21,7 +23,6 @@ export function Footer() {
                         <ul className="space-y-3 text-sm text-muted-foreground">
                             <li><Link to="/about-us" className="hover:text-primary transition-colors">About Us</Link></li>
                             <li><Link to="/plans" className="hover:text-primary transition-colors">Plans</Link></li>
-                            <li><Link to="/community" className="hover:text-primary transition-colors">Community</Link></li>
                             <li><Link to="/signup" className="hover:text-primary transition-colors">Become a Partner</Link></li>
                             <li><Link to="/faq" className="hover:text-primary transition-colors">FAQ</Link></li>
                         </ul>
