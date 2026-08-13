@@ -80,6 +80,7 @@ export function PostCard({
   onToggleHelpful,
   rememberFeedScroll,
   onEdit,
+  hideContent = false,
 }: {
   post: PostCardPost;
   categoryDoc: CommunityCategoryDoc | null;
@@ -96,6 +97,7 @@ export function PostCard({
   /** When true, saves scroll position before opening post (community feed). */
   rememberFeedScroll?: boolean;
   onEdit?: () => void;
+  hideContent?: boolean;
 }) {
   const beforeOpenPost = () => {
     if (rememberFeedScroll) saveCommunityFeedScroll(post.id);
@@ -219,12 +221,14 @@ export function PostCard({
           <h2 className="text-lg font-bold text-foreground leading-snug group-hover:text-primary transition-colors">
             {post.title}
           </h2>
-          <div className="text-sm text-foreground/85 mt-2 whitespace-pre-wrap break-words line-clamp-6">
-            {linkifyText(post.text)}
-          </div>
+          {!hideContent && (
+            <div className="text-sm text-foreground/85 mt-2 whitespace-pre-wrap break-words line-clamp-6">
+              {linkifyText(post.text)}
+            </div>
+          )}
         </Link>
 
-        {links.length > 0 && (
+        {!hideContent && links.length > 0 && (
           <ul className="mt-3 space-y-1">
             {links.map((url) => (
               <li key={url}>
@@ -242,7 +246,7 @@ export function PostCard({
         )}
       </div>
 
-      {imageUrl && (
+      {!hideContent && imageUrl && (
         <Link
           {...postLinkProps}
           className="block border-t border-slate-100 dark:border-foreground/10"

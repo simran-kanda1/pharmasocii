@@ -518,6 +518,7 @@ export default function Home() {
                                     canEngage={canEngage}
                                     canShare={canShare}
                                     canReport={canReport}
+                                    hideContent={true}
                                     canSave={canSave}
                                     engageHint={engageHint}
                                     saved={savedPostIds.has(p.id)}
