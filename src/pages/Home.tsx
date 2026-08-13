@@ -444,7 +444,7 @@ export default function Home() {
                     {/* Featured Events Carousel */}
                     <div className="flex flex-col items-center">
                         <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-12">
-                            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-6">Events</h2>
+                            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Events</h2>
                             <p className="text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
                                 Discover conferences and events shaping the biotech, pharmaceutical, and medical device sectors
                             </p>
@@ -493,7 +493,7 @@ export default function Home() {
                     {/* Featured Jobs Carousel */}
                     <div className="flex flex-col items-center pb-24">
                         <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-12">
-                            <h2 className="text-3xl lg:text-4xl font-bold tracking-tight mb-6">Jobs</h2>
+                            <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Jobs</h2>
                             <p className="text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
                                 Whether you're an experienced researcher, industry leader, or recent graduate, your next career move starts here
                             </p>
