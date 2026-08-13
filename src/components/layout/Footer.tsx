@@ -4,7 +4,7 @@ export function Footer() {
     return (
         <footer className="w-full border-t border-foreground/10 bg-background/90 pt-16 pb-8">
             <div className="container mx-auto px-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-12 mb-16">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
 
                     <div className="space-y-4">
                         <h4 className="font-semibold text-sm tracking-wider">Explore</h4>
@@ -19,11 +19,17 @@ export function Footer() {
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm tracking-wider">Company</h4>
+                        <h4 className="font-semibold text-sm tracking-wider">Partners</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
-                            <li><Link to="/about-us" className="hover:text-primary transition-colors">About Us</Link></li>
-                            <li><Link to="/plans" className="hover:text-primary transition-colors">Plans</Link></li>
                             <li><Link to="/signup" className="hover:text-primary transition-colors">Become a Partner</Link></li>
+                            <li><Link to="/plans" className="hover:text-primary transition-colors">Plans</Link></li>
+                        </ul>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h4 className="font-semibold text-sm tracking-wider">Support</h4>
+                        <ul className="space-y-3 text-sm text-muted-foreground">
+                            <li><Link to="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
                             <li><Link to="/faq" className="hover:text-primary transition-colors">FAQ</Link></li>
                         </ul>
                     </div>
@@ -31,7 +37,7 @@ export function Footer() {
                     <div className="space-y-4">
                         <h4 className="font-semibold text-sm tracking-wider">Legal</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
-                            <li><Link to="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Privacy &amp; legal</Link></li>
+                            <li><Link to="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Privacy &amp; Policy</Link></li>
                             <li><Link to="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Terms of Service</Link></li>
                             <li><Link to="/guidelines" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Community Guidelines</Link></li>
                         </ul>
