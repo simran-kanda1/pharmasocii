@@ -305,27 +305,6 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* PARTNER CAROUSEL */}
-            {featuredBusinesses.length > 0 && (
-                <section className="py-12 bg-muted/20 border-y border-foreground/10 overflow-hidden">
-                    <div className="container mx-auto px-4 mb-8">
-                        <h3 className="text-center text-sm font-semibold tracking-widest text-muted-foreground">Trusted by Leading Organizations</h3>
-                    </div>
-                    <div className="relative flex w-full overflow-hidden">
-                        {/* Gradient masks for smooth fading edges */}
-                        <div className="absolute left-0 top-0 bottom-0 w-24 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
-                        <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
-
-                        <AutoCarousel speed={40} direction="left" innerClassName="gap-6 px-3">
-                            {featuredBusinesses.map((p, i) => (
-                                <Link to={`/listing/business/${p.id}`} target="_blank" rel="noopener noreferrer" key={`carousel-${p.partnerId || "na"}-${p.id}-${i}`} className="flex items-center justify-center min-w-[220px] max-w-[220px] h-24 px-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0">
-                                    <span className="font-bold text-lg text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{p.businessName || ""}</span>
-                                </Link>
-                            ))}
-                        </AutoCarousel>
-                    </div>
-                </section>
-            )}
 
             {/* CATEGORIES GRID */}
             <section className="py-24 bg-background relative z-10 border-b border-border">
