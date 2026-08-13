@@ -391,8 +391,7 @@ export default function Home() {
                         <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-12 text-center text-foreground">Featured</h2>
                         <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Business Offerings</h2>
                         <p className="text-xl md:text-2xl text-primary font-medium mb-4">Find the right industry partners for your next stage of growth</p>
-                        <p className="text-muted-foreground text-lg">Explore companies serving global life sciences markets across specialized categories</p>
-                    </div>
+                        </div>
                 </div>
 
                 <div className="relative flex w-full">
@@ -418,8 +417,7 @@ export default function Home() {
                     <div className="text-center max-w-4xl mx-auto">
                         <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-6">Consulting Services</h2>
                         <p className="text-xl md:text-2xl text-primary font-medium mb-4">Access a broad network of experts with deep knowledge of regional and global landscapes</p>
-                        <p className="text-muted-foreground text-lg">From established consulting firms to independent specialists, find the right partner to advance your project</p>
-                    </div>
+                        </div>
                 </div>
 
                 <div className="relative flex w-full mb-12">
@@ -448,10 +446,7 @@ export default function Home() {
                             <p className="text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
                                 Discover conferences and events shaping the biotech, pharmaceutical, and medical device sectors
                             </p>
-                            <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
-                                Whether you're an industry leader, emerging entrepreneur, or passionate researcher, stay connected to the conversations and ideas moving life sciences forward
-                            </p>
-                        </div>
+                            </div>
                         <div className="relative flex w-full">
                             <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                             <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
@@ -497,10 +492,7 @@ export default function Home() {
                             <p className="text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
                                 Whether you're an experienced researcher, industry leader, or recent graduate, your next career move starts here
                             </p>
-                            <p className="text-muted-foreground text-lg max-w-3xl mx-auto">
-                                Explore opportunities aligned with your goals and take the next step in your life sciences journey
-                            </p>
-                        </div>
+                            </div>
                         <div className="relative flex w-full">
                             <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                             <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
