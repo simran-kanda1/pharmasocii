@@ -47,10 +47,10 @@ export function Footer() {
                 <div className="pt-8 border-t border-foreground/10 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex flex-col items-center md:items-start gap-1">
                         <p className="text-xs text-muted-foreground text-center md:text-left">
-                            &copy; {new Date().getFullYear()} Pharma SocII. All rights reserved.
+                            &copy; {new Date().getFullYear()} Pharma SocII&trade;. All rights reserved.
                         </p>
-                        <p className="text-[11px] text-muted-foreground/80 max-w-sm text-center md:text-left">
-                            This product is in open beta. We welcome your input as we continue to refine the experience.
+                        <p className="text-[11px] text-muted-foreground/80 max-w-2xl text-center md:text-left">
+                            Unauthorized copying, reproduction, or mirroring of this platform is prohibited. Pharma SocII&trade; is a trademark of Pharma SocII.
                         </p>
                     </div>
                     <div className="flex items-center gap-6 text-xs text-muted-foreground">
