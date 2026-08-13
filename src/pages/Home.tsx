@@ -286,7 +286,7 @@ export default function Home() {
                     </h1>
 
                     <p className="text-lg md:text-2xl text-muted-foreground max-w-3xl mb-12 font-light leading-relaxed">
-                        Bridging disciplines, sectors, and borders across the industry
+                        Advancing life sciences through collaboration, shared knowledge, & meaningful connections
                     </p>
 
 
@@ -310,7 +310,7 @@ export default function Home() {
             <section className="py-24 bg-background relative z-10 border-b border-border">
                 <div className="container mx-auto px-4">
                     <div className="text-center max-w-4xl mx-auto mb-16">
-                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">Bridging disciplines, sectors, and borders across the industry</h2>
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">Advancing life sciences through collaboration, shared knowledge, & meaningful connections</h2>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                         {[
