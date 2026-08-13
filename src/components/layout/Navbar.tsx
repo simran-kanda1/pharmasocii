@@ -1,9 +1,7 @@
 import { useState, useEffect } from "react";
-import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronDown, Menu, LogOut, LayoutDashboard, User, Search } from "lucide-react";
+import { ChevronDown, Menu, LogOut, LayoutDashboard, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { auth, db } from "@/firebase";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
@@ -21,7 +19,6 @@ export default function Navbar() {
     const [userName, setUserName] = useState("");
     const [isPartner, setIsPartner] = useState(false);
     const [hasMemberProfile, setHasMemberProfile] = useState(false);
-    const [navSearch, setNavSearch] = useState("");
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -58,15 +55,6 @@ export default function Navbar() {
         return () => unsubscribe();
     }, []);
 
-    const submitNavSearch = (e: FormEvent) => {
-        e.preventDefault();
-        const q = navSearch.trim();
-        if (!q) {
-            navigate("/community");
-            return;
-        }
-        navigate(`/community?search=${encodeURIComponent(q)}`);
-    };
 
     const handleSignOut = async () => {
         await signOut(auth);
@@ -90,12 +78,6 @@ export default function Navbar() {
                         <Link to="/" className="text-sm font-medium hover:text-primary transition-colors">
                             Home
                         </Link>
-                        <Link to="/about-us" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
-                            About Us
-                        </Link>
-                        <Link to="/faq" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
-                            FAQ
-                        </Link>
                         <DropdownMenu>
                             <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors text-muted-foreground outline-none">
                                 All Categories <ChevronDown className="h-4 w-4" />
@@ -118,23 +100,10 @@ export default function Navbar() {
                         <Link to="/community" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
                             Community
                         </Link>
-                        <Link to="/plans" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
-                            Plans
-                        </Link>
                     </div>
                 </div>
 
-                <form onSubmit={submitNavSearch} className="hidden md:flex flex-1 max-w-xs mx-4 items-center gap-2">
-                    <div className="relative flex-1">
-                        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                        <Input
-                            value={navSearch}
-                            onChange={(e) => setNavSearch(e.target.value)}
-                            placeholder="Search community…"
-                            className="h-9 pl-8 bg-foreground/5 border-foreground/10 text-sm"
-                        />
-                    </div>
-                </form>
+
 
                 <div className="flex items-center gap-4">
 
