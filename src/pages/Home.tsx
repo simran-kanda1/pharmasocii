@@ -390,7 +390,7 @@ export default function Home() {
                     <div className="text-center max-w-4xl mx-auto">
                         <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-12 text-center text-foreground">Featured</h2>
                         <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Business Offerings</h2>
-                        <p className="text-lg md:text-xl text-primary font-medium mb-4">Find the right industry partners for your next stage of growth</p>
+                        <p className="text-lg md:text-xl text-primary font-medium mb-4">Find the right partners to support your next phase of growth</p>
                         </div>
                 </div>
 
@@ -416,7 +416,7 @@ export default function Home() {
                 <div className="container mx-auto px-4 mt-32 mb-12">
                     <div className="text-center max-w-4xl mx-auto">
                         <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Consulting Services</h2>
-                        <p className="text-lg md:text-xl text-primary font-medium mb-4">Access a broad network of experts with deep knowledge of regional and global landscapes</p>
+                        <p className="text-lg md:text-xl text-primary font-medium mb-4">Access trusted experts across regional and global markets</p>
                         </div>
                 </div>
 
@@ -444,7 +444,7 @@ export default function Home() {
                         <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-12">
                             <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Events</h2>
                             <p className="text-base md:text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
-                                Discover conferences and events shaping the biotech, pharmaceutical, and medical device sectors
+                                Discover events shaping life sciences industry
                             </p>
                             </div>
                         <div className="relative flex w-full">
@@ -490,7 +490,7 @@ export default function Home() {
                         <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-12">
                             <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Jobs</h2>
                             <p className="text-base md:text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
-                                Whether you're an experienced researcher, industry leader, or recent graduate, your next career move starts here
+                                Explore opportunities across the life sciences ecosystem
                             </p>
                             </div>
                         <div className="relative flex w-full">
