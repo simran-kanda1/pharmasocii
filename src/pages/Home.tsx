@@ -277,29 +277,6 @@ export default function Home() {
         <div className="w-full">
             {/* HERO SECTION */}
             <section className="relative min-h-[90vh] flex items-center justify-center overflow-hidden">
-                {/* Background Image & Overlay */}
-                <div className="absolute inset-x-0 bottom-0 z-0 h-[80%] overflow-hidden pointer-events-none">
-                    {/* Layer 1 - Light and tallest */}
-                    <svg className="absolute bottom-0 w-full h-[100%]" viewBox="0 0 1200 120" preserveAspectRatio="none">
-                        <path d="M0,60 C300,120 300,0 600,60 C900,120 900,0 1200,60 L1200,120 L0,120 Z" className="fill-sky-100/40" />
-                    </svg>
-                    {/* Layer 2 - High and reversed */}
-                    <svg className="absolute bottom-0 w-full h-[85%]" viewBox="0 0 1200 120" preserveAspectRatio="none">
-                        <path d="M0,60 C200,120 400,0 600,60 C800,120 1000,0 1200,60 L1200,120 L0,120 Z" className="fill-blue-200/40" />
-                    </svg>
-                    {/* Layer 3 - Medium */}
-                    <svg className="absolute bottom-0 w-full h-[70%]" viewBox="0 0 1200 120" preserveAspectRatio="none">
-                        <path d="M0,60 C400,120 200,0 600,60 C1000,120 800,0 1200,60 L1200,120 L0,120 Z" className="fill-sky-300/30" />
-                    </svg>
-                    {/* Layer 4 - Mid-short and reversed */}
-                    <svg className="absolute bottom-0 w-full h-[55%]" viewBox="0 0 1200 120" preserveAspectRatio="none">
-                        <path d="M0,40 C300,100 300,0 600,40 C900,100 900,0 1200,40 L1200,120 L0,120 Z" className="fill-blue-400/20" />
-                    </svg>
-                    {/* Layer 5 - Shortest and deepest */}
-                    <svg className="absolute bottom-0 w-full h-[40%]" viewBox="0 0 1200 120" preserveAspectRatio="none">
-                        <path d="M0,80 C300,140 300,20 600,80 C900,140 900,20 1200,80 L1200,120 L0,120 Z" className="fill-primary/20" />
-                    </svg>
-                </div>
 
                 <div className="container relative z-10 px-4 py-32 mx-auto flex flex-col items-start text-left mt-8 md:mt-16">
 
