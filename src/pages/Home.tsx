@@ -344,7 +344,7 @@ export default function Home() {
                 <div className="container mx-auto px-6 md:px-12 max-w-7xl">
                     <SectionHeader
                         title="Community Highlights"
-                        subtitle="Latest posts from the community"
+                        subtitle="Where people, expertise, & ideas connect"
                         action={
                             <div className="flex flex-wrap gap-3">
                                 <Button asChild size="lg" variant="outline" className="rounded-full">
