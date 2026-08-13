@@ -31,7 +31,7 @@ export default function TermsOfUse() {
       <div className="container mx-auto px-6 max-w-4xl relative z-10">
         <div className="text-center mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-foreground">
-            Terms of Use
+            Terms of Service
           </h1>
           <p className="text-lg md:text-xl text-primary font-medium">
             Pharma SocII Platform Terms of Service
