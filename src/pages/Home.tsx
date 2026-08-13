@@ -339,7 +339,52 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* BUSINESS OFFERINGS CAROUSEL */}
+            {/* COMMUNITY HIGHLIGHTS */}
+            <section className="py-24 bg-muted/40 border-y border-foreground/10 relative">
+                <div className="container mx-auto px-6 md:px-12 max-w-7xl">
+                    <SectionHeader
+                        title="Community Highlights"
+                        subtitle="Latest posts from the community"
+                        action={
+                            <div className="flex flex-wrap gap-3">
+                                <Button asChild size="lg" variant="outline" className="rounded-full">
+                                    <Link to="/member/register">Join community</Link>
+                                </Button>
+                                <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md font-semibold px-8 h-12 rounded-full border-none">
+                                    <Link to="/community">View community <ArrowRight className="ml-2 w-4 h-4" /></Link>
+                                </Button>
+                            </div>
+                        }
+                    />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
+                        {communityHighlights.length === 0 ? (
+                            <p className="text-muted-foreground col-span-full">No community posts yet.</p>
+                        ) : (
+                            communityHighlights.map((p) => (
+                                <PostCard
+                                    key={p.id}
+                                    post={p}
+                                    categoryDoc={categoryDoc}
+                                    showActionBar={Boolean(user)}
+                                    canEngage={canEngage}
+                                    canShare={canShare}
+                                    canReport={canReport}
+                                    hideContent={true}
+                                    canSave={canSave}
+                                    engageHint={engageHint}
+                                    saved={savedPostIds.has(p.id)}
+                                    helpful={helpfulPostIds.has(p.id)}
+                                    onToggleSave={() => toggleSavePost(p.id)}
+                                    onToggleHelpful={() => toggleHelpfulPost(p.id)}
+                                />
+                            ))
+                        )}
+                    </div>
+                </div>
+            </section>
+
+{/* BUSINESS OFFERINGS CAROUSEL */}
             <section className="py-24 bg-background relative z-10 overflow-hidden">
                 <div className="container mx-auto px-4 mb-12">
                     <div className="text-center max-w-4xl mx-auto">
@@ -483,51 +528,6 @@ export default function Home() {
                                 <div className="w-full flex justify-center text-muted-foreground py-12">No featured jobs available.</div>
                             )}
                         </div>
-                    </div>
-                </div>
-            </section>
-
-            {/* COMMUNITY HIGHLIGHTS */}
-            <section className="py-24 bg-muted/40 border-y border-foreground/10 relative">
-                <div className="container mx-auto px-6 md:px-12 max-w-7xl">
-                    <SectionHeader
-                        title="Community Highlights"
-                        subtitle="Latest posts from the community"
-                        action={
-                            <div className="flex flex-wrap gap-3">
-                                <Button asChild size="lg" variant="outline" className="rounded-full">
-                                    <Link to="/member/register">Join community</Link>
-                                </Button>
-                                <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md font-semibold px-8 h-12 rounded-full border-none">
-                                    <Link to="/community">View community <ArrowRight className="ml-2 w-4 h-4" /></Link>
-                                </Button>
-                            </div>
-                        }
-                    />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
-                        {communityHighlights.length === 0 ? (
-                            <p className="text-muted-foreground col-span-full">No community posts yet.</p>
-                        ) : (
-                            communityHighlights.map((p) => (
-                                <PostCard
-                                    key={p.id}
-                                    post={p}
-                                    categoryDoc={categoryDoc}
-                                    showActionBar={Boolean(user)}
-                                    canEngage={canEngage}
-                                    canShare={canShare}
-                                    canReport={canReport}
-                                    hideContent={true}
-                                    canSave={canSave}
-                                    engageHint={engageHint}
-                                    saved={savedPostIds.has(p.id)}
-                                    helpful={helpfulPostIds.has(p.id)}
-                                    onToggleSave={() => toggleSavePost(p.id)}
-                                    onToggleHelpful={() => toggleHelpfulPost(p.id)}
-                                />
-                            ))
-                        )}
                     </div>
                 </div>
             </section>
