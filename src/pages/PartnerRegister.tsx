@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
-import { Activity, ShieldCheck, Building2, Eye, EyeOff } from "lucide-react";
+import { Activity, ShieldCheck, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -310,29 +310,7 @@ export default function PartnerRegister() {
                         <p className="text-xl text-muted-foreground">Gain visibility, expand your network, and drive impactful collaborations</p>
                     </div>
 
-                    {/* Top informative banner boxes */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-foreground/5 border border-foreground/10 rounded-2xl p-6 lg:p-8 backdrop-blur-sm">
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-primary">
-                                <Building2 className="w-5 h-5" />
-                                <h3 className="font-semibold">Showcase your business</h3>
-                            </div>
-                            <p className="text-sm text-muted-foreground leading-relaxed">
-                                Connect with a global community dedicated to advancing healthcare and life sciences. Gain visibility, expand your network, and drive impactful collaborations.
-                            </p>
-                            <p className="text-sm text-foreground/80 font-medium">Set up your profile and complete the registration process in few simple steps.</p>
-                        </div>
-                        <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-secondary">
-                                <ShieldCheck className="w-5 h-5" />
-                                <h3 className="font-semibold">Tailored Categories</h3>
-                            </div>
-                            <p className="text-sm text-muted-foreground leading-relaxed">
-                                You can choose from multiple categories tailored to the needs of Biotechnology, Pharmaceuticals, Radiopharmaceuticals, and Medical Device industries. Our categories encompass every stage, from research to market access.
-                            </p>
-                            <p className="text-sm text-foreground/80 font-medium">Don't see a category that best fits your business, please contact us.</p>
-                        </div>
-                    </div>
+
 
                     <div className="space-y-8">
                         <div>
