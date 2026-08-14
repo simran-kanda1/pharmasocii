@@ -144,7 +144,7 @@ export default function PartnerRegister() {
                 ) : (
                     <form 
                         onSubmit={handleRegister} 
-                        style={{ marginTop: "11rem" }} 
+                        style={{ marginTop: "16rem" }} 
                         onInvalid={(e) => {
                             const target = e.target as unknown as HTMLInputElement;
                             if (target.type === 'checkbox' && target.required && !target.checked) {
