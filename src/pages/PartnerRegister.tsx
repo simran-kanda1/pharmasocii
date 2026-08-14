@@ -312,7 +312,7 @@ export default function PartnerRegister() {
 
                     <div className="space-y-8">
                         <div>
-                            <h2 className="text-3xl font-bold tracking-tight mb-8">Steps to become a partner</h2>
+                            <h2 className="text-2xl font-bold tracking-tight mb-8">Steps to become a partner</h2>
 
                             <div className="space-y-10 relative">
                                 {/* Visual connecting line */}
