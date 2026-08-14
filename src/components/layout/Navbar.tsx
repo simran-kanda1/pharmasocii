@@ -80,7 +80,7 @@ export default function Navbar() {
                         </Link>
                         <DropdownMenu>
                             <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors text-muted-foreground outline-none">
-                                All Categories <ChevronDown className="h-4 w-4" />
+                                Explore <ChevronDown className="h-4 w-4" />
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="min-w-[14rem] bg-background border-foreground/10 shadow-2xl">
                                 <DropdownMenuItem asChild className="cursor-pointer">
