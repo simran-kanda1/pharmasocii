@@ -310,7 +310,8 @@ export default function Home() {
             <section className="py-24 bg-background relative z-10 border-b border-border">
                 <div className="container mx-auto px-4">
                     <div className="text-center max-w-4xl mx-auto mb-16">
-                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">Advancing life sciences through collaboration, shared knowledge, & meaningful connections</h2>
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">Discover, Connect & Collaborate</h2>
+                        <p className="text-lg md:text-xl text-muted-foreground mt-4">Bridging disciplines, sectors, and borders across the life sciences industry</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                         {[
