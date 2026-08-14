@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { ChevronDown, Menu, LogOut, LayoutDashboard, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { auth, db } from "@/firebase";
@@ -15,6 +15,7 @@ import {
 
 export default function Navbar() {
     const navigate = useNavigate();
+    const location = useLocation();
     const [user, setUser] = useState<any>(null);
     const [userName, setUserName] = useState("");
     const [isPartner, setIsPartner] = useState(false);
@@ -66,9 +67,15 @@ export default function Navbar() {
             <div className="container mx-auto flex h-16 items-center justify-between px-4">
                 <div className="flex items-center gap-6 md:gap-10">
                     <Link to="/" className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                            <div className="h-4 w-4 bg-foreground/20 rounded-full" />
-                        </div>
+                        <svg className="h-8 w-8 text-primary" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="50" cy="50" r="20" />
+                            <line x1="50" y1="30" x2="65" y2="15" />
+                            <circle cx="65" cy="15" r="8" />
+                            <line x1="35" y1="65" x2="20" y2="80" />
+                            <circle cx="20" cy="80" r="8" />
+                            <line x1="65" y1="65" x2="80" y2="80" />
+                            <circle cx="80" cy="80" r="8" />
+                        </svg>
                         <span className="font-bold text-xl tracking-tight text-foreground">
                             Pharma SocII
                         </span>
@@ -140,21 +147,23 @@ export default function Navbar() {
                             </DropdownMenu>
                         ) : (
                             <>
-                                <div className="relative group">
-                                    <Button variant="ghost" className="hover:bg-primary/20 hover:text-primary flex items-center gap-1">
-                                        Login <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
-                                    </Button>
-                                    <div className="absolute top-[100%] right-0 pt-2 w-32 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                                        <div className="bg-background border border-foreground/10 shadow-2xl rounded-md flex flex-col p-1">
-                                            <Link to="/login?type=partner" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
-                                                Partner
-                                            </Link>
-                                            <Link to="/member/login" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
-                                                Member
-                                            </Link>
+                                {location.pathname !== "/community" && (
+                                    <div className="relative group">
+                                        <Button variant="ghost" className="hover:bg-primary/20 hover:text-primary flex items-center gap-1">
+                                            Login <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
+                                        </Button>
+                                        <div className="absolute top-[100%] right-0 pt-2 w-32 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                                            <div className="bg-background border border-foreground/10 shadow-2xl rounded-md flex flex-col p-1">
+                                                <Link to="/login?type=partner" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
+                                                    Partner
+                                                </Link>
+                                                <Link to="/member/login" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
+                                                    Member
+                                                </Link>
+                                            </div>
                                         </div>
                                     </div>
-                                </div>
+                                )}
                                 <Button asChild variant="outline" className="hidden lg:inline-flex">
                                     <Link to="/member/register">Join community</Link>
                                 </Button>

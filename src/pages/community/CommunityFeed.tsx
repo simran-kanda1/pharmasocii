@@ -489,11 +489,6 @@ export default function CommunityFeed() {
               <Link to="/member/login">Verify email</Link>
             </Button>
           )}
-          {!user && (
-            <Button size="sm" variant="outline" asChild>
-              <Link to="/member/register">Join</Link>
-            </Button>
-          )}
         </div>
       )}
     </div>
