@@ -67,7 +67,7 @@ export default function Navbar() {
             <div className="container mx-auto flex h-16 items-center justify-between px-4">
                 <div className="flex items-center gap-6 md:gap-10">
                     <Link to="/" className="flex items-center gap-2">
-                        <img src="/pharmalogo.png" alt="Pharma SocII Logo" className="h-10 w-auto object-contain" style={{ mixBlendMode: 'multiply' }} />
+                        <img src="/pharmalogo1.png" alt="Pharma SocII Logo" className="h-10 w-auto object-contain" />
                         <span className="font-bold text-xl tracking-tight text-foreground">
                             Pharma SocII
                         </span>
