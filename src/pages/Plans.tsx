@@ -286,7 +286,7 @@ export default function Plans() {
                 <div className="mb-20">
                     <div className="text-center mb-10">
                         <h2 className="text-2xl font-bold tracking-tight text-slate-900 inline-block relative pb-2">
-                            Business Offerings and Consulting Services
+                            Business Offerings and Consulting
                             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-slate-900 rounded-full" />
                         </h2>
                     </div>
@@ -315,7 +315,7 @@ export default function Plans() {
                 <div className="mb-20">
                     <div className="text-center mb-10">
                         <h2 className="text-2xl font-bold tracking-tight text-slate-900 inline-block relative pb-2">
-                            Events &amp; Conferences Services
+                            Events &amp; Conferences
                             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-slate-900 rounded-full" />
                         </h2>
                     </div>
@@ -345,7 +345,7 @@ export default function Plans() {
                 <div className="mb-12">
                     <div className="text-center mb-10">
                         <h2 className="text-2xl font-bold tracking-tight text-slate-900 inline-block relative pb-2">
-                            Jobs Services
+                            Jobs
                             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-slate-900 rounded-full" />
                         </h2>
                     </div>
