@@ -67,15 +67,7 @@ export default function Navbar() {
             <div className="container mx-auto flex h-16 items-center justify-between px-4">
                 <div className="flex items-center gap-6 md:gap-10">
                     <Link to="/" className="flex items-center gap-2">
-                        <svg className="h-8 w-8 text-black" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="8" strokeLinecap="round" strokeLinejoin="round">
-                            <circle cx="50" cy="50" r="20" />
-                            <line x1="50" y1="30" x2="65" y2="15" />
-                            <circle cx="65" cy="15" r="8" />
-                            <line x1="35" y1="65" x2="20" y2="80" />
-                            <circle cx="20" cy="80" r="8" />
-                            <line x1="65" y1="65" x2="80" y2="80" />
-                            <circle cx="80" cy="80" r="8" />
-                        </svg>
+                        <img src="/pharmalogo.png" alt="Pharma SocII Logo" className="h-10 w-auto object-contain" />
                         <span className="font-bold text-xl tracking-tight text-foreground">
                             Pharma SocII
                         </span>
