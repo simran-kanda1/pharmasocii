@@ -252,7 +252,7 @@ export default function Plans() {
                 {/* Header */}
                 <div className="text-center max-w-3xl mx-auto space-y-6 mb-12">
                     <h1 className="text-3xl md:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
-                        Plans that fit every business size, budget, and stage.
+                        Plans that fit every business size, budget, and stage
                     </h1>
                     <p className="text-lg md:text-xl text-slate-600 font-medium">
                         Choose yours today!
@@ -286,7 +286,7 @@ export default function Plans() {
                 <div className="mb-20">
                     <div className="text-center mb-10">
                         <h2 className="text-2xl font-bold tracking-tight text-slate-900 inline-block relative pb-2">
-                            Business Offerings and Consulting Services.
+                            Business Offerings and Consulting Services
                             <div className="absolute bottom-0 left-1/2 -translate-x-1/2 w-12 h-1 bg-slate-900 rounded-full" />
                         </h2>
                     </div>
