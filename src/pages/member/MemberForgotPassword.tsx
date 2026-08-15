@@ -34,12 +34,12 @@ export default function MemberForgotPassword() {
         /* mirror optional until functions deployed */
       }
       setMsg(
-        "If an account exists for this email, we've sent a reset link. Be sure to check your spam folder.",
+        "If an account exists for this email, we've sent a password reset link. Be sure to check your spam folder.",
       );
     } catch (err: unknown) {
       console.error(err);
       setMsg(
-        "If an account exists for this email, we've sent a reset link. Be sure to check your spam folder.",
+        "If an account exists for this email, we've sent a password reset link. Be sure to check your spam folder.",
       );
     } finally {
       setLoading(false);

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Building2, ArrowLeft, ArrowRight, ChevronRight, ChevronDown, Check, X, Info, Calendar, Briefcase, Users } from "lucide-react";
+import { Building2, ArrowLeft, ArrowRight, ChevronRight, ChevronDown, Check, X, Info, Calendar, Briefcase, Users , FileText} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ import {
     type SubcategoryEntry, type CategoriesDict,
 } from "../AllCategories";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
+import { usePlansConfig } from "@/hooks/usePlansConfig";
 
 // ─── Group config ───
 const GROUP_CONFIG: Record<string, { label: string; icon: any; dbGroup: string; collectionName: string }> = {
@@ -32,8 +33,7 @@ const GROUP_CONFIG: Record<string, { label: string; icon: any; dbGroup: string; 
     jobs: { label: "Job Listing", icon: Briefcase, dbGroup: "jobs", collectionName: "jobsCollection" },
 };
 
-// ─── Plan limits ───
-interface PlanLimits { maxCategories: number; maxCountries: number; }
+// ─── Company Representative ───
 interface CompanyRepresentative { firstName: string; lastName: string; email: string; }
 
 const normalizeRepresentative = (rep: any): CompanyRepresentative | null => {
@@ -47,35 +47,7 @@ const normalizeRepresentative = (rep: any): CompanyRepresentative | null => {
 const representativeKey = (rep: CompanyRepresentative): string =>
     `${rep.firstName.toLowerCase()}|${rep.lastName.toLowerCase()}|${rep.email.toLowerCase()}`;
 
-const PLAN_LIMITS: Record<string, PlanLimits> = {
-    none: { maxCategories: -1, maxCountries: -1 },
-    basic_mo: { maxCategories: 3, maxCountries: 1 },
-    standard_mo: { maxCategories: 5, maxCountries: 3 },
-    premium_mo: { maxCategories: 15, maxCountries: 15 },
-    premium_plus_mo: { maxCategories: -1, maxCountries: -1 },
-    basic_yr: { maxCategories: 3, maxCountries: 1 },
-    standard_yr: { maxCategories: 5, maxCountries: 3 },
-    premium_yr: { maxCategories: 15, maxCountries: 15 },
-    premium_plus_yr: { maxCategories: -1, maxCountries: -1 },
-    basic_event: { maxCategories: -1, maxCountries: -1 },
-    standard_event: { maxCategories: -1, maxCountries: -1 },
-    premium_event: { maxCategories: -1, maxCountries: -1 },
-    premium_plus_event: { maxCategories: -1, maxCountries: -1 },
-    standard_job: { maxCategories: -1, maxCountries: -1 },
-    premium_job: { maxCategories: -1, maxCountries: -1 },
-    premium_plus_job: { maxCategories: -1, maxCountries: -1 },
-};
 
-/** Plan feature bullets for events & jobs (Add Listing plan details panel). */
-const EVENT_JOB_PLAN_DETAILS: Record<string, string[]> = {
-    basic_event: ["Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Event date (single day)", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-    standard_event: ["Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-    premium_event: ["Extra Feature: Landing page spotlight for increased visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-    premium_plus_event: ["Extra Feature: Home page spotlight for maximum visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-    standard_job: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
-    premium_job: ["Extra Feature: Landing page spotlight for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
-    premium_plus_job: ["Extra Feature: Home page spotlight for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
-};
 
 const AGENDA_HIGHLIGHTS_MAX = 500;
 
@@ -213,6 +185,7 @@ export default function AddListing() {
     const [error, setError] = useState("");
     const [groupPurchaseLock, setGroupPurchaseLock] = useState<{ blocked: boolean; blockedUntil: Date | null }>({ blocked: false, blockedUntil: null });
     const [showPlanDetails, setShowPlanDetails] = useState(false);
+    const { config: plansConfig, getLimitsForPlanId } = usePlansConfig();
 
     // ─── Plan selection ───
     const [plan, setPlan] = useState("");
@@ -341,7 +314,7 @@ export default function AddListing() {
     }, [plan, eventData.startDate]);
 
     // ─── Plan limits ───
-    const currentLimits = PLAN_LIMITS[plan] || { maxCategories: 0, maxCountries: 0 };
+    const currentLimits = plan ? getLimitsForPlanId(plan) : { maxCategories: 0, maxCountries: 0 };
     const canUseRegionHelper = currentLimits.maxCountries === -1;
 
     // ─── Category count ───
@@ -469,54 +442,41 @@ export default function AddListing() {
     };
 
     const getPlansForGroup = () => {
-        switch (dbGroup) {
-            case "business_offerings": case "consulting":
-                return [
-                    { value: "basic_mo", label: "Basic (Monthly) - $100.00" },
-                    { value: "standard_mo", label: "Standard (Monthly) - $200.00" },
-                    { value: "premium_mo", label: "Premium (Monthly) - $400.00" },
-                    { value: "premium_plus_mo", label: "Premium Plus (Monthly) - $1000.00" },
-                    { value: "basic_yr", label: "Basic (Annual) - $1,080.00" },
-                    { value: "standard_yr", label: "Standard (Annual) - $2,184.00" },
-                    { value: "premium_yr", label: "Premium (Annual) - $4,320.00" },
-                    { value: "premium_plus_yr", label: "Premium Plus (Annual) - $10,800.00" },
-                ];
-            case "events":
-                return [
-                    { value: "basic_event", label: "Basic - $500.00" },
-                    { value: "standard_event", label: "Standard - $850.00" },
-                    { value: "premium_event", label: "Premium - $1,250.00" },
-                    { value: "premium_plus_event", label: "Premium Plus - $1,450.00" },
-                ];
-            case "jobs":
-                return [
-                    { value: "standard_job", label: "Standard - $400.00/mo" },
-                    { value: "premium_job", label: "Premium - $800.00/mo" },
-                    { value: "premium_plus_job", label: "Premium Plus - $1,000.00/mo" },
-                ];
-            default: return [];
+        if (!plansConfig) return [];
+        const groupId = dbGroup === "consulting" ? "business_offerings" : dbGroup;
+        const groupConfig = plansConfig.groups.find(g => g.id === groupId);
+        if (!groupConfig) return [];
+
+        const options = [];
+        for (const p of groupConfig.plans) {
+            if (p.stripeMonthlyId) {
+                options.push({
+                    value: p.stripeMonthlyId,
+                    label: `${p.badge}${groupConfig.hasAnnualToggle ? " (Monthly)" : ""} - $${p.monthlyPrice.toLocaleString()}${groupConfig.hasAnnualToggle ? "" : "/mo"}`
+                });
+            }
+            if (p.stripeYearlyId && groupConfig.hasAnnualToggle) {
+                options.push({
+                    value: p.stripeYearlyId,
+                    label: `${p.badge} (Annual) - $${p.yearlyTotalPrice.toLocaleString()}`
+                });
+            }
         }
+        return options;
     };
 
 
 
     const getPlanDetailsText = (planId: string): string[] => {
-        if (dbGroup === "events" || dbGroup === "jobs") {
-            return EVENT_JOB_PLAN_DETAILS[planId] || [];
+        if (!plansConfig || !planId) return [];
+        for (const group of plansConfig.groups) {
+            for (const p of group.plans) {
+                if (p.stripeMonthlyId === planId || p.stripeYearlyId === planId) {
+                    return p.features;
+                }
+            }
         }
-        const limits = PLAN_LIMITS[planId];
-        if (!limits) return [];
-        const cats = limits.maxCategories === -1 ? "Unlimited" : `up to ${limits.maxCategories}`;
-        const countries = limits.maxCountries === -1 ? "Unlimited" : `up to ${limits.maxCountries}`;
-        return [
-            `Access to specialized areas — ${cats}`,
-            `Service countries — ${countries}`,
-            "Company profile to highlight your key offerings",
-            "Display your logo for branding",
-            "Direct website link",
-            "Add representative(s) for direct communication",
-            ...(dbGroup === "business_offerings" ? ["Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] : []),
-        ];
+        return [];
     };
 
     const filteredCountries = SERVICE_COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
@@ -815,6 +775,20 @@ export default function AddListing() {
             const isExpanded = expandedCategories.includes(cat);
             const isParentSelected = selectedCategories.includes(cat);
 
+            const isAnySubSelected = hasSubs && subs.some((entry) => {
+                const subLabel = getSubLabel(entry);
+                const isNested = isBusinessGroup && hasSubSub(entry);
+                const compositeSubKey = `${cat} > ${subLabel}`;
+                if (selectedSubcategories.includes(compositeSubKey) || selectedSubcategories.includes(subLabel)) return true;
+                if (isNested && entry.subSubcategories) {
+                    return entry.subSubcategories.some((ss) => {
+                        const compositeSsKey = `${cat} > ${subLabel} > ${ss}`;
+                        return selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ss);
+                    });
+                }
+                return false;
+            });
+
             return (
                 <div key={cat} className="flex flex-col">
                     <div className="flex items-start gap-2 py-1">
@@ -824,10 +798,10 @@ export default function AddListing() {
                             </button>
                         ) : <span className="w-4 h-4 flex-shrink-0" />}
                         <div className="flex items-center gap-2">
-                            <Checkbox id={`cat-${cat}`} checked={hasSubs ? isExpanded : isParentSelected}
+                            <Checkbox id={`cat-${cat}`} checked={hasSubs ? isAnySubSelected : isParentSelected}
                                 onCheckedChange={() => toggleCategorySelection(cat, hasSubs)}
                                 disabled={!hasSubs && !isParentSelected && isCategoryLimitReached}
-                                className={hasSubs && isExpanded ? "border-red-500 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" : ""} />
+                                className={hasSubs && isAnySubSelected ? "border-green-500 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""} />
                             <label htmlFor={`cat-${cat}`} className={`text-sm leading-none cursor-pointer ${hasSubs ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>{cat}</label>
                         </div>
                     </div>
@@ -933,7 +907,7 @@ export default function AddListing() {
                                         setEventAgendaPdfFile(null);
                                     }}>
                                         <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select plan" /></SelectTrigger>
-                                        <SelectContent className="bg-background/90 border-foreground/10">
+                                        <SelectContent className="bg-background border-foreground/10">
                                             {getPlansForGroup().map(p => (
                                                 <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
                                             ))}
@@ -970,12 +944,6 @@ export default function AddListing() {
                                         dbGroup === "consulting" ? "Service details" :
                                             dbGroup === "events" ? "Event details" : "Job details"}
                                 </CardTitle>
-                                <CardDescription>
-                                    {dbGroup === "business_offerings" ? "Select your BSL, certifications, regions, countries and categories" :
-                                        dbGroup === "consulting" ? "Select your service regions, countries and categories" :
-                                            dbGroup === "events" ? "Provide event information and select categories" :
-                                                "Provide job listing details and select categories"}
-                                </CardDescription>
                             </CardHeader>
                             <CardContent className="p-6 space-y-6">
 
@@ -1129,7 +1097,7 @@ export default function AddListing() {
                                             <Label>Country <span className="text-red-400">*</span></Label>
                                             <Select value={eventData.eventCountry} onValueChange={val => setEventData(prev => ({ ...prev, eventCountry: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
-                                                <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
+                                                <SelectContent className="bg-background border-foreground/10 max-h-60">
                                                     {SERVICE_COUNTRIES.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                                                 </SelectContent>
                                             </Select>
@@ -1145,7 +1113,7 @@ export default function AddListing() {
                                         <div className="space-y-2 md:col-span-2">
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                 <div className="space-y-2">
-                                                    <Label>Agenda highlights <span className="text-red-400">*</span> <span className="text-muted-foreground font-normal">(max {AGENDA_HIGHLIGHTS_MAX} characters)</span></Label>
+                                                    <Label>Agenda highlights <span className="text-red-400">*</span> </Label>
                                                     <Textarea
                                                         value={eventData.agendaHighlights}
                                                         onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX) }))}
@@ -1153,38 +1121,49 @@ export default function AddListing() {
                                                         className="min-h-[120px] bg-muted/40 border-foreground/10 resize-none text-sm"
                                                         placeholder="Short summary of sessions, themes, and speakers…"
                                                     />
-                                                    <p className={`text-xs ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
+                                                    <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                                 </div>
                                                 <div className="space-y-2">
                                                     <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>
-                                                    <Input
-                                                        type="file"
-                                                        accept=".pdf,application/pdf"
-                                                        className="h-12 bg-muted/40 border-foreground/10 cursor-pointer"
-                                                        onChange={(e) => {
-                                                            const f = e.target.files?.[0] || null;
-                                                            setEventAgendaPdfFile(f);
-                                                            if (f) setEventData(prev => ({ ...prev, agendaPdfUrl: "" }));
-                                                        }}
-                                                    />
-                                                    {eventAgendaPdfFile && (
-                                                        <p className="text-xs text-muted-foreground">Selected: {eventAgendaPdfFile.name}</p>
-                                                    )}
-                                                    <p className="text-xs text-muted-foreground">Or paste a hosted PDF link (if you are not uploading a file).</p>
-                                                    <Input
-                                                        type="url"
-                                                        placeholder="https://…"
-                                                        value={eventData.agendaPdfUrl}
-                                                        onChange={e => setEventData(prev => ({ ...prev, agendaPdfUrl: e.target.value }))}
-                                                        disabled={!!eventAgendaPdfFile}
-                                                        className="h-12 bg-muted/40 border-foreground/10"
-                                                    />
+                                                    {!eventAgendaPdfFile && !eventData.agendaPdfUrl && (
+                                                            <Input
+                                                                type="file"
+                                                                accept=".pdf,application/pdf"
+                                                                className="h-12 bg-muted/40 border-foreground/10 cursor-pointer"
+                                                                onChange={(e) => {
+                                                                    const f = e.target.files?.[0] || null;
+                                                                    setEventAgendaPdfFile(f);
+                                                                    if (f) setEventData(prev => ({ ...prev, agendaPdfUrl: "" }));
+                                                                }}
+                                                            />
+                                                        )}
+                                                        {eventAgendaPdfFile && (
+                                                            <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                                <span className="text-xs text-foreground flex items-center gap-1">
+                                                                    <FileText className="w-4 h-4" /> {eventAgendaPdfFile.name}
+                                                                </span>
+                                                                <button type="button" onClick={() => setEventAgendaPdfFile(null)} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {eventData.agendaPdfUrl && !eventAgendaPdfFile && (
+                                                            <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                                <a href={eventData.agendaPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                                                                    <FileText className="w-4 h-4" /> View existing PDF
+                                                                </a>
+                                                                <button type="button" onClick={() => setEventData(prev => ({ ...prev, agendaPdfUrl: "" }))} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                 </div>
                                             </div>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
                                             <Label>Event profile <span className="text-red-400">*</span></Label>
-                                            <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
+                                            <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value.slice(0, 500) }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
+                                            <p className="text-xs text-right text-muted-foreground mt-1">{eventData.eventProfile.length}/500</p>
                                         </div>
                                     </div>
                                 )}
@@ -1204,34 +1183,44 @@ export default function AddListing() {
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
                                             <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
-                                            <Input
-                                                type="file"
-                                                accept=".pdf,application/pdf"
-                                                className="bg-muted/40 border-foreground/10 cursor-pointer"
-                                                onChange={(e) => {
-                                                    const f = e.target.files?.[0] || null;
-                                                    setJobPdfFile(f);
-                                                    if (f) setJobData((prev) => ({ ...prev, jobDescriptionPdfUrl: "" }));
-                                                }}
-                                            />
-                                            {jobPdfFile && (
-                                                <p className="text-xs text-muted-foreground">Selected: {jobPdfFile.name}</p>
-                                            )}
-                                            <p className="text-xs text-muted-foreground">Or paste a hosted PDF link (not required if you upload a file).</p>
-                                            <Input
-                                                type="url"
-                                                placeholder="https://…"
-                                                value={jobData.jobDescriptionPdfUrl}
-                                                onChange={(e) => setJobData((prev) => ({ ...prev, jobDescriptionPdfUrl: e.target.value }))}
-                                                disabled={!!jobPdfFile}
-                                                className="bg-muted/40 border-foreground/10"
-                                            />
+                                            {!jobPdfFile && !jobData.jobDescriptionPdfUrl && (
+                                                    <Input
+                                                        type="file"
+                                                        accept=".pdf,application/pdf"
+                                                        className="bg-muted/40 border-foreground/10 cursor-pointer"
+                                                        onChange={(e) => {
+                                                            const f = e.target.files?.[0] || null;
+                                                            setJobPdfFile(f);
+                                                            if (f) setJobData((prev) => ({ ...prev, jobDescriptionPdfUrl: "" }));
+                                                        }}
+                                                    />
+                                                )}
+                                                {jobPdfFile && (
+                                                    <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                        <span className="text-xs text-foreground flex items-center gap-1">
+                                                            <FileText className="w-4 h-4" /> {jobPdfFile.name}
+                                                        </span>
+                                                        <button type="button" onClick={() => setJobPdfFile(null)} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {jobData.jobDescriptionPdfUrl && !jobPdfFile && (
+                                                    <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                        <a href={jobData.jobDescriptionPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                                                            <FileText className="w-4 h-4" /> View existing PDF
+                                                        </a>
+                                                        <button type="button" onClick={() => setJobData(prev => ({ ...prev, jobDescriptionPdfUrl: "" }))} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
                                         </div>
                                         <div className="space-y-2">
                                             <Label>Industry <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.industry} onValueChange={val => setJobData(prev => ({ ...prev, industry: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select industry" /></SelectTrigger>
-                                                <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
+                                                <SelectContent className="bg-background border-foreground/10 max-h-60">
                                                     {["Biotechnology", "Pharmaceutical", "Medical Devices", "Clinical Research", "Diagnostics", "Digital Health", "Life Sciences", "Healthcare", "Other"].map(i => (
                                                         <SelectItem key={i} value={i}>{i}</SelectItem>
                                                     ))}
@@ -1242,7 +1231,7 @@ export default function AddListing() {
                                             <Label>Job type <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select job type" /></SelectTrigger>
-                                                <SelectContent className="bg-background/90 border-foreground/10">
+                                                <SelectContent className="bg-background border-foreground/10">
                                                     {["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"].map(t => (
                                                         <SelectItem key={t} value={t}>{t}</SelectItem>
                                                     ))}
@@ -1253,7 +1242,7 @@ export default function AddListing() {
                                             <Label>Experience level <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select experience level" /></SelectTrigger>
-                                                <SelectContent className="bg-background/90 border-foreground/10">
+                                                <SelectContent className="bg-background border-foreground/10">
                                                     {["Entry level", "Associate level", "Mid-level", "Lead/Principal", "Director", "VP/executive"].map(l => (
                                                         <SelectItem key={l} value={l}>{l}</SelectItem>
                                                     ))}
@@ -1264,7 +1253,7 @@ export default function AddListing() {
                                             <Label>Work model <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select work model" /></SelectTrigger>
-                                                <SelectContent className="bg-background/90 border-foreground/10">
+                                                <SelectContent className="bg-background border-foreground/10">
                                                     {["Hybrid", "Remote", "On-site"].map(t => (
                                                         <SelectItem key={t} value={t}>{t}</SelectItem>
                                                     ))}
@@ -1275,7 +1264,7 @@ export default function AddListing() {
                                             <Label>Education <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.education} onValueChange={val => setJobData(prev => ({ ...prev, education: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select education" /></SelectTrigger>
-                                                <SelectContent className="bg-background/90 border-foreground/10">
+                                                <SelectContent className="bg-background border-foreground/10">
                                                     {["High school or equivalent", "Associate degree", "Bachelors degree", "Masters degree", "Doctorate/PhD/MD", "Other"].map(t => (
                                                         <SelectItem key={t} value={t}>{t}</SelectItem>
                                                     ))}
@@ -1294,7 +1283,7 @@ export default function AddListing() {
                                             <Label>Country <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.jobCountry} onValueChange={val => setJobData(prev => ({ ...prev, jobCountry: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
-                                                <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
+                                                <SelectContent className="bg-background border-foreground/10 max-h-60">
                                                     {SERVICE_COUNTRIES.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                                                 </SelectContent>
                                             </Select>
@@ -1330,7 +1319,7 @@ export default function AddListing() {
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>
-                                                {categoryCount} / {currentLimits.maxCategories === -1 ? "∞" : currentLimits.maxCategories}
+                                                {currentLimits.maxCategories === -1 ? "Unlimited" : `${categoryCount} / ${currentLimits.maxCategories}`}
                                             </div>
                                         </div>
                                     </div>
@@ -1379,7 +1368,6 @@ export default function AddListing() {
                                     </div>
                                     {availableRepresentatives.length > 0 && (
                                         <div className="space-y-2">
-                                            <p className="text-xs text-muted-foreground">Choose from existing representatives</p>
                                             <div className="flex flex-wrap gap-2">
                                                 {availableRepresentatives.map((rep) => (
                                                     <Button
@@ -1395,9 +1383,7 @@ export default function AddListing() {
                                             </div>
                                         </div>
                                     )}
-                                    {companyRepresentatives.length === 0 && (
-                                        <p className="text-xs text-muted-foreground">Optional: Add a new representative or choose one from existing contacts.</p>
-                                    )}
+
                                     <div className="space-y-3">
                                         {companyRepresentatives.map((rep, index) => (
                                             <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3">

@@ -209,10 +209,7 @@ export default function MemberRegister() {
             />
           </div>
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <Label htmlFor="userName">Username*</Label>
-              <span className={`text-[11px] ${form.userName.length >= 15 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/15</span>
-            </div>
+            <Label htmlFor="userName">Username*</Label>
             <Input
               id="userName"
               value={form.userName}
@@ -222,6 +219,7 @@ export default function MemberRegister() {
               maxLength={15}
               className="bg-foreground/5 border-foreground/10"
             />
+            <p className={`text-[11px] text-right mt-1 ${form.userName.length >= 15 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/15</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email*</Label>
@@ -279,10 +277,7 @@ export default function MemberRegister() {
           </div>
 
           <div className="space-y-2">
-            <div className="flex justify-between items-center">
-              <Label htmlFor="aboutMe">About me (Tagline)</Label>
-              <span className={`text-[11px] ${form.aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.aboutMe.length}/25</span>
-            </div>
+            <Label htmlFor="aboutMe">About me (Tagline)</Label>
             <Input
               id="aboutMe"
               value={form.aboutMe}
@@ -291,6 +286,7 @@ export default function MemberRegister() {
               placeholder="e.g. Clinical Pharmacist"
               className="bg-foreground/5 border-foreground/10"
             />
+            <p className={`text-[11px] text-right mt-1 ${form.aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.aboutMe.length}/25</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password*</Label>

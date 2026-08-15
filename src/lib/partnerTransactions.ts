@@ -61,6 +61,27 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
     const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]).map(String) : []);
     const reps = Array.isArray(t.companyRepresentatives) ? (t.companyRepresentatives as CompanyRep[]) : [];
 
+    const collectionName = t.collectionName ? String(t.collectionName) : null;
+    let groupStr = t.group ? String(t.group) : null;
+    if (!groupStr && collectionName) {
+        if (collectionName.includes("businessOfferings")) groupStr = "business_offerings";
+        else if (collectionName.includes("consulting")) groupStr = "consulting";
+        else if (collectionName.includes("events")) groupStr = "events";
+        else if (collectionName.includes("jobs")) groupStr = "jobs";
+        else groupStr = collectionName;
+    }
+
+    if (!groupStr && t.planId) {
+        const p = String(t.planId).toLowerCase();
+        if (p.includes("event")) groupStr = "events";
+        else if (p.includes("job")) groupStr = "jobs";
+        else groupStr = "business_offerings";
+    }
+
+    if (!groupStr) {
+        groupStr = "General";
+    }
+
     return {
         id: doc.id,
         partnerId: t.partnerId ? String(t.partnerId) : null,
@@ -71,7 +92,7 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
         description,
         planId,
         featureId,
-        group: t.group ? String(t.group).replace(/_/g, " ") : null,
+        group: groupStr ? groupStr.replace(/_/g, " ") : null,
         businessName: t.businessName ? String(t.businessName) : null,
         amountDisplay: `$${amountNumeric.toFixed(2)}`,
         amountNumeric,
@@ -83,7 +104,7 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
         invoiceId: (t.invoiceId as string) || (t.stripeInvoiceId as string) || null,
         stripeSubscriptionId: t.stripeSubscriptionId ? String(t.stripeSubscriptionId) : null,
         listingId: t.listingId ? String(t.listingId) : null,
-        collectionName: t.collectionName ? String(t.collectionName) : null,
+        collectionName,
         customerEmail: t.customerEmail ? String(t.customerEmail) : null,
         selectedCategories: arr(t.selectedCategories),
         selectedSubcategories: arr(t.selectedSubcategories),

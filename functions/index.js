@@ -1463,6 +1463,7 @@ exports.changePartnerPrimaryEmail = onCall({ region: "us-central1", cors: true }
     }
 
     if (verifyLink) {
+        verifyLink = verifyLink.replace(/^https?:\/\/[^/]+\/__\/auth\/action/, `${base}/auth/action`);
         await recordVerificationMirror(newEmail, verifyLink, "partner_email_change", { userId: uid });
         await sendVerificationMirrorSmtp(newEmail, verifyLink);
         try {

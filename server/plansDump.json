@@ -1,0 +1,301 @@
+{
+  "groups": [
+    {
+      "title": "Business Offerings and Consulting",
+      "hasAnnualToggle": true,
+      "id": "business_offerings",
+      "order": 1,
+      "plans": [
+        {
+          "monthlyPrice": 100,
+          "tierRank": 1,
+          "badge": "Basic",
+          "stripeMonthlyId": "basic_mo",
+          "stripeYearlyId": "basic_yr",
+          "subtitle": "Individuals or businesses getting started.",
+          "isFeatured": false,
+          "maxCountries": 1,
+          "features": [
+            "Access to specialized categories — list up to 3",
+            "List primary service country — 1",
+            "Company profile to highlight your key offerings",
+            "Display your logo for branding",
+            "Direct website link",
+            "Add representative(s) for direct communication",
+            "Certifications (optional) — highlight relevant certifications",
+            "Biosafety level (optional) — BSL disclosure"
+          ],
+          "maxCategories": 3,
+          "yearlyMonthlyPrice": 90,
+          "yearlyTotalPrice": 1080,
+          "id": "basic"
+        },
+        {
+          "yearlyTotalPrice": 2184,
+          "tierRank": 2,
+          "id": "standard",
+          "isFeatured": false,
+          "maxCountries": 3,
+          "stripeMonthlyId": "standard_mo",
+          "stripeYearlyId": "standard_yr",
+          "features": [
+            "Access to specialized categories — list up to 5",
+            "List primary service countries — up to 3",
+            "Company profile to highlight your key offerings",
+            "Display your logo for branding",
+            "Direct website link",
+            "Add representative(s) for direct communication",
+            "Certifications (optional) — highlight relevant certifications",
+            "Biosafety level (optional) — BSL disclosure"
+          ],
+          "yearlyMonthlyPrice": 182,
+          "badge": "Standard",
+          "monthlyPrice": 200,
+          "maxCategories": 5,
+          "subtitle": "Individuals or businesses providing services in more than one country."
+        },
+        {
+          "stripeMonthlyId": "premium_mo",
+          "features": [
+            "Access to specialized categories — list up to 15",
+            "List primary service countries — up to 15",
+            "Company profile to highlight your key offerings",
+            "Display your logo for branding",
+            "Direct website link",
+            "Add representative(s) for direct communication",
+            "Option to highlight certifications",
+            "Optional BSL (Biosafety Level) disclosure"
+          ],
+          "maxCountries": 15,
+          "maxCategories": 15,
+          "subtitle": "Businesses with a broader scope and presence",
+          "yearlyTotalPrice": 4320,
+          "badge": "Premium",
+          "stripeYearlyId": "premium_yr",
+          "tierRank": 3,
+          "monthlyPrice": 400,
+          "id": "premium",
+          "isFeatured": true,
+          "yearlyMonthlyPrice": 360
+        },
+        {
+          "stripeMonthlyId": "premium_plus_mo",
+          "monthlyPrice": 1000,
+          "id": "premium_plus",
+          "yearlyMonthlyPrice": 900,
+          "tierRank": 4,
+          "yearlyTotalPrice": 10800,
+          "badge": "Premium Plus",
+          "maxCategories": -1,
+          "isFeatured": false,
+          "subtitle": "Businesses with a global presence",
+          "stripeYearlyId": "premium_plus_yr",
+          "maxCountries": -1,
+          "features": [
+            "Access to specialized categories — Unlimited",
+            "List primary service countries — Unlimited",
+            "Company profile to highlight your key offerings",
+            "Display your logo for branding",
+            "Direct website link",
+            "Add representative(s) for direct communication",
+            "Option to highlight certifications",
+            "Optional BSL (Biosafety Level) disclosure",
+            "Extra Feature: Homepage spotlight for increased visibility"
+          ]
+        }
+      ]
+    },
+    {
+      "hasAnnualToggle": false,
+      "title": "Events & Conferences",
+      "id": "events",
+      "order": 2,
+      "plans": [
+        {
+          "maxCategories": -1,
+          "tierRank": 1,
+          "yearlyTotalPrice": 6000,
+          "badge": "Basic",
+          "monthlyPrice": 500,
+          "isFeatured": false,
+          "stripeYearlyId": "basic_event",
+          "maxCountries": -1,
+          "features": [
+            "Event profile",
+            "Agenda highlights (500 chars) + full agenda PDF",
+            "Event date (single day)",
+            "Event location",
+            "Select multiple categories for better visibility",
+            "Company profile",
+            "Display your logo for branding",
+            "Direct link to your site for easy sign up",
+            "Add representative(s) for direct communication"
+          ],
+          "stripeMonthlyId": "basic_event",
+          "yearlyMonthlyPrice": 500,
+          "id": "event_basic",
+          "subtitle": "Single day conference/event"
+        },
+        {
+          "subtitle": "Multi day conference/event",
+          "features": [
+            "Event profile",
+            "Agenda highlights (500 chars) + full agenda PDF",
+            "Multi-day event dates",
+            "Event location",
+            "Select multiple categories for better visibility",
+            "Company profile",
+            "Display your logo for branding",
+            "Direct link to your site for easy sign up",
+            "Add representative(s) for direct communication"
+          ],
+          "badge": "Standard",
+          "maxCountries": -1,
+          "stripeMonthlyId": "standard_event",
+          "isFeatured": false,
+          "stripeYearlyId": "standard_event",
+          "monthlyPrice": 850,
+          "maxCategories": -1,
+          "id": "event_standard",
+          "tierRank": 2,
+          "yearlyTotalPrice": 10200,
+          "yearlyMonthlyPrice": 850
+        },
+        {
+          "maxCategories": -1,
+          "yearlyMonthlyPrice": 1250,
+          "isFeatured": true,
+          "id": "event_premium",
+          "tierRank": 3,
+          "maxCountries": -1,
+          "stripeMonthlyId": "premium_event",
+          "subtitle": "Single or multi-day conference/event",
+          "monthlyPrice": 1250,
+          "badge": "Premium",
+          "stripeYearlyId": "premium_event",
+          "features": [
+            "Extra Feature: Landing page spotlight for increased visibility",
+            "Event profile",
+            "Agenda highlights (500 chars) + full agenda PDF",
+            "Multi-day event dates",
+            "Event location",
+            "Select multiple categories for better visibility",
+            "Company profile",
+            "Display your logo for branding",
+            "Direct link to your site for easy sign up",
+            "Add representative(s) for direct communication"
+          ],
+          "yearlyTotalPrice": 15000
+        },
+        {
+          "subtitle": "Single or multi-day conference/event",
+          "yearlyTotalPrice": 17400,
+          "isFeatured": false,
+          "maxCountries": -1,
+          "yearlyMonthlyPrice": 1450,
+          "badge": "Premium Plus",
+          "id": "event_premium_plus",
+          "features": [
+            "Extra Feature: Home page spotlight for maximum visibility",
+            "Event profile",
+            "Agenda highlights (500 chars) + full agenda PDF",
+            "Multi-day event dates",
+            "Event location",
+            "Select multiple categories",
+            "Company profile",
+            "Display your logo for branding",
+            "Direct link to your site for easy sign up",
+            "Add representative(s) for direct communication"
+          ],
+          "stripeMonthlyId": "premium_plus_event",
+          "stripeYearlyId": "premium_plus_event",
+          "monthlyPrice": 1450,
+          "tierRank": 4,
+          "maxCategories": -1
+        }
+      ]
+    },
+    {
+      "order": 3,
+      "id": "jobs",
+      "plans": [
+        {
+          "yearlyMonthlyPrice": 400,
+          "features": [
+            "Position title for quick search",
+            "Job description outlining key responsibilities",
+            "Company profile to showcase your brand and attract top talent",
+            "Direct link to your site for easy applications",
+            "Display your logo for branding",
+            "Location for filtering and relevance",
+            "Industry classification to improve discoverability",
+            "Add representative(s) for direct communication"
+          ],
+          "subtitle": "Standard Job Listing",
+          "stripeYearlyId": "standard_job",
+          "maxCountries": -1,
+          "id": "job_standard",
+          "stripeMonthlyId": "standard_job",
+          "badge": "Standard",
+          "isFeatured": false,
+          "monthlyPrice": 400,
+          "tierRank": 1,
+          "maxCategories": -1,
+          "yearlyTotalPrice": 4800
+        },
+        {
+          "monthlyPrice": 800,
+          "tierRank": 2,
+          "badge": "Premium",
+          "maxCategories": -1,
+          "yearlyMonthlyPrice": 800,
+          "id": "job_premium",
+          "yearlyTotalPrice": 9600,
+          "features": [
+            "Extra Feature: Landing page spotlight for increased visibility",
+            "Position title for quick search",
+            "Job description outlining key responsibilities",
+            "Company profile to showcase your brand and attract top talent",
+            "Direct link to your site for easy applications",
+            "Display your logo for branding",
+            "Location for filtering and relevance",
+            "Industry classification to improve discoverability",
+            "Add representative(s) for direct communication"
+          ],
+          "isFeatured": true,
+          "stripeMonthlyId": "premium_job",
+          "maxCountries": -1,
+          "stripeYearlyId": "premium_job",
+          "subtitle": "Premium Job Listing"
+        },
+        {
+          "yearlyMonthlyPrice": 1000,
+          "subtitle": "Premium Plus Job Listing",
+          "badge": "Premium Plus",
+          "monthlyPrice": 1000,
+          "features": [
+            "Extra Feature: Home page spotlight for maximum visibility",
+            "Position title for quick search",
+            "Job description outlining key responsibilities",
+            "Company profile to showcase your brand and attract top talent",
+            "Direct link to your site for easy applications",
+            "Display your logo for branding",
+            "Location for filtering and relevance",
+            "Industry classification to improve discoverability",
+            "Add representative(s) for direct communication"
+          ],
+          "stripeYearlyId": "premium_plus_job",
+          "isFeatured": false,
+          "maxCountries": -1,
+          "yearlyTotalPrice": 12000,
+          "stripeMonthlyId": "premium_plus_job",
+          "maxCategories": -1,
+          "tierRank": 3,
+          "id": "job_premium_plus"
+        }
+      ],
+      "hasAnnualToggle": false,
+      "title": "Jobs"
+    }
+  ]
+}

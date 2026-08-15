@@ -38,6 +38,7 @@ import {
 import { db, auth, storage } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
 import { onAuthStateChanged, signOut } from "firebase/auth";
+import PlansCMS from "./PlansCMS";
 import {
   collection,
   collectionGroup,
@@ -99,12 +100,12 @@ const getSubLabel = (entry: SubcategoryEntry): string =>
 const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcategories: string[] } =>
   typeof entry !== "string";
 import { AdminAddCategory } from "@/components/admin/AdminAddCategory";
-import { AdminAddPlan } from "@/components/admin/AdminAddPlan";
+
 import { AdminAddFeaturedPlan } from "@/components/admin/AdminAddFeaturedPlan";
 import { AdminSitePoliciesPanel } from "@/components/admin/AdminSitePoliciesPanel";
 import { AdminFaqsPanel } from "@/components/admin/AdminFaqsPanel";
 import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
-import { AdminEditPlanModal } from "@/components/admin/AdminEditPlanModal";
+
 import { SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 import {
   formatPartnerTransaction,
@@ -712,47 +713,7 @@ const getStatusBadge = (status?: string) => {
   }
 };
 
-const PLAN_LIMITS: Record<string, { maxCategories: number; maxCountries: number }> = {
-  basic_mo: { maxCategories: 3, maxCountries: 1 },
-  standard_mo: { maxCategories: 5, maxCountries: 3 },
-  premium_mo: { maxCategories: 15, maxCountries: 15 },
-  premium_plus_mo: { maxCategories: -1, maxCountries: -1 },
-  basic_yr: { maxCategories: 3, maxCountries: 1 },
-  standard_yr: { maxCategories: 5, maxCountries: 3 },
-  premium_yr: { maxCategories: 15, maxCountries: 15 },
-  premium_plus_yr: { maxCategories: -1, maxCountries: -1 },
-  basic_event: { maxCategories: -1, maxCountries: -1 },
-  standard_event: { maxCategories: -1, maxCountries: -1 },
-  premium_event: { maxCategories: -1, maxCountries: -1 },
-  premium_plus_event: { maxCategories: -1, maxCountries: -1 },
-  standard_job: { maxCategories: -1, maxCountries: -1 },
-  premium_job: { maxCategories: -1, maxCountries: -1 },
-  premium_plus_job: { maxCategories: -1, maxCountries: -1 },
-};
 
-const AVAILABLE_PLANS: Array<{
-  service: string;
-  planId: string;
-  label: string;
-  priceUsd: number;
-  billing: string;
-}> = [
-  { service: "Business Offerings / Consulting", planId: "basic_mo", label: "Basic (Monthly)", priceUsd: 100, billing: "Monthly" },
-  { service: "Business Offerings / Consulting", planId: "standard_mo", label: "Standard (Monthly)", priceUsd: 200, billing: "Monthly" },
-  { service: "Business Offerings / Consulting", planId: "premium_mo", label: "Premium (Monthly)", priceUsd: 400, billing: "Monthly" },
-  { service: "Business Offerings / Consulting", planId: "premium_plus_mo", label: "Premium Plus (Monthly)", priceUsd: 1000, billing: "Monthly" },
-  { service: "Business Offerings / Consulting", planId: "basic_yr", label: "Basic (Annual)", priceUsd: 1080, billing: "Annual" },
-  { service: "Business Offerings / Consulting", planId: "standard_yr", label: "Standard (Annual)", priceUsd: 2184, billing: "Annual" },
-  { service: "Business Offerings / Consulting", planId: "premium_yr", label: "Premium (Annual)", priceUsd: 4320, billing: "Annual" },
-  { service: "Business Offerings / Consulting", planId: "premium_plus_yr", label: "Premium Plus (Annual)", priceUsd: 10800, billing: "Annual" },
-  { service: "Events", planId: "basic_event", label: "Basic Event", priceUsd: 500, billing: "Monthly" },
-  { service: "Events", planId: "standard_event", label: "Standard Event", priceUsd: 850, billing: "Monthly" },
-  { service: "Events", planId: "premium_event", label: "Premium Event", priceUsd: 1250, billing: "Monthly" },
-  { service: "Events", planId: "premium_plus_event", label: "Premium Plus Event", priceUsd: 1450, billing: "Monthly" },
-  { service: "Jobs", planId: "standard_job", label: "Standard Job Listing", priceUsd: 400, billing: "Monthly" },
-  { service: "Jobs", planId: "premium_job", label: "Premium Job Listing", priceUsd: 800, billing: "Monthly" },
-  { service: "Jobs", planId: "premium_plus_job", label: "Premium Plus Job Listing", priceUsd: 1000, billing: "Monthly" },
-];
 
 const FEATURED_PLAN_CATALOG = [
   {
@@ -780,7 +741,7 @@ export default function AdminDashboard() {
   const [listingTypeFilter, setListingTypeFilter] = useState<string>("all");
   const [isAddingPartner, setIsAddingPartner] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [isAddingPlan, setIsAddingPlan] = useState(false);
+
   const [isAddingFeaturedPlan, setIsAddingFeaturedPlan] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [adminEmail, setAdminEmail] = useState("");
@@ -2114,27 +2075,7 @@ export default function AdminDashboard() {
 
           {activeTab === "transactions" && <TransactionList transactions={transactions} />}
 
-          {activeTab === "plans" && (
-            isAddingPlan ? (
-              <AdminAddPlan 
-                onCancel={() => setIsAddingPlan(false)}
-                onSuccess={() => {
-                  setIsAddingPlan(false);
-                  setSaveNotice("Plan added successfully!");
-                  setTimeout(() => setSaveNotice(""), 5000);
-                }}
-              />
-            ) : (
-              <div className="space-y-4">
-                <div className="flex justify-end">
-                  <Button onClick={() => setIsAddingPlan(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                    Add Plan <Plus className="w-4 h-4 ml-2" />
-                  </Button>
-                </div>
-                <PlansCatalogTab />
-              </div>
-            )
-          )}
+          {activeTab === "plans" && <PlansCMS />}
 
           {activeTab === "featuredPlans" && (
             isAddingFeaturedPlan ? (
@@ -2665,7 +2606,7 @@ export default function AdminDashboard() {
                 maxLength={COMPANY_PROFILE_MAX_LENGTH}
                 className="min-h-24"
               />
-              <p className={`text-xs ${(listingEditor.companyProfileText || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-slate-500'}`}>{(listingEditor.companyProfileText || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
+              <p className={`text-xs text-right ${(listingEditor.companyProfileText || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-slate-500'}`}>{(listingEditor.companyProfileText || "").length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
             </div>
 
             {/* Section 3: Categories & Geography */}
@@ -3085,149 +3026,7 @@ function PartnerList({
   );
 }
 
-function PlansCatalogTab() {
-  const getDefaultPlans = () =>
-    AVAILABLE_PLANS.map((p) => ({
-      ...p,
-      maxCategories: PLAN_LIMITS[p.planId]?.maxCategories,
-      maxCountries: PLAN_LIMITS[p.planId]?.maxCountries,
-      notes: p.planId.includes("premium_plus")
-        ? "Eligible for stronger homepage visibility options."
-        : "Standard listing visibility.",
-      status: "Active",
-    }));
 
-  const [plans, setPlans] = useState<any[]>(getDefaultPlans);
-  const [editingPlan, setEditingPlan] = useState<any | null>(null);
-
-  const fetchPlans = async () => {
-    try {
-      const snap = await getDocs(collection(db, "plansCollection"));
-      const customPlansMap: Record<string, any> = {};
-      snap.docs.forEach((docSnap) => {
-        customPlansMap[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
-      });
-
-      const merged = AVAILABLE_PLANS.map((defaultPlan) => {
-        const custom = customPlansMap[defaultPlan.planId];
-        if (custom) {
-          return {
-            ...defaultPlan,
-            ...custom,
-            label: custom.label || custom.title || defaultPlan.label,
-            service: custom.service || custom.group || defaultPlan.service,
-            billing: custom.billing || defaultPlan.billing,
-            priceUsd: custom.priceUsd !== undefined ? custom.priceUsd : (custom.amount !== undefined ? Number(custom.amount) : defaultPlan.priceUsd),
-            maxCategories: custom.maxCategories !== undefined ? custom.maxCategories : (custom.numberOfCategory === "Unlimited" ? -1 : Number(custom.numberOfCategory || PLAN_LIMITS[defaultPlan.planId]?.maxCategories)),
-            maxCountries: custom.maxCountries !== undefined ? custom.maxCountries : (custom.numberOfCountry === "Unlimited" ? -1 : Number(custom.numberOfCountry || PLAN_LIMITS[defaultPlan.planId]?.maxCountries)),
-            notes: custom.notes || custom.specification || (defaultPlan.planId.includes("premium_plus") ? "Eligible for stronger homepage visibility options." : "Standard listing visibility."),
-            status: custom.status || "Active",
-          };
-        }
-        const limits = PLAN_LIMITS[defaultPlan.planId];
-        return {
-          ...defaultPlan,
-          maxCategories: limits?.maxCategories,
-          maxCountries: limits?.maxCountries,
-          notes: defaultPlan.planId.includes("premium_plus")
-            ? "Eligible for stronger homepage visibility options."
-            : "Standard listing visibility.",
-          status: "Active",
-        };
-      });
-
-      // Also add any completely new plans created in Firestore
-      Object.keys(customPlansMap).forEach((id) => {
-        if (!AVAILABLE_PLANS.some((p) => p.planId === id)) {
-          const custom = customPlansMap[id];
-          merged.push({
-            planId: id,
-            id: id,
-            service: custom.service || custom.group || "Custom Service",
-            label: custom.label || custom.title || "Custom Plan",
-            billing: custom.billing || "Monthly",
-            priceUsd: custom.priceUsd !== undefined ? custom.priceUsd : Number(custom.amount || 0),
-            maxCategories: custom.maxCategories !== undefined ? custom.maxCategories : (custom.numberOfCategory === "Unlimited" ? -1 : Number(custom.numberOfCategory || 0)),
-            maxCountries: custom.maxCountries !== undefined ? custom.maxCountries : (custom.numberOfCountry === "Unlimited" ? -1 : Number(custom.numberOfCountry || 0)),
-            notes: custom.notes || custom.specification || "-",
-            status: custom.status || "Active",
-          });
-        }
-      });
-
-      setPlans(merged);
-    } catch (err) {
-      console.error("Error fetching custom plans:", err);
-      // Fallback to default plans if Firestore fetch encounters an error
-      setPlans(getDefaultPlans());
-    }
-  };
-
-  useEffect(() => {
-    fetchPlans();
-  }, []);
-
-  return (
-    <>
-      <Card className="bg-white border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Available Plans by Service</CardTitle>
-          <CardDescription>Pricing, limitations, and settings by plan. Click Edit to update any plan.</CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Service</TableHead>
-                <TableHead>Plan</TableHead>
-                <TableHead>Billing</TableHead>
-                <TableHead>Price (USD)</TableHead>
-                <TableHead>Max Categories</TableHead>
-                <TableHead>Max Countries</TableHead>
-                <TableHead>Notes</TableHead>
-                <TableHead className="pr-6 text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {plans.map((plan) => (
-                <TableRow key={plan.planId || plan.id}>
-                  <TableCell className="pl-6 font-medium">{plan.service}</TableCell>
-                  <TableCell>{plan.label}</TableCell>
-                  <TableCell>{plan.billing === "Yearly" ? "Annual" : plan.billing}</TableCell>
-                  <TableCell className="font-semibold text-emerald-700">${Number(plan.priceUsd || 0).toLocaleString()}</TableCell>
-                  <TableCell>{plan.maxCategories === -1 ? "Unlimited" : plan.maxCategories ?? "-"}</TableCell>
-                  <TableCell>{plan.maxCountries === -1 ? "Unlimited" : plan.maxCountries ?? "-"}</TableCell>
-                  <TableCell className="max-w-[200px] truncate" title={plan.notes}>{plan.notes}</TableCell>
-                  <TableCell className="pr-6 text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setEditingPlan(plan)}
-                      className="h-8 border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
-                    >
-                      <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      {editingPlan && (
-        <AdminEditPlanModal
-          plan={editingPlan}
-          onClose={() => setEditingPlan(null)}
-          onSaved={() => {
-            setEditingPlan(null);
-            fetchPlans();
-          }}
-        />
-      )}
-    </>
-  );
-}
 
 function FeaturedPlansTab({
   featuredPlans,

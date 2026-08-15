@@ -1896,46 +1896,72 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
 app.use(express.json());
 
 // ─── Plan → price in cents ───
-const PLAN_PRICES = {
-    // Business / Consulting — Monthly
+let PLAN_PRICES = {
+    // Initial fallback data (will be immediately overwritten by Firestore)
     basic_mo: { amount: 10000, name: "Basic (Monthly)", interval: "month" },
     standard_mo: { amount: 20000, name: "Standard (Monthly)", interval: "month" },
     premium_mo: { amount: 40000, name: "Premium (Monthly)", interval: "month" },
     premium_plus_mo: { amount: 100000, name: "Premium Plus (Monthly)", interval: "month" },
-    // Business / Consulting — Yearly
     basic_yr: { amount: 108000, name: "Basic (Annual)", interval: "year" },
     standard_yr: { amount: 218400, name: "Standard (Annual)", interval: "year" },
     premium_yr: { amount: 432000, name: "Premium (Annual)", interval: "year" },
     premium_plus_yr: { amount: 1080000, name: "Premium Plus (Annual)", interval: "year" },
-    // Events
     basic_event: { amount: 50000, name: "Basic Event", interval: "month" },
     standard_event: { amount: 85000, name: "Standard Event", interval: "month" },
     premium_event: { amount: 125000, name: "Premium Event", interval: "month" },
     premium_plus_event: { amount: 145000, name: "Premium Plus Event", interval: "month" },
-    // Jobs — one-time
     standard_job: { amount: 40000, name: "Standard Job Listing", interval: "month" },
     premium_job: { amount: 80000, name: "Premium Job Listing", interval: "month" },
     premium_plus_job: { amount: 100000, name: "Premium Plus Job Listing", interval: "month" },
 };
 
 /** Tier rank for upgrade rules (higher = higher tier). Same rank for mo/yr of same product level. */
-const PLAN_TIER_RANK = {
-    basic_mo: 1,
-    standard_mo: 2,
-    premium_mo: 3,
-    premium_plus_mo: 4,
-    basic_yr: 1,
-    standard_yr: 2,
-    premium_yr: 3,
-    premium_plus_yr: 4,
-    basic_event: 1,
-    standard_event: 2,
-    premium_event: 3,
-    premium_plus_event: 4,
-    standard_job: 1,
-    premium_job: 2,
-    premium_plus_job: 3,
+let PLAN_TIER_RANK = {
+    basic_mo: 1, standard_mo: 2, premium_mo: 3, premium_plus_mo: 4,
+    basic_yr: 1, standard_yr: 2, premium_yr: 3, premium_plus_yr: 4,
+    basic_event: 1, standard_event: 2, premium_event: 3, premium_plus_event: 4,
+    standard_job: 1, premium_job: 2, premium_plus_job: 3,
 };
+
+// Start real-time sync with dynamic config
+try {
+    db.collection("config").doc("plansConfig").onSnapshot((snap) => {
+        try {
+            const data = snap.exists ? snap.data() : { groups: [] };
+            const newPrices = {};
+            const newTiers = {};
+            for (const group of data.groups || []) {
+                for (const plan of group.plans || []) {
+                    if (plan.stripeMonthlyId) {
+                        newPrices[plan.stripeMonthlyId] = {
+                            amount: plan.monthlyPrice * 100,
+                            name: `${plan.badge} (Monthly)`,
+                            interval: "month"
+                        };
+                        newTiers[plan.stripeMonthlyId] = plan.tierRank || 1;
+                    }
+                    if (plan.stripeYearlyId) {
+                        newPrices[plan.stripeYearlyId] = {
+                            amount: plan.yearlyTotalPrice * 100,
+                            name: `${plan.badge} (Annual)`,
+                            interval: "year"
+                        };
+                        newTiers[plan.stripeYearlyId] = plan.tierRank || 1;
+                    }
+                }
+            }
+            if (Object.keys(newPrices).length > 0) {
+                PLAN_PRICES = newPrices;
+                PLAN_TIER_RANK = newTiers;
+                console.log("Dynamically loaded PLAN_PRICES from Firestore.");
+            }
+        } catch (e) {
+            console.error("Error parsing dynamic PLAN_PRICES:", e);
+        }
+    });
+} catch (e) {
+    console.error("Could not start onSnapshot for plansConfig:", e);
+}
 
 const SECONDS_PER_YEAR = 31557600; // 365.25 * 24 * 3600
 

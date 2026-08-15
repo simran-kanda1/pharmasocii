@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Building2, Globe, Building, Linkedin, Receipt, UploadCloud, ArrowRight, ChevronRight, ChevronDown, Check, X, Info } from "lucide-react";
+import { Globe, Building, Linkedin, Receipt, UploadCloud, ArrowRight, ChevronRight, ChevronDown, Check, X, Info , FileText} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,6 +23,7 @@ import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 import PhoneInput from 'react-phone-number-input'
 import { toPhoneInputValue } from '@/lib/phone'
+import { usePlansConfig } from "@/hooks/usePlansConfig";
 import 'react-phone-number-input/style.css'
 
 // Import actual categories from AllCategories
@@ -34,12 +35,6 @@ import {
     type SubcategoryEntry,
     type CategoriesDict,
 } from "./AllCategories";
-
-// ─── Plan limits ───
-interface PlanLimits {
-    maxCategories: number; // -1 = unlimited
-    maxCountries: number;
-}
 
 interface CompanyRepresentative {
     firstName: string;
@@ -58,34 +53,7 @@ const normalizeRepresentative = (rep: any): CompanyRepresentative | null => {
 const representativeKey = (rep: CompanyRepresentative): string =>
     `${rep.firstName.toLowerCase()}|${rep.lastName.toLowerCase()}|${rep.email.toLowerCase()}`;
 
-const PLAN_LIMITS: Record<string, PlanLimits> = {
-    none: { maxCategories: -1, maxCountries: -1 },
-    basic_mo: { maxCategories: 3, maxCountries: 1 },
-    standard_mo: { maxCategories: 5, maxCountries: 3 },
-    premium_mo: { maxCategories: 15, maxCountries: 15 },
-    premium_plus_mo: { maxCategories: -1, maxCountries: -1 },
-    basic_yr: { maxCategories: 3, maxCountries: 1 },
-    standard_yr: { maxCategories: 5, maxCountries: 3 },
-    premium_yr: { maxCategories: 15, maxCountries: 15 },
-    premium_plus_yr: { maxCategories: -1, maxCountries: -1 },
-    basic_event: { maxCategories: -1, maxCountries: -1 },
-    standard_event: { maxCategories: -1, maxCountries: -1 },
-    premium_event: { maxCategories: -1, maxCountries: -1 },
-    premium_plus_event: { maxCategories: -1, maxCountries: -1 },
-    standard_job: { maxCategories: -1, maxCountries: -1 },
-    premium_job: { maxCategories: -1, maxCountries: -1 },
-    premium_plus_job: { maxCategories: -1, maxCountries: -1 },
-};
 
-const EVENT_JOB_PLAN_DETAILS: Record<string, string[]> = {
-    basic_event: ["Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Event date (single day)", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-    standard_event: ["Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-    premium_event: ["Extra Feature: Landing page spotlight for increased visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-    premium_plus_event: ["Extra Feature: Home page spotlight for maximum visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-    standard_job: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
-    premium_job: ["Extra Feature: Landing page spotlight for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
-    premium_plus_job: ["Extra Feature: Home page spotlight for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
-};
 
 const AGENDA_HIGHLIGHTS_MAX = 500;
 
@@ -105,6 +73,7 @@ const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcat
     typeof entry !== "string";
 
 export default function CompleteProfile() {
+    const { config, getLimitsForPlanId } = usePlansConfig();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
@@ -246,7 +215,7 @@ export default function CompleteProfile() {
     };
 
     // ─── Current plan limits ───
-    const currentLimits = PLAN_LIMITS[formData.plan] || { maxCategories: 0, maxCountries: 0 };
+    const currentLimits = formData.plan ? getLimitsForPlanId(formData.plan) : { maxCategories: 0, maxCountries: 0 };
     const canUseRegionHelper = currentLimits.maxCountries === -1;
 
     // ─── Count selected categories from lowest level ───
@@ -414,53 +383,40 @@ export default function CompleteProfile() {
     };
 
     const getPlansForGroup = (group: string) => {
-        switch (group) {
-            case 'business_offerings': case 'consulting':
-                return [
-                    { value: 'basic_mo', label: 'Basic (Monthly) - $100.00' },
-                    { value: 'standard_mo', label: 'Standard (Monthly) - $200.00' },
-                    { value: 'premium_mo', label: 'Premium (Monthly) - $400.00' },
-                    { value: 'premium_plus_mo', label: 'Premium Plus (Monthly) - $1000.00' },
-                    { value: 'basic_yr', label: 'Basic (Annual) - $1,080.00' },
-                    { value: 'standard_yr', label: 'Standard (Annual) - $2,184.00' },
-                    { value: 'premium_yr', label: 'Premium (Annual) - $4,320.00' },
-                    { value: 'premium_plus_yr', label: 'Premium Plus (Annual) - $10,800.00' },
-                ];
-            case 'events':
-                return [
-                    { value: 'basic_event', label: 'Basic - $500.00' },
-                    { value: 'standard_event', label: 'Standard - $850.00' },
-                    { value: 'premium_event', label: 'Premium - $1,250.00' },
-                    { value: 'premium_plus_event', label: 'Premium Plus - $1,450.00' },
-                ];
-            case 'jobs':
-                return [
-                    { value: 'standard_job', label: 'Standard - $400.00/mo' },
-                    { value: 'premium_job', label: 'Premium - $800.00/mo' },
-                    { value: 'premium_plus_job', label: 'Premium Plus - $1,000.00/mo' },
-                ];
-            default: return [];
+        if (!config) return [];
+        const groupId = group === "consulting" ? "business_offerings" : group;
+        const groupConfig = config.groups.find(g => g.id === groupId);
+        if (!groupConfig) return [];
+
+        const options = [];
+        for (const plan of groupConfig.plans) {
+            if (plan.stripeMonthlyId) {
+                options.push({
+                    value: plan.stripeMonthlyId,
+                    label: `${plan.badge}${groupConfig.hasAnnualToggle ? " (Monthly)" : ""} - $${plan.monthlyPrice.toLocaleString()}${groupConfig.hasAnnualToggle ? "" : "/mo"}`
+                });
+            }
+            if (plan.stripeYearlyId && groupConfig.hasAnnualToggle) {
+                options.push({
+                    value: plan.stripeYearlyId,
+                    label: `${plan.badge} (Annual) - $${plan.yearlyTotalPrice.toLocaleString()}`
+                });
+            }
         }
+        return options;
     };
 
     // ─── Plan details text ───
     const getPlanDetailsText = (planId: string): string[] => {
-        if (formData.group === "events" || formData.group === "jobs") {
-            return EVENT_JOB_PLAN_DETAILS[planId] || [];
+        if (!config || !planId) return [];
+        for (const group of config.groups) {
+            for (const plan of group.plans) {
+                if (plan.stripeMonthlyId === planId || plan.stripeYearlyId === planId) {
+                    return plan.features;
+                }
+            }
         }
-        const limits = PLAN_LIMITS[planId];
-        if (!limits) return [];
-        const cats = limits.maxCategories === -1 ? "Unlimited" : `up to ${limits.maxCategories}`;
-        const countries = limits.maxCountries === -1 ? "Unlimited" : `up to ${limits.maxCountries}`;
-        return [
-            `Access to specialized categories — ${cats}`,
-            `Service countries — ${countries}`,
-            "Company profile to highlight your key offerings",
-            "Display your logo for branding",
-            "Direct website link",
-            "Add representative(s) for direct communication",
-            ...(formData.group === "business_offerings" ? ["Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] : []),
-        ];
+        return [];
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -813,6 +769,20 @@ export default function CompleteProfile() {
             const isExpanded = expandedCategories.includes(cat);
             const isParentSelected = selectedCategories.includes(cat);
 
+            const isAnySubSelected = hasSubs && subs.some((entry) => {
+                const subLabel = getSubLabel(entry);
+                const isNested = isBusinessGroup && hasSubSub(entry);
+                const compositeSubKey = `${cat} > ${subLabel}`;
+                if (selectedSubcategories.includes(compositeSubKey) || selectedSubcategories.includes(subLabel)) return true;
+                if (isNested && entry.subSubcategories) {
+                    return entry.subSubcategories.some((ss) => {
+                        const compositeSsKey = `${cat} > ${subLabel} > ${ss}`;
+                        return selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ss);
+                    });
+                }
+                return false;
+            });
+
             return (
                 <div key={cat} className="flex flex-col">
                     <div className="flex items-start gap-2 py-1">
@@ -825,10 +795,10 @@ export default function CompleteProfile() {
                         <div className="flex items-center gap-2">
                             <Checkbox
                                 id={`cat-${cat}`}
-                                checked={hasSubs ? isExpanded : isParentSelected}
+                                checked={hasSubs ? isAnySubSelected : isParentSelected}
                                 onCheckedChange={() => toggleCategorySelection(cat, hasSubs)}
                                 disabled={!hasSubs && !isParentSelected && isCategoryLimitReached}
-                                className={hasSubs && isExpanded ? "border-red-500 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" : ""}
+                                className={hasSubs && isAnySubSelected ? "border-green-500 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}
                             />
                             <label htmlFor={`cat-${cat}`} className={`text-sm leading-none cursor-pointer ${hasSubs ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>
                                 {cat}
@@ -1012,11 +982,8 @@ export default function CompleteProfile() {
                 <div className="mb-10 text-center md:text-left border-b border-foreground/10 pb-6 flex flex-col md:flex-row md:items-end justify-between gap-4">
                     <div>
                         <h1 className="text-3xl font-bold tracking-tight text-foreground mb-2">Complete Your Profile</h1>
-                        <p className="text-muted-foreground">Please fill out the remainder of your partner business information.</p>
                     </div>
-                    <div className="inline-flex items-center gap-2 bg-foreground/5 border border-foreground/10 px-4 py-2 rounded-full text-sm text-primary">
-                        <Building2 className="w-4 h-4" /> Partner Status: <span className="text-foreground font-medium">Pending Verification</span>
-                    </div>
+
                 </div>
 
                 {error && <div className="mb-8 p-4 bg-destructive/20 border border-destructive/50 rounded-lg text-destructive-foreground">{error}</div>}
@@ -1028,7 +995,6 @@ export default function CompleteProfile() {
                         <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
                             <CardHeader className="border-b border-foreground/10 pb-4">
                                 <CardTitle className="text-xl">Partner Information</CardTitle>
-                                <CardDescription>Primary and alternate contact details for your account</CardDescription>
                             </CardHeader>
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
@@ -1118,7 +1084,7 @@ export default function CompleteProfile() {
                                 <div className="space-y-2 md:col-span-1">
                                     <Label htmlFor="companyProfile">Company profile *</Label>
                                     <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} maxLength={COMPANY_PROFILE_MAX_LENGTH} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
-                                    <p className={`text-xs ${formData.companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
+                                    <p className={`text-xs text-right ${formData.companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
                                 </div>
                                 <div className="space-y-4 md:col-span-1">
                                     <div className="space-y-2">
@@ -1149,7 +1115,7 @@ export default function CompleteProfile() {
                                     <Label>Select group <span className="text-red-400">*</span></Label>
                                     <Select value={formData.group} onValueChange={(val) => handleSelectChange("group", val)} required>
                                         <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select group" /></SelectTrigger>
-                                        <SelectContent className="bg-background/90 border-foreground/10">
+                                        <SelectContent className="bg-background border-foreground/10">
                                             <SelectItem value="business_offerings">Business Offerings</SelectItem>
                                             <SelectItem value="consulting">Consulting Services</SelectItem>
                                             <SelectItem value="events">Events & Conferences</SelectItem>
@@ -1162,7 +1128,7 @@ export default function CompleteProfile() {
                                     <Label>Payment plans <span className="text-red-400">*</span></Label>
                                     <Select value={formData.plan} onValueChange={(val) => handleSelectChange("plan", val)} required disabled={!formData.group}>
                                         <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder={formData.group ? "Select plan" : "Select a group first"} /></SelectTrigger>
-                                        <SelectContent className="bg-background/90 border-foreground/10">
+                                        <SelectContent className="bg-background border-foreground/10">
                                             {getPlansForGroup(formData.group).map(plan => (
                                                 <SelectItem key={plan.value} value={plan.value}>{plan.label}</SelectItem>
                                             ))}
@@ -1195,7 +1161,7 @@ export default function CompleteProfile() {
                                             <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10 opacity-70 cursor-not-allowed">
                                                 <SelectValue placeholder="Available after plan payment" />
                                             </SelectTrigger>
-                                            <SelectContent className="bg-background/90 border-foreground/10">
+                                            <SelectContent className="bg-background border-foreground/10">
                                                 <SelectItem value="none">Available after plan payment</SelectItem>
                                             </SelectContent>
                                         </Select>
@@ -1213,12 +1179,6 @@ export default function CompleteProfile() {
                                             formData.group === "consulting" ? "Service details" :
                                                 formData.group === "events" ? "Event details" : "Job details"}
                                     </CardTitle>
-                                    <CardDescription>
-                                        {formData.group === "business_offerings" ? "Select your BSL, certifications, regions, countries and categories" :
-                                            formData.group === "consulting" ? "Select your service regions, countries and categories" :
-                                                formData.group === "events" ? "Provide event information and select categories" :
-                                                    "Provide job listing details and select categories"}
-                                    </CardDescription>
                                 </CardHeader>
                                 <CardContent className="p-6 space-y-6">
 
@@ -1390,7 +1350,7 @@ export default function CompleteProfile() {
                                                 <Label>Country <span className="text-red-400">*</span></Label>
                                                 <Select value={eventData.eventCountry} onValueChange={val => setEventData(prev => ({ ...prev, eventCountry: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
-                                                    <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
+                                                    <SelectContent className="bg-background border-foreground/10 max-h-60">
                                                         {SERVICE_COUNTRIES.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                                                     </SelectContent>
                                                 </Select>
@@ -1410,7 +1370,7 @@ export default function CompleteProfile() {
                                             <div className="space-y-2 md:col-span-2">
                                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                     <div className="space-y-2">
-                                                        <Label>Agenda highlights <span className="text-red-400">*</span> <span className="text-muted-foreground font-normal">(max {AGENDA_HIGHLIGHTS_MAX})</span></Label>
+                                                        <Label>Agenda highlights <span className="text-red-400">*</span> </Label>
                                                         <Textarea
                                                             value={eventData.agendaHighlights}
                                                             onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX) }))}
@@ -1418,36 +1378,49 @@ export default function CompleteProfile() {
                                                             className="min-h-[120px] bg-muted/40 border-foreground/10 resize-none text-sm"
                                                             placeholder="Short summary of sessions, themes, and speakers…"
                                                         />
-                                                        <p className={`text-xs ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
+                                                        <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>
-                                                        <Input
-                                                            type="file"
-                                                            accept=".pdf,application/pdf"
-                                                            className="h-12 bg-muted/40 border-foreground/10 cursor-pointer"
-                                                            onChange={(e) => {
-                                                                const f = e.target.files?.[0] || null;
-                                                                setEventAgendaPdfFile(f);
-                                                                if (f) setEventData(prev => ({ ...prev, agendaPdfUrl: "" }));
-                                                            }}
-                                                        />
-                                                        {eventAgendaPdfFile && <p className="text-xs text-muted-foreground">Selected: {eventAgendaPdfFile.name}</p>}
-                                                        <p className="text-xs text-muted-foreground">Or paste a hosted PDF link.</p>
-                                                        <Input
-                                                            type="url"
-                                                            placeholder="https://…"
-                                                            value={eventData.agendaPdfUrl}
-                                                            onChange={e => setEventData(prev => ({ ...prev, agendaPdfUrl: e.target.value }))}
-                                                            disabled={!!eventAgendaPdfFile}
-                                                            className="h-12 bg-muted/40 border-foreground/10"
-                                                        />
+                                                        {!eventAgendaPdfFile && !eventData.agendaPdfUrl && (
+                                                            <Input
+                                                                type="file"
+                                                                accept=".pdf,application/pdf"
+                                                                className="h-12 bg-muted/40 border-foreground/10 cursor-pointer"
+                                                                onChange={(e) => {
+                                                                    const f = e.target.files?.[0] || null;
+                                                                    setEventAgendaPdfFile(f);
+                                                                    if (f) setEventData(prev => ({ ...prev, agendaPdfUrl: "" }));
+                                                                }}
+                                                            />
+                                                        )}
+                                                        {eventAgendaPdfFile && (
+                                                            <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                                <span className="text-xs text-foreground flex items-center gap-1">
+                                                                    <FileText className="w-4 h-4" /> {eventAgendaPdfFile.name}
+                                                                </span>
+                                                                <button type="button" onClick={() => setEventAgendaPdfFile(null)} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                        {eventData.agendaPdfUrl && !eventAgendaPdfFile && (
+                                                            <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                                <a href={eventData.agendaPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                                                                    <FileText className="w-4 h-4" /> View existing PDF
+                                                                </a>
+                                                                <button type="button" onClick={() => setEventData(prev => ({ ...prev, agendaPdfUrl: "" }))} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                                    <X className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Event profile <span className="text-red-400">*</span></Label>
-                                                <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
+                                                <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value.slice(0, 500) }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
+                                                <p className="text-xs text-right text-muted-foreground mt-1">{eventData.eventProfile.length}/500</p>
                                             </div>
                                         </div>
                                     )}
@@ -1467,32 +1440,44 @@ export default function CompleteProfile() {
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
-                                                <Input
-                                                    type="file"
-                                                    accept=".pdf,application/pdf"
-                                                    className="bg-muted/40 border-foreground/10 cursor-pointer"
-                                                    onChange={(e) => {
-                                                        const f = e.target.files?.[0] || null;
-                                                        setJobPdfFile(f);
-                                                        if (f) setJobData((prev) => ({ ...prev, jobDescriptionPdfUrl: "" }));
-                                                    }}
-                                                />
-                                                {jobPdfFile && <p className="text-xs text-muted-foreground">Selected: {jobPdfFile.name}</p>}
-                                                <p className="text-xs text-muted-foreground">Or paste a hosted PDF link if you are not uploading a file.</p>
-                                                <Input
-                                                    type="url"
-                                                    placeholder="https://…"
-                                                    value={jobData.jobDescriptionPdfUrl}
-                                                    onChange={(e) => setJobData((prev) => ({ ...prev, jobDescriptionPdfUrl: e.target.value }))}
-                                                    disabled={!!jobPdfFile}
-                                                    className="bg-muted/40 border-foreground/10"
-                                                />
+                                                {!jobPdfFile && !jobData.jobDescriptionPdfUrl && (
+                                                    <Input
+                                                        type="file"
+                                                        accept=".pdf,application/pdf"
+                                                        className="bg-muted/40 border-foreground/10 cursor-pointer"
+                                                        onChange={(e) => {
+                                                            const f = e.target.files?.[0] || null;
+                                                            setJobPdfFile(f);
+                                                            if (f) setJobData((prev) => ({ ...prev, jobDescriptionPdfUrl: "" }));
+                                                        }}
+                                                    />
+                                                )}
+                                                {jobPdfFile && (
+                                                    <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                        <span className="text-xs text-foreground flex items-center gap-1">
+                                                            <FileText className="w-4 h-4" /> {jobPdfFile.name}
+                                                        </span>
+                                                        <button type="button" onClick={() => setJobPdfFile(null)} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {jobData.jobDescriptionPdfUrl && !jobPdfFile && (
+                                                    <div className="flex items-center gap-2 mt-2 bg-foreground/5 p-2 rounded border border-foreground/10 w-fit">
+                                                        <a href={jobData.jobDescriptionPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-500 hover:underline flex items-center gap-1">
+                                                            <FileText className="w-4 h-4" /> View existing PDF
+                                                        </a>
+                                                        <button type="button" onClick={() => setJobData(prev => ({ ...prev, jobDescriptionPdfUrl: "" }))} className="text-muted-foreground hover:text-red-500 transition-colors" title="Remove file">
+                                                            <X className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                             <div className="space-y-2">
                                                 <Label>Industry <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.industry} onValueChange={val => setJobData(prev => ({ ...prev, industry: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select industry" /></SelectTrigger>
-                                                    <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
+                                                    <SelectContent className="bg-background border-foreground/10 max-h-60">
                                                         {["Biotechnology", "Pharmaceutical", "Medical Devices", "Clinical Research", "Diagnostics", "Digital Health", "Life Sciences", "Healthcare", "Other"].map(i => (
                                                             <SelectItem key={i} value={i}>{i}</SelectItem>
                                                         ))}
@@ -1503,7 +1488,7 @@ export default function CompleteProfile() {
                                                 <Label>Job type <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select job type" /></SelectTrigger>
-                                                    <SelectContent className="bg-background/90 border-foreground/10">
+                                                    <SelectContent className="bg-background border-foreground/10">
                                                         {["Full-time", "Part-time", "Contract", "Freelance", "Internship", "Temporary"].map(t => (
                                                             <SelectItem key={t} value={t}>{t}</SelectItem>
                                                         ))}
@@ -1514,7 +1499,7 @@ export default function CompleteProfile() {
                                                 <Label>Experience level <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select experience level" /></SelectTrigger>
-                                                    <SelectContent className="bg-background/90 border-foreground/10">
+                                                    <SelectContent className="bg-background border-foreground/10">
                                                         {["Entry level", "Associate level", "Mid-level", "Lead/Principal", "Director", "VP/executive"].map(l => (
                                                             <SelectItem key={l} value={l}>{l}</SelectItem>
                                                         ))}
@@ -1525,7 +1510,7 @@ export default function CompleteProfile() {
                                                 <Label>Work model <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select work model" /></SelectTrigger>
-                                                    <SelectContent className="bg-background/90 border-foreground/10">
+                                                    <SelectContent className="bg-background border-foreground/10">
                                                         {["Hybrid", "Remote", "On-site"].map(t => (
                                                             <SelectItem key={t} value={t}>{t}</SelectItem>
                                                         ))}
@@ -1536,7 +1521,7 @@ export default function CompleteProfile() {
                                                 <Label>Education <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.education} onValueChange={val => setJobData(prev => ({ ...prev, education: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select education" /></SelectTrigger>
-                                                    <SelectContent className="bg-background/90 border-foreground/10">
+                                                    <SelectContent className="bg-background border-foreground/10">
                                                         {["High school or equivalent", "Associate degree", "Bachelors degree", "Masters degree", "Doctorate/PhD/MD", "Other"].map(t => (
                                                             <SelectItem key={t} value={t}>{t}</SelectItem>
                                                         ))}
@@ -1555,7 +1540,7 @@ export default function CompleteProfile() {
                                                 <Label>Country <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.jobCountry} onValueChange={val => setJobData(prev => ({ ...prev, jobCountry: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
-                                                    <SelectContent className="bg-background/90 border-foreground/10 max-h-60">
+                                                    <SelectContent className="bg-background border-foreground/10 max-h-60">
                                                         {SERVICE_COUNTRIES.map(c => (<SelectItem key={c} value={c}>{c}</SelectItem>))}
                                                     </SelectContent>
                                                 </Select>
@@ -1599,7 +1584,7 @@ export default function CompleteProfile() {
                                                     </Button>
                                                 )}
                                                 <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>
-                                                    {categoryCount} / {currentLimits.maxCategories === -1 ? "∞" : currentLimits.maxCategories}
+                                                    {currentLimits.maxCategories === -1 ? "Unlimited" : `${categoryCount} / ${currentLimits.maxCategories}`}
                                                 </div>
                                             </div>
                                         </div>
@@ -1650,7 +1635,6 @@ export default function CompleteProfile() {
                                         </div>
                                         {availableRepresentatives.length > 0 && (
                                             <div className="space-y-2">
-                                                <p className="text-xs text-muted-foreground">Choose from existing representatives</p>
                                                 <div className="flex flex-wrap gap-2">
                                                     {availableRepresentatives.map((rep) => (
                                                         <Button
@@ -1666,9 +1650,7 @@ export default function CompleteProfile() {
                                                 </div>
                                             </div>
                                         )}
-                                        {companyRepresentatives.length === 0 && (
-                                            <p className="text-xs text-muted-foreground">Optional: Add a new representative or choose one from existing contacts.</p>
-                                        )}
+
                                         <div className="space-y-3">
                                             {companyRepresentatives.map((rep, index) => (
                                                 <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3">

@@ -416,7 +416,7 @@ export default function Home() {
                 {/* FEATURED CONSULTING CAROUSEL */}
                 <div className="container mx-auto px-4 mt-32 mb-12">
                     <div className="text-center max-w-4xl mx-auto">
-                        <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Consulting Services</h2>
+                        <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Consulting</h2>
                         <p className="text-lg md:text-xl text-primary font-medium mb-4">Access trusted experts across regional and global markets</p>
                         </div>
                 </div>
@@ -435,7 +435,7 @@ export default function Home() {
                             ))}
                         </AutoCarousel>
                     ) : (
-                        <div className="w-full flex justify-center text-muted-foreground py-12">No featured consulting services available.</div>
+                        <div className="w-full flex justify-center text-muted-foreground py-12">No featured consulting available.</div>
                     )}
                 </div>
 

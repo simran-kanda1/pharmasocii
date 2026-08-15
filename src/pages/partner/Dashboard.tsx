@@ -25,7 +25,7 @@ import {
     PlusCircle, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
     CreditCard, Star, Sparkles, Crown, Check, X,
-    Edit3, ArrowUpCircle, AlertTriangle, Globe, Tag
+    Edit3, ArrowUpCircle, AlertTriangle, Globe, Tag, Search
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -457,6 +457,8 @@ export default function Dashboard() {
     const [activeTab, setActiveTab] = useState<TabType>("dashboard");
     const [transactions, setTransactions] = useState<any[]>([]);
     const [transactionDetailRow, setTransactionDetailRow] = useState<PartnerTransactionRow | null>(null);
+    const [txnSearch, setTxnSearch] = useState("");
+    const [txnMonth, setTxnMonth] = useState("all");
     const [activePlans, setActivePlans] = useState<any[]>([]);
     const [partnerFeatures, setPartnerFeatures] = useState<any[]>([]);
 
@@ -486,6 +488,7 @@ export default function Dashboard() {
     const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
     const [showCurrentPw, setShowCurrentPw] = useState(false);
     const [showNewPw, setShowNewPw] = useState(false);
+    const [showConfirmPw, setShowConfirmPw] = useState(false);
     const [passwordSaving, setPasswordSaving] = useState(false);
     const [passwordMsg, setPasswordMsg] = useState({ type: "", text: "" });
 
@@ -2554,7 +2557,7 @@ export default function Dashboard() {
                             className={`h-40 bg-foreground/5 resize-none text-sm border-foreground/10`}
                             placeholder="Briefly describe your company's mission and offerings..."
                         />
-                        <p className={`text-xs ${(profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
+                        <p className={`text-xs text-right ${(profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-2">
@@ -2618,7 +2621,10 @@ export default function Dashboard() {
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Confirm new password</Label>
-                        <Input type="password" value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
+                        <div className="relative">
+                            <Input type={showConfirmPw ? "text" : "password"} value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11 pr-10" />
+                            <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">{showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+                        </div>
                     </div>
                     <Button onClick={handlePasswordChange} disabled={passwordSaving || !passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword} className="w-full h-11 mt-2">
                         <KeyRound className="w-4 h-4 mr-2" />{passwordSaving ? "Updating..." : "Update Password"}
@@ -2636,6 +2642,31 @@ export default function Dashboard() {
                 ? "bg-green-500/10 text-green-700 border-green-500/30"
                 : "bg-foreground/10 text-foreground border-foreground/20";
 
+        const filteredTxns = txns.filter(t => {
+            const matchesSearch = !txnSearch || 
+                t.description.toLowerCase().includes(txnSearch.toLowerCase()) || 
+                (t.group || "").toLowerCase().includes(txnSearch.toLowerCase()) ||
+                t.typeLabel.toLowerCase().includes(txnSearch.toLowerCase());
+            
+            let matchesMonth = true;
+            if (txnMonth !== "all") {
+                const [year, month] = txnMonth.split("-");
+                if (t.createdAtIso) {
+                    const d = new Date(t.createdAtIso);
+                    matchesMonth = d.getFullYear() === parseInt(year) && (d.getMonth() + 1) === parseInt(month);
+                } else {
+                    matchesMonth = false;
+                }
+            }
+            return matchesSearch && matchesMonth;
+        });
+
+        const monthOptions = Array.from(new Set(txns.map(t => {
+            if (!t.createdAtIso) return "";
+            const d = new Date(t.createdAtIso);
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        }))).filter(Boolean).sort().reverse();
+
         return (
             <div className="max-w-6xl space-y-6 pr-2">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -2645,29 +2676,62 @@ export default function Dashboard() {
                             Payment history in a table view. Export for your records, or open a row for full plan and listing details.
                         </p>
                     </div>
-                    <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                            <Button variant="outline" size="sm" className="border-foreground/20 shrink-0" disabled={txns.length === 0}>
-                                <Download className="w-4 h-4 mr-2" />
-                                Export
-                            </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="w-52">
-                            <DropdownMenuItem onClick={() => handleExportTransactions("csv")}>
-                                <FileText className="w-4 h-4 mr-2" />
-                                Download as CSV
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleExportTransactions("xlsx")}>
-                                <FileSpreadsheet className="w-4 h-4 mr-2" />
-                                Download as Excel
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleExportTransactions("pdf")}>
-                                <FileText className="w-4 h-4 mr-2" />
-                                Download as PDF
-                            </DropdownMenuItem>
-                        </DropdownMenuContent>
-                    </DropdownMenu>
+                    <div className="flex items-center gap-2">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button variant="outline" size="sm" className="border-foreground/20 shrink-0" disabled={txns.length === 0}>
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Export
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-52">
+                                <DropdownMenuItem onClick={() => handleExportTransactions("csv")}>
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Download as CSV
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleExportTransactions("xlsx")}>
+                                    <FileSpreadsheet className="w-4 h-4 mr-2" />
+                                    Download as Excel
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => handleExportTransactions("pdf")}>
+                                    <FileText className="w-4 h-4 mr-2" />
+                                    Download as PDF
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
                 </div>
+
+                {txns.length > 0 && (
+                    <div className="flex flex-col sm:flex-row gap-4 items-center bg-foreground/[0.02] p-3 rounded-lg border border-foreground/10">
+                        <div className="relative w-full sm:w-72 shrink-0">
+                            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                            <Input
+                                placeholder="Search transactions..."
+                                value={txnSearch}
+                                onChange={(e) => setTxnSearch(e.target.value)}
+                                className="pl-9 bg-background"
+                            />
+                        </div>
+                        <Select value={txnMonth} onValueChange={setTxnMonth}>
+                            <SelectTrigger className="w-full sm:w-48 bg-background">
+                                <SelectValue placeholder="All time" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All time</SelectItem>
+                                {monthOptions.map(m => {
+                                    const [y, mo] = m.split("-");
+                                    const date = new Date(parseInt(y), parseInt(mo) - 1);
+                                    return (
+                                        <SelectItem key={m} value={m}>
+                                            {date.toLocaleString('default', { month: 'short', year: 'numeric' })}
+                                        </SelectItem>
+                                    );
+                                })}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                )}
 
                 {txns.length === 0 ? (
                     <div className="bg-foreground/5 border border-foreground/10 p-12 rounded-xl text-center">
@@ -2704,9 +2768,16 @@ export default function Dashboard() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {txns.map((txn, idx) => (
-                                        <tr
-                                            key={txn.id}
+                                    {filteredTxns.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                                                No transactions found matching your filters.
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredTxns.map((txn, idx) => (
+                                            <tr
+                                                key={txn.id}
                                             className={`border-b border-foreground/10 hover:bg-muted/40 transition-colors ${idx % 2 === 1 ? "bg-foreground/[0.02]" : ""}`}
                                         >
                                             <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 whitespace-nowrap align-top">
@@ -2750,7 +2821,8 @@ export default function Dashboard() {
                                                 </Button>
                                             </td>
                                         </tr>
-                                    ))}
+                                        ))
+                                    )}
                                 </tbody>
                             </table>
                         </div>
@@ -3398,7 +3470,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                             onChange={(e) => setAgendaHighlights(e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX))}
                                             className="bg-foreground/5 border-foreground/10 mt-1 min-h-[100px]"
                                         />
-                                        <p className="text-xs text-muted-foreground mt-1">{agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
+                                        <p className="text-xs text-right text-muted-foreground mt-1">{agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>
@@ -3440,7 +3512,8 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 </div>
                                 <div className="md:col-span-2">
                                     <Label>Event profile <span className="text-red-400">*</span></Label>
-                                    <Textarea value={eventProfile} onChange={(e) => setEventProfile(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
+                                    <Textarea value={eventProfile} onChange={(e) => setEventProfile(e.target.value.slice(0, 500))} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
+                                    <p className="text-xs text-right text-muted-foreground mt-1">{eventProfile.length}/500</p>
                                 </div>
                             </div>
                         </div>
@@ -3736,7 +3809,6 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                         </div>
                         {availableRepresentativeOptions.length > 0 && (
                             <div className="space-y-2 mb-3">
-                                <p className="text-xs text-muted-foreground">Choose from existing representatives</p>
                                 <div className="flex flex-wrap gap-2">
                                     {availableRepresentativeOptions.map((rep) => (
                                         <Button
@@ -3752,9 +3824,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 </div>
                             </div>
                         )}
-                        {representatives.length === 0 && (
-                            <p className="text-xs text-muted-foreground mb-2">Optional: Add a new representative or choose one from existing contacts.</p>
-                        )}
+
                         <div className="space-y-2.5">
                             {representatives.map((rep, index) => (
                                 <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-2">

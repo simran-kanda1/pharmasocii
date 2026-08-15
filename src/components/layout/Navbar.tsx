@@ -86,7 +86,7 @@ export default function Navbar() {
                                     <Link to="/all-categories/business">Business Offerings</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/consulting">Consulting Services</Link>
+                                    <Link to="/all-categories/consulting">Consulting</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
                                     <Link to="/all-categories/events">Events</Link>
