@@ -1,7 +1,30 @@
-import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { db } from "@/firebase";
+import { Loader2 } from "lucide-react";
+
+type FAQDoc = {
+    id: string;
+    question: string;
+    answer: string;
+    order: number;
+};
 
 export default function FAQ() {
+    const [faqs, setFaqs] = useState<FAQDoc[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const q = query(collection(db, "faqs"), orderBy("order", "asc"));
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const fetched = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as FAQDoc));
+            setFaqs(fetched);
+            setLoading(false);
+        });
+        return () => unsubscribe();
+    }, []);
+
     return (
         <div className="flex-1 bg-background py-24 relative overflow-hidden">
             <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
@@ -14,75 +37,32 @@ export default function FAQ() {
 
                 <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-150 fill-mode-both">
                     <Accordion type="single" collapsible className="w-full bg-foreground/5 p-8 md:p-12 rounded-3xl border border-foreground/10 shadow-xl backdrop-blur-sm">
-                        <AccordionItem value="open-beta" className="border-foreground/10">
-                            <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">
-                                Open Beta Statement
-                            </AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8">
-                                Pharma SocII is currently offered as an open beta. All core features are available, but the Platform may evolve as we assess performance and gather feedback. During this phase, features may be modified, suspended, or discontinued, and you may encounter occasional bugs or limitations. We appreciate your participation and input as we improve the Platform.
-                            </AccordionContent>
-                        </AccordionItem>
+                        
+                        {loading ? (
+                            <div className="flex justify-center items-center py-20">
+                                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            </div>
+                        ) : faqs.length === 0 ? (
+                            <div className="text-center py-20 text-muted-foreground">
+                                No FAQs available yet.
+                            </div>
+                        ) : (
+                            faqs.map((faq, index) => (
+                                <AccordionItem 
+                                    key={faq.id} 
+                                    value={faq.id} 
+                                    className={`border-foreground/10 ${index === faqs.length - 1 ? 'border-b-0' : ''}`}
+                                >
+                                    <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">
+                                        {faq.question}
+                                    </AccordionTrigger>
+                                    <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8 whitespace-pre-wrap">
+                                        {faq.answer}
+                                    </AccordionContent>
+                                </AccordionItem>
+                            ))
+                        )}
 
-                        <AccordionItem value="discovery" className="border-foreground/10">
-                            <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">
-                                How does partner discovery work?
-                            </AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8">
-                                Partners list businesses, experts, events, and jobs. Visitors browse{" "}
-                                <Link to="/all-categories/business" className="text-primary hover:underline">
-                                    All Categories
-                                </Link>{" "}
-                                and open a listing for full detail.
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        <AccordionItem value="list-business" className="border-foreground/10">
-                            <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">
-                                How do I list my business?
-                            </AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8">
-                                Create a partner account, complete your profile, then add listings from your partner dashboard. Once your plan and listing are active, your organization appears under the right categories in All Categories.
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        <AccordionItem value="job" className="border-foreground/10">
-                            <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">
-                                How do I post a job?
-                            </AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8">
-                                From the partner dashboard, add a job listing and upload a description PDF when prompted. Active jobs appear under Jobs in All Categories.
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        <AccordionItem value="partner" className="border-foreground/10">
-                            <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">
-                                How do I become a partner?
-                            </AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8">
-                                Choose{" "}
-                                <Link to="/signup" className="text-primary font-medium hover:underline">
-                                    Become a partner
-                                </Link>{" "}
-                                (partner registration), create your account, and pick a plan that fits your goals. Partners get listing tools, visibility options, and dashboard access.
-                            </AccordionContent>
-                        </AccordionItem>
-
-                        <AccordionItem value="industries" className="border-foreground/10 border-b-0">
-                            <AccordionTrigger className="text-left text-lg md:text-xl font-semibold hover:text-primary py-6 transition-colors">
-                                What industries are supported?
-                            </AccordionTrigger>
-                            <AccordionContent className="text-muted-foreground text-base md:text-lg leading-relaxed pb-8">
-                                We cover life sciences categories from manufacturing and CRO services to regulatory and jobs. Open{" "}
-                                <Link to="/all-categories/business" className="text-primary hover:underline">
-                                    All Categories
-                                </Link>{" "}
-                                for the full category tree. The{" "}
-                                <Link to="/community" className="text-primary hover:underline">
-                                    Community
-                                </Link>{" "}
-                                is separate from partner listings and uses a member profile after login.
-                            </AccordionContent>
-                        </AccordionItem>
                     </Accordion>
                 </div>
             </div>

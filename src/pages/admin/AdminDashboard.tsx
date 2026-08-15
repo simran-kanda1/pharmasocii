@@ -17,6 +17,7 @@ import {
   FileText,
   FileSpreadsheet,
   History,
+  HelpCircle,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -101,6 +102,7 @@ import { AdminAddCategory } from "@/components/admin/AdminAddCategory";
 import { AdminAddPlan } from "@/components/admin/AdminAddPlan";
 import { AdminAddFeaturedPlan } from "@/components/admin/AdminAddFeaturedPlan";
 import { AdminSitePoliciesPanel } from "@/components/admin/AdminSitePoliciesPanel";
+import { AdminFaqsPanel } from "@/components/admin/AdminFaqsPanel";
 import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
 import { AdminEditPlanModal } from "@/components/admin/AdminEditPlanModal";
 import { SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
@@ -123,6 +125,7 @@ type AdminTab =
   | "featuredPlans"
   | "categories"
   | "policies"
+  | "faqs"
   | "communityMembers"
   | "communityPosts"
   | "communityArchivePosts"
@@ -1917,6 +1920,7 @@ export default function AdminDashboard() {
     featuredPlans: "Featured Plans",
     categories: "Categories",
     policies: "Site Policies",
+    faqs: "FAQs",
     communityMembers: "Members",
     communityPosts: "Member posts",
     communityArchivePosts: "Archive posts",
@@ -1959,6 +1963,7 @@ export default function AdminDashboard() {
             <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
             <SidebarItem label="Site Policies" icon={ShieldCheck} active={activeTab === "policies"} onClick={() => setActiveTab("policies")} />
+            <SidebarItem label="FAQs" icon={HelpCircle} active={activeTab === "faqs"} onClick={() => setActiveTab("faqs")} />
             <p className="text-[11px] font-semibold tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
             <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
             <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
@@ -2185,6 +2190,7 @@ export default function AdminDashboard() {
           )}
 
           {activeTab === "policies" && <AdminSitePoliciesPanel />}
+          {activeTab === "faqs" && <AdminFaqsPanel />}
 
           {activeTab === "communityMembers" && <AdminMembersPanel />}
           {activeTab === "communityPosts" && <AdminMemberPostsPanel />}
