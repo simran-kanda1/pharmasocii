@@ -452,13 +452,13 @@ export default function AddListing() {
             if (p.stripeMonthlyId) {
                 options.push({
                     value: p.stripeMonthlyId,
-                    label: `${p.badge}${groupConfig.hasAnnualToggle ? " (Monthly)" : ""} - $${p.monthlyPrice.toLocaleString()}${groupConfig.hasAnnualToggle ? "" : "/mo"}`
+                    label: `${p.badge}${groupConfig.hasAnnualToggle ? " (Monthly)" : ""} - $${p.monthlyPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${groupConfig.hasAnnualToggle ? "" : "/mo"}`
                 });
             }
             if (p.stripeYearlyId && groupConfig.hasAnnualToggle) {
                 options.push({
                     value: p.stripeYearlyId,
-                    label: `${p.badge} (Annual) - $${p.yearlyTotalPrice.toLocaleString()}`
+                    label: `${p.badge} (Annual) - $${p.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 });
             }
         }
@@ -893,13 +893,13 @@ export default function AddListing() {
                     {/* ─── Plan Selection Card ─── */}
                     <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
                         <CardHeader className="border-b border-foreground/10 pb-4">
-                            <CardTitle className="text-xl">Choose your plan</CardTitle>
+                            <CardTitle className="text-xl">Choose Your Plan</CardTitle>
                             <CardDescription>Select a subscription plan for this listing</CardDescription>
                         </CardHeader>
                         <CardContent className="p-6 space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3">
-                                    <Label>Payment plan <span className="text-red-400">*</span></Label>
+                                    <Label>Payment Plan <span className="text-red-400">*</span></Label>
                                     <Select value={plan} onValueChange={val => {
                                         setPlan(val);
                                         setSelectedCategories([]); setSelectedSubcategories([]); setSelectedSubSubcategories([]);
@@ -940,20 +940,12 @@ export default function AddListing() {
                         <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
                             <CardHeader className="border-b border-foreground/10 pb-4">
                                 <CardTitle className="text-xl">
-                                    {dbGroup === "business_offerings" ? "Business details" :
-                                        dbGroup === "consulting" ? "Service details" :
-                                            dbGroup === "events" ? "Event details" : "Job details"}
+                                    {dbGroup === "business_offerings" ? "Business Details" :
+                                        dbGroup === "consulting" ? "Service Details" :
+                                            dbGroup === "events" ? "Event Details" : "Job Details"}
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="p-6 space-y-6">
-
-                                {(dbGroup === "business_offerings" || dbGroup === "consulting") && (
-                                    <div className="p-4 border border-foreground/10 rounded-lg bg-foreground/5 space-y-1">
-                                        <Label className="text-muted-foreground">Listing Title (Inherited from your Company name)</Label>
-                                        <p className="text-sm font-semibold text-foreground">{companyName || "Unnamed Business"}</p>
-                                        <p className="text-xs text-muted-foreground">This listing will be published under your company name and will display exactly as typed (original capitalization preserved). You can edit this in your Profile settings on the Dashboard.</p>
-                                    </div>
-                                )}
 
                                 {/* BUSINESS OFFERINGS */}
                                 {dbGroup === "business_offerings" && (
@@ -987,7 +979,7 @@ export default function AddListing() {
                                         </div>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
-                                                <Label>Service region(s)</Label>
+                                                <Label>Service Region(s)</Label>
                                                 <MultiSelectDropdown label="service regions" items={SERVICE_REGIONS} selected={selectedRegions} onToggle={toggleRegion} open={showRegionsDropdown}
                                                     onToggleOpen={() => {
                                                         if (!canUseRegionHelper) return;
@@ -999,7 +991,7 @@ export default function AddListing() {
                                             </div>
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                 <Label>
-                                                    Service country(ies) <span className="text-red-400">*</span> :
+                                                    Service Country(ies) <span className="text-red-400">*</span> :
                                                     <span className="ml-2 text-sm font-normal text-muted-foreground">
                                                         Selected {selectedCountries.length} of {currentLimits.maxCountries === -1 ? "Unlimited" : currentLimits.maxCountries}
                                                     </span>
@@ -1044,16 +1036,16 @@ export default function AddListing() {
                                 {dbGroup === "events" && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Event name <span className="text-red-400">*</span></Label>
+                                            <Label>Event Name <span className="text-red-400">*</span></Label>
                                             <Input value={eventData.eventName} onChange={e => setEventData(prev => ({ ...prev, eventName: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Event link <span className="text-red-400">*</span></Label>
+                                            <Label>Event Link <span className="text-red-400">*</span></Label>
                                             <Input type="url" placeholder="https://" value={eventData.eventLink} onChange={e => setEventData(prev => ({ ...prev, eventLink: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Start date <span className="text-red-400">*</span></Label>
+                                            <Label>Start Date <span className="text-red-400">*</span></Label>
                                             <Input
                                                 type="date"
                                                 value={eventData.startDate}
@@ -1071,7 +1063,7 @@ export default function AddListing() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>{plan === "basic_event" ? "Event date" : "End date"} <span className="text-red-400">*</span></Label>
+                                            <Label>{plan === "basic_event" ? "Event Date" : "End Date"} <span className="text-red-400">*</span></Label>
                                             <Input
                                                 type="date"
                                                 value={eventData.endDate}
@@ -1103,17 +1095,17 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>State/Province/Region <span className="text-red-400">*</span></Label>
+                                            <Label>State / Province / Region <span className="text-red-400">*</span></Label>
                                             <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>City/Town <span className="text-red-400">*</span></Label>
+                                            <Label>City / Town <span className="text-red-400">*</span></Label>
                                             <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                 <div className="space-y-2">
-                                                    <Label>Agenda highlights <span className="text-red-400">*</span> </Label>
+                                                    <Label>Agenda Highlights <span className="text-red-400">*</span> </Label>
                                                     <Textarea
                                                         value={eventData.agendaHighlights}
                                                         onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX) }))}
@@ -1124,7 +1116,7 @@ export default function AddListing() {
                                                     <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>
+                                                    <Label>Full Agenda (PDF) <span className="text-red-400">*</span></Label>
                                                     {!eventAgendaPdfFile && !eventData.agendaPdfUrl && (
                                                             <Input
                                                                 type="file"
@@ -1161,7 +1153,7 @@ export default function AddListing() {
                                             </div>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Event profile <span className="text-red-400">*</span></Label>
+                                            <Label>Event Profile <span className="text-red-400">*</span></Label>
                                             <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value.slice(0, 500) }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
                                             <p className="text-xs text-right text-muted-foreground mt-1">{eventData.eventProfile.length}/500</p>
                                         </div>
@@ -1172,17 +1164,17 @@ export default function AddListing() {
                                 {dbGroup === "jobs" && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Job title <span className="text-red-400">*</span></Label>
+                                            <Label>Job Title <span className="text-red-400">*</span></Label>
                                             <Input value={jobData.jobTitle} onChange={e => setJobData(prev => ({ ...prev, jobTitle: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                             <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Job summary <span className="text-red-400">*</span></Label>
+                                            <Label>Job Summary <span className="text-red-400">*</span></Label>
                                             <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" />
                                             <p className={`text-xs text-right ${jobData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobData.jobSummary.length}/500</p>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
+                                            <Label>Full Job Description (PDF) <span className="text-red-400">*</span></Label>
                                             {!jobPdfFile && !jobData.jobDescriptionPdfUrl && (
                                                     <Input
                                                         type="file"
@@ -1228,7 +1220,7 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Job type <span className="text-red-400">*</span></Label>
+                                            <Label>Job Type <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select job type" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10">
@@ -1239,7 +1231,7 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Experience level <span className="text-red-400">*</span></Label>
+                                            <Label>Experience Level <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select experience level" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10">
@@ -1250,7 +1242,7 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Work model <span className="text-red-400">*</span></Label>
+                                            <Label>Work Model <span className="text-red-400">*</span></Label>
                                             <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select work model" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10">
@@ -1272,11 +1264,11 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Application deadline</Label>
+                                            <Label>Application Deadline</Label>
                                             <Input type="date" value={jobData.applicationDeadline} onChange={e => setJobData(prev => ({ ...prev, applicationDeadline: e.target.value }))} className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Position link (Apply) <span className="text-red-400">*</span></Label>
+                                            <Label>Position Link (Apply) <span className="text-red-400">*</span></Label>
                                             <Input type="url" placeholder="https://" value={jobData.positionLink} onChange={e => setJobData(prev => ({ ...prev, positionLink: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
@@ -1289,19 +1281,19 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>State/Province/Region <span className="text-red-400">*</span></Label>
+                                            <Label>State / Province / Region <span className="text-red-400">*</span></Label>
                                             <Input value={jobData.stateRegion} onChange={e => setJobData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>City/Town <span className="text-red-400">*</span></Label>
+                                            <Label>City / Town <span className="text-red-400">*</span></Label>
                                             <Input value={jobData.city} onChange={e => setJobData(prev => ({ ...prev, city: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Location (display line)</Label>
+                                            <Label>Location (Display Line)</Label>
                                             <Input placeholder="Optional combined location text" value={jobData.location} onChange={e => setJobData(prev => ({ ...prev, location: e.target.value }))} className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Company website link</Label>
+                                            <Label>Company Website Link</Label>
                                             <Input type="url" value={jobData.companyWebsiteLink} onChange={e => setJobData(prev => ({ ...prev, companyWebsiteLink: e.target.value }))} className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
@@ -1326,45 +1318,12 @@ export default function AddListing() {
                                     <div className="max-h-[500px] overflow-y-auto border border-foreground/10 rounded-xl bg-background p-4 space-y-0.5 custom-scrollbar">
                                         {renderCategoryTree()}
                                     </div>
-                                    {(selectedCategories.length > 0 || selectedSubcategories.length > 0 || selectedSubSubcategories.length > 0) && (
-                                        <div className="mt-4 flex flex-wrap gap-2">
-                                            {selectedCategories.map(c => (
-                                                <span key={c} onClick={() => toggleCategorySelection(c, false)} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/10 text-green-600 dark:text-green-400 text-xs rounded-full border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors">
-                                                    {c} <X className="w-3 h-3" />
-                                                </span>
-                                            ))}
-                                            {selectedSubcategories.map(s => {
-                                                const parts = s.split(" > ");
-                                                const leaf = parts[parts.length - 1];
-                                                return (
-                                                    <span key={s} onClick={() => {
-                                                        if (parts.length >= 2) toggleSubcategorySelection(parts[0], parts[1], false);
-                                                        else toggleSubcategorySelection("", s, false);
-                                                    }} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/10 text-green-600 dark:text-green-400 text-xs rounded-full border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors">
-                                                        {leaf} <X className="w-3 h-3" />
-                                                    </span>
-                                                );
-                                            })}
-                                            {selectedSubSubcategories.map(ss => {
-                                                const parts = ss.split(" > ");
-                                                const leaf = parts[parts.length - 1];
-                                                return (
-                                                    <span key={ss} onClick={() => {
-                                                        if (parts.length >= 3) toggleSubSubcategorySelection(parts[0], parts[1], parts[2]);
-                                                        else toggleSubSubcategorySelection("", "", ss);
-                                                    }} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 text-primary text-xs rounded-full border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors">
-                                                        {leaf} <X className="w-3 h-3" />
-                                                    </span>
-                                                );
-                                            })}
-                                        </div>
-                                    )}
                                 </div>
 
                                 <div className="pt-6 border-t border-foreground/10 space-y-4">
                                     <div className="flex items-center justify-between">
-                                        <Label className="text-base font-semibold">Company representative(s)</Label>
-                                        <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
+                                        <Label className="text-base font-semibold">Company Representative(s)</Label>
+                                        <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add Representative</Button>
                                     </div>
                                     {availableRepresentatives.length > 0 && (
                                         <div className="space-y-2">
@@ -1390,13 +1349,13 @@ export default function AddListing() {
                                                 <Input
                                                     value={rep.firstName}
                                                     onChange={(e) => updateRepresentative(index, "firstName", e.target.value)}
-                                                    placeholder="First name"
+                                                    placeholder="First Name"
                                                     className="bg-muted/40 border-foreground/10"
                                                 />
                                                 <Input
                                                     value={rep.lastName}
                                                     onChange={(e) => updateRepresentative(index, "lastName", e.target.value)}
-                                                    placeholder="Last name"
+                                                    placeholder="Last Name"
                                                     className="bg-muted/40 border-foreground/10"
                                                 />
                                                 <div className="flex gap-2">

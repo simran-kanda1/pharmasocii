@@ -14,6 +14,7 @@ import {
     downloadPartnerTransactionsCsv,
     downloadPartnerTransactionsExcel,
     downloadPartnerTransactionsPdf,
+    downloadSingleTransactionInvoicePdf,
 } from "@/lib/transactionExport";
 import { normalizeServiceCountriesToArray } from "@/lib/utils";
 import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
@@ -157,11 +158,6 @@ const FEATURE_PLANS = [
     { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,000.00", icon: Sparkles },
 ];
 
-const FEATURE_PRICE_CENTS: Record<string, number> = {
-    landing_page: 40000,
-    home_page: 80000,
-    both: 100000,
-};
 
 const FEATURE_SPOTLIGHT_TIER: Record<string, number> = {
     landing_page: 1,
@@ -296,17 +292,6 @@ const getFeaturePurchaseTargets = (planId?: string | null, listing?: any): strin
     return getFeatureUpgradeTargets(getSpotlightAddonTierId(listing), planId, listing);
 };
 
-const formatFeatureUpgradeDelta = (fromId: string, toId: string, planId?: string | null): string => {
-    const effectiveFromTier = Math.max(
-        spotlightTierFromId(fromId),
-        spotlightTierFromId(planId ? PLAN_CONFIGS[planId]?.featurePlan : null),
-    );
-    const effectiveFromId = spotlightIdFromTier(effectiveFromTier) || fromId;
-    const from = FEATURE_PRICE_CENTS[effectiveFromId];
-    const to = FEATURE_PRICE_CENTS[toId];
-    if (from == null || to == null) return "";
-    return `+$${((to - from) / 100).toFixed(2)} today`;
-};
 
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
 const AGENDA_HIGHLIGHTS_MAX = 500;
@@ -478,6 +463,7 @@ export default function Dashboard() {
     const [profileMsg, setProfileMsg] = useState("");
     /** Required when changing login email (Firebase recent-auth / re-auth). */
     const [profileEmailReauthPassword, setProfileEmailReauthPassword] = useState("");
+    const [showReauthPw, setShowReauthPw] = useState(false);
     
     // Logo upload state
     const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
@@ -1775,15 +1761,18 @@ export default function Dashboard() {
                                                         </div>
                                                         <div className="text-right shrink-0">
                                                             {inUpgradeMode && isValidUpgradeChoice && globalModalAddonTier ? (
-                                                                <p className="text-lg font-bold text-primary">
-                                                                    {formatFeatureUpgradeDelta(
-                                                                        globalModalAddonTier,
-                                                                        fp.id,
-                                                                        liveListingPlanForFeatures?.planId,
-                                                                    )}
-                                                                </p>
+                                                                <>
+                                                                    <p className="text-lg font-bold text-foreground">
+                                                                        {fp.price}<span className="text-sm font-normal text-muted-foreground">/month</span>
+                                                                    </p>
+                                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                                        Prorated charge at checkout
+                                                                    </p>
+                                                                </>
                                                             ) : (
-                                                                <p className="text-lg font-bold text-foreground">{fp.price}</p>
+                                                                <p className="text-lg font-bold text-foreground">
+                                                                    {fp.price}<span className="text-sm font-normal text-muted-foreground">/month</span>
+                                                                </p>
                                                             )}
                                                         </div>
                                                     </div>
@@ -1795,7 +1784,7 @@ export default function Dashboard() {
                                         <Button variant="ghost" onClick={() => { setShowFeatureModal(false); setSelectedFeaturePlan(""); }}>Cancel</Button>
                                         <Button disabled={!selectedFeaturePlan || featureProcessing} onClick={handlePurchaseFeature} className="px-8 flex items-center">
                                             <CreditCard className="w-4 h-4 mr-2" />
-                                            {featureProcessing ? "Processing..." : globalModalUpgradeTargets.length > 0 ? "Continue to payment" : "Purchase Feature Plan"}
+                                            {featureProcessing ? "Processing..." : globalModalUpgradeTargets.length > 0 ? "Continue to Payment" : "Purchase Feature Plan"}
                                         </Button>
                                     </div>
                                 </>
@@ -2439,11 +2428,11 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">First name <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">First Name <span className="text-red-400">*</span></Label>
                         <Input value={profileForm.firstName} onChange={e => setProfileForm({ ...profileForm, firstName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Last name <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Last Name <span className="text-red-400">*</span></Label>
                         <Input value={profileForm.lastName} onChange={e => setProfileForm({ ...profileForm, lastName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
                     <div className="space-y-2 md:col-span-2">
@@ -2451,16 +2440,25 @@ export default function Dashboard() {
                         <Input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                         {(profileForm.email || "").trim() !== (auth.currentUser?.email || "") && (
                             <div className="mt-3 space-y-2 rounded-lg border border-foreground/10 bg-muted/30 p-3">
-                                <Label className="text-foreground/80 text-sm">Current password (required to change email)</Label>
-                                <Input
-                                    type="password"
-                                    autoComplete="current-password"
-                                    value={profileEmailReauthPassword}
-                                    onChange={(e) => setProfileEmailReauthPassword(e.target.value)}
-                                    className="bg-foreground/5 border-foreground/10 h-11"
-                                    placeholder="Enter your login password"
-                                />
-
+                                <Label className="text-foreground/80 text-sm">Current Password (Required to Change Email)</Label>
+                                <div className="relative">
+                                    <Input
+                                        type={showReauthPw ? "text" : "password"}
+                                        autoComplete="current-password"
+                                        value={profileEmailReauthPassword}
+                                        onChange={(e) => setProfileEmailReauthPassword(e.target.value)}
+                                        className="bg-foreground/5 border-foreground/10 h-11 pr-10"
+                                        placeholder="Enter your login password"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowReauthPw(!showReauthPw)}
+                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                                        aria-label={showReauthPw ? "Hide password" : "Show password"}
+                                    >
+                                        {showReauthPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>
@@ -2472,35 +2470,35 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-foreground/10">
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Alternate contact first & last name <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Alternate Contact First & Last Name <span className="text-red-400">*</span></Label>
                         <Input value={profileForm.altName} onChange={e => setProfileForm({ ...profileForm, altName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Alternate email address <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Alternate Email Address <span className="text-red-400">*</span></Label>
                         <Input value={profileForm.altEmail} onChange={e => setProfileForm({ ...profileForm, altEmail: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-foreground/10">
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Company name <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Company Name <span className="text-red-400">*</span></Label>
                         <Input value={profileForm.companyName} onChange={e => setProfileForm({ ...profileForm, companyName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                         <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Company website <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Company Website <span className="text-red-400">*</span></Label>
                         <Input value={profileForm.companyWebsite} onChange={e => setProfileForm({ ...profileForm, companyWebsite: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" placeholder="https://" />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Business phone <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Business Phone <span className="text-red-400">*</span></Label>
                         <PhoneInput defaultCountry="US" value={toPhoneInputValue(profileForm.businessPhone) || undefined} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, businessPhone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Linkedin profile</Label>
+                        <Label className="text-foreground/80">LinkedIn Profile</Label>
                         <Input value={profileForm.linkedin} onChange={e => setProfileForm({ ...profileForm, linkedin: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" placeholder="https://linkedin.com/company/..." />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Billing / finance email</Label>
+                        <Label className="text-foreground/80">Billing / Finance Email Address</Label>
                         <Input type="email" value={profileForm.billingEmail} onChange={e => setProfileForm({ ...profileForm, billingEmail: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
                     <div className="space-y-2">
@@ -2510,38 +2508,70 @@ export default function Dashboard() {
                 </div>
 
                 <div className="pt-2 border-t border-foreground/10">
-                    <Label className="text-foreground/80 mb-3 block">Company logo</Label>
+                    <Label className="text-foreground/80 mb-3 block">Logo</Label>
                     <div className="flex items-center gap-4">
-                        <div className="h-16 w-16 flex-shrink-0 bg-foreground/5 rounded-lg border border-dashed border-foreground/20 flex items-center justify-center text-muted-foreground overflow-hidden">
+                        <div className="relative h-16 w-16 flex-shrink-0 bg-foreground/5 rounded-lg border border-dashed border-foreground/20 flex items-center justify-center text-muted-foreground overflow-hidden">
                             {companyLogoPreview || profileForm.companyLogoUrl ? (
-                                <img src={companyLogoPreview || profileForm.companyLogoUrl} alt="Company Logo" className="w-full h-full object-cover" />
+                                <>
+                                    <img src={companyLogoPreview || profileForm.companyLogoUrl} alt="Logo" className="w-full h-full object-cover" />
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setCompanyLogoFile(null);
+                                            setCompanyLogoPreview("");
+                                            setProfileForm((prev: any) => ({ ...prev, companyLogoUrl: "" }));
+                                        }}
+                                        className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 shadow hover:bg-destructive/90"
+                                        title="Remove logo"
+                                    >
+                                        <X className="w-3 h-3" />
+                                    </button>
+                                </>
                             ) : (
                                 <UploadCloud className="h-5 w-5" />
                             )}
                         </div>
                         <div className="flex-1">
-                            <Input 
-                                type="file" 
-                                className="bg-foreground/5 border-foreground/10 text-sm h-10 pt-2 cursor-pointer" 
-                                accept="image/jpeg, image/png, image/jpg" 
-                                onChange={(e) => {
-                                    const file = e.target.files?.[0];
-                                    if (file) {
-                                        const err = validateCompanyLogo(file);
-                                        if (err) {
-                                            setCompanyLogoError(err);
-                                            e.target.value = '';
-                                            return;
+                            <div className="flex items-center gap-2">
+                                <Input 
+                                    type="file" 
+                                    className="bg-foreground/5 border-foreground/10 text-sm h-10 pt-2 cursor-pointer" 
+                                    accept="image/jpeg, image/png, image/jpg" 
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                            const err = validateCompanyLogo(file);
+                                            if (err) {
+                                                setCompanyLogoError(err);
+                                                e.target.value = '';
+                                                return;
+                                            }
+                                            setCompanyLogoFile(file);
+                                            setCompanyLogoPreview(URL.createObjectURL(file));
+                                            setCompanyLogoError("");
+                                        } else {
+                                            setCompanyLogoFile(null);
+                                            setCompanyLogoPreview("");
                                         }
-                                        setCompanyLogoFile(file);
-                                        setCompanyLogoPreview(URL.createObjectURL(file));
-                                        setCompanyLogoError("");
-                                    } else {
-                                        setCompanyLogoFile(null);
-                                        setCompanyLogoPreview("");
-                                    }
-                                }}
-                            />
+                                    }}
+                                />
+                                {(companyLogoFile || companyLogoPreview || profileForm.companyLogoUrl) && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={() => {
+                                            setCompanyLogoFile(null);
+                                            setCompanyLogoPreview("");
+                                            setProfileForm((prev: any) => ({ ...prev, companyLogoUrl: "" }));
+                                        }}
+                                        className="h-10 px-2.5 text-muted-foreground hover:text-destructive shrink-0"
+                                        title="Remove logo"
+                                    >
+                                        <X className="w-4 h-4 mr-1" /> Remove
+                                    </Button>
+                                )}
+                            </div>
                             <p className="text-xs text-muted-foreground mt-1.5">Formats: JPG, JPEG, PNG | Max size: 2MB</p>
                             {companyLogoError && <p className="text-xs text-red-500 mt-1">{companyLogoError}</p>}
                         </div>
@@ -2550,7 +2580,7 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-foreground/10">
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Company profile <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Company Profile <span className="text-red-400">*</span></Label>
                         <Textarea
                             value={profileForm.companyProfile}
                             onChange={e => setProfileForm({ ...profileForm, companyProfile: e.target.value.slice(0, COMPANY_PROFILE_MAX_LENGTH) })}
@@ -2561,7 +2591,7 @@ export default function Dashboard() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-2">
-                            <Label className="text-foreground/80">Business headquarters (Country) <span className="text-red-400">*</span></Label>
+                            <Label className="text-foreground/80">Business Headquarters (Country) <span className="text-red-400">*</span></Label>
                             <Select value={profileForm.businessCountry} onValueChange={(val) => setProfileForm({ ...profileForm, businessCountry: val })}>
                                 <SelectTrigger className="w-full bg-foreground/5 border-foreground/10 h-10 text-sm">
                                     <SelectValue placeholder="Select country" />
@@ -2574,7 +2604,7 @@ export default function Dashboard() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-foreground/80">Full business address <span className="text-red-400">*</span></Label>
+                            <Label className="text-foreground/80">Full Business Address <span className="text-red-400">*</span></Label>
                             <Textarea
                                 value={profileForm.businessAddress}
                                 onChange={e => setProfileForm({ ...profileForm, businessAddress: e.target.value })}
@@ -2600,14 +2630,14 @@ export default function Dashboard() {
                 )}
                 <div className="space-y-5">
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Current password</Label>
+                        <Label className="text-foreground/80">Current Password</Label>
                         <div className="relative">
                             <Input type={showCurrentPw ? "text" : "password"} value={passwordForm.currentPassword} onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11 pr-10" />
                             <button type="button" onClick={() => setShowCurrentPw(!showCurrentPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">{showCurrentPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                         </div>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">New password</Label>
+                        <Label className="text-foreground/80">New Password</Label>
                         <div className="relative">
                             <Input type={showNewPw ? "text" : "password"} value={passwordForm.newPassword} onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11 pr-10" />
                             <button type="button" onClick={() => setShowNewPw(!showNewPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">{showNewPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
@@ -2620,7 +2650,7 @@ export default function Dashboard() {
                         </ul>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Confirm new password</Label>
+                        <Label className="text-foreground/80">Confirm New Password</Label>
                         <div className="relative">
                             <Input type={showConfirmPw ? "text" : "password"} value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11 pr-10" />
                             <button type="button" onClick={() => setShowConfirmPw(!showConfirmPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">{showConfirmPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
@@ -2741,7 +2771,7 @@ export default function Dashboard() {
                 ) : (
                     <div className="rounded-lg border border-foreground/15 bg-foreground/[0.02] overflow-hidden shadow-sm">
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm border-collapse min-w-[720px]">
+                            <table className="w-full text-sm border-collapse min-w-[780px]">
                                 <thead>
                                     <tr className="bg-muted/60 border-b border-foreground/15">
                                         <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
@@ -2756,13 +2786,16 @@ export default function Dashboard() {
                                         <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Group
                                         </th>
+                                        <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
+                                            Upgrade For
+                                        </th>
                                         <th className="text-right font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Amount
                                         </th>
                                         <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Status
                                         </th>
-                                        <th className="text-center font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 whitespace-nowrap w-[100px]">
+                                        <th className="text-center font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 whitespace-nowrap w-[150px]">
                                             Details
                                         </th>
                                     </tr>
@@ -2770,7 +2803,7 @@ export default function Dashboard() {
                                 <tbody>
                                     {filteredTxns.length === 0 ? (
                                         <tr>
-                                            <td colSpan={7} className="text-center py-8 text-muted-foreground">
+                                            <td colSpan={8} className="text-center py-8 text-muted-foreground">
                                                 No transactions found matching your filters.
                                             </td>
                                         </tr>
@@ -2778,49 +2811,67 @@ export default function Dashboard() {
                                         filteredTxns.map((txn, idx) => (
                                             <tr
                                                 key={txn.id}
-                                            className={`border-b border-foreground/10 hover:bg-muted/40 transition-colors ${idx % 2 === 1 ? "bg-foreground/[0.02]" : ""}`}
-                                        >
-                                            <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 whitespace-nowrap align-top">
-                                                {txn.dateDisplay}
-                                            </td>
-                                            <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 whitespace-nowrap align-top">
-                                                {txn.typeLabel}
-                                            </td>
-                                            <td className="px-3 py-2 border-r border-foreground/10 text-foreground align-top max-w-[280px]">
-                                                <span className="line-clamp-2" title={txn.description}>
-                                                    {txn.description}
-                                                </span>
-                                            </td>
-                                            <td className="px-3 py-2 border-r border-foreground/10 text-muted-foreground capitalize align-top whitespace-nowrap">
-                                                {txn.group || "—"}
-                                            </td>
-                                            <td className="px-3 py-2 border-r border-foreground/10 text-right font-semibold tabular-nums text-foreground align-top whitespace-nowrap">
-                                                {txn.amountDisplay}
-                                            </td>
-                                            <td className="px-3 py-2 border-r border-foreground/10 align-top whitespace-nowrap">
-                                                <Badge
-                                                    className={
-                                                        txn.statusRaw === "succeeded"
-                                                            ? "bg-green-500/10 text-green-700 border-green-500/30 font-medium"
-                                                            : "bg-amber-500/10 text-amber-800 border-amber-500/30 font-medium"
-                                                    }
-                                                >
+                                                className={`border-b border-foreground/10 hover:bg-muted/40 transition-colors ${idx % 2 === 1 ? "bg-foreground/[0.02]" : ""}`}
+                                            >
+                                                <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 whitespace-nowrap align-top">
+                                                    {txn.dateDisplay}
+                                                </td>
+                                                <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 whitespace-nowrap align-top">
+                                                    {txn.typeLabel}
+                                                </td>
+                                                <td className="px-3 py-2 border-r border-foreground/10 text-foreground align-top max-w-[220px]">
+                                                    <span className="line-clamp-2" title={txn.description}>
+                                                        {txn.description}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2 border-r border-foreground/10 text-muted-foreground capitalize align-top whitespace-nowrap">
+                                                    {txn.group || "—"}
+                                                </td>
+                                                <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 align-top max-w-[180px]">
+                                                    <span className="line-clamp-1 text-xs" title={txn.upgradeFor || txn.targetTitle || "—"}>
+                                                        {txn.upgradeFor || txn.targetTitle || "—"}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2 border-r border-foreground/10 text-right font-semibold tabular-nums text-foreground align-top whitespace-nowrap">
+                                                    {txn.amountDisplay}
+                                                </td>
+                                                <td className="px-3 py-2 border-r border-foreground/10 align-top whitespace-nowrap text-foreground/90 font-medium">
                                                     {txn.statusLabel}
-                                                </Badge>
-                                            </td>
-                                            <td className="px-2 py-1.5 text-center align-top">
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    className="h-8 text-primary hover:text-primary hover:bg-primary/10"
-                                                    onClick={() => setTransactionDetailRow(txn)}
-                                                >
-                                                    <Info className="w-4 h-4 mr-1" />
-                                                    View
-                                                </Button>
-                                            </td>
-                                        </tr>
+                                                </td>
+                                                <td className="px-2 py-1.5 text-center align-top whitespace-nowrap">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 px-2 text-primary hover:text-primary hover:bg-primary/10"
+                                                            onClick={() => setTransactionDetailRow(txn)}
+                                                            title="View Details"
+                                                        >
+                                                            <Info className="w-4 h-4 mr-1" />
+                                                            View
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 px-2 text-foreground/80 hover:text-foreground hover:bg-foreground/10"
+                                                            onClick={() =>
+                                                                downloadSingleTransactionInvoicePdf(txn, {
+                                                                    companyName: profileForm?.companyName || partnerData?.businessName || txn.businessName || "",
+                                                                    email: partnerData?.email || auth.currentUser?.email || txn.customerEmail || "",
+                                                                    businessId: profileForm?.businessId || partnerData?.VAT_ABN_EIN_businessId || txn.taxId || "",
+                                                                    VAT_ABN_EIN_businessId: partnerData?.VAT_ABN_EIN_businessId || profileForm?.businessId || txn.taxId || "",
+                                                                })
+                                                            }
+                                                            title="Download Invoice PDF"
+                                                        >
+                                                            <Download className="w-3.5 h-3.5 mr-1" />
+                                                            Invoice
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
                                         ))
                                     )}
                                 </tbody>
@@ -2841,7 +2892,7 @@ export default function Dashboard() {
                                 <div>
                                     <h2 id="txn-detail-title" className="text-lg font-bold text-foreground flex items-center gap-2">
                                         <CreditCard className="w-5 h-5 text-primary shrink-0" />
-                                        Transaction details
+                                        Invoice & Transaction Details
                                     </h2>
                                     <p className="text-xs text-muted-foreground mt-1">{detail.dateDisplay} · {detail.paymentMethod}</p>
                                 </div>
@@ -2863,21 +2914,63 @@ export default function Dashboard() {
                                 </div>
                                 <dl className="space-y-3 border-t border-foreground/10 pt-4">
                                     <div>
-                                        <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Description</dt>
-                                        <dd className="text-foreground mt-0.5">{detail.description}</dd>
+                                        <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Business Name</dt>
+                                        <dd className="text-foreground mt-0.5 font-medium">{detail.businessName || partnerData?.businessName || profileForm?.companyName || "—"}</dd>
                                     </div>
-                                    {detail.businessName && (
+                                    <div>
+                                        <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Group</dt>
+                                        <dd className="text-foreground mt-0.5 capitalize">{detail.group || "—"}</dd>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Plan Description</dt>
+                                        <dd className="text-foreground mt-0.5 font-medium">{detail.description}</dd>
+                                    </div>
+                                    {(detail.upgradeFor || detail.targetTitle) && (
                                         <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Business</dt>
-                                            <dd className="text-foreground mt-0.5">{detail.businessName}</dd>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Upgrade / Item For</dt>
+                                            <dd className="text-foreground mt-0.5 font-medium">{detail.upgradeFor || detail.targetTitle}</dd>
                                         </div>
                                     )}
-                                    {detail.group && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Group</dt>
-                                            <dd className="text-foreground mt-0.5 capitalize">{detail.group}</dd>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Invoice Number</dt>
+                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">
+                                                {detail.invoiceId || (detail.sessionId ? `INV-${detail.sessionId.slice(-8).toUpperCase()}` : `INV-${detail.id.slice(0, 8).toUpperCase()}`)}
+                                            </dd>
                                         </div>
-                                    )}
+                                        <div>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Invoice Date</dt>
+                                            <dd className="text-foreground mt-0.5 text-xs">{detail.dateDisplay}</dd>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                        <div>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Customer Email</dt>
+                                            <dd className="text-foreground mt-0.5 break-all text-xs">{detail.customerEmail || partnerData?.email || auth.currentUser?.email || "—"}</dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">VAT / Business / Tax ID</dt>
+                                            <dd className="text-foreground mt-0.5 text-xs font-mono">{detail.taxId || partnerData?.VAT_ABN_EIN_businessId || profileForm?.businessId || "—"}</dd>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-muted/40 p-3 rounded-lg border border-foreground/10">
+                                        <div>
+                                            <dt className="text-xs font-medium text-muted-foreground">Subtotal</dt>
+                                            <dd className="text-foreground font-semibold mt-0.5">{detail.subtotalDisplay} {detail.currency}</dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-xs font-medium text-muted-foreground">Taxes (if appl.)</dt>
+                                            <dd className="text-foreground font-semibold mt-0.5">{detail.taxAmountDisplay} {detail.currency}</dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-xs font-medium text-muted-foreground">Total</dt>
+                                            <dd className="text-foreground font-bold mt-0.5 text-primary">{detail.amountDisplay} {detail.currency}</dd>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Payment Method</dt>
+                                        <dd className="text-foreground mt-0.5 text-xs">{detail.paymentMethod}</dd>
+                                    </div>
                                     {detail.planId && (
                                         <div>
                                             <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Plan ID</dt>
@@ -2892,7 +2985,7 @@ export default function Dashboard() {
                                     )}
                                     {(detail.listingId || detail.collectionName) && (
                                         <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Listing</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Listing Reference</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">
                                                 {detail.collectionName && <span>{detail.collectionName}</span>}
                                                 {detail.collectionName && detail.listingId && " / "}
@@ -2903,26 +2996,14 @@ export default function Dashboard() {
                                     )}
                                     {detail.sessionId && (
                                         <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Session ID</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Stripe Session ID</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.sessionId}</dd>
-                                        </div>
-                                    )}
-                                    {detail.invoiceId && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Invoice ID</dt>
-                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.invoiceId}</dd>
                                         </div>
                                     )}
                                     {detail.stripeSubscriptionId && (
                                         <div>
                                             <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Subscription ID</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.stripeSubscriptionId}</dd>
-                                        </div>
-                                    )}
-                                    {detail.customerEmail && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Customer Email</dt>
-                                            <dd className="text-foreground mt-0.5 break-all">{detail.customerEmail}</dd>
                                         </div>
                                     )}
                                     {detail.selectedCategories.length > 0 && (
@@ -2968,7 +3049,7 @@ export default function Dashboard() {
                                                     <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Countries</dt>
                                                     <dd className="flex flex-wrap gap-1.5">
                                                         {detail.serviceCountries.map((c, i) => (
-                                                            <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">
+                                                             <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">
                                                                 {c}
                                                             </Badge>
                                                         ))}
@@ -2986,7 +3067,24 @@ export default function Dashboard() {
 
                                 </dl>
                             </div>
-                            <div className="px-5 py-3 border-t border-foreground/10 flex justify-end bg-muted/30">
+                            <div className="px-5 py-3 border-t border-foreground/10 flex items-center justify-between bg-muted/30">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() =>
+                                        downloadSingleTransactionInvoicePdf(detail, {
+                                            companyName: profileForm?.companyName || partnerData?.businessName || detail.businessName || "",
+                                            email: partnerData?.email || auth.currentUser?.email || detail.customerEmail || "",
+                                            businessId: profileForm?.businessId || partnerData?.VAT_ABN_EIN_businessId || detail.taxId || "",
+                                            VAT_ABN_EIN_businessId: partnerData?.VAT_ABN_EIN_businessId || profileForm?.businessId || detail.taxId || "",
+                                        })
+                                    }
+                                    className="border-foreground/20 text-foreground/80 hover:text-foreground"
+                                >
+                                    <Download className="w-4 h-4 mr-2" />
+                                    Download Invoice (PDF)
+                                </Button>
                                 <Button type="button" variant="secondary" onClick={() => setTransactionDetailRow(null)}>
                                     Close
                                 </Button>
@@ -3225,6 +3323,20 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
             const isExpanded = expandedCategories.includes(cat);
             const isParentSelected = selectedCategories.includes(cat);
 
+            const isAnySubSelected = hasSubs && subs.some((entry) => {
+                const subLabel = getSubLabel(entry);
+                const isNested = isBusinessGroup && hasSubSub(entry);
+                const compositeSubKey = `${cat} > ${subLabel}`;
+                if (selectedSubcategories.includes(compositeSubKey) || selectedSubcategories.includes(subLabel)) return true;
+                if (isNested && entry.subSubcategories) {
+                    return entry.subSubcategories.some((ss) => {
+                        const compositeSsKey = `${cat} > ${subLabel} > ${ss}`;
+                        return selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ss);
+                    });
+                }
+                return false;
+            });
+
             return (
                 <div key={cat} className="flex flex-col">
                     <div className="flex items-start gap-2 py-1">
@@ -3236,10 +3348,10 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                         <div className="flex items-center gap-2">
                             <Checkbox
                                 id={`edit-cat-${cat}`}
-                                checked={hasSubs ? isExpanded : isParentSelected}
+                                checked={hasSubs ? isAnySubSelected : isParentSelected}
                                 onCheckedChange={() => toggleCategorySelection(cat, hasSubs)}
                                 disabled={!hasSubs && !isParentSelected && isCategoryLimitReached}
-                                className={hasSubs && isExpanded ? "border-red-500 data-[state=checked]:bg-red-500 data-[state=checked]:border-red-500" : ""}
+                                className={hasSubs && isAnySubSelected ? "border-green-500 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}
                             />
                             <label htmlFor={`edit-cat-${cat}`} className={`text-sm leading-none cursor-pointer ${hasSubs ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>{cat}</label>
                         </div>
@@ -3381,7 +3493,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-3xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between shrink-0">
                     <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <Edit3 className="w-5 h-5 text-primary" /> {isUpgradeFlow ? "Update listing for upgrade" : "Edit listing"}
+                        <Edit3 className="w-5 h-5 text-primary" /> {isUpgradeFlow ? "Update Listing for Upgrade" : "Edit Listing"}
                     </h2>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
@@ -3394,16 +3506,16 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             <h3 className="text-sm font-bold text-foreground">Event Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
-                                    <Label>Event name <span className="text-red-400">*</span></Label>
+                                    <Label>Event Name <span className="text-red-400">*</span></Label>
                                     <Input value={eventName} onChange={(e) => setEventName(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
                                     <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <Label>Event link <span className="text-red-400">*</span></Label>
+                                    <Label>Event Link <span className="text-red-400">*</span></Label>
                                     <Input type="url" value={eventLink} onChange={(e) => setEventLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
                                 </div>
                                 <div>
-                                    <Label>Start date <span className="text-red-400">*</span></Label>
+                                    <Label>Start Date <span className="text-red-400">*</span></Label>
                                     <Input
                                         type="date"
                                         value={startDate}
@@ -3421,7 +3533,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     />
                                 </div>
                                 <div>
-                                    <Label>End date <span className="text-red-400">*</span></Label>
+                                    <Label>End Date <span className="text-red-400">*</span></Label>
                                     <Input
                                         type="date"
                                         value={endDate}
@@ -3455,16 +3567,16 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     </Select>
                                 </div>
                                 <div>
-                                    <Label>State/Province/Region <span className="text-red-400">*</span></Label>
+                                    <Label>State / Province / Region <span className="text-red-400">*</span></Label>
                                     <Input value={eventStateRegion} onChange={(e) => setEventStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
                                 </div>
                                 <div>
-                                    <Label>City/Town <span className="text-red-400">*</span></Label>
+                                    <Label>City / Town <span className="text-red-400">*</span></Label>
                                     <Input value={eventCity} onChange={(e) => setEventCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
                                 </div>
                                 <div className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <div>
-                                        <Label>Agenda highlights <span className="text-red-400">*</span></Label>
+                                        <Label>Agenda Highlights <span className="text-red-400">*</span></Label>
                                         <Textarea
                                             value={agendaHighlights}
                                             onChange={(e) => setAgendaHighlights(e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX))}
@@ -3473,7 +3585,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         <p className="text-xs text-right text-muted-foreground mt-1">{agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>
+                                        <Label>Full Agenda (PDF) <span className="text-red-400">*</span></Label>
                                         {!eventAgendaPdfFile && !agendaPdfUrl && (
                                             <Input
                                                 type="file"
@@ -3511,7 +3623,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     </div>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <Label>Event profile <span className="text-red-400">*</span></Label>
+                                    <Label>Event Profile <span className="text-red-400">*</span></Label>
                                     <Textarea value={eventProfile} onChange={(e) => setEventProfile(e.target.value.slice(0, 500))} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
                                     <p className="text-xs text-right text-muted-foreground mt-1">{eventProfile.length}/500</p>
                                 </div>
@@ -3523,17 +3635,17 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             <h3 className="text-sm font-bold text-foreground">Job Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
-                                    <Label>Job title <span className="text-red-400">*</span></Label>
+                                    <Label>Job Title <span className="text-red-400">*</span></Label>
                                     <Input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" />
                                     <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <Label>Job summary <span className="text-red-400">*</span></Label>
+                                    <Label>Job Summary <span className="text-red-400">*</span></Label>
                                     <Textarea value={jobSummary} onChange={(e) => setJobSummary(e.target.value.slice(0, 500))} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
                                     <p className={`text-xs text-right mt-1 ${jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobSummary.length}/500</p>
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
-                                    <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
+                                    <Label>Full Job Description (PDF) <span className="text-red-400">*</span></Label>
                                     {!jobPdfFile && !jobDescriptionPdfUrl && (
                                         <Input
                                             type="file"
@@ -3577,7 +3689,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div><Label>Job type <span className="text-red-400">*</span></Label>
+                                <div><Label>Job Type <span className="text-red-400">*</span></Label>
                                     <Select value={jobType} onValueChange={setJobType}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select type" /></SelectTrigger>
                                         <SelectContent>
@@ -3593,8 +3705,8 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div><Label>State/Province/Region <span className="text-red-400">*</span></Label><Input value={jobStateRegion} onChange={(e) => setJobStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div><Label>City/Town <span className="text-red-400">*</span></Label><Input value={jobCity} onChange={(e) => setJobCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>State / Province / Region <span className="text-red-400">*</span></Label><Input value={jobStateRegion} onChange={(e) => setJobStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>City / Town <span className="text-red-400">*</span></Label><Input value={jobCity} onChange={(e) => setJobCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
                                 <div><Label>Education</Label>
                                     <Select value={education} onValueChange={setEducation}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
@@ -3605,7 +3717,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div><Label>Experience level</Label>
+                                <div><Label>Experience Level</Label>
                                     <Select value={experienceLevel} onValueChange={setExperienceLevel}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
                                         <SelectContent>
@@ -3615,7 +3727,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div><Label>Work model <span className="text-red-400">*</span></Label>
+                                <div><Label>Work Model <span className="text-red-400">*</span></Label>
                                     <Select value={workModel} onValueChange={setWorkModel}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
                                         <SelectContent>
@@ -3625,8 +3737,8 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="md:col-span-2"><Label>Position link (Apply URL) <span className="text-red-400">*</span></Label><Input type="url" value={positionLink} onChange={(e) => setPositionLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div><Label>Application deadline</Label><Input type="date" value={applicationDeadline} onChange={(e) => setApplicationDeadline(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div className="md:col-span-2"><Label>Position Link (Apply URL) <span className="text-red-400">*</span></Label><Input type="url" value={positionLink} onChange={(e) => setPositionLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>Application Deadline</Label><Input type="date" value={applicationDeadline} onChange={(e) => setApplicationDeadline(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
                             </div>
                         </div>
                     )}
@@ -3804,8 +3916,8 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
 
                     <div>
                         <div className="flex items-center justify-between mb-3">
-                            <Label className="text-foreground/80">Company representative(s)</Label>
-                            <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
+                            <Label className="text-foreground/80">Company Representative(s)</Label>
+                            <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add Representative</Button>
                         </div>
                         {availableRepresentativeOptions.length > 0 && (
                             <div className="space-y-2 mb-3">
@@ -3831,13 +3943,13 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     <Input
                                         value={rep.firstName}
                                         onChange={(e) => updateRepresentative(index, "firstName", e.target.value)}
-                                        placeholder="First name"
+                                        placeholder="First Name"
                                         className="bg-foreground/5 border-foreground/10"
                                     />
                                     <Input
                                         value={rep.lastName}
                                         onChange={(e) => updateRepresentative(index, "lastName", e.target.value)}
-                                        placeholder="Last name"
+                                        placeholder="Last Name"
                                         className="bg-foreground/5 border-foreground/10"
                                     />
                                     <div className="flex gap-2">
@@ -4182,7 +4294,7 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotligh
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-md shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-yellow-500" /> Cancel subscription
+                        <AlertTriangle className="w-5 h-5 text-yellow-500" /> Cancel Subscription
                     </h2>
                     <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
@@ -4216,7 +4328,7 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotligh
                                     : "border-foreground/15 bg-foreground/5 hover:border-foreground/30"
                                     }`}
                             >
-                                <span className="font-medium text-foreground">Cancel spotlight add-on only</span>
+                                <span className="font-medium text-foreground">Cancel Spotlight Add-on Only</span>
                                 <span className="text-xs text-muted-foreground block mt-1">Your plan keeps billing until you cancel it separately.</span>
                             </button>
                             <button
@@ -4227,7 +4339,7 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotligh
                                     : "border-foreground/15 bg-foreground/5 hover:border-foreground/30"
                                     }`}
                             >
-                                <span className="font-medium text-foreground">Cancel this subscription</span>
+                                <span className="font-medium text-foreground">Cancel This Subscription</span>
                                 <span className="text-xs text-muted-foreground block mt-1">Stops the plan after the billing date below. A separate spotlight add-on stays active until its own paid period ends.</span>
                             </button>
                         </div>
@@ -4257,7 +4369,7 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotligh
                     )}
                 </div>
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
-                    <Button variant="ghost" onClick={onClose}>Keep subscription</Button>
+                    <Button variant="ghost" onClick={onClose}>Keep Subscription</Button>
                     <Button
                         variant="destructive"
                         onClick={() => onCancel(showFeatureCancelChoice ? (cancelChoice as CancelScope) : "plan")}
@@ -4266,8 +4378,8 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotligh
                         {processing
                             ? "Cancelling..."
                             : showFeatureCancelChoice && cancelChoice === "feature"
-                                ? "Cancel spotlight"
-                                : "Cancel subscription"}
+                                ? "Cancel Spotlight"
+                                : "Cancel Subscription"}
                     </Button>
                 </div>
             </div>
@@ -4295,7 +4407,7 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onP
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <ArrowUpCircle className="w-5 h-5 text-primary" /> Upgrade spotlight
+                        <ArrowUpCircle className="w-5 h-5 text-primary" /> Upgrade Spotlight
                     </h2>
                     <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
@@ -4322,17 +4434,24 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onP
                                             : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
                                             }`}
                                     >
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
-                                                <Icon className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
+                                        <div className="flex items-center justify-between gap-3">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
+                                                    <Icon className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-foreground">{fp.label}</p>
+                                                    <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                                </div>
                                             </div>
-                                            <div className="flex-1">
-                                                <p className="font-semibold text-foreground">{fp.label}</p>
-                                                <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                            <div className="text-right shrink-0">
+                                                <p className="text-lg font-bold text-foreground">
+                                                    {fp.price}<span className="text-sm font-normal text-muted-foreground">/month</span>
+                                                </p>
+                                                <p className="text-xs text-muted-foreground mt-1">
+                                                    Prorated charge at checkout
+                                                </p>
                                             </div>
-                                            <p className="text-lg font-bold text-primary shrink-0">
-                                                {formatFeatureUpgradeDelta(currentAddonId, fp.id, planId)}
-                                            </p>
                                         </div>
                                     </button>
                                 );
@@ -4344,7 +4463,7 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onP
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
                     <Button onClick={() => onPurchase(selectedFeature)} disabled={!selectedFeature || processing || targets.length === 0}>
                         <CreditCard className="w-4 h-4 mr-2" />
-                        {processing ? "Processing..." : "Continue to payment"}
+                        {processing ? "Processing..." : "Continue to Payment"}
                     </Button>
                 </div>
             </div>
@@ -4392,15 +4511,21 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
                                         : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
                                         }`}
                                 >
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
-                                            <Icon className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="flex items-center gap-3">
+                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
+                                                <Icon className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-foreground">{fp.label}</p>
+                                                <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                            </div>
                                         </div>
-                                        <div className="flex-1">
-                                            <p className="font-semibold text-foreground">{fp.label}</p>
-                                            <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                        <div className="text-right shrink-0">
+                                            <p className="text-lg font-bold text-foreground">
+                                                {fp.price}<span className="text-sm font-normal text-muted-foreground">/month</span>
+                                            </p>
                                         </div>
-                                        <p className="text-lg font-bold text-foreground">{fp.price}</p>
                                     </div>
                                 </button>
                             );

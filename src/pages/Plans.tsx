@@ -152,7 +152,7 @@ function PlanCard({
             <div className="text-center mb-6 pb-6 border-b border-slate-100">
                 <div className="flex items-baseline justify-center gap-1">
                     <span className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
-                        {displayPrice.toLocaleString()} $
+                        ${displayPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                     <span className="text-sm font-medium text-slate-500">/ month</span>
                 </div>

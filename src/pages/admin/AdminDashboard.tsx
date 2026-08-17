@@ -543,6 +543,20 @@ function CategoryTreeDropdown({
               const isExpanded = expandedCats.includes(cat);
               const isParentSelected = selectedCategories.includes(cat);
 
+              const isAnySubSelected = hasSubs && subs.some((entry) => {
+                const subLabel = getSubLabel(entry);
+                const isNested = isBusinessGroup && hasSubSub(entry);
+                const compositeSubKey = `${cat} > ${subLabel}`;
+                if (selectedSubcategories.includes(compositeSubKey) || selectedSubcategories.includes(subLabel)) return true;
+                if (isNested && entry.subSubcategories) {
+                  return entry.subSubcategories.some((ss) => {
+                    const compositeSsKey = `${cat} > ${subLabel} > ${ss}`;
+                    return selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ss);
+                  });
+                }
+                return false;
+              });
+
               return (
                 <div key={cat} className="flex flex-col">
                   {/* Category Row */}
@@ -565,9 +579,9 @@ function CategoryTreeDropdown({
                     <div className="flex items-center gap-2">
                       <Checkbox
                         id={`admin-cat-${cat}`}
-                        checked={hasSubs ? isExpanded : isParentSelected}
+                        checked={hasSubs ? isAnySubSelected : isParentSelected}
                         onCheckedChange={() => toggleCategorySelection(cat, hasSubs)}
-                        className={hasSubs && isExpanded ? "border-blue-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500" : ""}
+                        className={hasSubs && isAnySubSelected ? "border-green-500 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}
                       />
                       <label
                         htmlFor={`admin-cat-${cat}`}
@@ -2805,7 +2819,7 @@ function OverviewTab({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard label="Revenue" value={`$${stats.totalRevenue.toLocaleString()}`} icon={Receipt} iconClass="bg-emerald-100 text-emerald-700" />
+        <StatCard label="Revenue" value={`$${Number(stats.totalRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Receipt} iconClass="bg-emerald-100 text-emerald-700" />
         <StatCard label="Partners" value={stats.totalPartners} icon={Users} iconClass="bg-sky-100 text-sky-700" />
         <StatCard label="Pending Partners" value={stats.pendingApprovals} icon={AlertCircle} iconClass="bg-amber-100 text-amber-700" />
         <StatCard label="Pending Listings" value={stats.pendingListings} icon={Clock} iconClass="bg-amber-100 text-amber-700" />
@@ -3070,7 +3084,7 @@ function FeaturedPlansTab({
                     <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
                     <p className="font-semibold">{option.label}</p>
                     <p className="text-sm text-slate-600">Specification : {option.specification}</p>
-                    <p className="font-semibold">Amount In $ : {option.price}</p>
+                    <p className="font-semibold">Amount In $ : ${Number(option.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                     <p>For : {option.durationDays} days</p>
                     <p>Number of Country : {option.countryLimit}</p>
                     <p>Number of Category : {option.categoryLimit}</p>

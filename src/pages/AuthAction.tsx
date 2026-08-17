@@ -22,6 +22,7 @@ export default function AuthAction() {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
     const passwordChecks = getPasswordPolicyChecks(newPassword);
     const isPasswordValid = isPasswordPolicyValid(newPassword);
@@ -151,7 +152,7 @@ export default function AuthAction() {
                                 <div className="relative">
                                     <Input
                                         id="confirmPassword"
-                                        type={showPassword ? "text" : "password"}
+                                        type={showConfirmPassword ? "text" : "password"}
                                         required
                                         value={confirmPassword}
                                         onChange={(e) => setConfirmPassword(e.target.value)}
@@ -160,10 +161,11 @@ export default function AuthAction() {
                                     <button
                                         type="button"
                                         className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                                        onClick={() => setShowPassword(!showPassword)}
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                                         tabIndex={-1}
+                                        aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                                     >
-                                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                                        {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                                     </button>
                                 </div>
                                 {passwordsMismatch && (

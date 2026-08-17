@@ -24,7 +24,7 @@ import { PostCard } from "@/components/community/PostCard";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import type { CommunityView } from "@/components/community/CommunityMemberSidebar";
 import type { CommunityPost } from "@/lib/communityTypes";
-import { Search, X } from "lucide-react";
+import { Search, X, Eye, EyeOff } from "lucide-react";
 import { saveCommunityFeedScroll } from "@/lib/communityScrollRestore";
 import { getAllCommunityCountries } from "@/lib/communityCountries";
 import {
@@ -93,6 +93,9 @@ export function CommunityMemberPanels({
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showCurrentPw, setShowCurrentPw] = useState(false);
+  const [showNewPw, setShowNewPw] = useState(false);
+  const [showConfirmPw, setShowConfirmPw] = useState(false);
   const [passwordMsg, setPasswordMsg] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("my-posts");
@@ -657,23 +660,45 @@ export function CommunityMemberPanels({
           >
             <div className="space-y-2">
               <Label htmlFor="current-password">Current password*</Label>
-              <Input
-                id="current-password"
-                type="password"
-                autoComplete="current-password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="current-password"
+                  type={showCurrentPw ? "text" : "password"}
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPw(!showCurrentPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showCurrentPw ? "Hide password" : "Show password"}
+                >
+                  {showCurrentPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-password">New password*</Label>
-              <Input
-                id="new-password"
-                type="password"
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="new-password"
+                  type={showNewPw ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowNewPw(!showNewPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showNewPw ? "Hide password" : "Show password"}
+                >
+                  {showNewPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <ul className="text-xs text-muted-foreground space-y-0.5">
                 <li className={passwordChecks.minLength ? "text-emerald-600" : ""}>At least 8 characters</li>
                 <li className={passwordChecks.uppercase ? "text-emerald-600" : ""}>At least 1 letter</li>
@@ -683,13 +708,24 @@ export function CommunityMemberPanels({
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirm new password*</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                autoComplete="new-password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
+              <div className="relative">
+                <Input
+                  id="confirm-password"
+                  type={showConfirmPw ? "text" : "password"}
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="pr-10"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPw(!showConfirmPw)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  aria-label={showConfirmPw ? "Hide password" : "Show password"}
+                >
+                  {showConfirmPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
             {passwordMsg && <p className="text-sm text-muted-foreground">{passwordMsg}</p>}
             <Button

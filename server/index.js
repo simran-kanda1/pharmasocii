@@ -1629,6 +1629,9 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 createdAt: admin.firestore.FieldValue.serverTimestamp(),
                 sessionId: session.id,
                 customerEmail: session.customer_details?.email || "",
+                subtotal: (session.amount_subtotal || session.amount_total || 0) / 100,
+                taxAmount: (session.total_details?.amount_tax || 0) / 100,
+                taxId: session.customer_details?.tax_ids?.[0]?.value || session.metadata?.taxId || detailSource?.VAT_ABN_EIN_businessId || null,
                 // Include listing details for richer transaction display
                 selectedCategories: detailSource?.selectedCategories || [],
                 selectedSubcategories: detailSource?.selectedSubcategories || [],
@@ -3952,6 +3955,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
 
         const sessionParams = {
             mode: plan.interval ? "subscription" : "payment",
+            tax_id_collection: { enabled: true },
             line_items: lineItems,
             success_url: successUrl || "https://orange-bear-967180.hostingersite.com/partner/dashboard?payment=success",
             cancel_url: cancelUrl || "https://orange-bear-967180.hostingersite.com/partner/complete-profile?payment=cancelled",
@@ -4131,6 +4135,7 @@ app.post("/api/create-feature-checkout", async (req, res) => {
 
             const upgradeSession = await stripe.checkout.sessions.create({
                 mode: "payment",
+                tax_id_collection: { enabled: true },
                 line_items: [
                     {
                         price_data: {
@@ -4225,6 +4230,7 @@ app.post("/api/create-feature-checkout", async (req, res) => {
 
         const featureSessionParams = {
             mode: "subscription",
+            tax_id_collection: { enabled: true },
             line_items: [
                 {
                     price_data: {

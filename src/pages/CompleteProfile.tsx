@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Globe, Building, Linkedin, Receipt, UploadCloud, ArrowRight, ChevronRight, ChevronDown, Check, X, Info , FileText} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +19,7 @@ import { logActivity } from "@/lib/auditLogger";
 import { API_BASE_URL } from "@/apiConfig";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
 import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
+import { uploadCompanyLogo, validateCompanyLogo } from "@/lib/companyLogoUpload";
 import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 import PhoneInput from 'react-phone-number-input'
@@ -130,6 +131,10 @@ export default function CompleteProfile() {
     const [countrySearch, setCountrySearch] = useState("");
     const [jobPdfFile, setJobPdfFile] = useState<File | null>(null);
     const [eventAgendaPdfFile, setEventAgendaPdfFile] = useState<File | null>(null);
+    const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
+    const [companyLogoPreview, setCompanyLogoPreview] = useState<string>("");
+    const [companyLogoError, setCompanyLogoError] = useState("");
+    const logoInputRef = useRef<HTMLInputElement>(null);
 
     // Load existing data
     useEffect(() => {
@@ -393,13 +398,13 @@ export default function CompleteProfile() {
             if (plan.stripeMonthlyId) {
                 options.push({
                     value: plan.stripeMonthlyId,
-                    label: `${plan.badge}${groupConfig.hasAnnualToggle ? " (Monthly)" : ""} - $${plan.monthlyPrice.toLocaleString()}${groupConfig.hasAnnualToggle ? "" : "/mo"}`
+                    label: `${plan.badge}${groupConfig.hasAnnualToggle ? " (Monthly)" : ""} - $${plan.monthlyPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${groupConfig.hasAnnualToggle ? "" : "/mo"}`
                 });
             }
             if (plan.stripeYearlyId && groupConfig.hasAnnualToggle) {
                 options.push({
                     value: plan.stripeYearlyId,
-                    label: `${plan.badge} (Annual) - $${plan.yearlyTotalPrice.toLocaleString()}`
+                    label: `${plan.badge} (Annual) - $${plan.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 });
             }
         }
@@ -579,6 +584,10 @@ export default function CompleteProfile() {
             if (formData.group === "events" && eventAgendaPdfFile && auth.currentUser) {
                 eventAgendaPdfResolved = await uploadEventAgendaPdf(auth.currentUser.uid, eventAgendaPdfFile, null);
             }
+            let logoUrlResolved = "";
+            if (companyLogoFile && auth.currentUser) {
+                logoUrlResolved = await uploadCompanyLogo(auth.currentUser.uid, companyLogoFile);
+            }
 
             // Save profile + business details to Firestore
             const partnerRef = doc(db, "partnersCollection", auth.currentUser.uid);
@@ -612,6 +621,7 @@ export default function CompleteProfile() {
                 companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                 businessAddress: formData.businessAddress.trim(),
                 businessCountry: formData.businessCountry || "",
+                companyLogoUrl: logoUrlResolved || undefined,
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,
                 // Feature add-ons can only be purchased after base plan payment.
@@ -640,6 +650,7 @@ export default function CompleteProfile() {
             const listingData: Record<string, any> = {
                 partnerId: auth.currentUser.uid,
                 businessName: formData.companyName,
+                companyLogoUrl: logoUrlResolved || undefined,
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,
                 // Feature add-ons can only be purchased after base plan payment.
@@ -998,11 +1009,11 @@ export default function CompleteProfile() {
                             </CardHeader>
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <Label htmlFor="firstName">First name *</Label>
+                                    <Label htmlFor="firstName">First Name *</Label>
                                     <Input id="firstName" value={formData.firstName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="lastName">Last name *</Label>
+                                    <Label htmlFor="lastName">Last Name *</Label>
                                     <Input id="lastName" value={formData.lastName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                 </div>
                                 <div className="space-y-2">
@@ -1017,11 +1028,11 @@ export default function CompleteProfile() {
                                 </div>
                                 <div className="space-y-2 pt-4 border-t border-foreground/10 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <Label htmlFor="altFirstName">First name *</Label>
+                                        <Label htmlFor="altFirstName">First Name *</Label>
                                         <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="altLastName">Last name *</Label>
+                                        <Label htmlFor="altLastName">Last Name *</Label>
                                         <Input id="altLastName" value={formData.altLastName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                     <div className="space-y-2 md:col-span-2">
@@ -1040,49 +1051,110 @@ export default function CompleteProfile() {
                             </CardHeader>
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <Label htmlFor="companyName">Company name *</Label>
+                                    <Label htmlFor="companyName">Company Name *</Label>
                                     <div className="relative"><Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="companyName" value={formData.companyName} onChange={handleChange} required className="pl-9 bg-muted/40 border-foreground/10" /></div>
                                     <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="companyWebsite">Company website *</Label>
+                                    <Label htmlFor="companyWebsite">Company Website *</Label>
                                     <div className="relative"><Globe className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="companyWebsite" type="url" placeholder="https://" value={formData.companyWebsite} onChange={handleChange} required className="pl-9 bg-muted/40 border-foreground/10" /></div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="businessPhone">Business phone *</Label>
+                                    <Label htmlFor="businessPhone">Business Phone *</Label>
                                     <PhoneInput id="businessPhone" defaultCountry="US" value={toPhoneInputValue(formData.businessPhone) || undefined}
                                         onChange={(value) => setFormData(prev => ({ ...prev, businessPhone: value || '' }))}
                                         className="flex h-10 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="linkedin">LinkedIn profile</Label>
+                                    <Label htmlFor="linkedin">LinkedIn Profile</Label>
                                     <div className="relative"><Linkedin className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="linkedin" value={formData.linkedin} onChange={handleChange} placeholder="https://linkedin.com/company/..." className="pl-9 bg-muted/40 border-foreground/10" /></div>
                                 </div>
 
                                 <div className="space-y-2 md:col-span-2 pt-2">
-                                    <Label>Company logo</Label>
+                                    <Label>Logo</Label>
                                     <div className="flex items-center gap-4">
-                                        <div className="h-20 w-20 flex-shrink-0 bg-black/60 rounded-xl border border-dashed border-foreground/20 flex items-center justify-center text-muted-foreground"><UploadCloud className="h-6 w-6" /></div>
+                                        <div className="relative h-20 w-20 flex-shrink-0 bg-black/60 rounded-xl border border-dashed border-foreground/20 flex items-center justify-center text-muted-foreground overflow-hidden">
+                                            {companyLogoPreview ? (
+                                                <>
+                                                    <img src={companyLogoPreview} alt="Logo" className="w-full h-full object-cover" />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setCompanyLogoFile(null);
+                                                            setCompanyLogoPreview("");
+                                                            if (logoInputRef.current) logoInputRef.current.value = "";
+                                                        }}
+                                                        className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 shadow hover:bg-destructive/90"
+                                                        title="Remove logo"
+                                                    >
+                                                        <X className="w-3.5 h-3.5" />
+                                                    </button>
+                                                </>
+                                            ) : (
+                                                <UploadCloud className="h-6 w-6" />
+                                            )}
+                                        </div>
                                         <div className="flex-1">
-                                            <Input type="file" className="bg-muted/40 border-foreground/10 text-sm h-10 pt-2 cursor-pointer" accept="image/jpeg, image/png" />
+                                            <div className="flex items-center gap-2">
+                                                <Input
+                                                    ref={logoInputRef}
+                                                    type="file"
+                                                    className="bg-muted/40 border-foreground/10 text-sm h-10 pt-2 cursor-pointer"
+                                                    accept="image/jpeg, image/png, image/jpg"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            const err = validateCompanyLogo(file);
+                                                            if (err) {
+                                                                setCompanyLogoError(err);
+                                                                e.target.value = '';
+                                                                return;
+                                                            }
+                                                            setCompanyLogoFile(file);
+                                                            setCompanyLogoPreview(URL.createObjectURL(file));
+                                                            setCompanyLogoError("");
+                                                        } else {
+                                                            setCompanyLogoFile(null);
+                                                            setCompanyLogoPreview("");
+                                                        }
+                                                    }}
+                                                />
+                                                {(companyLogoFile || companyLogoPreview) && (
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => {
+                                                            setCompanyLogoFile(null);
+                                                            setCompanyLogoPreview("");
+                                                            if (logoInputRef.current) logoInputRef.current.value = "";
+                                                        }}
+                                                        className="h-10 px-2.5 text-muted-foreground hover:text-destructive shrink-0"
+                                                        title="Remove selected logo"
+                                                    >
+                                                        <X className="w-4 h-4 mr-1" /> Remove
+                                                    </Button>
+                                                )}
+                                            </div>
                                             <p className="text-xs text-muted-foreground mt-2">Formats: JPG, JPEG, PNG | Max size: 2MB | Dimensions: 200px x 200px</p>
+                                            {companyLogoError && <p className="text-xs text-red-500 mt-1">{companyLogoError}</p>}
                                         </div>
                                     </div>
                                 </div>
 
                                 <div className="space-y-2 pt-4 border-t border-foreground/10 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <Label htmlFor="billingEmail">Billing / finance email address</Label>
+                                        <Label htmlFor="billingEmail">Billing / Finance Email Address</Label>
                                         <div className="relative"><Receipt className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="billingEmail" type="email" value={formData.billingEmail} onChange={handleChange} className="pl-9 bg-primary/10 border-primary/30" /></div>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="businessId">VAT/ABN/EIN/Business ID</Label>
+                                        <Label htmlFor="businessId">VAT / ABN / EIN / Business ID</Label>
                                         <Input id="businessId" value={formData.businessId} onChange={handleChange} className="bg-primary/10 border-primary/30" placeholder="(recommended for accurate invoicing and taxes)" />
                                     </div>
                                 </div>
 
                                 <div className="space-y-2 md:col-span-1">
-                                    <Label htmlFor="companyProfile">Company profile *</Label>
+                                    <Label htmlFor="companyProfile">Company Profile *</Label>
                                     <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} maxLength={COMPANY_PROFILE_MAX_LENGTH} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
                                     <p className={`text-xs text-right ${formData.companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
                                 </div>
@@ -1101,7 +1173,7 @@ export default function CompleteProfile() {
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="businessAddress">Full business address *</Label>
+                                        <Label htmlFor="businessAddress">Full Business Address *</Label>
                                         <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} required className="h-[104px] bg-muted/40 border-foreground/10 resize-none text-sm font-normal" placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} />
                                     </div>
                                 </div>
@@ -1112,7 +1184,7 @@ export default function CompleteProfile() {
                         <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3">
-                                    <Label>Select group <span className="text-red-400">*</span></Label>
+                                    <Label>Select Group <span className="text-red-400">*</span></Label>
                                     <Select value={formData.group} onValueChange={(val) => handleSelectChange("group", val)} required>
                                         <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select group" /></SelectTrigger>
                                         <SelectContent className="bg-background border-foreground/10">
@@ -1125,7 +1197,7 @@ export default function CompleteProfile() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <Label>Payment plans <span className="text-red-400">*</span></Label>
+                                    <Label>Payment Plan <span className="text-red-400">*</span></Label>
                                     <Select value={formData.plan} onValueChange={(val) => handleSelectChange("plan", val)} required disabled={!formData.group}>
                                         <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder={formData.group ? "Select plan" : "Select a group first"} /></SelectTrigger>
                                         <SelectContent className="bg-background border-foreground/10">
@@ -1154,7 +1226,7 @@ export default function CompleteProfile() {
                                     </div>
                                 )}
 
-                                {formData.group && (
+                                {formData.group && (formData.group === "business_offerings" || formData.group === "consulting") && (
                                     <div className="space-y-3 md:col-span-2 pt-4 border-t border-foreground/10">
                                         <Label>Separate Feature Package (Optional Upgrade)</Label>
                                         <Select value={formData.addon || "none"} onValueChange={(val) => handleSelectChange("addon", val)} disabled>
@@ -1175,20 +1247,12 @@ export default function CompleteProfile() {
                             <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
                                 <CardHeader className="border-b border-foreground/10 pb-4">
                                     <CardTitle className="text-xl">
-                                        {formData.group === "business_offerings" ? "Business details" :
-                                            formData.group === "consulting" ? "Service details" :
-                                                formData.group === "events" ? "Event details" : "Job details"}
+                                        {formData.group === "business_offerings" ? "Business Details" :
+                                            formData.group === "consulting" ? "Service Details" :
+                                                formData.group === "events" ? "Event Details" : "Job Details"}
                                     </CardTitle>
                                 </CardHeader>
                                 <CardContent className="p-6 space-y-6">
-
-                                    {(formData.group === "business_offerings" || formData.group === "consulting") && (
-                                        <div className="p-4 border border-foreground/10 rounded-lg bg-foreground/5 space-y-1">
-                                            <Label className="text-muted-foreground">Listing Title (Inherited from your Company name)</Label>
-                                            <p className="text-sm font-semibold text-foreground">{formData.companyName || "Unnamed Business"}</p>
-                                            <p className="text-xs text-muted-foreground">This listing will be published under your company name and will display exactly as typed (original capitalization preserved). You can edit this in the Business Details section above.</p>
-                                        </div>
-                                    )}
 
                                     {/* ═══ BUSINESS OFFERINGS: BSL + Certs + Regions + Countries ═══ */}
                                     {formData.group === "business_offerings" && (
@@ -1228,7 +1292,7 @@ export default function CompleteProfile() {
                                             </div>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div className="space-y-2" onClick={e => e.stopPropagation()}>
-                                                    <Label>Service region(s)</Label>
+                                                    <Label>Service Region(s)</Label>
                                                     <MultiSelectDropdown
                                                         label="service regions" items={SERVICE_REGIONS} selected={selectedRegions}
                                                         onToggle={toggleRegion} open={showRegionsDropdown}
@@ -1243,7 +1307,7 @@ export default function CompleteProfile() {
                                                 </div>
                                                 <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                     <Label>
-                                                        Service country(ies) <span className="text-red-400">*</span> :
+                                                        Service Country(ies) <span className="text-red-400">*</span> :
                                                         <span className="ml-2 text-sm font-normal text-muted-foreground">
                                                             Selected {selectedCountries.length} of {currentLimits.maxCountries === -1 ? "Unlimited" : currentLimits.maxCountries}
                                                         </span>
@@ -1297,16 +1361,16 @@ export default function CompleteProfile() {
                                     {formData.group === "events" && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Event name <span className="text-red-400">*</span></Label>
+                                                <Label>Event Name <span className="text-red-400">*</span></Label>
                                                 <Input value={eventData.eventName} onChange={e => setEventData(prev => ({ ...prev, eventName: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                                 <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Event link <span className="text-red-400">*</span></Label>
+                                                <Label>Event Link <span className="text-red-400">*</span></Label>
                                                 <Input type="url" placeholder="https://" value={eventData.eventLink} onChange={e => setEventData(prev => ({ ...prev, eventLink: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Start date <span className="text-red-400">*</span></Label>
+                                                <Label>Start Date <span className="text-red-400">*</span></Label>
                                                 <Input
                                                     type="date"
                                                     value={eventData.startDate}
@@ -1324,7 +1388,7 @@ export default function CompleteProfile() {
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>{formData.plan === "basic_event" ? "Event date" : "End date"} <span className="text-red-400">*</span></Label>
+                                                <Label>{formData.plan === "basic_event" ? "Event Date" : "End Date"} <span className="text-red-400">*</span></Label>
                                                 <Input
                                                     type="date"
                                                     value={eventData.endDate}
@@ -1356,21 +1420,21 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>State/Province/Region <span className="text-red-400">*</span></Label>
+                                                <Label>State / Province / Region <span className="text-red-400">*</span></Label>
                                                 <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>City/Town <span className="text-red-400">*</span></Label>
+                                                <Label>City / Town <span className="text-red-400">*</span></Label>
                                                 <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Venue / location <span className="text-red-400">*</span></Label>
+                                                <Label>Venue / Location <span className="text-red-400">*</span></Label>
                                                 <Input placeholder="Venue name or online details" value={eventData.location} onChange={e => setEventData(prev => ({ ...prev, location: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
                                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                     <div className="space-y-2">
-                                                        <Label>Agenda highlights <span className="text-red-400">*</span> </Label>
+                                                        <Label>Agenda Highlights <span className="text-red-400">*</span> </Label>
                                                         <Textarea
                                                             value={eventData.agendaHighlights}
                                                             onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX) }))}
@@ -1381,7 +1445,7 @@ export default function CompleteProfile() {
                                                         <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>Full agenda (PDF) <span className="text-red-400">*</span></Label>
+                                                        <Label>Full Agenda (PDF) <span className="text-red-400">*</span></Label>
                                                         {!eventAgendaPdfFile && !eventData.agendaPdfUrl && (
                                                             <Input
                                                                 type="file"
@@ -1418,7 +1482,7 @@ export default function CompleteProfile() {
                                                 </div>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Event profile <span className="text-red-400">*</span></Label>
+                                                <Label>Event Profile <span className="text-red-400">*</span></Label>
                                                 <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value.slice(0, 500) }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
                                                 <p className="text-xs text-right text-muted-foreground mt-1">{eventData.eventProfile.length}/500</p>
                                             </div>
@@ -1429,17 +1493,17 @@ export default function CompleteProfile() {
                                     {formData.group === "jobs" && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Job title <span className="text-red-400">*</span></Label>
+                                                <Label>Job Title <span className="text-red-400">*</span></Label>
                                                 <Input value={jobData.jobTitle} onChange={e => setJobData(prev => ({ ...prev, jobTitle: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                                 <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Job summary <span className="text-red-400">*</span></Label>
+                                                <Label>Job Summary <span className="text-red-400">*</span></Label>
                                                 <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" />
                                                 <p className={`text-xs text-right ${jobData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobData.jobSummary.length}/500</p>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Full job description (PDF) <span className="text-red-400">*</span></Label>
+                                                <Label>Full Job Description (PDF) <span className="text-red-400">*</span></Label>
                                                 {!jobPdfFile && !jobData.jobDescriptionPdfUrl && (
                                                     <Input
                                                         type="file"
@@ -1485,7 +1549,7 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Job type <span className="text-red-400">*</span></Label>
+                                                <Label>Job Type <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select job type" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10">
@@ -1496,7 +1560,7 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Experience level <span className="text-red-400">*</span></Label>
+                                                <Label>Experience Level <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select experience level" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10">
@@ -1507,7 +1571,7 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Work model <span className="text-red-400">*</span></Label>
+                                                <Label>Work Model <span className="text-red-400">*</span></Label>
                                                 <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select work model" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10">
@@ -1529,11 +1593,11 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Application deadline</Label>
+                                                <Label>Application Deadline</Label>
                                                 <Input type="date" value={jobData.applicationDeadline} onChange={e => setJobData(prev => ({ ...prev, applicationDeadline: e.target.value }))} className="bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Position link (Apply) <span className="text-red-400">*</span></Label>
+                                                <Label>Position Link (Apply) <span className="text-red-400">*</span></Label>
                                                 <Input type="url" placeholder="https://" value={jobData.positionLink} onChange={e => setJobData(prev => ({ ...prev, positionLink: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
@@ -1546,19 +1610,19 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>State/Province/Region <span className="text-red-400">*</span></Label>
+                                                <Label>State / Province / Region <span className="text-red-400">*</span></Label>
                                                 <Input value={jobData.stateRegion} onChange={e => setJobData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>City/Town <span className="text-red-400">*</span></Label>
+                                                <Label>City / Town <span className="text-red-400">*</span></Label>
                                                 <Input value={jobData.city} onChange={e => setJobData(prev => ({ ...prev, city: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Location (display line)</Label>
+                                                <Label>Location (Display Line)</Label>
                                                 <Input value={jobData.location} onChange={e => setJobData(prev => ({ ...prev, location: e.target.value }))} className="bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Company website link</Label>
+                                                <Label>Company Website Link</Label>
                                                 <Input type="url" value={jobData.companyWebsiteLink} onChange={e => setJobData(prev => ({ ...prev, companyWebsiteLink: e.target.value }))} className="bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
@@ -1592,46 +1656,12 @@ export default function CompleteProfile() {
                                         <div className="max-h-[500px] overflow-y-auto border border-foreground/10 rounded-xl bg-background p-4 space-y-0.5 custom-scrollbar">
                                             {renderCategoryTree()}
                                         </div>
-
-                                        {(selectedCategories.length > 0 || selectedSubcategories.length > 0 || selectedSubSubcategories.length > 0) && (
-                                            <div className="mt-4 flex flex-wrap gap-2">
-                                                {selectedCategories.map(c => (
-                                                    <span key={c} onClick={() => toggleCategorySelection(c, false)} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/10 text-green-600 dark:text-green-400 text-xs rounded-full border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors">
-                                                        {c} <X className="w-3 h-3" />
-                                                    </span>
-                                                ))}
-                                                {selectedSubcategories.map(s => {
-                                                    const parts = s.split(" > ");
-                                                    const leaf = parts[parts.length - 1];
-                                                    return (
-                                                        <span key={s} onClick={() => {
-                                                            if (parts.length >= 2) toggleSubcategorySelection(parts[0], parts[1], false);
-                                                            else toggleSubcategorySelection("", s, false);
-                                                        }} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-500/10 text-green-600 dark:text-green-400 text-xs rounded-full border border-green-500/20 cursor-pointer hover:bg-green-500/20 transition-colors">
-                                                            {leaf} <X className="w-3 h-3" />
-                                                        </span>
-                                                    );
-                                                })}
-                                                {selectedSubSubcategories.map(ss => {
-                                                    const parts = ss.split(" > ");
-                                                    const leaf = parts[parts.length - 1];
-                                                    return (
-                                                        <span key={ss} onClick={() => {
-                                                            if (parts.length >= 3) toggleSubSubcategorySelection(parts[0], parts[1], parts[2]);
-                                                            else toggleSubSubcategorySelection("", "", ss);
-                                                        }} className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 text-primary text-xs rounded-full border border-primary/20 cursor-pointer hover:bg-primary/20 transition-colors">
-                                                            {leaf} <X className="w-3 h-3" />
-                                                        </span>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
                                     </div>
 
                                     <div className="pt-6 border-t border-foreground/10 space-y-4">
                                         <div className="flex items-center justify-between">
-                                            <Label className="text-base font-semibold">Company representative(s)</Label>
-                                            <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
+                                            <Label className="text-base font-semibold">Company Representative(s)</Label>
+                                            <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add Representative</Button>
                                         </div>
                                         {availableRepresentatives.length > 0 && (
                                             <div className="space-y-2">
@@ -1657,13 +1687,13 @@ export default function CompleteProfile() {
                                                     <Input
                                                         value={rep.firstName}
                                                         onChange={(e) => updateRepresentative(index, "firstName", e.target.value)}
-                                                        placeholder="First name"
+                                                        placeholder="First Name"
                                                         className="bg-muted/40 border-foreground/10"
                                                     />
                                                     <Input
                                                         value={rep.lastName}
                                                         onChange={(e) => updateRepresentative(index, "lastName", e.target.value)}
-                                                        placeholder="Last name"
+                                                        placeholder="Last Name"
                                                         className="bg-muted/40 border-foreground/10"
                                                     />
                                                     <div className="flex gap-2">

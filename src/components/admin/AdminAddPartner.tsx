@@ -270,7 +270,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           { value: 'basic_mo', label: 'Basic (Monthly) - $100.00' },
           { value: 'standard_mo', label: 'Standard (Monthly) - $200.00' },
           { value: 'premium_mo', label: 'Premium (Monthly) - $400.00' },
-          { value: 'premium_plus_mo', label: 'Premium Plus (Monthly) - $1000.00' },
+          { value: 'premium_plus_mo', label: 'Premium Plus (Monthly) - $1,000.00' },
           { value: 'basic_yr', label: 'Basic (Annual) - $1,080.00' },
           { value: 'standard_yr', label: 'Standard (Annual) - $2,184.00' },
           { value: 'premium_yr', label: 'Premium (Annual) - $4,320.00' },
@@ -505,6 +505,20 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       const isExpanded = expandedCategories.includes(cat);
       const isParentSelected = selectedCategories.includes(cat);
 
+      const isAnySubSelected = hasSubs && subs.some((entry) => {
+        const subLabel = getSubLabel(entry);
+        const isNested = isBusinessGroup && hasSubSub(entry);
+        const compositeSubKey = `${cat} > ${subLabel}`;
+        if (selectedSubcategories.includes(compositeSubKey) || selectedSubcategories.includes(subLabel)) return true;
+        if (isNested && entry.subSubcategories) {
+          return entry.subSubcategories.some((ss) => {
+            const compositeSsKey = `${cat} > ${subLabel} > ${ss}`;
+            return selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ss);
+          });
+        }
+        return false;
+      });
+
       return (
         <div key={cat} className="flex flex-col">
           <div className="flex items-start gap-2 py-1">
@@ -517,10 +531,10 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
             <div className="flex items-center gap-2">
               <Checkbox
                 id={`cat-${cat}`}
-                checked={hasSubs ? isExpanded : isParentSelected}
+                checked={hasSubs ? isAnySubSelected : isParentSelected}
                 onCheckedChange={() => toggleCategorySelection(cat, hasSubs)}
                 disabled={!hasSubs && !isParentSelected && isCategoryLimitReached}
-                className={hasSubs && isExpanded ? "border-blue-500 data-[state=checked]:bg-blue-500 data-[state=checked]:border-blue-500" : ""}
+                className={hasSubs && isAnySubSelected ? "border-green-500 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}
               />
               <label htmlFor={`cat-${cat}`} className={`text-sm leading-none cursor-pointer ${hasSubs ? "font-semibold text-slate-900" : "font-medium text-slate-700"}`}>
                 {cat}
@@ -1160,14 +1174,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           <div className="space-y-6 animate-fadeIn">
             {/* Dynamic fields based on group */}
 
-            {(groupKey === "business_offerings" || groupKey === "consulting") && (
-              <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 space-y-1">
-                <Label className="text-slate-500 font-medium">Listing Title (Inherited from Company Name)</Label>
-                <p className="text-sm font-semibold text-slate-800">{formData.companyName || "Unnamed Business"}</p>
-                <p className="text-xs text-slate-400">This listing is published under the company name and displays exactly as typed (original capitalization preserved). You can edit this in Step 2: Company Details.</p>
-              </div>
-            )}
-
             {/* ═══ Business Offerings details ═══ */}
             {groupKey === "business_offerings" && (
               <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 space-y-6">
@@ -1495,41 +1501,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <div className="max-h-[360px] overflow-y-auto bg-white p-4 rounded-xl border border-slate-200 space-y-2">
                 {renderCategoryTree()}
               </div>
-
-              {/* Selected summary badges */}
-              {(selectedCategories.length > 0 || selectedSubcategories.length > 0 || selectedSubSubcategories.length > 0) && (
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {selectedCategories.map(c => (
-                    <span key={c} onClick={() => toggleCategorySelection(c, false)} className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors">
-                      {c} <X className="w-3 h-3" />
-                    </span>
-                  ))}
-                  {selectedSubcategories.map(s => {
-                    const parts = s.split(" > ");
-                    const leaf = parts[parts.length - 1];
-                    return (
-                      <span key={s} onClick={() => {
-                        if (parts.length >= 2) toggleSubcategorySelection(parts[0], parts[1], false);
-                        else toggleSubcategorySelection("", s, false);
-                      }} className="inline-flex items-center gap-1 px-2.5 py-1 bg-green-50 text-green-700 text-xs font-semibold rounded-full border border-green-100 cursor-pointer hover:bg-green-100 transition-colors">
-                        {leaf} <X className="w-3 h-3" />
-                      </span>
-                    );
-                  })}
-                  {selectedSubSubcategories.map(ss => {
-                    const parts = ss.split(" > ");
-                    const leaf = parts[parts.length - 1];
-                    return (
-                      <span key={ss} onClick={() => {
-                        if (parts.length >= 3) toggleSubSubcategorySelection(parts[0], parts[1], parts[2]);
-                        else toggleSubSubcategorySelection("", "", ss);
-                      }} className="inline-flex items-center gap-1 px-2.5 py-1 bg-purple-50 text-purple-700 text-xs font-semibold rounded-full border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors">
-                        {leaf} <X className="w-3 h-3" />
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           </div>
         )}

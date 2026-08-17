@@ -42,3 +42,6 @@ function updateFile(filePath) {
 
 updateFile('src/pages/CompleteProfile.tsx');
 updateFile('src/pages/partner/AddListing.tsx');
+updateFile('src/pages/partner/Dashboard.tsx');
+updateFile('src/pages/admin/AdminDashboard.tsx');
+updateFile('src/components/admin/AdminAddPartner.tsx');

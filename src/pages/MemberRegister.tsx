@@ -23,6 +23,7 @@ export default function MemberRegister() {
   const [error, setError] = useState("");
   const [existingEmailHint, setExistingEmailHint] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreePolicy, setAgreePolicy] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -175,9 +176,9 @@ export default function MemberRegister() {
 
       <div className="relative z-10 w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
         <div className="inline-flex py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
-          <Activity className="w-4 h-4 mr-2 text-primary" /> Member account
+          <Activity className="w-4 h-4 mr-2 text-primary" /> Member Account
         </div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">Create Your Profile</h1>
         <p className="text-muted-foreground text-sm mb-8">
           Name/username are final at account creation.
         </p>
@@ -199,7 +200,7 @@ export default function MemberRegister() {
           className="space-y-4"
         >
           <div className="space-y-2">
-            <Label htmlFor="name">Full name*</Label>
+            <Label htmlFor="name">Full Name *</Label>
             <Input
               id="name"
               value={form.name}
@@ -209,7 +210,7 @@ export default function MemberRegister() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="userName">Username*</Label>
+            <Label htmlFor="userName">Username *</Label>
             <Input
               id="userName"
               value={form.userName}
@@ -222,7 +223,7 @@ export default function MemberRegister() {
             <p className={`text-[11px] text-right mt-1 ${form.userName.length >= 15 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/15</p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email*</Label>
+            <Label htmlFor="email">Email *</Label>
             <Input
               id="email"
               type="email"
@@ -253,7 +254,7 @@ export default function MemberRegister() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="industry">Industry*</Label>
+              <Label htmlFor="industry">Industry *</Label>
               <Input
                 id="industry"
                 value={form.industry}
@@ -277,7 +278,7 @@ export default function MemberRegister() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="aboutMe">About me (Tagline)</Label>
+            <Label htmlFor="aboutMe">About Me (Tagline)</Label>
             <Input
               id="aboutMe"
               value={form.aboutMe}
@@ -289,7 +290,7 @@ export default function MemberRegister() {
             <p className={`text-[11px] text-right mt-1 ${form.aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.aboutMe.length}/25</p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password*</Label>
+            <Label htmlFor="password">Password *</Label>
             <div className="relative">
               <Input
                 id="password"
@@ -315,15 +316,25 @@ export default function MemberRegister() {
             </ul>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm password*</Label>
-            <Input
-              id="confirmPassword"
-              type={showPassword ? "text" : "password"}
-              value={form.confirmPassword}
-              onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))}
-              required
-              className="bg-foreground/5 border-foreground/10"
-            />
+            <Label htmlFor="confirmPassword">Confirm Password *</Label>
+            <div className="relative">
+              <Input
+                id="confirmPassword"
+                type={showConfirmPassword ? "text" : "password"}
+                value={form.confirmPassword}
+                onChange={(e) => setForm((f) => ({ ...f, confirmPassword: e.target.value }))}
+                required
+                className="bg-foreground/5 border-foreground/10 pr-10"
+              />
+              <button
+                type="button"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+              >
+                {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
             {passwordsMismatch && (
               <p className="text-xs text-destructive">Passwords do not match.</p>
             )}
