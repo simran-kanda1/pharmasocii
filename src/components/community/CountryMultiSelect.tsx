@@ -20,12 +20,19 @@ export function CountryMultiSelect({ value, onChange, max = POST_COUNTRIES_MAX }
 
   const toggle = (c: string) => {
     if (value.includes(c)) {
-      onChange(value.filter((x) => x !== c));
+      const next = value.filter((x) => x !== c);
+      onChange([...next].sort((a, b) => a.localeCompare(b)));
       return;
     }
     if (value.length >= max) return;
-    onChange([...value, c]);
+    const next = [...value, c];
+    onChange([...next].sort((a, b) => a.localeCompare(b)));
   };
+
+  const sortedDisplay = useMemo(
+    () => [...value].sort((a, b) => a.localeCompare(b)),
+    [value],
+  );
 
   const filtered = allCountries.filter(
     (c) => !search.trim() || c.toLowerCase().includes(search.toLowerCase()),
@@ -42,7 +49,7 @@ export function CountryMultiSelect({ value, onChange, max = POST_COUNTRIES_MAX }
       >
         <span className="flex items-center gap-2 truncate text-muted-foreground">
           <MapPin className="h-4 w-4 shrink-0" />
-          {value.length ? value.join(", ") : "Select Country(ies)"}
+          {sortedDisplay.length ? sortedDisplay.join(", ") : "Select Country(ies)"}
         </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 opacity-50", open && "rotate-180")} />
       </Button>
