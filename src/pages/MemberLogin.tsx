@@ -126,7 +126,7 @@ export default function MemberLogin() {
             Member login
           </div>
           <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
-          <p className="text-sm text-muted-foreground mb-6">Please verify your email for active participation in the community.</p>
+          <p className="text-sm text-muted-foreground mb-6 text-left w-full">Please verify your email for active participation in the community.</p>
         </div>
 
 
