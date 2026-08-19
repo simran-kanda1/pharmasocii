@@ -470,16 +470,22 @@ function getVerificationActionCodeSettings() {
 }
 
 async function generateVerificationLinkForEmail(userEmail) {
+    const base = APP_PUBLIC_URL.replace(/\/$/, "");
     const settings = getVerificationActionCodeSettings();
+    let link = null;
     try {
-        return await admin.auth().generateEmailVerificationLink(userEmail, settings);
+        link = await admin.auth().generateEmailVerificationLink(userEmail, settings);
     } catch (firstErr) {
         console.warn(
             "generateEmailVerificationLink with actionCodeSettings failed, retrying without settings",
             firstErr?.message || firstErr
         );
-        return await admin.auth().generateEmailVerificationLink(userEmail);
+        link = await admin.auth().generateEmailVerificationLink(userEmail);
     }
+    if (link) {
+        link = link.replace(/^https?:\/\/[^/]+\/__\/auth\/action/, `${base}/auth/action`);
+    }
+    return link;
 }
 
 async function getMemberEmailAndName(userId) {
@@ -1056,10 +1062,14 @@ exports.sendPasswordResetEmail = onCall({ region: "us-central1", cors: true }, a
     const email = String(request.data?.email || "").trim().toLowerCase();
     if (!email) throw new HttpsError("invalid-argument", "email required.");
     try {
-        const resetLink = await admin.auth().generatePasswordResetLink(
+        let resetLink = await admin.auth().generatePasswordResetLink(
             email,
             getVerificationActionCodeSettings(),
         );
+        if (resetLink) {
+            const base = APP_PUBLIC_URL.replace(/\/$/, "");
+            resetLink = resetLink.replace(/^https?:\/\/[^/]+\/__\/auth\/action/, `${base}/auth/action`);
+        }
         const profile = await getMemberProfileByEmail(email);
         await sendCommunityEmail({
             type: "password_reset",

@@ -29,11 +29,11 @@ export default function AuthAction() {
 
     const title =
         mode === "resetPassword"
-            ? "Reset password"
+            ? (status === "success" ? "Password reset" : "Reset password")
             : mode === "recoverEmail"
               ? "Recover email"
               : mode === "verifyEmail"
-                ? "Verify email"
+                ? "Email verified"
                 : "Authentication";
 
     const badge =
@@ -68,7 +68,7 @@ export default function AuthAction() {
                     case "verifyEmail":
                         await applyActionCode(auth, oobCode);
                         setStatus("success");
-                        setMessage("Your email has been verified. You can now sign in and access your Pharma SocII account.");
+                        setMessage("You can sign into your account.");
                         break;
                     default:
                         setStatus("error");
