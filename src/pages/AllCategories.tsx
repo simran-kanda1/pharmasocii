@@ -1172,12 +1172,6 @@ export default function AllCategories() {
                     </div>
                 ) : currentTab === "compliance" ? (
                     <div className="flex-1 max-w-7xl mx-auto w-full pb-24 flex flex-col items-center">
-                        <div className="text-center space-y-4 mb-12">
-                            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Global Health Authority Sites</h2>
-                            <p className="text-muted-foreground text-sm sm:text-base max-w-3xl mx-auto">
-                                Bid farewell to endless searches and fragmented information. Our platform serves as your compass, making navigation of health authority sites effortless and efficient.
-                            </p>
-                        </div>
                         <div className="w-full max-w-xl mx-auto mb-16 relative">
                             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
                             <Input placeholder="Search for a country..." value={healthAuthSearch} onChange={(e) => setHealthAuthSearch(e.target.value)} className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full" />
