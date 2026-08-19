@@ -9,9 +9,9 @@ import { auth, db } from "@/firebase";
 import {
   signInWithEmailAndPassword,
   onAuthStateChanged,
-  sendEmailVerification
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { requestVerificationEmail } from "@/lib/adminCommunityCallables";
 
 
 export default function MemberLogin() {
@@ -104,9 +104,7 @@ export default function MemberLogin() {
     if (!auth.currentUser) return;
     try {
       setIsLoading(true);
-      await sendEmailVerification(auth.currentUser, {
-        url: window.location.origin + "/auth/action",
-      });
+      await requestVerificationEmail();
       setResendSuccess("Verification email sent! Please check your inbox.");
       setError("");
     } catch (err: any) {

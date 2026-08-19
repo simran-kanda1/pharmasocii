@@ -40,9 +40,14 @@ export async function adminSetMemberStatus(params: {
   return fn(params);
 }
 
-export async function mirrorPasswordResetEmail(email: string) {
-  const fn = httpsCallable<{ email: string }, { ok: boolean }>(fns, "mirrorPasswordResetEmail");
+export async function requestPasswordReset(email: string) {
+  const fn = httpsCallable<{ email: string }, { ok: boolean }>(fns, "sendPasswordResetEmail");
   return fn({ email });
+}
+
+export async function requestVerificationEmail() {
+  const fn = httpsCallable(fns, "requestVerificationEmailCc");
+  return fn();
 }
 
 export async function adminRefreshVerificationLink(userId: string) {

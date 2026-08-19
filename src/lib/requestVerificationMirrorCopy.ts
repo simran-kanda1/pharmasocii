@@ -1,22 +1,21 @@
-import { httpsCallable } from "firebase/functions";
-import { functions } from "@/firebase";
+import { requestVerificationEmail } from "@/lib/adminCommunityCallables";
 
-export type VerificationMirrorResult = { ok: true } | { ok: false; message: string };
+export type VerificationEmailResult = { ok: true } | { ok: false; message: string };
 
-/**
- * Callable mirror for “resend verification” (signup mirror uses Firestore trigger).
- */
-export async function requestVerificationMirrorCopy(): Promise<VerificationMirrorResult> {
-  const fn = httpsCallable(functions, "requestVerificationEmailCc");
+/** Resend branded account activation / verification email (members). */
+export async function requestVerificationEmailResend(): Promise<VerificationEmailResult> {
   try {
-    await fn();
+    await requestVerificationEmail();
     return { ok: true };
   } catch (e: unknown) {
     const fe = e as { code?: string; message?: string };
     const code = fe?.code != null ? String(fe.code) : "";
     const message = fe?.message != null ? String(fe.message) : String(e);
     const full = code && !message.includes(code) ? `${code}: ${message}` : message;
-    console.warn("requestVerificationEmailCc:", full, e);
+    console.warn("requestVerificationEmail:", full, e);
     return { ok: false, message: full };
   }
 }
+
+/** @deprecated Use requestVerificationEmailResend */
+export const requestVerificationMirrorCopy = requestVerificationEmailResend;

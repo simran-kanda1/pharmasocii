@@ -20,7 +20,7 @@ export const db = initializeFirestore(app, {
     experimentalForceLongPolling: true,
 });
 export const storage = getStorage(app);
-/** Same region as Cloud Functions (verification mirror, community triggers). */
+/** Same region as Cloud Functions (email delivery, community triggers). */
 export const functions = getFunctions(app, "us-central1");
 
 export default app;

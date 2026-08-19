@@ -4,9 +4,10 @@ import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { signInWithEmailAndPassword, signOut, sendEmailVerification } from "firebase/auth";
+import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, db } from "@/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import { requestVerificationEmail } from "@/lib/adminCommunityCallables";
 
 export default function Login() {
     const navigate = useNavigate();
@@ -65,9 +66,7 @@ export default function Login() {
         if (!auth.currentUser) return;
         try {
             setIsLoading(true);
-            await sendEmailVerification(auth.currentUser, {
-                url: window.location.origin + "/auth/action",
-            });
+            await requestVerificationEmail();
             setResendSuccess("Verification email sent! Please check your inbox.");
             setError("");
         } catch (err: any) {

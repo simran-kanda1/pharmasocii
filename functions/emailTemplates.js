@@ -1,4 +1,4 @@
-/** Transactional community email copy (SMTP + emailLogCollection). */
+/** Transactional email templates (production SMTP + emailLogCollection). */
 
 function escapeHtml(s) {
     return String(s)
@@ -19,14 +19,35 @@ function firstNameFrom(payload = {}) {
 const NO_REPLY_TEXT =
     "\n\nThis is a no-reply email. Please use the Contact Us page for support.";
 const NO_REPLY_HTML =
-    '<p style="color:#666;font-size:12px;margin-top:24px">This is a no-reply email. Please use the Contact Us page for support.</p>';
+    '<p style="color:#666;font-size:12px;margin:24px 0 0;line-height:1.5">This is a no-reply email. Please use the Contact Us page for support.</p>';
 
 function wrapHtml(bodyHtml) {
-    return `${bodyHtml}${NO_REPLY_HTML}`;
+    return (
+        `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+        `<title>Pharma SocII</title></head>` +
+        `<body style="margin:0;padding:0;background:#f4f7f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a">` +
+        `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7f6;padding:32px 16px">` +
+        `<tr><td align="center">` +
+        `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e5ebe9;border-radius:12px;overflow:hidden">` +
+        `<tr><td style="padding:20px 28px;border-bottom:1px solid #e5ebe9;background:#0d9488">` +
+        `<p style="margin:0;font-size:16px;font-weight:600;letter-spacing:0.02em;color:#ffffff">Pharma SocII</p>` +
+        `</td></tr>` +
+        `<tr><td style="padding:28px;font-size:15px;line-height:1.6;color:#1a1a1a">${bodyHtml}${NO_REPLY_HTML}</td></tr>` +
+        `</table>` +
+        `</td></tr></table></body></html>`
+    );
 }
 
 function wrapText(bodyText) {
     return `${bodyText}${NO_REPLY_TEXT}`;
+}
+
+function ctaButton(href, label) {
+    if (!href) return "";
+    return (
+        `<p style="margin:24px 0"><a href="${escapeHtml(href)}" style="display:inline-block;padding:12px 20px;background:#0d9488;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">${escapeHtml(label)}</a></p>` +
+        `<p style="word-break:break-all;font-size:12px;color:#666;margin:0">Or copy this link:<br/>${escapeHtml(href)}</p>`
+    );
 }
 
 const templates = {
@@ -46,8 +67,8 @@ const templates = {
                 ? `<p><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
                 : "";
             return wrapHtml(
-                `<p>We've received your submission. Thank you for partnering with us.</p>` +
-                    `<p>Pharma SocII Team</p>` +
+                `<p style="margin:0 0 16px">We've received your submission. Thank you for partnering with us.</p>` +
+                    `<p style="margin:0 0 8px">Pharma SocII Team</p>` +
                     link,
             );
         },
@@ -57,9 +78,9 @@ const templates = {
         text: (payload) => {
             const siteUrl = String(payload.siteUrl || "").trim();
             return wrapText(
-                "We wanted to let you know that updates have been made to your profile details. " +
+                "We wanted to let you know that updates have been made to your account. " +
                     "Please log in to review the changes. If you did not make these updates, " +
-                    "we recommend updating your security information and contacting us.\n\n" +
+                    "we recommend updating your security information.\n\n" +
                     "Pharma SocII Team\n" +
                     (siteUrl ? `\n${siteUrl}` : ""),
             );
@@ -70,10 +91,10 @@ const templates = {
                 ? `<p><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
                 : "";
             return wrapHtml(
-                `<p>We wanted to let you know that updates have been made to your profile details. ` +
+                `<p style="margin:0 0 16px">We wanted to let you know that updates have been made to your account. ` +
                     `Please log in to review the changes. If you did not make these updates, ` +
-                    `we recommend updating your security information and contacting us.</p>` +
-                    `<p>Pharma SocII Team</p>` +
+                    `we recommend updating your security information.</p>` +
+                    `<p style="margin:0 0 8px">Pharma SocII Team</p>` +
                     link,
             );
         },
@@ -83,7 +104,7 @@ const templates = {
         text: (payload) => {
             const siteUrl = String(payload.siteUrl || "").trim();
             return wrapText(
-                "The changes to your plan have been successfully processed. Thank you for your continued partnership.\n\n" +
+                "Changes to your plan have been successfully processed. Thank you for your continued partnership.\n\n" +
                     "Pharma SocII Team\n" +
                     (siteUrl ? `\n${siteUrl}` : ""),
             );
@@ -94,104 +115,69 @@ const templates = {
                 ? `<p><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
                 : "";
             return wrapHtml(
-                `<p>The changes to your plan have been successfully processed. Thank you for your continued partnership.</p>` +
-                    `<p>Pharma SocII Team</p>` +
+                `<p style="margin:0 0 16px">Changes to your plan have been successfully processed. Thank you for your continued partnership.</p>` +
+                    `<p style="margin:0 0 8px">Pharma SocII Team</p>` +
                     link,
             );
         },
     },
     partner_email_verification: {
-        subject: () => "Verify your new Pharma SocII partner email",
-        text: ({ verifyLink, ...payload }) => {
-            const first = firstNameFrom(payload);
-            let body =
-                `Dear ${first},\n\n` +
-                "Your Pharma SocII partner account sign-in email was updated. " +
-                "Please verify this new address using the link below.\n\n";
+        subject: () => "Verify your email",
+        text: ({ verifyLink }) => {
+            let body = "Please verify your email address. Click the link below to confirm.\n\n";
             if (verifyLink) {
-                body += `${verifyLink}\n\n`;
+                body += `${verifyLink}\n`;
             }
-            body +=
-                "After verifying, sign in with this email and your existing password.\n\n" +
-                "Pharma SocII Team";
             return wrapText(body);
         },
-        html: ({ verifyLink, ...payload }) => {
-            const first = escapeHtml(firstNameFrom(payload));
-            const link = verifyLink
-                ? `<p><a href="${escapeHtml(verifyLink)}">Verify your email</a></p><p style="word-break:break-all;font-size:12px;color:#666">${escapeHtml(verifyLink)}</p>`
-                : "";
+        html: ({ verifyLink }) => {
             return wrapHtml(
-                `<p>Dear ${first},</p>` +
-                    `<p>Your Pharma SocII partner account sign-in email was updated. Please verify this new address.</p>` +
-                    link +
-                    `<p>After verifying, sign in with this email and your existing password.</p>` +
-                    `<p>Pharma SocII Team</p>`,
+                `<p style="margin:0 0 16px">Please verify your email address. Click the link below to confirm.</p>` +
+                    ctaButton(verifyLink, "Verify your email"),
             );
         },
     },
     account_activation: {
-        subject: () => "Account activation",
-        text: ({ verifyLink, ...payload }) => {
-            const first = firstNameFrom(payload);
+        subject: () => "Activate your account",
+        text: ({ verifyLink }) => {
             let body =
-                `Dear ${first},\n\n` +
                 "Please use the link below to activate your Pharma SocII account.\n" +
                 "Once activated, you will be able to post and comment within the community.\n\n";
             if (verifyLink) {
                 body += `${verifyLink}\n\n`;
             }
-            body +=
-                "Welcome to the Pharma SocII community.\n\n" +
-                "Pharma SocII Team";
+            body += "Pharma SocII Team";
             return wrapText(body);
         },
-        html: ({ verifyLink, ...payload }) => {
-            const first = escapeHtml(firstNameFrom(payload));
-            let html =
-                `<p>Dear ${first},</p>` +
-                `<p>Please use the link below to activate your <b>Pharma SocII</b> account. ` +
-                `Once activated, you will be able to post and comment within the community.</p>`;
-            if (verifyLink) {
-                html +=
-                    `<p><a href="${verifyLink}" style="display:inline-block;padding:10px 16px;background:#0d9488;color:#fff;text-decoration:none;border-radius:6px">Activate account</a></p>` +
-                    `<p style="word-break:break-all;font-size:12px;color:#666">Or copy this link:<br/>${escapeHtml(verifyLink)}</p>`;
-            }
-            html +=
-                `<p>Welcome to the Pharma SocII community.</p>` +
-                `<p>Pharma SocII Team</p>`;
-            return wrapHtml(html);
+        html: ({ verifyLink }) => {
+            return wrapHtml(
+                `<p style="margin:0 0 16px">Please use the link below to activate your <b>Pharma SocII</b> account. ` +
+                    `Once activated, you will be able to post and comment within the community.</p>` +
+                    ctaButton(verifyLink, "Activate account") +
+                    `<p style="margin:24px 0 0">Pharma SocII Team</p>`,
+            );
         },
     },
     password_reset: {
         subject: () => "Reset your password",
-        text: ({ resetLink, ...payload }) => {
-            const first = firstNameFrom(payload);
+        text: ({ resetLink }) => {
             return wrapText(
-                `Hi ${first},\n\n` +
-                    "We received a request to reset the password for your Pharma SocII account.\n\n" +
+                "We received a request to reset the password for your Pharma SocII account.\n\n" +
                     "To create a new password, please use the link below:\n\n" +
                     `${resetLink || "[Reset Password]"}\n\n` +
                     "If you did not request a password reset, you can safely ignore this email.\n\n" +
                     "For security reasons, this link may expire after a limited time.\n\n" +
-                    "Thank you,\n" +
-                    "Pharma SocII Community Team",
+                    "Pharma SocII Team",
             );
         },
-        html: ({ resetLink, ...payload }) => {
-            const first = escapeHtml(firstNameFrom(payload));
-            const link = resetLink
-                ? `<p><a href="${resetLink}" style="display:inline-block;padding:10px 16px;background:#0d9488;color:#fff;text-decoration:none;border-radius:6px">Reset Password</a></p>` +
-                  `<p style="word-break:break-all;font-size:12px;color:#666">${escapeHtml(resetLink)}</p>`
-                : `<p>[Reset Password]</p>`;
+        html: ({ resetLink }) => {
             return wrapHtml(
-                `<p>Hi ${first},</p>` +
-                    `<p>We received a request to reset the password for your <b>Pharma SocII</b> account.</p>` +
-                    `<p>To create a new password, please use the link below:</p>` +
-                    link +
-                    `<p>If you did not request a password reset, you can safely ignore this email.</p>` +
+                `<p style="margin:0 0 16px">We received a request to reset the password for your <b>Pharma SocII</b> account.</p>` +
+                    `<p style="margin:0 0 8px">To create a new password, please use the link below:</p>` +
+                    (resetLink ? ctaButton(resetLink, "Reset Password") : `<p>[Reset Password]</p>`) +
+                    `<p style="margin:24px 0 0">If you did not request a password reset, you can safely ignore this email.</p>` +
                     `<p>For security reasons, this link may expire after a limited time.</p>` +
-                    `<p>Thank you,<br/>Pharma SocII Community Team</p>`,
+                    `<p style="margin:24px 0 0">Pharma SocII Team</p>`,
             );
         },
     },

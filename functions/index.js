@@ -2,9 +2,9 @@
  * Scheduled cleanup: remove spotlight fields after featureSpotlightAccessEnd.
  * advanceStaleTestClocks calls Render for accelerated 4-day test renewals.
  * Community: comment counts, spam thresholds, spam-block release.
- * Community-only email testing: onMemberDocumentCreatedVerificationMirror (Firestore) +
- * requestVerificationEmailCc (resend) mirror links to verificationMirrors and optional SMTP
- * to VERIFICATION_CC_EMAIL (comma-separated; default includes simrankaurkanda42@gmail.com and singhamyw@outlook.com).
+ * Member emails: onMemberDocumentCreatedVerificationMirror (activation) +
+ * requestVerificationEmailCc (resend) + sendPasswordResetEmail (forgot password).
+ * Links are stored in verificationMirrors for admin; delivery is via SMTP templates.
  *
  * Partner emails: onPartnerEmailQueued (partnerEmailQueue) + onPartnerProfileUpdated
  * (primaryEmail / businessName / companyWebsite → pri+sec). Welcome/plan emails are
@@ -12,9 +12,9 @@
  *
  * Deploy: cd functions && npm install && cd .. && firebase deploy --only functions,firestore:rules
  *
- * Optional SMTP (Gmail example): set on both functions in Google Cloud Console → Environment variables:
+ * Production SMTP (required to deliver mail): set on Cloud Functions:
  *   SMTP_HOST=smtp.gmail.com  SMTP_PORT=465  SMTP_USER=...  SMTP_PASS=app-password  SMTP_FROM=...
- * Optional: VERIFICATION_CC_EMAIL=...
+ * Optional QA: VERIFICATION_CC_EMAIL=..., COMMUNITY_EMAIL_CC_ALL=true
  *
  * Keep logic aligned with server/cleanupExpiredSpotlights.js (HTTP cron fallback).
  */
@@ -1051,38 +1051,32 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     return { ok: true };
 });
 
-exports.mirrorPasswordResetEmail = onCall({ region: "us-central1", cors: true }, async (request) => {
+/** Production password reset — generates Auth link and sends branded SMTP template (no Firebase Auth default email). */
+exports.sendPasswordResetEmail = onCall({ region: "us-central1", cors: true }, async (request) => {
     const email = String(request.data?.email || "").trim().toLowerCase();
     if (!email) throw new HttpsError("invalid-argument", "email required.");
     try {
-        const resetLink = await admin.auth().generatePasswordResetLink(email);
+        const resetLink = await admin.auth().generatePasswordResetLink(
+            email,
+            getVerificationActionCodeSettings(),
+        );
         const profile = await getMemberProfileByEmail(email);
-        await db.collection("emailLogCollection").add({
+        await sendCommunityEmail({
             type: "password_reset",
             toEmail: email,
-            subject: "Password reset (mirror)",
-            bodyText: resetLink,
+            payload: { resetLink, ...profile },
             link: resetLink,
-            createdAt: FieldValue.serverTimestamp(),
-            ccTo: VERIFICATION_CC_EMAIL,
         });
-        if (COMMUNITY_EMAIL_CC_ALL || process.env.SMTP_HOST) {
-            await sendCommunityEmail({
-                type: "password_reset",
-                toEmail: email,
-                payload: { resetLink, ...profile },
-                link: resetLink,
-            });
-        }
         return { ok: true };
     } catch (e) {
-        console.error("mirrorPasswordResetEmail", e);
+        console.error("sendPasswordResetEmail", e);
+        // Same response whether or not the account exists (avoid email enumeration).
         return { ok: true, skipped: "user_not_found_or_error" };
     }
 });
 
 // --- Email verification: admin queue (pendingVerifications) + link history (verificationMirrors).
-// Queue is written immediately on signup; links are attached when Auth allows.
+// Queue is written immediately on signup; activation email is sent via SMTP templates.
 
 async function syncPendingVerificationRecord({ userId, userEmail, userName, source }) {
     const ref = db.collection("pendingVerifications").doc(userId);
@@ -1102,7 +1096,9 @@ async function syncPendingVerificationRecord({ userId, userEmail, userName, sour
     return ref;
 }
 
-async function sendVerificationMirrorSmtp(userEmail, verifyLink) {
+/** Optional QA copy of activation links when COMMUNITY_EMAIL_CC_ALL is enabled. */
+async function sendVerificationQaCc(userEmail, verifyLink) {
+    if (!COMMUNITY_EMAIL_CC_ALL) return;
     const host = process.env.SMTP_HOST;
     const port = parseInt(process.env.SMTP_PORT || "587", 10);
     const smtpUser = process.env.SMTP_USER;
@@ -1110,8 +1106,8 @@ async function sendVerificationMirrorSmtp(userEmail, verifyLink) {
     const from = getNodemailerFrom();
     if (!host || !smtpUser || !smtpPass || !from) {
         console.info(
-            `[verification-mirror] SMTP not configured; Firestore mirror only. user=${userEmail}. ` +
-                "Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM on the function for Gmail CC."
+            `[verification-qa-cc] SMTP not configured; skipped QA CC for ${userEmail}. ` +
+                "Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM on the function.",
         );
         return;
     }
@@ -1125,16 +1121,15 @@ async function sendVerificationMirrorSmtp(userEmail, verifyLink) {
         await transporter.sendMail({
             from,
             to: VERIFICATION_CC_EMAILS,
-            subject: `[TEST CC] Email verification for ${userEmail}`,
-            text:
-                `Testing phase — copy of verification link.\n\nUser: ${userEmail}\n\nLink:\n${verifyLink}\n`,
+            subject: `[QA CC] Email verification for ${userEmail}`,
+            text: `QA copy of verification link.\n\nUser: ${userEmail}\n\nLink:\n${verifyLink}\n`,
             html:
                 `<p><b>User:</b> ${escapeHtmlVerification(userEmail)}</p>` +
                 `<p><a href="${verifyLink}">Open verification link</a></p>` +
-                `<p style="color:#666;font-size:12px">Mirror for QA (not the Firebase template email).</p>`,
+                `<p style="color:#666;font-size:12px">QA copy only — members receive the branded activation email.</p>`,
         });
     } catch (mailErr) {
-        console.error("[verification-mirror] SMTP send failed", userEmail, mailErr);
+        console.error("[verification-qa-cc] SMTP send failed", userEmail, mailErr);
     }
 }
 
@@ -1216,8 +1211,8 @@ async function tryAttachVerificationLink(userId, userEmail, source, options = {}
     });
 
     if (verifyLink) {
-        await sendVerificationMirrorSmtp(userEmail, verifyLink);
         await sendAccountActivationEmail(userId, userEmail, userName, verifyLink, { forceResend });
+        await sendVerificationQaCc(userEmail, verifyLink);
     }
     return { verifyLink, linkError, status };
 }
@@ -1227,7 +1222,7 @@ async function runVerificationPipeline(userId, userEmail, userName, source, opti
     return tryAttachVerificationLink(userId, userEmail, source, { ...options, userName });
 }
 
-/** Server-side mirror when a community member doc is created. */
+/** Send branded activation email when a community member doc is created. */
 exports.onMemberDocumentCreatedVerificationMirror = onDocumentCreated(
     {
         document: "membersCollection/{userId}",
@@ -1296,7 +1291,7 @@ exports.requestVerificationEmailCc = onCall({ region: "us-central1", cors: true 
     if (!memberSnap.exists) {
         throw new HttpsError(
             "failed-precondition",
-            "Community member profile required (verification mirror is community-only)."
+            "Community member profile required (email verification is community-only)."
         );
     }
     const email = request.auth.token.email;
@@ -1465,7 +1460,6 @@ exports.changePartnerPrimaryEmail = onCall({ region: "us-central1", cors: true }
     if (verifyLink) {
         verifyLink = verifyLink.replace(/^https?:\/\/[^/]+\/__\/auth\/action/, `${base}/auth/action`);
         await recordVerificationMirror(newEmail, verifyLink, "partner_email_change", { userId: uid });
-        await sendVerificationMirrorSmtp(newEmail, verifyLink);
         try {
             await sendCommunityEmail({
                 type: "partner_email_verification",
@@ -1473,6 +1467,7 @@ exports.changePartnerPrimaryEmail = onCall({ region: "us-central1", cors: true }
                 payload: { userName: partnerName, firstName: partnerName.split(/\s+/)[0] || null, verifyLink },
                 link: verifyLink,
             });
+            await sendVerificationQaCc(newEmail, verifyLink);
         } catch (mailErr) {
             console.error("changePartnerPrimaryEmail send email", mailErr);
             linkError = linkError || mailErr?.message || String(mailErr);

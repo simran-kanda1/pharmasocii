@@ -15,7 +15,7 @@ type EmailRow = {
   createdAt?: { toDate: () => Date };
 };
 
-type MirrorRow = {
+type ActivationLinkRow = {
   id: string;
   userEmail?: string;
   verifyLink?: string;
@@ -26,7 +26,7 @@ type MirrorRow = {
 
 export function AdminEmailLogPanel() {
   const [emails, setEmails] = useState<EmailRow[]>([]);
-  const [mirrors, setMirrors] = useState<MirrorRow[]>([]);
+  const [activationLinks, setActivationLinks] = useState<ActivationLinkRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -41,7 +41,7 @@ export function AdminEmailLogPanel() {
         ]);
         if (cancelled) return;
         setEmails(eSnap.docs.map((d) => ({ id: d.id, ...d.data() } as EmailRow)));
-        setMirrors(mSnap.docs.map((d) => ({ id: d.id, ...d.data() } as MirrorRow)));
+        setActivationLinks(mSnap.docs.map((d) => ({ id: d.id, ...d.data() } as ActivationLinkRow)));
       } catch (e) {
         console.error(e);
       } finally {
@@ -58,10 +58,9 @@ export function AdminEmailLogPanel() {
       <Card>
         <CardHeader className="flex flex-row items-start justify-between gap-4">
           <div>
-            <CardTitle className="text-base">Community email log</CardTitle>
+            <CardTitle className="text-base">Transactional email log</CardTitle>
             <CardDescription>
-              CC defaults (comma-separated): simrankaurkanda42@gmail.com, singhamyw@outlook.com when SMTP +
-              COMMUNITY_EMAIL_CC_ALL=true.
+              Production emails sent via SMTP. Optional QA CC when COMMUNITY_EMAIL_CC_ALL=true.
             </CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={() => setRefreshKey((k) => k + 1)}>
@@ -104,17 +103,17 @@ export function AdminEmailLogPanel() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Verification mirrors</CardTitle>
-          <CardDescription>Account activation links (member sign-up / resend).</CardDescription>
+          <CardTitle className="text-base">Activation links</CardTitle>
+          <CardDescription>Account activation / email verification links (member sign-up / resend).</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : mirrors.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No mirrored links yet.</p>
+          ) : activationLinks.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No activation links yet.</p>
           ) : (
             <ul className="space-y-3 max-h-80 overflow-y-auto">
-              {mirrors.map((row) => (
+              {activationLinks.map((row) => (
                 <li key={row.id} className="rounded-lg border border-foreground/10 p-3 text-sm">
                   <p className="font-medium">{row.userEmail}</p>
                   <p className="text-xs text-muted-foreground">{row.source}</p>
