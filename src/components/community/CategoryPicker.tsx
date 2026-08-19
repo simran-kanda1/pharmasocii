@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
@@ -14,9 +13,7 @@ import {
   canActivateMainInPicker,
   canAddSubInPicker,
   canAddSubSubInPicker,
-  countActiveMainsInPicker,
   pickerLimitBlockReason,
-  summarizePickerSelection,
 } from "@/lib/communityCategoryLimits";
 
 export type CategorySelectionState = {
@@ -181,20 +178,6 @@ type Props = {
 };
 
 export function CategoryPicker({ doc, value, onChange }: Props) {
-  const [limitError, setLimitError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!limitError) return;
-    const t = window.setTimeout(() => setLimitError(null), 6000);
-    return () => window.clearTimeout(t);
-  }, [limitError]);
-
-  const softValidation = (() => {
-    const mains = countActiveMainsInPicker(value.subsByMain, doc);
-    if (mains === 0) return null;
-    return validateCategorySelection(doc, value);
-  })();
-
   const clearMain = (
     next: CategorySelectionState,
     mainLabel: string,
@@ -215,7 +198,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         doc,
       });
       if (reason) {
-        setLimitError(reason);
         return;
       }
       // Main selected with no specific subs yet = whole main.
@@ -223,7 +205,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
     } else {
       clearMain(next, mainLabel);
     }
-    setLimitError(null);
     onChange(next);
   };
 
@@ -241,7 +222,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
           doc,
         });
         if (mainReason) {
-          setLimitError(mainReason);
           return;
         }
         next.subsByMain.set(mainLabel, new Set());
@@ -252,7 +232,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         doc,
       });
       if (reason) {
-        setLimitError(reason);
         return;
       }
 
@@ -275,7 +254,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         next.subsByMain.set(mainLabel, new Set(realSubs));
       }
     }
-    setLimitError(null);
     onChange(next);
   };
 
@@ -294,7 +272,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
           doc,
         });
         if (mainReason) {
-          setLimitError(mainReason);
           return;
         }
         next.subsByMain.set(mainLabel, new Set());
@@ -307,7 +284,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
           doc,
         });
         if (subReason) {
-          setLimitError(subReason);
           return;
         }
         subs.delete("__main_only__");
@@ -323,7 +299,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
         { subLabel, subSubLabel, doc },
       );
       if (reason) {
-        setLimitError(reason);
         return;
       }
 
@@ -337,30 +312,13 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
       else next.subSubsByMainSub.set(msKey, ss);
     }
 
-    setLimitError(null);
     onChange(next);
   };
 
-  const displayError = limitError || softValidation;
-
   return (
-    <div className="space-y-6 border border-foreground/10 rounded-xl p-4 bg-foreground/[0.02]">
+    <div className="space-y-4 border border-foreground/10 rounded-xl p-4 bg-foreground/[0.02]">
       <div>
-        <p className="text-sm font-medium">Categories</p>
-        <p className="text-xs text-muted-foreground">
-          Choose up to {POST_MAIN_CAT_MAX} main categories that best match your post. Add sub-categories and sub-topics where available to refine your discussion.
-        </p>
-        <p className="text-xs font-medium text-foreground/80 mt-1 sticky top-0 z-10 bg-background/95 backdrop-blur-sm py-1">
-          {summarizePickerSelection(doc, value.subsByMain, value.subSubsByMainSub)}
-        </p>
-        {displayError && (
-          <p
-            role="alert"
-            className="mt-2 text-sm text-red-600 dark:text-red-400 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2"
-          >
-            {displayError}
-          </p>
-        )}
+        <Label className="text-foreground/80 font-semibold">Categories</Label>
       </div>
       {doc.mains.map((main) => {
         const active = value.subsByMain.get(main.label);
@@ -396,10 +354,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                           id={`sub-${main.id}-${sub.id}`}
                           checked={subOn}
                           onCheckedChange={(c) => {
-                            if (c === true && !mainChecked) {
-                              setLimitError(`Select the main category “${main.label}” first.`);
-                              return;
-                            }
                             toggleSub(main.label, sub.label, c === true);
                           }}
                         />
@@ -434,10 +388,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
                                   id={`ss-${main.id}-${sub.id}-${ss.id}`}
                                   checked={picked}
                                   onCheckedChange={(c) => {
-                                    if (c === true && !subOn) {
-                                      setLimitError(`Select the sub-category “${sub.label}” first.`);
-                                      return;
-                                    }
                                     toggleSubSub(main.label, sub.label, ss.label, c === true);
                                   }}
                                 />
@@ -460,9 +410,6 @@ export function CategoryPicker({ doc, value, onChange }: Props) {
           </div>
         );
       })}
-      <p className="text-xs text-muted-foreground pt-4 border-t border-foreground/10 mt-4">
-        You can select up to {POST_MAIN_CAT_MAX} main categories. Each main category supports up to {POST_SUB_PER_MAIN_MAX} sub-categories, and when available, up to {POST_SUBSUB_PER_SUB_MAX} sub-topics per sub-category.
-      </p>
     </div>
   );
 }
