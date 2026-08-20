@@ -135,6 +135,25 @@ async function applyTestCheckoutCustomer(sessionParams, partnerId, partnerEmail)
     const { customerId } = await getOrCreatePartnerStripeTestCustomer(partnerId, partnerEmail);
     delete sessionParams.customer_email;
     sessionParams.customer = customerId;
+    // Required when tax_id_collection is enabled for an existing Stripe customer.
+    sessionParams.customer_update = {
+        ...(sessionParams.customer_update || {}),
+        name: "auto",
+        address: "auto",
+    };
+    return sessionParams;
+}
+
+/** Apply tax ID collection; when an existing customer is used, Stripe requires customer_update.name=auto. */
+function applyTaxIdCollection(sessionParams) {
+    sessionParams.tax_id_collection = { enabled: true };
+    if (sessionParams.customer) {
+        sessionParams.customer_update = {
+            ...(sessionParams.customer_update || {}),
+            name: "auto",
+            address: "auto",
+        };
+    }
     return sessionParams;
 }
 
@@ -4065,7 +4084,6 @@ app.post("/api/create-checkout-session", async (req, res) => {
 
         const sessionParams = {
             mode: plan.interval ? "subscription" : "payment",
-            tax_id_collection: { enabled: true },
             line_items: lineItems,
             success_url: successUrl || "https://orange-bear-967180.hostingersite.com/partner/dashboard?payment=success",
             cancel_url: cancelUrl || "https://orange-bear-967180.hostingersite.com/partner/complete-profile?payment=cancelled",
@@ -4096,6 +4114,7 @@ app.post("/api/create-checkout-session", async (req, res) => {
         }
 
         await applyTestCheckoutCustomer(sessionParams, partnerId, partnerEmail);
+        applyTaxIdCollection(sessionParams);
 
         const session = await stripe.checkout.sessions.create(sessionParams);
 
@@ -4243,9 +4262,8 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                     : { featureUpgradeNoSub: "true" }),
             };
 
-            const upgradeSession = await stripe.checkout.sessions.create({
+            const upgradeSessionParams = {
                 mode: "payment",
-                tax_id_collection: { enabled: true },
                 line_items: [
                     {
                         price_data: {
@@ -4270,7 +4288,9 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                       : {}),
                 client_reference_id: partnerId,
                 metadata: upgradeMetadata,
-            });
+            };
+            applyTaxIdCollection(upgradeSessionParams);
+            const upgradeSession = await stripe.checkout.sessions.create(upgradeSessionParams);
 
             console.log(
                 `✓ Feature upgrade checkout created: ${upgradeSession.id} (${pricing.unitAmount} cents, ${existingSubId ? "with sub" : "listing-only"})`
@@ -4340,7 +4360,6 @@ app.post("/api/create-feature-checkout", async (req, res) => {
 
         const featureSessionParams = {
             mode: "subscription",
-            tax_id_collection: { enabled: true },
             line_items: [
                 {
                     price_data: {
@@ -4383,6 +4402,7 @@ app.post("/api/create-feature-checkout", async (req, res) => {
         };
 
         await applyTestCheckoutCustomer(featureSessionParams, partnerId, partnerEmail);
+        applyTaxIdCollection(featureSessionParams);
 
         const session = await stripe.checkout.sessions.create(featureSessionParams);
 

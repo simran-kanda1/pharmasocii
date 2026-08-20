@@ -444,16 +444,27 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
         auth: { user: smtpUser, pass: smtpPass },
     });
     try {
+        // Always send a clean production email to the user (no [CC]/QA markers on their copy).
         await transporter.sendMail({
             from,
             to: toEmail,
-            ...(ccList.length ? { cc: ccList } : {}),
-            subject: ccList.length ? `[CC] ${subject}` : subject,
-            text: ccList.length ? `${text}\n\n---\nQA copy to ${ccTo}` : text,
-            html: ccList.length
-                ? `${html}<hr/><p style="color:#666;font-size:12px">QA copy (CC ${escapeHtmlVerification(ccTo)})</p>`
-                : html,
+            subject,
+            text,
+            html,
         });
+        // Optional internal QA copy — separate message, never mixed into the user-facing email.
+        if (ccList.length) {
+            await transporter.sendMail({
+                from,
+                to: ccList,
+                subject: `[Internal] ${subject} → ${toEmail}`,
+                text: `Internal copy of transactional email.\n\nTo: ${toEmail}\nType: ${type}\n\n---\n\n${text}`,
+                html:
+                    `<p style="color:#666;font-size:12px">Internal copy only — recipient: ` +
+                    `${escapeHtmlVerification(toEmail)} · type: ${escapeHtmlVerification(type)}</p>` +
+                    `<hr/>${html}`,
+            });
+        }
         return { logged: true, sent: true };
     } catch (mailErr) {
         console.error("[community-email] SMTP send failed", type, toEmail, mailErr);
@@ -1474,7 +1485,12 @@ exports.changePartnerPrimaryEmail = onCall({ region: "us-central1", cors: true }
             await sendCommunityEmail({
                 type: "partner_email_verification",
                 toEmail: newEmail,
-                payload: { userName: partnerName, firstName: partnerName.split(/\s+/)[0] || null, verifyLink },
+                payload: {
+                    userName: partnerName,
+                    firstName: partnerName.split(/\s+/)[0] || null,
+                    verifyLink,
+                    siteUrl: getPartnerSiteUrl(),
+                },
                 link: verifyLink,
             });
             await sendVerificationQaCc(newEmail, verifyLink);

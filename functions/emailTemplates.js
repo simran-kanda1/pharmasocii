@@ -123,17 +123,28 @@ const templates = {
     },
     partner_email_verification: {
         subject: () => "Verify your email",
-        text: ({ verifyLink }) => {
-            let body = "Please verify your email address. Click the link below to confirm.\n\n";
+        text: (payload) => {
+            const siteUrl = String(payload.siteUrl || "").trim();
+            const verifyLink = payload.verifyLink;
+            let body =
+                "Please verify your email address. Click the link below to confirm.\n\n";
             if (verifyLink) {
-                body += `${verifyLink}\n`;
+                body += `${verifyLink}\n\n`;
             }
+            body += "Pharma SocII Team";
+            if (siteUrl) body += `\n\n${siteUrl}`;
             return wrapText(body);
         },
-        html: ({ verifyLink }) => {
+        html: (payload) => {
+            const siteUrl = String(payload.siteUrl || "").trim();
+            const link = siteUrl
+                ? `<p style="margin:16px 0 0"><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
+                : "";
             return wrapHtml(
                 `<p style="margin:0 0 16px">Please verify your email address. Click the link below to confirm.</p>` +
-                    ctaButton(verifyLink, "Verify your email"),
+                    ctaButton(payload.verifyLink, "Verify your email") +
+                    `<p style="margin:24px 0 0">Pharma SocII Team</p>` +
+                    link,
             );
         },
     },
@@ -184,10 +195,8 @@ const templates = {
     spam_strike_1: {
         subject: () => "Notice of reported content (1st report)",
         text: (payload) => {
-            const first = firstNameFrom(payload);
             return wrapText(
-                `Hi ${first},\n\n` +
-                    "We're writing to let you know that one of your recent posts or comments on the Pharma SocII Community " +
+                "We're writing to let you know that one of your recent posts or comments on the Pharma SocII Community " +
                     "has been reported by a member of the community.\n\n" +
                     "At this time, no action has been taken against your account. This notice is provided so you are aware of " +
                     "the report and can review your content to ensure it aligns with our Community Guidelines.\n\n" +
@@ -202,10 +211,8 @@ const templates = {
             );
         },
         html: (payload) => {
-            const first = escapeHtml(firstNameFrom(payload));
             return wrapHtml(
-                `<p>Hi ${first},</p>` +
-                    `<p>We're writing to let you know that one of your recent posts or comments on the <b>Pharma SocII Community</b> ` +
+                `<p>We're writing to let you know that one of your recent posts or comments on the <b>Pharma SocII Community</b> ` +
                     `has been reported by a member of the community.</p>` +
                     `<p>At this time, no action has been taken against your account. This notice is provided so you are aware of ` +
                     `the report and can review your content to ensure it aligns with our Community Guidelines.</p>` +
@@ -224,10 +231,8 @@ const templates = {
     spam_strike_2: {
         subject: () => "Second notice regarding reported content",
         text: (payload) => {
-            const first = firstNameFrom(payload);
             return wrapText(
-                `Hi ${first},\n\n` +
-                    "This is a follow-up regarding your recent post or comment on the Pharma SocII Community.\n\n" +
+                "This is a follow-up regarding your recent post or comment on the Pharma SocII Community.\n\n" +
                     "Your content has now been reported twice.\n\n" +
                     "As a reminder of our reporting process:\n\n" +
                     "A post or comment is automatically removed after receiving three reports on that item.\n\n" +
@@ -239,10 +244,8 @@ const templates = {
             );
         },
         html: (payload) => {
-            const first = escapeHtml(firstNameFrom(payload));
             return wrapHtml(
-                `<p>Hi ${first},</p>` +
-                    `<p>This is a follow-up regarding your recent post or comment on the <b>Pharma SocII Community</b>.</p>` +
+                `<p>This is a follow-up regarding your recent post or comment on the <b>Pharma SocII Community</b>.</p>` +
                     `<p>Your content has now been reported <b>twice</b>.</p>` +
                     `<p>As a reminder of our reporting process:</p>` +
                     `<ul>` +
@@ -258,10 +261,8 @@ const templates = {
     spam_strike_3_account_archived: {
         subject: () => "Community guidelines notice: account status update",
         text: (payload) => {
-            const first = firstNameFrom(payload);
             return wrapText(
-                `Hi ${first},\n\n` +
-                    "This is a follow-up regarding your recent activity on the Pharma SocII Community.\n\n" +
+                "This is a follow-up regarding your recent activity on the Pharma SocII Community.\n\n" +
                     "Your account has now accumulated three total community reports across one or more posts and/or comments/replies.\n\n" +
                     "In accordance with our Community Guidelines:\n\n" +
                     "Content that receives three reports may be removed from the community.\n\n" +
@@ -276,10 +277,8 @@ const templates = {
             );
         },
         html: (payload) => {
-            const first = escapeHtml(firstNameFrom(payload));
             return wrapHtml(
-                `<p>Hi ${first},</p>` +
-                    `<p>This is a follow-up regarding your recent activity on the <b>Pharma SocII Community</b>.</p>` +
+                `<p>This is a follow-up regarding your recent activity on the <b>Pharma SocII Community</b>.</p>` +
                     `<p>Your account has now accumulated <b>three total community reports</b> across one or more posts and/or comments/replies.</p>` +
                     `<p>In accordance with our Community Guidelines:</p>` +
                     `<ul>` +
@@ -298,10 +297,8 @@ const templates = {
     account_reactivated: {
         subject: () => "Your Pharma SocII account has been reactivated",
         text: (payload) => {
-            const first = firstNameFrom(payload);
             return wrapText(
-                `Hi ${first},\n\n` +
-                    "We're writing to let you know that your Pharma SocII account has been reactivated. You now have full access to the community again.\n\n" +
+                "We're writing to let you know that your Pharma SocII account has been reactivated. You now have full access to the community again.\n\n" +
                     "We appreciate your cooperation and encourage you to review our Community Guidelines to ensure future contributions remain professional, " +
                     "respectful, and valuable to the life sciences community.\n\n" +
                     "If you have any questions, please contact us.\n\n" +
@@ -310,10 +307,8 @@ const templates = {
             );
         },
         html: (payload) => {
-            const first = escapeHtml(firstNameFrom(payload));
             return wrapHtml(
-                `<p>Hi ${first},</p>` +
-                    `<p>We're writing to let you know that your <b>Pharma SocII</b> account has been <b>reactivated</b>. ` +
+                `<p>We're writing to let you know that your <b>Pharma SocII</b> account has been <b>reactivated</b>. ` +
                     `You now have full access to the community again.</p>` +
                     `<p>We appreciate your cooperation and encourage you to review our Community Guidelines to ensure future contributions remain professional, ` +
                     `respectful, and valuable to the life sciences community.</p>` +
@@ -330,19 +325,15 @@ const templates = {
     admin_content_restored: {
         subject: () => "Content restored",
         text: (payload) => {
-            const first = firstNameFrom(payload);
             return wrapText(
-                `Hi ${first},\n\n` +
-                    "We're writing to let you know that your post or comment on Pharma SocII has been restored by our moderation team.\n\n" +
+                "We're writing to let you know that your post or comment on Pharma SocII has been restored by our moderation team.\n\n" +
                     "Thank you for contributing to the community,\n" +
                     "Pharma SocII Community Team",
             );
         },
         html: (payload) => {
-            const first = escapeHtml(firstNameFrom(payload));
             return wrapHtml(
-                `<p>Hi ${first},</p>` +
-                    `<p>We're writing to let you know that your post or comment on <b>Pharma SocII</b> has been restored by our moderation team.</p>` +
+                `<p>We're writing to let you know that your post or comment on <b>Pharma SocII</b> has been restored by our moderation team.</p>` +
                     `<p>Thank you for contributing to the community,<br/>Pharma SocII Community Team</p>`,
             );
         },
@@ -350,10 +341,8 @@ const templates = {
     content_archived_admin: {
         subject: () => "Community moderation notice: content archived",
         text: (payload) => {
-            const first = firstNameFrom(payload);
             return wrapText(
-                `Hi ${first},\n\n` +
-                    "This message is regarding content you posted or commented on within the Pharma SocII Community.\n\n" +
+                "This message is regarding content you posted or commented on within the Pharma SocII Community.\n\n" +
                     "After review, the moderation team has determined that the content does not align with one or more aspects of " +
                     "our Community Guidelines. As a result, the content has been archived and is no longer visible to the community.\n\n" +
                     "Please note that content was archived by the moderation team to help maintain a professional, respectful, and " +
@@ -365,10 +354,8 @@ const templates = {
             );
         },
         html: (payload) => {
-            const first = escapeHtml(firstNameFrom(payload));
             return wrapHtml(
-                `<p>Hi ${first},</p>` +
-                    `<p>This message is regarding content you posted or commented on within the <b>Pharma SocII Community</b>.</p>` +
+                `<p>This message is regarding content you posted or commented on within the <b>Pharma SocII Community</b>.</p>` +
                     `<p>After review, the moderation team has determined that the content does not align with one or more aspects of ` +
                     `our Community Guidelines. As a result, the content has been <b>archived</b> and is no longer visible to the community.</p>` +
                     `<p>Please note that content was archived by the moderation team to help maintain a professional, respectful, and ` +
@@ -383,20 +370,16 @@ const templates = {
     content_archived_spam: {
         subject: () => "Community notice: content removed after reports",
         text: (payload) => {
-            const first = firstNameFrom(payload);
             return wrapText(
-                `Hi ${first},\n\n` +
-                    "Your content on the Pharma SocII Community received three member reports and has been automatically removed from the platform. " +
+                "Your content on the Pharma SocII Community received three member reports and has been automatically removed from the platform. " +
                     "We encourage you to review our Community Guidelines before creating future content.\n\n" +
                     "Regards,\n" +
                     "Pharma SocII Community Team",
             );
         },
         html: (payload) => {
-            const first = escapeHtml(firstNameFrom(payload));
             return wrapHtml(
-                `<p>Hi ${first},</p>` +
-                    `<p>Your content on the <b>Pharma SocII Community</b> received three member reports and has been automatically removed from the platform. ` +
+                `<p>Your content on the <b>Pharma SocII Community</b> received three member reports and has been automatically removed from the platform. ` +
                     `We encourage you to review our Community Guidelines before creating future content.</p>` +
                     `<p>Regards,<br/>Pharma SocII Community Team</p>`,
             );
@@ -405,10 +388,8 @@ const templates = {
     account_on_hold: {
         subject: () => "Account put on hold by the moderation team",
         text: (payload) => {
-            const first = firstNameFrom(payload);
             return wrapText(
-                `Hi ${first},\n\n` +
-                    "We're writing to inform you that your Pharma SocII account has been temporarily paused by our moderation team.\n\n" +
+                "We're writing to inform you that your Pharma SocII account has been temporarily paused by our moderation team.\n\n" +
                     "This action is taken when content or account activity requires further review to ensure alignment with our Community Guidelines.\n\n" +
                     "What this means:\n\n" +
                     "You will not be able to post or comment while your account is under review\n\n" +
@@ -422,10 +403,8 @@ const templates = {
             );
         },
         html: (payload) => {
-            const first = escapeHtml(firstNameFrom(payload));
             return wrapHtml(
-                `<p>Hi ${first},</p>` +
-                    `<p>We're writing to inform you that your <b>Pharma SocII</b> account has been temporarily paused by our moderation team.</p>` +
+                `<p>We're writing to inform you that your <b>Pharma SocII</b> account has been temporarily paused by our moderation team.</p>` +
                     `<p>This action is taken when content or account activity requires further review to ensure alignment with our Community Guidelines.</p>` +
                     `<p><b>What this means:</b></p>` +
                     `<ul>` +
