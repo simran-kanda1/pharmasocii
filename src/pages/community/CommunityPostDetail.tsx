@@ -663,9 +663,6 @@ export default function CommunityPostDetail() {
             ? ` (${Number(post.commentCount ?? comments.length)})`
             : ""}
         </h2>
-        <p className="text-xs text-muted-foreground">
-          Replies are limited to one level to keep discussions clear and focused.
-        </p>
         {memberRestricted && (
           <p className="text-sm text-muted-foreground">
             You have view-only access.
@@ -944,8 +941,8 @@ function CommentComposer({
             : !canEngage
               ? "Log in to comment…"
               : isReply
-                ? "Replies are limited to one level to keep discussions clear and focused."
-                : `Comment (max ${COMMENT_MAX} characters)`
+                ? "Write a reply…"
+                : "Comment"
         }
         className="bg-foreground/5 border-foreground/10 disabled:cursor-not-allowed"
       />

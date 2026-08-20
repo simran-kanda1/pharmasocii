@@ -515,10 +515,7 @@ export function CommunityMemberPanels({
   if (view === "profile") {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-foreground/15 dark:bg-card">
-        <h2 className="font-semibold mb-4">Update profile</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Account identity features are fixed and cannot be changed after creation.
-        </p>
+        <h2 className="font-semibold mb-4">Update Profile</h2>
         <form
           className="space-y-4 max-w-lg"
           onSubmit={async (e) => {

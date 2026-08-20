@@ -188,7 +188,7 @@ export default function MemberRegister() {
           onInvalid={(e) => {
             const target = e.target as unknown as HTMLInputElement;
             if (target.type === 'checkbox' && target.required && !target.checked) {
-              target.setCustomValidity("Please check this box to proceed.");
+              target.setCustomValidity("Please check this box to continue.");
             }
           }}
           onChange={(e) => {
