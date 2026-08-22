@@ -18,44 +18,85 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2, Plus, Pencil, Trash2, Check, X } from "lucide-react";
 
+export const FAQ_CATEGORIES = [
+    "General",
+    "Plans and Billing",
+    "Partners",
+    "Feature Plans",
+    "Community Site"
+] as const;
+
+export type FAQCategory = typeof FAQ_CATEGORIES[number];
+
 export type FAQDoc = {
     id: string;
     question: string;
     answer: string;
+    category?: string;
     order: number;
     createdAt?: any;
 };
 
 const DEFAULT_FAQS = [
     {
+        category: "General",
         question: "Open Beta Statement",
         answer: "Pharma SocII is currently offered as an open beta. All core features are available, but the Platform may evolve as we assess performance and gather feedback. During this phase, features may be modified, suspended, or discontinued, and you may encounter occasional bugs or limitations. We appreciate your participation and input as we improve the Platform.",
         order: 0
     },
     {
-        question: "How does partner discovery work?",
-        answer: "Partners list businesses, experts, events, and jobs. Visitors browse All Categories and open a listing for full detail.",
+        category: "General",
+        question: "What industries and categories are supported?",
+        answer: "We cover life sciences categories from manufacturing and CRO services to consulting, events, regulatory compliance, and jobs. Open All Categories from the top menu to view the full category tree.",
         order: 1
     },
     {
-        question: "How do I list my business?",
-        answer: "Create a partner account, complete your profile, then add listings from your partner dashboard. Once your plan and listing are active, your organization appears under the right categories in All Categories.",
+        category: "Plans and Billing",
+        question: "How does subscription billing work?",
+        answer: "Subscriptions are billed on a recurring monthly or yearly cycle via Stripe. You can manage your plan, review invoices, or cancel anytime from the partner dashboard.",
         order: 2
     },
     {
-        question: "How do I post a job?",
-        answer: "From the partner dashboard, add a job listing and upload a description PDF when prompted. Active jobs appear under Jobs in All Categories.",
+        category: "Plans and Billing",
+        question: "Can I change or cancel my plan?",
+        answer: "Yes, you can upgrade, downgrade, or cancel your subscription at any time directly through the partner dashboard under your active plan settings.",
         order: 3
     },
     {
+        category: "Partners",
         question: "How do I become a partner?",
-        answer: "Choose Become a partner (partner registration), create your account, and pick a plan that fits your goals. Partners get listing tools, visibility options, and dashboard access.",
+        answer: "Click Become a partner from the navigation, register your account, and select the plan that matches your business needs to get started.",
         order: 4
     },
     {
-        question: "What industries are supported?",
-        answer: "We cover life sciences categories from manufacturing and CRO services to regulatory and jobs. Open All Categories for the full category tree. The Community is separate from partner listings and uses a member profile after login.",
+        category: "Partners",
+        question: "How do I list my business, consulting service, event, or job?",
+        answer: "From your partner dashboard, select Add Listing and choose the relevant category group. Fill out your listing details and publish to make it visible to visitors worldwide.",
         order: 5
+    },
+    {
+        category: "Feature Plans",
+        question: "What are Feature / Spotlight Plans?",
+        answer: "Spotlight add-ons and Premium Plus plans highlight your organization with prominent placement on the homepage and top category carousels for maximum visibility.",
+        order: 6
+    },
+    {
+        category: "Feature Plans",
+        question: "How do I add a spotlight feature to my listing?",
+        answer: "You can purchase or upgrade to a spotlight feature directly from your partner dashboard on any active listing.",
+        order: 7
+    },
+    {
+        category: "Community Site",
+        question: "What is the Community Site?",
+        answer: "The Community Site connects life sciences professionals, allowing members to share insights, discuss topics, bookmark discussions, and interact with peers across the industry.",
+        order: 8
+    },
+    {
+        category: "Community Site",
+        question: "How do I join the Community?",
+        answer: "Click Join community to create a member account. Once your profile is set up, you can engage with posts, share questions, and interact across discussion categories.",
+        order: 9
     }
 ];
 
@@ -68,6 +109,7 @@ export function AdminFaqsPanel() {
     const [isEditing, setIsEditing] = useState<string | null>(null);
     const [editQuestion, setEditQuestion] = useState("");
     const [editAnswer, setEditAnswer] = useState("");
+    const [editCategory, setEditCategory] = useState<string>("General");
     const [editOrder, setEditOrder] = useState<number>(0);
 
     const [isAdding, setIsAdding] = useState(false);
@@ -112,6 +154,7 @@ export function AdminFaqsPanel() {
             await addDoc(collection(db, "faqs"), {
                 question: editQuestion.trim(),
                 answer: editAnswer.trim(),
+                category: editCategory || "General",
                 order: editOrder,
                 createdAt: serverTimestamp()
             });
@@ -128,6 +171,7 @@ export function AdminFaqsPanel() {
             await updateDoc(doc(db, "faqs", id), {
                 question: editQuestion.trim(),
                 answer: editAnswer.trim(),
+                category: editCategory || "General",
                 order: editOrder
             });
             setIsEditing(null);
@@ -151,6 +195,7 @@ export function AdminFaqsPanel() {
         setIsEditing(null);
         setEditQuestion("");
         setEditAnswer("");
+        setEditCategory("General");
         setEditOrder(faqs.length > 0 ? Math.max(...faqs.map(f => f.order)) + 1 : 0);
     };
 
@@ -159,6 +204,7 @@ export function AdminFaqsPanel() {
         setIsAdding(false);
         setEditQuestion(faq.question);
         setEditAnswer(faq.answer);
+        setEditCategory(faq.category || "General");
         setEditOrder(faq.order);
     };
 
@@ -167,6 +213,7 @@ export function AdminFaqsPanel() {
         setIsEditing(null);
         setEditQuestion("");
         setEditAnswer("");
+        setEditCategory("General");
         setEditOrder(0);
     };
 
@@ -183,7 +230,7 @@ export function AdminFaqsPanel() {
             <CardHeader className="flex flex-row items-center justify-between border-b bg-slate-50/50 pb-4">
                 <div>
                     <CardTitle className="text-xl font-bold text-slate-800">Frequently Asked Questions</CardTitle>
-                    <CardDescription className="mt-1">Manage the FAQs displayed on the /faq page. Lower order numbers appear first.</CardDescription>
+                    <CardDescription className="mt-1">Manage the FAQs displayed on the /faq page grouped by category. Lower order numbers appear first.</CardDescription>
                 </div>
                 {!isAdding && !isEditing && (
                     <Button onClick={startAdd} className="bg-blue-600 hover:bg-blue-700 gap-2">
@@ -196,6 +243,18 @@ export function AdminFaqsPanel() {
                     <div className="p-6 border-b bg-blue-50/30 space-y-4">
                         <h3 className="font-semibold text-slate-800">{isAdding ? "Add New FAQ" : "Edit FAQ"}</h3>
                         <div className="grid gap-4">
+                            <div className="space-y-1.5">
+                                <label className="text-sm font-medium text-slate-700">Subheading / Category</label>
+                                <select 
+                                    value={editCategory}
+                                    onChange={e => setEditCategory(e.target.value)}
+                                    className="w-full h-10 px-3 rounded-md border border-slate-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                >
+                                    {FAQ_CATEGORIES.map(cat => (
+                                        <option key={cat} value={cat}>{cat}</option>
+                                    ))}
+                                </select>
+                            </div>
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium text-slate-700">Question</label>
                                 <Input 
@@ -250,6 +309,11 @@ export function AdminFaqsPanel() {
                                 </div>
                             </div>
                             <div className="flex-1 space-y-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                                        {faq.category || "General"}
+                                    </span>
+                                </div>
                                 <h4 className="font-medium text-slate-900">{faq.question}</h4>
                                 <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-wrap">{faq.answer}</p>
                             </div>

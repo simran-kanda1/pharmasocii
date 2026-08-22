@@ -50,6 +50,9 @@ export function Footer() {
                             &copy; {new Date().getFullYear()} Pharma SocII&trade;. All rights reserved.
                         </p>
                         <p className="text-[11px] text-muted-foreground/80 max-w-2xl text-center md:text-left">
+                            Pharma SocII is currently offered as an open beta. Features may evolve as we continue to improve the platform, see <Link to="/faq" className="underline hover:text-primary transition-colors">FAQs</Link>.
+                        </p>
+                        <p className="text-[11px] text-muted-foreground/80 max-w-2xl text-center md:text-left">
                             Unauthorized copying, reproduction, or mirroring of this platform is prohibited. Pharma SocII&trade; is a trademark of Pharma SocII.
                         </p>
                     </div>
