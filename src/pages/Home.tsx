@@ -467,7 +467,7 @@ export default function Home() {
                                                 <div className="flex flex-col p-4 w-full">
                                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1.5 gap-2 sm:gap-4">
                                                         <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 truncate">
-                                                            <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{[evt.stateRegion || evt.state, evt.eventCountry || evt.country].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Online"}</span>
+                                                            <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{evt.city?.trim() || "Online"}</span>
                                                         </div>
                                                     </div>
                                                     <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{evt.eventName || ""}</h3>
@@ -507,7 +507,7 @@ export default function Home() {
                                                     {job.workModel || "Job Opening"}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                                                    <MapPin className="w-3 h-3" /> {[job.city, job.stateRegion || job.state].filter(Boolean).join(", ") || "Remote"}
+                                                    <MapPin className="w-3 h-3" /> {job.city?.trim() || "Remote"}
                                                 </div>
                                             </div>
                                             <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle || ""}</h3>
