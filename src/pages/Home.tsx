@@ -386,13 +386,13 @@ export default function Home() {
             </section>
 
 {/* BUSINESS OFFERINGS CAROUSEL */}
-            <section className="py-24 bg-background relative z-10 overflow-hidden">
-                <div className="container mx-auto px-4 mb-12">
+            <section className="py-20 bg-background relative z-10 overflow-hidden">
+                <div className="container mx-auto px-4 mb-8">
                     <div className="text-center max-w-4xl mx-auto">
-                        <h2 className="text-4xl md:text-6xl font-extrabold tracking-tight mb-12 text-center text-foreground">Featured</h2>
-                        <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Business Offerings</h2>
-                        <p className="text-lg md:text-xl text-primary font-medium mb-4">Find the right partners to support your next phase of growth</p>
-                        </div>
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-8 text-center text-foreground">Featured</h2>
+                        <h2 className="text-xl md:text-3xl font-bold tracking-tight mb-2">Business Offerings</h2>
+                        <p className="text-sm md:text-base text-muted-foreground font-normal mb-4">Find the right partners to support your next phase of growth</p>
+                    </div>
                 </div>
 
                 <div className="relative flex w-full">
@@ -401,53 +401,53 @@ export default function Home() {
                     <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
                     {featuredBusinesses.length > 0 ? (
-                        <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 pb-8">
+                        <AutoCarousel speed={50} direction="left" innerClassName="gap-5 px-3 pb-6">
                             {featuredBusinesses.map((b, i) => (
-                                <Link to={`/listing/business/${b.id}`} target="_blank" rel="noopener noreferrer" key={`offering-${b.partnerId || "na"}-${b.id}-${i}`} className="flex items-center justify-center text-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                    <h3 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{b.businessName || ""}</h3>
+                                <Link to={`/listing/business/${b.id}`} target="_blank" rel="noopener noreferrer" key={`offering-${b.partnerId || "na"}-${b.id}-${i}`} className="flex items-center justify-center text-center min-w-[260px] max-w-[260px] p-5 h-24 bg-background border border-foreground/10 rounded-xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0">
+                                    <h3 className="text-base md:text-lg font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-snug">{b.businessName || ""}</h3>
                                 </Link>
                             ))}
                         </AutoCarousel>
                     ) : (
-                        <div className="w-full flex justify-center text-muted-foreground py-12">No featured businesses available.</div>
+                        <div className="w-full flex justify-center text-muted-foreground py-8">No featured businesses available.</div>
                     )}
                 </div>
 
                 {/* FEATURED CONSULTING CAROUSEL */}
-                <div className="container mx-auto px-4 mt-32 mb-12">
+                <div className="container mx-auto px-4 mt-20 mb-8">
                     <div className="text-center max-w-4xl mx-auto">
-                        <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Consulting</h2>
-                        <p className="text-lg md:text-xl text-primary font-medium mb-4">Access trusted experts across regional and global markets</p>
-                        </div>
+                        <h2 className="text-xl md:text-3xl font-bold tracking-tight mb-2">Consulting</h2>
+                        <p className="text-sm md:text-base text-muted-foreground font-normal mb-4">Access trusted experts across regional and global markets</p>
+                    </div>
                 </div>
 
-                <div className="relative flex w-full mb-12">
+                <div className="relative flex w-full mb-8">
                     {/* Gradient masks for infinite scroll effect */}
                     <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                     <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
                     {featuredConsulting.length > 0 ? (
-                        <AutoCarousel speed={50} direction="right" innerClassName="gap-6 px-3 pb-8">
+                        <AutoCarousel speed={50} direction="right" innerClassName="gap-5 px-3 pb-6">
                             {featuredConsulting.map((c, i) => (
-                                <Link to={`/listing/consulting/${c.id}`} target="_blank" rel="noopener noreferrer" key={`consulting-${c.id}-${i}`} className="flex items-center justify-center text-center min-w-[360px] max-w-[360px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-tight">{c.businessName || ""}</h3>
+                                <Link to={`/listing/consulting/${c.id}`} target="_blank" rel="noopener noreferrer" key={`consulting-${c.id}-${i}`} className="flex items-center justify-center text-center min-w-[260px] max-w-[260px] p-5 h-24 bg-background border border-foreground/10 rounded-xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0">
+                                    <h3 className="text-base md:text-lg font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-snug">{c.businessName || ""}</h3>
                                 </Link>
                             ))}
                         </AutoCarousel>
                     ) : (
-                        <div className="w-full flex justify-center text-muted-foreground py-12">No featured consulting available.</div>
+                        <div className="w-full flex justify-center text-muted-foreground py-8">No featured consulting available.</div>
                     )}
                 </div>
 
-                <div className="flex flex-col gap-24 mt-32 w-full overflow-hidden">
+                <div className="flex flex-col gap-20 mt-20 w-full overflow-hidden">
                     {/* Featured Events Carousel */}
                     <div className="flex flex-col items-center">
-                        <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-12">
-                            <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Events</h2>
-                            <p className="text-base md:text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
+                        <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-8">
+                            <h2 className="text-xl md:text-3xl font-bold tracking-tight mb-2">Events</h2>
+                            <p className="text-sm md:text-base text-muted-foreground font-normal mb-3 max-w-3xl mx-auto">
                                 Discover events shaping life sciences industry
                             </p>
-                            </div>
+                        </div>
                         <div className="relative flex w-full">
                             <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                             <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
@@ -459,21 +459,21 @@ export default function Home() {
                                         const month = dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
                                         const day = dateObj.getUTCDate();
                                         return (
-                                            <Link to={`/listing/events/${evt.id}`} target="_blank" rel="noopener noreferrer" key={`evt-${evt.id}-${i}`} className="flex flex-col sm:flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[400px] max-w-[400px] h-[160px] shrink-0">
-                                                <div className="w-24 shrink-0 bg-primary/5 group-hover:bg-primary/10 flex flex-col items-center justify-center p-4 border-r border-foreground/10 transition-colors">
-                                                    <span className="text-sm font-bold text-primary tracking-widest">{month}</span>
-                                                    <span className="text-3xl font-extrabold text-foreground">{day}</span>
+                                            <Link to={`/listing/events/${evt.id}`} target="_blank" rel="noopener noreferrer" key={`evt-${evt.id}-${i}`} className="flex flex-col sm:flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[380px] max-w-[380px] h-[150px] shrink-0">
+                                                <div className="w-20 shrink-0 bg-primary/5 group-hover:bg-primary/10 flex flex-col items-center justify-center p-3 border-r border-foreground/10 transition-colors">
+                                                    <span className="text-xs font-bold text-primary tracking-widest">{month}</span>
+                                                    <span className="text-2xl font-extrabold text-foreground">{day}</span>
                                                 </div>
-                                                <div className="flex flex-col p-5 w-full">
-                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2 sm:gap-4">
-                                                        <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5 truncate">
-                                                            <MapPin className="w-3.5 h-3.5 shrink-0" /> <span className="truncate">{[evt.stateRegion || evt.state, evt.eventCountry || evt.country].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Online"}</span>
+                                                <div className="flex flex-col p-4 w-full">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1.5 gap-2 sm:gap-4">
+                                                        <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 truncate">
+                                                            <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{[evt.stateRegion || evt.state, evt.eventCountry || evt.country].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Online"}</span>
                                                         </div>
                                                     </div>
-                                                    <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-4 leading-tight">{evt.eventName || ""}</h3>
-                                                    <div className="mt-auto pt-3 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
+                                                    <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{evt.eventName || ""}</h3>
+                                                    <div className="mt-auto pt-2 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-xs w-full">
                                                         <span>View Event</span>
-                                                        <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                                     </div>
                                                 </div>
                                             </Link>
@@ -481,19 +481,19 @@ export default function Home() {
                                     })}
                                 </AutoCarousel>
                             ) : (
-                                <div className="w-full flex justify-center text-muted-foreground py-12">No featured events available.</div>
+                                <div className="w-full flex justify-center text-muted-foreground py-8">No featured events available.</div>
                             )}
                         </div>
                     </div>
 
                     {/* Featured Jobs Carousel */}
-                    <div className="flex flex-col items-center pb-24">
-                        <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-12">
-                            <h2 className="text-2xl md:text-4xl font-bold tracking-tight mb-4">Jobs</h2>
-                            <p className="text-base md:text-lg text-primary font-medium mb-3 max-w-3xl mx-auto">
+                    <div className="flex flex-col items-center pb-20">
+                        <div className="container mx-auto px-6 md:px-12 max-w-7xl text-center mb-8">
+                            <h2 className="text-xl md:text-3xl font-bold tracking-tight mb-2">Jobs</h2>
+                            <p className="text-sm md:text-base text-muted-foreground font-normal mb-3 max-w-3xl mx-auto">
                                 Explore opportunities across the life sciences ecosystem
                             </p>
-                            </div>
+                        </div>
                         <div className="relative flex w-full">
                             <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                             <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
@@ -501,25 +501,25 @@ export default function Home() {
                             {featuredJobs.length > 0 ? (
                                 <AutoCarousel speed={50} direction="right" innerClassName="gap-6 px-3 py-4">
                                     {featuredJobs.map((job, i) => (
-                                        <Link to={`/listing/jobs/${job.id}`} target="_blank" rel="noopener noreferrer" key={`job-${job.id}-${i}`} className="flex flex-col p-6 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[360px] max-w-[360px] h-[160px] shrink-0">
-                                            <div className="flex items-center justify-between mb-4">
-                                                <div className="text-xs font-bold text-primary tracking-wider border border-primary/20 bg-primary/10 rounded-full px-3 py-1 w-fit">
+                                        <Link to={`/listing/jobs/${job.id}`} target="_blank" rel="noopener noreferrer" key={`job-${job.id}-${i}`} className="flex flex-col p-5 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[340px] max-w-[340px] h-[150px] shrink-0">
+                                            <div className="flex items-center justify-between mb-2">
+                                                <div className="text-[11px] font-bold text-primary tracking-wider border border-primary/20 bg-primary/10 rounded-full px-2.5 py-0.5 w-fit">
                                                     {job.workModel || "Job Opening"}
                                                 </div>
-                                                <div className="text-sm text-muted-foreground font-medium flex items-center gap-1.5">
-                                                    <MapPin className="w-3.5 h-3.5" /> {[job.city, job.stateRegion || job.state].filter(Boolean).join(", ") || "Remote"}
+                                                <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                                                    <MapPin className="w-3 h-3" /> {[job.city, job.stateRegion || job.state].filter(Boolean).join(", ") || "Remote"}
                                                 </div>
                                             </div>
-                                            <h3 className="text-xl font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle || ""}</h3>
-                                            <div className="mt-auto pt-4 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-sm w-full">
+                                            <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle || ""}</h3>
+                                            <div className="mt-auto pt-3 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-xs w-full">
                                                 <span>View Job</span>
-                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
+                                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                             </div>
                                         </Link>
                                     ))}
                                 </AutoCarousel>
                             ) : (
-                                <div className="w-full flex justify-center text-muted-foreground py-12">No featured jobs available.</div>
+                                <div className="w-full flex justify-center text-muted-foreground py-8">No featured jobs available.</div>
                             )}
                         </div>
                     </div>
