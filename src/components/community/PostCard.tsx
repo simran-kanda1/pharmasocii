@@ -81,6 +81,7 @@ export function PostCard({
   rememberFeedScroll,
   onEdit,
   hideContent = false,
+  hideTimestamp = false,
 }: {
   post: PostCardPost;
   categoryDoc: CommunityCategoryDoc | null;
@@ -98,6 +99,7 @@ export function PostCard({
   rememberFeedScroll?: boolean;
   onEdit?: () => void;
   hideContent?: boolean;
+  hideTimestamp?: boolean;
 }) {
   const beforeOpenPost = () => {
     if (rememberFeedScroll) saveCommunityFeedScroll(post.id);
@@ -172,7 +174,9 @@ export function PostCard({
               <span className="font-semibold text-foreground text-sm">
                 {authorLabel.primary}
               </span>
-              <span className="text-xs text-muted-foreground">{formatRelativeTime(created)}</span>
+              {!hideTimestamp && (
+                <span className="text-xs text-muted-foreground">{formatRelativeTime(created)}</span>
+              )}
               <div className="ml-auto flex items-center gap-1">
                 {isEditable && onEdit && (
                   <Button

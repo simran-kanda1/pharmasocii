@@ -10,11 +10,11 @@ export function Footer() {
                         <h4 className="font-semibold text-sm tracking-wider">Explore</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
                             <li><Link to="/all-categories/business" className="hover:text-primary transition-colors">Business Offerings</Link></li>
+                            <li><Link to="/community" className="hover:text-primary transition-colors">Community</Link></li>
                             <li><Link to="/all-categories/consulting" className="hover:text-primary transition-colors">Consulting</Link></li>
                             <li><Link to="/all-categories/events" className="hover:text-primary transition-colors">Events</Link></li>
                             <li><Link to="/all-categories/jobs" className="hover:text-primary transition-colors">Jobs</Link></li>
                             <li><Link to="/all-categories/compliance" className="hover:text-primary transition-colors">Global Health Authority Sites</Link></li>
-                            <li><Link to="/community" className="hover:text-primary transition-colors">Community</Link></li>
                         </ul>
                     </div>
 
@@ -37,7 +37,7 @@ export function Footer() {
                     <div className="space-y-4">
                         <h4 className="font-semibold text-sm tracking-wider">Legal</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
-                            <li><Link to="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Privacy &amp; Policy</Link></li>
+                            <li><Link to="/privacy" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
                             <li><Link to="/terms" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Terms of Service</Link></li>
                             <li><Link to="/guidelines" target="_blank" rel="noopener noreferrer" className="hover:text-primary transition-colors">Community Guidelines</Link></li>
                         </ul>
