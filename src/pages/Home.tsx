@@ -460,8 +460,8 @@ export default function Home() {
                                         const day = dateObj.getUTCDate();
                                         return (
                                             <Link to={`/listing/events/${evt.id}`} target="_blank" rel="noopener noreferrer" key={`evt-${evt.id}-${i}`} className="flex flex-col sm:flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[380px] max-w-[380px] h-[150px] shrink-0">
-                                                <div className="w-20 shrink-0 bg-primary/5 group-hover:bg-primary/10 flex flex-col items-center justify-center p-3 border-r border-foreground/10 transition-colors">
-                                                    <span className="text-xs font-bold text-primary tracking-widest">{month}</span>
+                                                <div className="w-20 shrink-0 bg-foreground/5 group-hover:bg-foreground/10 flex flex-col items-center justify-center p-3 border-r border-foreground/10 transition-colors">
+                                                    <span className="text-xs font-semibold text-muted-foreground tracking-widest">{month}</span>
                                                     <span className="text-2xl font-extrabold text-foreground">{day}</span>
                                                 </div>
                                                 <div className="flex flex-col p-4 w-full">
@@ -471,7 +471,7 @@ export default function Home() {
                                                         </div>
                                                     </div>
                                                     <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{evt.eventName || ""}</h3>
-                                                    <div className="mt-auto pt-2 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-xs w-full">
+                                                    <div className="mt-auto pt-2 border-t border-foreground/10 flex items-center justify-between text-muted-foreground group-hover:text-foreground font-medium text-xs w-full transition-colors">
                                                         <span>View Event</span>
                                                         <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                                     </div>
@@ -503,7 +503,7 @@ export default function Home() {
                                     {featuredJobs.map((job, i) => (
                                         <Link to={`/listing/jobs/${job.id}`} target="_blank" rel="noopener noreferrer" key={`job-${job.id}-${i}`} className="flex flex-col p-5 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[340px] max-w-[340px] h-[150px] shrink-0">
                                             <div className="flex items-center justify-between mb-2">
-                                                <div className="text-[11px] font-bold text-primary tracking-wider border border-primary/20 bg-primary/10 rounded-full px-2.5 py-0.5 w-fit">
+                                                <div className="text-[11px] font-medium text-muted-foreground tracking-wider border border-foreground/15 bg-foreground/5 rounded-full px-2.5 py-0.5 w-fit">
                                                     {job.workModel || "Job Opening"}
                                                 </div>
                                                 <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
@@ -511,7 +511,7 @@ export default function Home() {
                                                 </div>
                                             </div>
                                             <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle || ""}</h3>
-                                            <div className="mt-auto pt-3 border-t border-foreground/10 flex items-center justify-between text-primary font-semibold text-xs w-full">
+                                            <div className="mt-auto pt-3 border-t border-foreground/10 flex items-center justify-between text-muted-foreground group-hover:text-foreground font-medium text-xs w-full transition-colors">
                                                 <span>View Job</span>
                                                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                                             </div>
