@@ -298,7 +298,7 @@ export default function Home() {
                         </Button>
                         <Button size="lg" variant="outline" className="h-14 px-8 text-base font-semibold border-foreground/20 bg-foreground/5 hover:bg-foreground/10 backdrop-blur-md rounded-full" asChild>
                             <Link to="/community">
-                                <PlayCircle className="mr-2 w-5 h-5 text-primary" /> Explore Community
+                                <PlayCircle className="mr-2 w-5 h-5 text-primary" /> Explore community
                             </Link>
                         </Button>
                     </div>

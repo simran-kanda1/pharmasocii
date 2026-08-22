@@ -92,6 +92,9 @@ export default function Navbar() {
                                     <Link to="/all-categories/events">Events</Link>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem asChild className="cursor-pointer">
+                                    <Link to="/all-categories/compliance">Global Health Authority Sites</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild className="cursor-pointer">
                                     <Link to="/all-categories/jobs">Jobs</Link>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>

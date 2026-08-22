@@ -4402,6 +4402,26 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotligh
                         </div>
                     )}
 
+                    <div className="bg-foreground/5 border border-foreground/10 rounded-lg p-4">
+                        <p className="text-sm text-foreground">
+                            {showFeatureCancelChoice && cancelChoice === "feature" ? (
+                                <>
+                                    Spotlight stays active until{" "}
+                                    <span className="font-semibold">
+                                        {spotlightEnd?.toLocaleDateString() || "the end of your paid period"}
+                                    </span>
+                                    , then won&apos;t renew.
+                                </>
+                            ) : !showFeatureCancelChoice || cancelChoice === "plan" ? (
+                                <>
+                                    Your subscription stays active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>. After that, access tied to this plan ends unless you purchase again.
+                                </>
+                            ) : (
+                                "Select an option above to continue."
+                            )}
+                        </p>
+                    </div>
+
                     {cancelError && (
                         <p className="text-sm text-destructive">{cancelError}</p>
                     )}
