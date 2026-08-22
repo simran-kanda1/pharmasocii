@@ -2465,6 +2465,7 @@ export default function Dashboard() {
                     <div className="space-y-2 md:col-span-2">
                         <Label className="text-foreground/80">Phone <span className="text-red-400">*</span></Label>
                         <PhoneInput defaultCountry="US" value={toPhoneInputValue(profileForm.phone) || undefined} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, phone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
+                        <p className="text-xs text-muted-foreground mt-1">Choose a country before adding your phone number</p>
                     </div>
                 </div>
 
@@ -2492,6 +2493,7 @@ export default function Dashboard() {
                     <div className="space-y-2">
                         <Label className="text-foreground/80">Business Phone <span className="text-red-400">*</span></Label>
                         <PhoneInput defaultCountry="US" value={toPhoneInputValue(profileForm.businessPhone) || undefined} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, businessPhone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
+                        <p className="text-xs text-muted-foreground mt-1">Choose a country before adding your phone number</p>
                     </div>
                     <div className="space-y-2">
                         <Label className="text-foreground/80">LinkedIn Profile</Label>
@@ -3020,7 +3022,7 @@ export default function Dashboard() {
                                     )}
                                     {detail.selectedSubcategories.length > 0 && (
                                         <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Subcategories</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Categories</dt>
                                             <dd className="flex flex-wrap gap-1.5">
                                                 {detail.selectedSubcategories.map((sub, i) => (
                                                     <Badge key={i} variant="outline" className="border-foreground/20 text-xs">
@@ -3032,7 +3034,7 @@ export default function Dashboard() {
                                     )}
                                     {detail.selectedSubSubcategories.length > 0 && (
                                         <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Sub-subcategories</dt>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Categories</dt>
                                             <dd className="flex flex-wrap gap-1.5">
                                                 {detail.selectedSubSubcategories.map((subSub, i) => (
                                                     <Badge key={i} variant="outline" className="border-primary/30 text-primary text-xs">
@@ -3099,7 +3101,7 @@ export default function Dashboard() {
 
 // ─── CONSTANTS FOR EDIT MODAL ───
 const BSL_LEVELS = ["1", "2", "3", "4"];
-const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+const CERTIFICATIONS = ["CE", "GMP", "ISO 9001", "ISO 13485", "Others"];
 const OTHER_CERT_OPTION = "Others";
 
 
@@ -3281,11 +3283,11 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
     const toggleCert = (cert: string) => {
         if (cert === OTHER_CERT_OPTION) {
             if (showOtherCertInput) {
-                const customValue = otherCertText.trim();
+                const customValues = (otherCertText || "").split(',').map((s: string) => s.trim()).filter(Boolean);
                 setShowOtherCertInput(false);
                 setOtherCertText("");
-                if (customValue) {
-                    setCertifications(prev => prev.filter(c => c !== customValue));
+                if (customValues.length > 0) {
+                    setCertifications(prev => prev.filter(c => !customValues.includes(c)));
                 }
             } else {
                 setShowOtherCertInput(true);
@@ -3294,23 +3296,27 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
         }
         if (certifications.includes(cert)) {
             const next = certifications.filter(c => c !== cert);
-            setCertifications(next);
-            if (cert === otherCertText.trim()) {
-                setOtherCertText("");
-                setShowOtherCertInput(false);
+            const currentOtherList = (otherCertText || "").split(',').map((s: string) => s.trim()).filter(Boolean);
+            if (currentOtherList.includes(cert)) {
+                const remainingOthers = currentOtherList.filter((s: string) => s !== cert);
+                setOtherCertText(remainingOthers.join(", "));
+                if (remainingOthers.length === 0) {
+                    setShowOtherCertInput(false);
+                }
             }
+            setCertifications(next);
         } else {
             setCertifications([...certifications, cert]);
         }
     };
     const handleOtherCertTextChange = (value: string) => {
-        const previousCustomValue = otherCertText.trim();
-        const nextCustomValue = value.trim();
+        const previousCustomValues = (otherCertText || "").split(',').map((s: string) => s.trim()).filter(Boolean);
+        const nextCustomValues = value.split(',').map((s: string) => s.trim()).filter(Boolean);
         setOtherCertText(value);
         setCertifications(prev => {
-            const withoutPreviousCustom = prev.filter(cert => cert !== previousCustomValue && cert !== OTHER_CERT_OPTION);
-            if (!nextCustomValue) return withoutPreviousCustom;
-            return Array.from(new Set([...withoutPreviousCustom, nextCustomValue]));
+            const withoutPreviousCustom = prev.filter(cert => !previousCustomValues.includes(cert) && cert !== OTHER_CERT_OPTION);
+            if (nextCustomValues.length === 0) return withoutPreviousCustom;
+            return Array.from(new Set([...withoutPreviousCustom, ...nextCustomValues]));
         });
     };
     function renderCategoryTree() {

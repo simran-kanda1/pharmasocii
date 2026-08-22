@@ -62,7 +62,7 @@ const AGENDA_HIGHLIGHTS_MAX = 500;
 const BSL_LEVELS = ["1", "2", "3", "4"];
 
 // ─── Certifications ───
-const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+const CERTIFICATIONS = ["CE", "GMP", "ISO 9001", "ISO 13485", "Others"];
 const OTHER_CERT_OPTION = "Others";
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
@@ -311,11 +311,11 @@ export default function CompleteProfile() {
         if (val === OTHER_CERT_OPTION) {
             setShowCertsDropdown(false);
             if (showOtherCertInput) {
-                const customValue = otherCertText.trim();
+                const customValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
                 setShowOtherCertInput(false);
                 setOtherCertText("");
-                if (customValue) {
-                    setSelectedCerts(prev => prev.filter(cert => cert !== customValue));
+                if (customValues.length > 0) {
+                    setSelectedCerts(prev => prev.filter(cert => !customValues.includes(cert)));
                 }
             } else {
                 setShowOtherCertInput(true);
@@ -325,9 +325,13 @@ export default function CompleteProfile() {
         setSelectedCerts(prev => {
             if (prev.includes(val)) {
                 const next = prev.filter(v => v !== val);
-                if (val === otherCertText.trim()) {
-                    setOtherCertText("");
-                    setShowOtherCertInput(false);
+                const currentOtherList = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+                if (currentOtherList.includes(val)) {
+                    const remainingOthers = currentOtherList.filter(s => s !== val);
+                    setOtherCertText(remainingOthers.join(", "));
+                    if (remainingOthers.length === 0) {
+                        setShowOtherCertInput(false);
+                    }
                 }
                 return next;
             }
@@ -335,13 +339,13 @@ export default function CompleteProfile() {
         });
     };
     const handleOtherCertTextChange = (value: string) => {
-        const previousCustomValue = otherCertText.trim();
-        const nextCustomValue = value.trim();
+        const previousCustomValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+        const nextCustomValues = value.split(',').map(s => s.trim()).filter(Boolean);
         setOtherCertText(value);
         setSelectedCerts(prev => {
-            const withoutPreviousCustom = prev.filter(cert => cert !== previousCustomValue && cert !== OTHER_CERT_OPTION);
-            if (!nextCustomValue) return withoutPreviousCustom;
-            return Array.from(new Set([...withoutPreviousCustom, nextCustomValue]));
+            const withoutPreviousCustom = prev.filter(cert => !previousCustomValues.includes(cert) && cert !== OTHER_CERT_OPTION);
+            if (nextCustomValues.length === 0) return withoutPreviousCustom;
+            return Array.from(new Set([...withoutPreviousCustom, ...nextCustomValues]));
         });
     };
     const toggleRegion = (val: string) => {
@@ -929,7 +933,7 @@ export default function CompleteProfile() {
                     {selected.length === 0 ? (
                         <span className="text-muted-foreground">Choose your {label.toLowerCase()} (multi-select enabled){label.toLowerCase() === 'service regions' ? ' - Premium plus plans only' : ''}</span>
                     ) : (
-                        [...selected].sort((a, b) => a.localeCompare(b)).map(s => (
+                        [...selected].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })).map(s => (
                             <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 bg-foreground/10 text-foreground text-xs rounded-md border border-foreground/10">
                                 <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={(e) => { e.stopPropagation(); onToggle(s); }} />
                                 {s}
@@ -1025,6 +1029,7 @@ export default function CompleteProfile() {
                                     <PhoneInput id="phone" defaultCountry="US" value={toPhoneInputValue(formData.phone) || undefined}
                                         onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}
                                         className="flex h-10 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm" />
+                                    <p className="text-xs text-muted-foreground mt-1">Choose a country before adding your phone number</p>
                                 </div>
                                 <div className="space-y-2 pt-4 border-t border-foreground/10 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
@@ -1064,6 +1069,7 @@ export default function CompleteProfile() {
                                     <PhoneInput id="businessPhone" defaultCountry="US" value={toPhoneInputValue(formData.businessPhone) || undefined}
                                         onChange={(value) => setFormData(prev => ({ ...prev, businessPhone: value || '' }))}
                                         className="flex h-10 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm" />
+                                    <p className="text-xs text-muted-foreground mt-1">Choose a country before adding your phone number</p>
                                 </div>
                                 <div className="space-y-2">
                                     <Label htmlFor="linkedin">LinkedIn Profile</Label>
@@ -1136,7 +1142,7 @@ export default function CompleteProfile() {
                                                     </Button>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-muted-foreground mt-2">Formats: JPG, JPEG, PNG | Max size: 2MB | Dimensions: 200px x 200px</p>
+                                            <p className="text-xs text-muted-foreground mt-2">Formats: JPG, JPEG, PNG | Max size: 2MB</p>
                                             {companyLogoError && <p className="text-xs text-red-500 mt-1">{companyLogoError}</p>}
                                         </div>
                                     </div>
@@ -1639,7 +1645,7 @@ export default function CompleteProfile() {
                                                 <Label className="text-base font-semibold">
                                                     Category(ies) <span className="text-red-400">*</span>
                                                 </Label>
-                                                <p className="text-xs text-muted-foreground mt-1">Select categories from the lowest level. Parent categories with subcategories expand when clicked.</p>
+                                                <p className="text-xs text-muted-foreground mt-1">Select categories from the lowest level. Parent categories expand when clicked.</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 {canSelectAllCategories && (

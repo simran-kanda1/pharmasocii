@@ -52,7 +52,7 @@ const representativeKey = (rep: CompanyRepresentative): string =>
 const AGENDA_HIGHLIGHTS_MAX = 500;
 
 const BSL_LEVELS = ["1", "2", "3", "4"];
-const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+const CERTIFICATIONS = ["CE", "GMP", "ISO 9001", "ISO 13485", "Others"];
 const OTHER_CERT_OPTION = "Others";
 
 const getSubLabel = (entry: SubcategoryEntry): string => typeof entry === "string" ? entry : entry.label;
@@ -163,7 +163,7 @@ function MultiSelectDropdown({ label, items, selected, onToggle, open, onToggleO
             )}
             {selected.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                    {[...selected].sort((a, b) => a.localeCompare(b)).map(v => (
+                    {[...selected].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })).map(v => (
                         <span key={v} onClick={() => onToggle(v)} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full cursor-pointer hover:bg-primary/20 transition-colors">
                             {v} <X className="w-3 h-3" />
                         </span>
@@ -371,11 +371,11 @@ export default function AddListing() {
         if (val === OTHER_CERT_OPTION) {
             setShowCertsDropdown(false);
             if (showOtherCertInput) {
-                const customValue = otherCertText.trim();
+                const customValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
                 setShowOtherCertInput(false);
                 setOtherCertText("");
-                if (customValue) {
-                    setSelectedCerts(prev => prev.filter(cert => cert !== customValue));
+                if (customValues.length > 0) {
+                    setSelectedCerts(prev => prev.filter(cert => !customValues.includes(cert)));
                 }
             } else {
                 setShowOtherCertInput(true);
@@ -385,9 +385,13 @@ export default function AddListing() {
         setSelectedCerts(prev => {
             if (prev.includes(val)) {
                 const next = prev.filter(v => v !== val);
-                if (val === otherCertText.trim()) {
-                    setOtherCertText("");
-                    setShowOtherCertInput(false);
+                const currentOtherList = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+                if (currentOtherList.includes(val)) {
+                    const remainingOthers = currentOtherList.filter(s => s !== val);
+                    setOtherCertText(remainingOthers.join(", "));
+                    if (remainingOthers.length === 0) {
+                        setShowOtherCertInput(false);
+                    }
                 }
                 return next;
             }
@@ -395,13 +399,13 @@ export default function AddListing() {
         });
     };
     const handleOtherCertTextChange = (value: string) => {
-        const previousCustomValue = otherCertText.trim();
-        const nextCustomValue = value.trim();
+        const previousCustomValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+        const nextCustomValues = value.split(',').map(s => s.trim()).filter(Boolean);
         setOtherCertText(value);
         setSelectedCerts(prev => {
-            const withoutPreviousCustom = prev.filter(cert => cert !== previousCustomValue && cert !== OTHER_CERT_OPTION);
-            if (!nextCustomValue) return withoutPreviousCustom;
-            return Array.from(new Set([...withoutPreviousCustom, nextCustomValue]));
+            const withoutPreviousCustom = prev.filter(cert => !previousCustomValues.includes(cert) && cert !== OTHER_CERT_OPTION);
+            if (nextCustomValues.length === 0) return withoutPreviousCustom;
+            return Array.from(new Set([...withoutPreviousCustom, ...nextCustomValues]));
         });
     };
     const toggleRegion = (val: string) => {

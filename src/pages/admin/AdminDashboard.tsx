@@ -208,7 +208,7 @@ const splitCsv = (value: string) =>
     .filter(Boolean);
 
 const BSL_LEVELS = ["1", "2", "3", "4"];
-const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
+const CERTIFICATIONS = ["CE", "GMP", "ISO 9001", "ISO 13485", "Others"];
 
 function MultiSelectDropdown({
   label,

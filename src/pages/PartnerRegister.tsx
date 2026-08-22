@@ -241,6 +241,7 @@ export default function PartnerRegister() {
                                 onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}
                                 className="flex h-10 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-50 text-foreground"
                             />
+                            <p className="text-xs text-muted-foreground mt-1">Choose a country before adding your phone number</p>
                         </div>
 
                         <div className="space-y-1.5">

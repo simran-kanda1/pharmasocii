@@ -907,6 +907,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   <PhoneInput defaultCountry="US" value={toPhoneInputValue(formData.phone) || undefined}
                     onChange={(value) => handleChange("phone", value || '')}
                     className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm mt-1.5" />
+                  <p className="text-xs text-slate-400 mt-1">Choose a country before adding your phone number</p>
                 </div>
               </div>
             </div>
@@ -967,6 +968,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   <PhoneInput defaultCountry="US" value={toPhoneInputValue(formData.businessPhone) || undefined}
                     onChange={(value) => handleChange("businessPhone", value || '')}
                     className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm mt-1.5" />
+                  <p className="text-xs text-slate-400 mt-1">Choose a country before adding your phone number</p>
                 </div>
                 <div>
                   <Label className="text-slate-600 font-medium">LinkedIn profile</Label>
@@ -1018,14 +1020,14 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 <div className="flex items-center gap-4 mt-2">
                   <label className="flex items-center justify-center px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-200 transition-colors">
                     <UploadCloud className="w-5 h-5 mr-2 text-slate-600" />
-                    <span className="text-sm font-semibold text-slate-700">Choose File</span>
+                    <span className="text-sm font-semibold text-slate-700">Choose</span>
                     <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
                   </label>
                   <span className="text-sm text-slate-500">
                     {logoFile ? logoFile.name : "No file chosen"}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-2">Formats: JPG, JPEG, PNG | Max size: 2MB | Dimensions: 200px x 200px</p>
+                <p className="text-[11px] text-slate-400 mt-2">Formats: JPG, JPEG, PNG | Max size: 2MB</p>
               </div>
 
               <div>
