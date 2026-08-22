@@ -159,6 +159,9 @@ export default function CompleteProfile() {
                         altLastName: data.secondaryLastName || altLNames.join(" ") || "",
                         altEmail: data.secondaryEmail || "", billingEmail: data.billingEmailAddress || "",
                     }));
+                    if (data.companyLogoUrl) {
+                        setCompanyLogoPreview(data.companyLogoUrl);
+                    }
                     const altRep = normalizeRepresentative({
                         firstName: data.secondaryFirstName || altFName || "",
                         lastName: data.secondaryLastName || altLNames.join(" ") || "",
@@ -588,7 +591,7 @@ export default function CompleteProfile() {
             if (formData.group === "events" && eventAgendaPdfFile && auth.currentUser) {
                 eventAgendaPdfResolved = await uploadEventAgendaPdf(auth.currentUser.uid, eventAgendaPdfFile, null);
             }
-            let logoUrlResolved = "";
+            let logoUrlResolved = (companyLogoPreview && companyLogoPreview.startsWith("http")) ? companyLogoPreview : "";
             if (companyLogoFile && auth.currentUser) {
                 logoUrlResolved = await uploadCompanyLogo(auth.currentUser.uid, companyLogoFile);
             }

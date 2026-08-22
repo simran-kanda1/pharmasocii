@@ -1097,8 +1097,12 @@ export default function AllCategories() {
                                                 rel="noopener noreferrer"
                                                 className="group rounded-xl border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer overflow-hidden flex flex-col h-[320px]"
                                             >
-                                                <div className="p-8 flex-1 flex items-center justify-center bg-background text-center relative overflow-hidden">
-                                                    <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
+                                                <div className="p-6 flex-1 flex items-center justify-center bg-background text-center relative overflow-hidden">
+                                                    {item.companyLogoUrl || item.logoUrl ? (
+                                                        <img src={item.companyLogoUrl || item.logoUrl} alt={title} className="max-h-28 max-w-full object-contain p-2" />
+                                                    ) : (
+                                                        <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
+                                                    )}
                                                 </div>
                                                 {currentTab !== "consulting" && (
                                                     <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24 border-t border-foreground/10">
@@ -1216,8 +1220,12 @@ export default function AllCategories() {
                                                 to={`/listing/${currentTab}/${fb.id}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                key={`${currentTab === "business" ? `${fb.partnerId || "na"}-` : ""}${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-8 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                                <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName || fb.companyName || "Consulting Listing") : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
+                                                key={`${currentTab === "business" ? `${fb.partnerId || "na"}-` : ""}${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-6 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
+                                                {fb.companyLogoUrl || fb.logoUrl ? (
+                                                    <img src={fb.companyLogoUrl || fb.logoUrl} alt={currentTab === "business" ? fb.businessName : fb.eventName || fb.jobTitle || ""} className="max-h-20 max-w-full object-contain" />
+                                                ) : (
+                                                    <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName || fb.companyName || "Consulting Listing") : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
+                                                )}
                                             </Link>
                                         ))}
                                     </AutoCarousel>
@@ -1240,13 +1248,20 @@ export default function AllCategories() {
                         <div className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
                             {(currentTab === 'business' || currentTab === 'consulting') && (
                                 <>
-                                    <div className="space-y-2">
-                                        <h3 className="text-3xl font-bold text-primary">{currentTab === 'consulting' ? (selectedProfile.primaryName || selectedProfile.businessName) : selectedProfile.businessName}</h3>
-                                        {(selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry) && (
-                                            <p className="text-muted-foreground flex items-center gap-2">
-                                                <MapPin className="w-4 h-4" /> {selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry}
-                                            </p>
+                                    <div className="flex items-start gap-4">
+                                        {(selectedProfile.companyLogoUrl || selectedProfile.logoUrl) && (
+                                            <div className="w-16 h-16 rounded-xl border border-foreground/10 p-1 shrink-0 bg-background flex items-center justify-center overflow-hidden">
+                                                <img src={selectedProfile.companyLogoUrl || selectedProfile.logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                                            </div>
                                         )}
+                                        <div className="space-y-1">
+                                            <h3 className="text-2xl font-bold text-primary">{currentTab === 'consulting' ? (selectedProfile.primaryName || selectedProfile.businessName) : selectedProfile.businessName}</h3>
+                                            {(selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry) && (
+                                                <p className="text-muted-foreground flex items-center gap-2 text-sm">
+                                                    <MapPin className="w-4 h-4" /> {selectedProfile.businessCountry || selectedProfile.eventCountry || selectedProfile.jobCountry}
+                                                </p>
+                                            )}
+                                        </div>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">

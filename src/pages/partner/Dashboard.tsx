@@ -469,6 +469,7 @@ export default function Dashboard() {
     const [companyLogoFile, setCompanyLogoFile] = useState<File | null>(null);
     const [companyLogoPreview, setCompanyLogoPreview] = useState<string>("");
     const [companyLogoError, setCompanyLogoError] = useState("");
+    const logoInputRef = useRef<HTMLInputElement | null>(null);
 
     // Password form state
     const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
@@ -949,7 +950,7 @@ export default function Dashboard() {
                             ...profileListingPatch,
                         });
                     });
-                    const topCols = ["consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"] as const;
+                    const topCols = ["businessOfferingsCollection", "consultingServicesCollection", "consultingCollection", "eventsCollection", "jobsCollection"] as const;
                     for (const col of topCols) {
                         const qSnap = await getDocs(query(collection(db, col), where("partnerId", "==", uid)));
                         qSnap.docs.forEach((d) => {
@@ -2522,6 +2523,7 @@ export default function Dashboard() {
                                             setCompanyLogoFile(null);
                                             setCompanyLogoPreview("");
                                             setProfileForm((prev: any) => ({ ...prev, companyLogoUrl: "" }));
+                                            if (logoInputRef.current) logoInputRef.current.value = "";
                                         }}
                                         className="absolute -top-1 -right-1 bg-destructive text-destructive-foreground rounded-full p-0.5 shadow hover:bg-destructive/90"
                                         title="Remove logo"
@@ -2536,6 +2538,7 @@ export default function Dashboard() {
                         <div className="flex-1">
                             <div className="flex items-center gap-2">
                                 <Input 
+                                    ref={logoInputRef}
                                     type="file" 
                                     className="bg-foreground/5 border-foreground/10 text-sm h-10 pt-2 cursor-pointer" 
                                     accept="image/jpeg, image/png, image/jpg" 
@@ -2566,6 +2569,7 @@ export default function Dashboard() {
                                             setCompanyLogoFile(null);
                                             setCompanyLogoPreview("");
                                             setProfileForm((prev: any) => ({ ...prev, companyLogoUrl: "" }));
+                                            if (logoInputRef.current) logoInputRef.current.value = "";
                                         }}
                                         className="h-10 px-2.5 text-muted-foreground hover:text-destructive shrink-0"
                                         title="Remove logo"
@@ -2704,9 +2708,6 @@ export default function Dashboard() {
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                         <h1 className="text-2xl font-bold tracking-tight text-foreground">Transactions</h1>
-                        <p className="text-muted-foreground text-sm mt-1">
-                            Payment history in a table view. Export for your records, or open a row for full plan and listing details.
-                        </p>
                     </div>
                     <div className="flex items-center gap-2">
                         <DropdownMenu>
