@@ -435,16 +435,56 @@ export default function CompleteProfile() {
         e.preventDefault();
         setError(""); setSuccess("");
 
+        if (!formData.firstName?.trim()) {
+            setError("Please enter your first name.");
+            return;
+        }
+        if (!formData.lastName?.trim()) {
+            setError("Please enter your last name.");
+            return;
+        }
+        if (!formData.email?.trim()) {
+            setError("Please enter your email address.");
+            return;
+        }
+        if (!formData.phone?.trim()) {
+            setError("Please enter your phone number.");
+            return;
+        }
+        if (!formData.altFirstName?.trim()) {
+            setError("Please enter the alternate contact first name.");
+            return;
+        }
+        if (!formData.altLastName?.trim()) {
+            setError("Please enter the alternate contact last name.");
+            return;
+        }
+        if (!formData.altEmail?.trim()) {
+            setError("Please enter the alternate contact email address.");
+            return;
+        }
+        if (!formData.companyName?.trim()) {
+            setError("Please enter your company name.");
+            return;
+        }
+        if (!formData.companyWebsite?.trim()) {
+            setError("Please enter your company website.");
+            return;
+        }
+        if (!formData.businessPhone?.trim()) {
+            setError("Please enter your business phone number.");
+            return;
+        }
+        if (!formData.businessCountry) {
+            setError("Please select your business headquarters country.");
+            return;
+        }
         if (!formData.businessAddress.trim()) {
             setError("Please enter your business address.");
             return;
         }
         if (!isValidBusinessAddress(formData.businessAddress)) {
             setError("Please enter a valid business address (include street number and street name).");
-            return;
-        }
-        if (!formData.businessCountry) {
-            setError("Please select your business headquarters country.");
             return;
         }
 

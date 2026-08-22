@@ -840,6 +840,56 @@ export default function Dashboard() {
         setProfileMsg("");
         setCompanyLogoError("");
 
+        if (!profileForm.firstName?.trim()) {
+            setProfileMsg("Please enter your first name.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.lastName?.trim()) {
+            setProfileMsg("Please enter your last name.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.email?.trim()) {
+            setProfileMsg("Please enter your email address.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.phone?.trim()) {
+            setProfileMsg("Please enter your phone number.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.altName?.trim()) {
+            setProfileMsg("Please enter the alternate contact first & last name.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.altEmail?.trim()) {
+            setProfileMsg("Please enter the alternate contact email address.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.companyName?.trim()) {
+            setProfileMsg("Please enter your company name.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.companyWebsite?.trim()) {
+            setProfileMsg("Please enter your company website.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.businessPhone?.trim()) {
+            setProfileMsg("Please enter your business phone number.");
+            setProfileSaving(false);
+            return;
+        }
+        if (!profileForm.companyProfile?.trim()) {
+            setProfileMsg("Please enter your company profile text.");
+            setProfileSaving(false);
+            return;
+        }
         if (!profileForm.businessCountry) {
             setProfileMsg("Please select your business headquarters country.");
             setProfileSaving(false);
@@ -4351,26 +4401,7 @@ function CancelPlanModal({ plan, planConfig, linkedListing, hasFeature, spotligh
                             </button>
                         </div>
                     )}
-                    <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                        <p className="text-sm text-yellow-400">
-                            {showFeatureCancelChoice && cancelChoice === "feature" ? (
-                                <>
-                                    Spotlight stays active until{" "}
-                                    <span className="font-semibold">
-                                        {spotlightEnd?.toLocaleDateString() || "the end of your paid period"}
-                                    </span>
-                                    , then won&apos;t renew.
-                                </>
-                            ) : !showFeatureCancelChoice || cancelChoice === "plan" ? (
-                                <>
-                                    Your subscription stays active until <span className="font-semibold">{billingEnd?.toLocaleDateString() || "the end of your billing period"}</span>.
-                                    After that, access tied to this plan ends unless you purchase again.
-                                </>
-                            ) : (
-                                "Select an option above to continue."
-                            )}
-                        </p>
-                    </div>
+
                     {cancelError && (
                         <p className="text-sm text-destructive">{cancelError}</p>
                     )}
