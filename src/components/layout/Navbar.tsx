@@ -12,6 +12,14 @@ import {
     DropdownMenuTrigger,
     DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+    Sheet,
+    SheetContent,
+    SheetHeader,
+    SheetTitle,
+    SheetTrigger,
+    SheetClose,
+} from "@/components/ui/sheet";
 
 export default function Navbar() {
     const navigate = useNavigate();
@@ -20,6 +28,7 @@ export default function Navbar() {
     const [userName, setUserName] = useState("");
     const [isPartner, setIsPartner] = useState(false);
     const [hasMemberProfile, setHasMemberProfile] = useState(false);
+    const [mobileOpen, setMobileOpen] = useState(false);
 
     useEffect(() => {
         const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -56,9 +65,9 @@ export default function Navbar() {
         return () => unsubscribe();
     }, []);
 
-
     const handleSignOut = async () => {
         await signOut(auth);
+        setMobileOpen(false);
         navigate("/login");
     };
 
@@ -74,7 +83,12 @@ export default function Navbar() {
                     </Link>
 
                     <div className="hidden lg:flex items-center gap-6">
-                        <Link to="/" className="text-sm font-medium hover:text-primary transition-colors">
+                        <Link
+                            to="/"
+                            className={`text-sm font-medium transition-colors hover:text-primary ${
+                                location.pathname === "/" ? "text-primary font-semibold" : "text-muted-foreground"
+                            }`}
+                        >
                             Home
                         </Link>
                         <DropdownMenu>
@@ -99,16 +113,18 @@ export default function Navbar() {
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
-                        <Link to="/community" className="text-sm font-medium hover:text-primary transition-colors text-muted-foreground">
+                        <Link
+                            to="/community"
+                            className={`text-sm font-medium transition-colors hover:text-primary ${
+                                location.pathname.startsWith("/community") ? "text-primary font-semibold" : "text-muted-foreground"
+                            }`}
+                        >
                             Community
                         </Link>
                     </div>
                 </div>
 
-
-
                 <div className="flex items-center gap-4">
-
                     <div className="hidden sm:flex items-center gap-2">
                         {user ? (
                             <DropdownMenu>
@@ -120,7 +136,6 @@ export default function Navbar() {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-56 bg-background/90 border-foreground/10 shadow-2xl backdrop-blur-xl">
-
                                     {!hasMemberProfile && (
                                         <DropdownMenuItem className="p-3 focus:bg-foreground/5 cursor-pointer" onClick={() => navigate("/member/setup")}>
                                             <User className="w-4 h-4 mr-2 text-primary" />
@@ -169,10 +184,135 @@ export default function Navbar() {
                         )}
                     </div>
 
-                    <Button variant="ghost" size="icon" className="lg:hidden">
-                        <Menu className="h-5 w-5" />
-                        <span className="sr-only">Toggle menu</span>
-                    </Button>
+                    {/* Mobile Menu Sheet */}
+                    <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+                        <SheetTrigger asChild>
+                            <Button variant="ghost" size="icon" className="lg:hidden">
+                                <Menu className="h-5 w-5" />
+                                <span className="sr-only">Toggle menu</span>
+                            </Button>
+                        </SheetTrigger>
+                        <SheetContent side="right" className="w-[300px] sm:w-[350px] p-6 flex flex-col justify-between overflow-y-auto">
+                            <div className="space-y-6">
+                                <SheetHeader className="text-left pb-4 border-b border-border">
+                                    <SheetTitle className="flex items-center gap-2">
+                                        <img src="/pharmalogo1.png" alt="Pharma SocII Logo" className="h-8 w-auto object-contain" />
+                                        <span className="font-bold text-lg">Pharma SocII</span>
+                                    </SheetTitle>
+                                </SheetHeader>
+
+                                <div className="flex flex-col space-y-3">
+                                    <SheetClose asChild>
+                                        <Link
+                                            to="/"
+                                            className={`text-base font-medium py-2 px-3 rounded-lg hover:bg-foreground/5 transition-colors ${
+                                                location.pathname === "/" ? "text-primary font-semibold bg-primary/10" : "text-foreground"
+                                            }`}
+                                        >
+                                            Home
+                                        </Link>
+                                    </SheetClose>
+                                    <SheetClose asChild>
+                                        <Link
+                                            to="/community"
+                                            className={`text-base font-medium py-2 px-3 rounded-lg hover:bg-foreground/5 transition-colors ${
+                                                location.pathname.startsWith("/community") ? "text-primary font-semibold bg-primary/10" : "text-foreground"
+                                            }`}
+                                        >
+                                            Community
+                                        </Link>
+                                    </SheetClose>
+
+                                    <div className="pt-2 border-t border-border/60">
+                                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-2">Explore</p>
+                                        <div className="flex flex-col space-y-1">
+                                            <SheetClose asChild>
+                                                <Link to="/all-categories/business" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
+                                                    Business Offerings
+                                                </Link>
+                                            </SheetClose>
+                                            <SheetClose asChild>
+                                                <Link to="/all-categories/consulting" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
+                                                    Consulting
+                                                </Link>
+                                            </SheetClose>
+                                            <SheetClose asChild>
+                                                <Link to="/all-categories/events" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
+                                                    Events
+                                                </Link>
+                                            </SheetClose>
+                                            <SheetClose asChild>
+                                                <Link to="/all-categories/compliance" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
+                                                    Global Health Authority Sites
+                                                </Link>
+                                            </SheetClose>
+                                            <SheetClose asChild>
+                                                <Link to="/all-categories/jobs" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
+                                                    Jobs
+                                                </Link>
+                                            </SheetClose>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="pt-6 border-t border-border space-y-3">
+                                {user ? (
+                                    <div className="space-y-2">
+                                        <div className="flex items-center gap-2 px-3 py-2 bg-foreground/5 rounded-lg">
+                                            <User className="w-4 h-4 text-primary" />
+                                            <span className="font-medium text-sm truncate">{userName}</span>
+                                        </div>
+                                        {!hasMemberProfile && (
+                                            <SheetClose asChild>
+                                                <Button variant="outline" className="w-full justify-start" onClick={() => navigate("/member/setup")}>
+                                                    <User className="w-4 h-4 mr-2 text-primary" />
+                                                    <span>Create community profile</span>
+                                                </Button>
+                                            </SheetClose>
+                                        )}
+                                        {isPartner && (
+                                            <SheetClose asChild>
+                                                <Button variant="outline" className="w-full justify-start" onClick={() => navigate("/partner/dashboard")}>
+                                                    <LayoutDashboard className="w-4 h-4 mr-2 text-primary" />
+                                                    <span>Partner dashboard</span>
+                                                </Button>
+                                            </SheetClose>
+                                        )}
+                                        <Button variant="destructive" className="w-full justify-start" onClick={handleSignOut}>
+                                            <LogOut className="w-4 h-4 mr-2" />
+                                            <span>Logout</span>
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col space-y-2">
+                                        <SheetClose asChild>
+                                            <Button asChild variant="outline" className="w-full justify-center">
+                                                <Link to="/member/register">Join community</Link>
+                                            </Button>
+                                        </SheetClose>
+                                        <SheetClose asChild>
+                                            <Button asChild className="w-full justify-center shadow-md">
+                                                <Link to="/signup">Become a partner</Link>
+                                            </Button>
+                                        </SheetClose>
+                                        <div className="grid grid-cols-2 gap-2 pt-2">
+                                            <SheetClose asChild>
+                                                <Button asChild variant="ghost" size="sm" className="w-full text-xs">
+                                                    <Link to="/login?type=partner">Partner Login</Link>
+                                                </Button>
+                                            </SheetClose>
+                                            <SheetClose asChild>
+                                                <Button asChild variant="ghost" size="sm" className="w-full text-xs">
+                                                    <Link to="/member/login">Member Login</Link>
+                                                </Button>
+                                            </SheetClose>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </SheetContent>
+                    </Sheet>
                 </div>
             </div>
         </nav>

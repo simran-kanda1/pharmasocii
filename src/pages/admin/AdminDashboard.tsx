@@ -34,6 +34,7 @@ import {
   Tags,
   User,
   Users,
+  Mail,
 } from "lucide-react";
 import { db, auth, storage } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
@@ -104,6 +105,7 @@ import { AdminAddCategory } from "@/components/admin/AdminAddCategory";
 import { AdminAddFeaturedPlan } from "@/components/admin/AdminAddFeaturedPlan";
 import { AdminSitePoliciesPanel } from "@/components/admin/AdminSitePoliciesPanel";
 import { AdminFaqsPanel } from "@/components/admin/AdminFaqsPanel";
+import { AdminContactPanel } from "@/components/admin/AdminContactPanel";
 import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
 
 import { SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
@@ -127,6 +129,7 @@ type AdminTab =
   | "categories"
   | "policies"
   | "faqs"
+  | "contact"
   | "communityMembers"
   | "communityPosts"
   | "communityArchivePosts"
@@ -1896,6 +1899,7 @@ export default function AdminDashboard() {
     categories: "Categories",
     policies: "Site Policies",
     faqs: "FAQs",
+    contact: "Contact Page",
     communityMembers: "Members",
     communityPosts: "Member posts",
     communityArchivePosts: "Archive posts",
@@ -1939,6 +1943,7 @@ export default function AdminDashboard() {
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
             <SidebarItem label="Site Policies" icon={ShieldCheck} active={activeTab === "policies"} onClick={() => setActiveTab("policies")} />
             <SidebarItem label="FAQs" icon={HelpCircle} active={activeTab === "faqs"} onClick={() => setActiveTab("faqs")} />
+            <SidebarItem label="Contact Page" icon={Mail} active={activeTab === "contact"} onClick={() => setActiveTab("contact")} />
             <p className="text-[11px] font-semibold tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
             <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
             <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
@@ -2146,6 +2151,7 @@ export default function AdminDashboard() {
 
           {activeTab === "policies" && <AdminSitePoliciesPanel />}
           {activeTab === "faqs" && <AdminFaqsPanel />}
+          {activeTab === "contact" && <AdminContactPanel />}
 
           {activeTab === "communityMembers" && <AdminMembersPanel />}
           {activeTab === "communityPosts" && <AdminMemberPostsPanel />}
