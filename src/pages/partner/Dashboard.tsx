@@ -557,13 +557,6 @@ export default function Dashboard() {
         if (isPlanLockedForChanges(plan)) return true;
         return isSpotlightCancelPendingForPlan(plan, linkedListing);
     };
-    const hasStandaloneFeatureForPlan = (plan: any) => {
-        const linkedListing = getLinkedListingForPlan(plan);
-        return (
-            hasStandaloneSpotlightAddon(linkedListing, plan?.planId) &&
-            !isSpotlightCancelPendingForPlan(plan, linkedListing)
-        );
-    };
     const isFeatureEligiblePlan = (plan: any) => {
         if (isPlanLockedForChanges(plan) || !plan.listingId || !plan.collectionName) return false;
         if (isEventOrJobListing(plan?.planId, getLinkedListingForPlan(plan))) return false;
