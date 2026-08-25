@@ -50,8 +50,14 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
     })();
   }, [memberId]);
 
+  const isFormValid = Boolean(name.trim() && industry.trim());
+
   const submit = async () => {
     if (!member) return;
+    if (!isFormValid) {
+      setMsg("Name and industry are required and cannot be empty.");
+      return;
+    }
     setBusy(true);
     setMsg("");
     try {
@@ -101,7 +107,7 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
         }}
       >
         <div className="space-y-2">
-          <Label>Name</Label>
+          <Label>Name *</Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="space-y-2">
@@ -155,7 +161,7 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
           <Input value={institution} onChange={(e) => setInstitution(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Industry</Label>
+          <Label>Industry *</Label>
           <Input value={industry} onChange={(e) => setIndustry(e.target.value)} />
         </div>
         <div className="space-y-2">
@@ -163,7 +169,7 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
           <Textarea value={bio} onChange={(e) => setBio(e.target.value)} rows={4} />
         </div>
         {msg && <p className="text-sm text-muted-foreground">{msg}</p>}
-        <Button type="submit" disabled={busy}>
+        <Button type="submit" disabled={busy || !isFormValid}>
           Submit
         </Button>
       </form>

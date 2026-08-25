@@ -12,6 +12,7 @@ import { logActivity } from "@/lib/auditLogger";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import PhoneInput from 'react-phone-number-input';
 import { toPhoneInputValue } from "@/lib/phone";
+import { getFriendlyErrorMessage } from "@/lib/errorHandler";
 import 'react-phone-number-input/style.css';
 
 export default function PartnerRegister() {
@@ -116,7 +117,7 @@ export default function PartnerRegister() {
             }, 5000);
 
         } catch (err: any) {
-            setError(err.message || "Failed to create account. Please try again.");
+            setError(getFriendlyErrorMessage(err, "Failed to create account. Please try again."));
             console.error(err);
         } finally {
             setIsLoading(false);

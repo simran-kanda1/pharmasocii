@@ -222,7 +222,7 @@ const CATEGORY_CONFIG = {
     },
     compliance: {
         title: "Global Health Authority Sites",
-        description: "Bid farewell to endless searches and fragmented information. Our platform serves as your compass, making navigation of health authority sites effortless and efficient."
+        description: "A structured gateway to every health authority links, all in one place."
     }
 };
 
@@ -832,12 +832,21 @@ export default function AllCategories() {
                 <div className={`w-full mb-10 flex flex-col items-center gap-4 ${currentTab === "jobs" ? "lg:flex-row" : "max-w-4xl mx-auto md:flex-row"}`}>
                     <div className="relative flex-1 w-full">
                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground pointer-events-none" />
-                        <Input
-                            placeholder={currentTab === "business" ? "Search by company name, certification, country, or category" : currentTab === "consulting" ? "Search by company name, country, or category" : currentTab === "events" ? "Search by event name, country, or category" : "Search by job title, location, job type, country, or category"}
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
-                        />
+                        {currentTab === "compliance" ? (
+                            <Input
+                                placeholder="Search for a country..."
+                                value={healthAuthSearch}
+                                onChange={(e) => setHealthAuthSearch(e.target.value)}
+                                className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
+                            />
+                        ) : (
+                            <Input
+                                placeholder={currentTab === "business" ? "Search by company name, certification, country, or category" : currentTab === "consulting" ? "Search by company name, country, or category" : currentTab === "events" ? "Search by event name, country, or category" : "Search by job title, location, job type, country, or category"}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
+                            />
+                        )}
                     </div>
 
                     {currentTab === "jobs" && (
@@ -1090,11 +1099,7 @@ export default function AllCategories() {
                                                 className="group rounded-xl border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer overflow-hidden flex flex-col h-[320px]"
                                             >
                                                 <div className="p-6 flex-1 flex items-center justify-center bg-background text-center relative overflow-hidden">
-                                                    {item.companyLogoUrl || item.logoUrl ? (
-                                                        <img src={item.companyLogoUrl || item.logoUrl} alt={title} className="max-h-28 max-w-full object-contain p-2" />
-                                                    ) : (
-                                                        <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
-                                                    )}
+                                                    <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
                                                 </div>
                                                 {currentTab !== "consulting" && (
                                                     <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24 border-t border-foreground/10">
@@ -1168,10 +1173,6 @@ export default function AllCategories() {
                     </div>
                 ) : currentTab === "compliance" ? (
                     <div className="flex-1 max-w-7xl mx-auto w-full pb-24 flex flex-col items-center">
-                        <div className="w-full max-w-xl mx-auto mb-16 relative">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-                            <Input placeholder="Search for a country..." value={healthAuthSearch} onChange={(e) => setHealthAuthSearch(e.target.value)} className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full" />
-                        </div>
                         {filteredHealthAuths.length > 0 ? (
                             <div className="w-full columns-1 sm:columns-2 md:columns-3 lg:columns-4 gap-6 space-y-6">
                                 {filteredHealthAuths.map((auth, index) => (

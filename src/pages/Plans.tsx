@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ArrowRight } from "lucide-react";
+import { Check, ArrowRight, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePlansConfig, type PlanItem } from "@/hooks/usePlansConfig";
 
@@ -107,12 +107,12 @@ export default function Plans() {
                 ))}
 
                 {/* Footnote */}
-                <div className="mt-16 text-center border-t border-slate-200/80 pt-6">
-                    <p className="text-sm text-slate-700 font-medium mb-3">
+                <div className="mt-16 text-center border-t border-slate-200/80 pt-6 space-y-2">
+                    <p className="text-sm text-slate-700 font-medium">
                         Not sure which plan fits your workflow? Reach out to us for a free trial period.
                     </p>
                     <p className="text-xs text-slate-500 font-medium tracking-wide">
-                        Plans auto‑renew. Access continues until the end of the paid period. No refunds.
+                        All prices are in USD. Plans auto‑renew. Access continues until the end of the paid period. No refunds.
                     </p>
                 </div>
 
@@ -131,6 +131,13 @@ function PlanCard({
     showDiscountTag?: boolean;
 }) {
     const displayPrice = isYearly ? plan.yearlyMonthlyPrice : plan.monthlyPrice;
+
+    const extraFeatures = plan.features.filter((f) =>
+        f.toLowerCase().includes("extra feature")
+    );
+    const standardFeatures = plan.features.filter(
+        (f) => !f.toLowerCase().includes("extra feature")
+    );
 
     return (
         <div className={`relative flex flex-col justify-between rounded-2xl bg-white border ${plan.isFeatured ? "border-slate-800 shadow-md" : "border-slate-200/90 shadow-sm"} p-6 transition-all hover:shadow-md`}>
@@ -152,7 +159,7 @@ function PlanCard({
             <div className="text-center mb-6 pb-6 border-b border-slate-100">
                 <div className="flex items-baseline justify-center gap-1">
                     <span className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
-                        ${displayPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${displayPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                     </span>
                     <span className="text-sm font-medium text-slate-500">/ month</span>
                 </div>
@@ -168,16 +175,35 @@ function PlanCard({
             </div>
 
             {/* Features List */}
-            <div className="flex-1 space-y-3">
-                {plan.features.map((feat, idx) => {
-                    const isExtra = feat.toLowerCase().startsWith("extra feature");
-                    return (
-                        <div key={idx} className={`flex items-start gap-2.5 text-xs leading-relaxed ${isExtra ? "text-slate-900 font-bold" : "text-slate-700"}`}>
+            <div className="flex-1 flex flex-col">
+                {/* Extra Feature Top Slot - strictly fixed height so standard features align 100% across all cards */}
+                <div className="h-[56px] mb-5 flex items-center">
+                    {extraFeatures.length > 0 ? (
+                        <div className="w-full h-full bg-blue-50/90 border border-blue-200/90 rounded-xl px-3 py-1.5 flex items-center gap-2.5 shadow-sm">
+                            <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+                            <div className="text-[11px] leading-tight flex-1">
+                                <span className="font-bold text-blue-700 block uppercase tracking-wider text-[9px]">
+                                    Extra Feature
+                                </span>
+                                <span className="font-semibold text-slate-900 line-clamp-2">
+                                    {extraFeatures[0].replace(/^Extra Feature:\s*/i, "")}
+                                </span>
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="w-full h-full" />
+                    )}
+                </div>
+
+                {/* Standard Features */}
+                <div className="space-y-3 flex-1">
+                    {standardFeatures.map((feat, idx) => (
+                        <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700 leading-relaxed min-h-[20px]">
                             <Check className="w-4 h-4 text-slate-900 shrink-0 mt-0.5" />
                             <span>{feat}</span>
                         </div>
-                    );
-                })}
+                    ))}
+                </div>
             </div>
         </div>
     );

@@ -23,6 +23,7 @@ import {
     type SubcategoryEntry, type CategoriesDict,
 } from "../AllCategories";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
+import { getFriendlyErrorMessage } from "@/lib/errorHandler";
 import { usePlansConfig } from "@/hooks/usePlansConfig";
 
 // ─── Group config ───
@@ -138,7 +139,7 @@ function MultiSelectDropdown({ label, items, selected, onToggle, open, onToggleO
             <button type="button" onClick={onToggleOpen}
                 className="w-full h-10 px-3 text-left text-sm bg-muted/40 border border-foreground/10 rounded-md flex items-center justify-between hover:border-primary/50 transition-colors">
                 <span className="text-muted-foreground truncate">
-                    {selected.length > 0 ? `${selected.length} selected` : `Choose your ${label} (multi-select enabled)${label === 'service regions' ? ' - Premium plus plans only' : ''}`}
+                    {selected.length > 0 ? `${selected.length} selected` : `Choose your ${label.toUpperCase() === 'BSL' ? 'BSL' : label} (multi-select enabled)${label.toLowerCase() === 'service regions' ? ' - Premium plus plans only' : ''}`}
                 </span>
                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
             </button>
@@ -156,7 +157,7 @@ function MultiSelectDropdown({ label, items, selected, onToggle, open, onToggleO
                             <div className={`w-4 h-4 rounded border flex items-center justify-center text-xs transition-colors ${selected.includes(item) ? "bg-primary border-primary text-primary-foreground" : "border-foreground/20"}`}>
                                 {selected.includes(item) && <Check className="w-3 h-3" />}
                             </div>
-                            {item}
+                            {label.toUpperCase() === 'BSL' && !item.startsWith('BSL') ? `BSL-${item}` : item}
                         </button>
                     ))}
                 </div>
@@ -763,7 +764,7 @@ export default function AddListing() {
 
         } catch (err: any) {
             console.error(err);
-            setError(err.message || "An error occurred.");
+            setError(getFriendlyErrorMessage(err, "An error occurred. Please try again."));
             setIsLoading(false);
         }
     };
@@ -956,7 +957,7 @@ export default function AddListing() {
                                     <>
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
-                                                <Label>Bio Safety Level</Label>
+                                                <Label>Bio Safety Level (BSL)</Label>
                                                 <MultiSelectDropdown label="BSL" items={BSL_LEVELS} selected={selectedBSL} onToggle={toggleBSL} open={showBSLDropdown}
                                                     onToggleOpen={() => { setShowBSLDropdown(!showBSLDropdown); setShowCertsDropdown(false); setShowRegionsDropdown(false); setShowCountriesDropdown(false); }} />
                                             </div>

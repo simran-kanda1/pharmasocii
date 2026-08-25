@@ -522,6 +522,10 @@ export function CommunityMemberPanels({
           onSubmit={async (e) => {
             e.preventDefault();
             if (!auth.currentUser) return;
+            if (!industry.trim()) {
+              setProfileMsg("Industry is required and cannot be empty.");
+              return;
+            }
             try {
               await updateDoc(doc(db, "membersCollection", userId), {
                 userBio: bio,
@@ -531,7 +535,7 @@ export function CommunityMemberPanels({
                 industry: industry.trim(),
                 aboutMe: aboutMe.trim(),
               });
-              setProfileMsg("Profile updated.");
+              setProfileMsg("Profile updated successfully.");
             } catch {
               setProfileMsg("Could not save.");
             }
@@ -604,7 +608,7 @@ export function CommunityMemberPanels({
 
 
           {profileMsg && <p className="text-sm text-muted-foreground">{profileMsg}</p>}
-          <Button type="submit">Save</Button>
+          <Button type="submit" disabled={!industry.trim()}>Save</Button>
         </form>
 
         <div className="mt-10 pt-8 border-t border-slate-200 dark:border-foreground/15 max-w-lg space-y-4">

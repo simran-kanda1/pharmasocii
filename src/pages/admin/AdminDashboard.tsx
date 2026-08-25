@@ -1089,13 +1089,22 @@ export default function AdminDashboard() {
 
   const savePartnerEdits = async () => {
     if (!selectedPartner) return;
+    const pPrimaryName = (partnerEditor.primaryName || `${partnerEditor.firstName || ""} ${partnerEditor.lastName || ""}`).trim();
+    const pPrimaryEmail = (partnerEditor.primaryEmail || "").trim();
+    const pBusinessName = (partnerEditor.businessName || "").trim();
+
+    if (!pPrimaryName || !pPrimaryEmail || !pBusinessName) {
+      setSaveNotice("Required partner fields (Name, Primary Email, Business Name) cannot be empty.");
+      return;
+    }
+
     try {
       const payload: Record<string, any> = {
         // Primary Info
         firstName: partnerEditor.firstName || "",
         lastName: partnerEditor.lastName || "",
-        primaryName: partnerEditor.primaryName || "",
-        primaryEmail: partnerEditor.primaryEmail || "",
+        primaryName: pPrimaryName,
+        primaryEmail: pPrimaryEmail,
         phoneNumber: partnerEditor.phoneNumber || "",
         
         // Company Info
@@ -2555,7 +2564,13 @@ export default function AdminDashboard() {
               </>
             )}
 
-            <Button onClick={savePartnerEdits} className="w-full">Save Partner Changes</Button>
+            <Button 
+              onClick={savePartnerEdits} 
+              disabled={!((partnerEditor.primaryName?.trim() || (partnerEditor.firstName?.trim() && partnerEditor.lastName?.trim())) && partnerEditor.primaryEmail?.trim() && partnerEditor.businessName?.trim())} 
+              className="w-full"
+            >
+              Save Partner Changes
+            </Button>
           </div>
         </SheetContent>
       </Sheet>
@@ -2672,7 +2687,7 @@ export default function AdminDashboard() {
             <div className="border-b pb-2 pt-2 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Business Offering / Consulting</h3>
             </div>
-            <Field label="Bio Safety Level (comma separated, e.g. 1,2,3)" value={listingEditor.bioSafetyLevelCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, bioSafetyLevelCsv: v }))} />
+            <Field label="Bio Safety Level (BSL) (comma separated, e.g. 1,2,3)" value={listingEditor.bioSafetyLevelCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, bioSafetyLevelCsv: v }))} />
             <Field label="Certifications (comma separated, e.g. GMP,ISO 9001)" value={listingEditor.certificationsCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, certificationsCsv: v }))} />
             <div className="space-y-1">
               <p className="text-sm font-medium">Company Representatives (JSON)</p>

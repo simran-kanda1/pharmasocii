@@ -22,6 +22,7 @@ import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPd
 import { uploadCompanyLogo, validateCompanyLogo } from "@/lib/companyLogoUpload";
 import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
+import { getFriendlyErrorMessage } from "@/lib/errorHandler";
 import PhoneInput from 'react-phone-number-input'
 import { toPhoneInputValue } from '@/lib/phone'
 import { usePlansConfig } from "@/hooks/usePlansConfig";
@@ -808,7 +809,7 @@ export default function CompleteProfile() {
 
         } catch (err: any) {
             console.error(err);
-            setError(err.message || "An error occurred while saving your profile.");
+            setError(getFriendlyErrorMessage(err, "An error occurred while saving your profile."));
             setIsLoading(false);
         }
     };
@@ -974,12 +975,12 @@ export default function CompleteProfile() {
                     className="flex min-h-[44px] w-full items-center gap-2 flex-wrap rounded-md border border-foreground/10 bg-background px-3 py-2 text-sm cursor-pointer hover:border-foreground/20 transition-colors"
                 >
                     {selected.length === 0 ? (
-                        <span className="text-muted-foreground">Choose your {label.toLowerCase()} (multi-select enabled){label.toLowerCase() === 'service regions' ? ' - Premium plus plans only' : ''}</span>
+                        <span className="text-muted-foreground">Choose your {label.toUpperCase() === 'BSL' ? 'BSL' : label.toLowerCase()} (multi-select enabled){label.toLowerCase() === 'service regions' ? ' - Premium plus plans only' : ''}</span>
                     ) : (
                         [...selected].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })).map(s => (
                             <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 bg-foreground/10 text-foreground text-xs rounded-md border border-foreground/10">
                                 <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={(e) => { e.stopPropagation(); onToggle(s); }} />
-                                {s}
+                                {label.toUpperCase() === 'BSL' && !s.startsWith('BSL') ? `BSL-${s}` : s}
                             </span>
                         ))
                     )}
@@ -1007,7 +1008,7 @@ export default function CompleteProfile() {
                                     className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors
                                         ${isSelected ? "bg-primary/10 text-primary font-medium" : isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-foreground/5 text-foreground"}`}
                                 >
-                                    <span>{item}</span>
+                                    <span>{label.toUpperCase() === 'BSL' && !item.startsWith('BSL') ? `BSL-${item}` : item}</span>
                                     {isSelected && <Check className="w-4 h-4 text-primary" />}
                                 </div>
                             );
@@ -1149,7 +1150,7 @@ export default function CompleteProfile() {
                                                     ref={logoInputRef}
                                                     type="file"
                                                     className="bg-muted/40 border-foreground/10 text-sm h-10 pt-2 cursor-pointer"
-                                                    accept="image/jpeg, image/png, image/jpg"
+                                                    accept="image/jpeg, image/png, image/jpg, image/webp"
                                                     onChange={(e) => {
                                                         const file = e.target.files?.[0];
                                                         if (file) {
@@ -1185,7 +1186,7 @@ export default function CompleteProfile() {
                                                     </Button>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-muted-foreground mt-2">Formats: JPG, JPEG, PNG | Max size: 2MB</p>
+                                            <p className="text-xs text-muted-foreground mt-2">Formats: JPG, JPEG, PNG, WebP | Max size: 1MB (Auto-optimized)</p>
                                             {companyLogoError && <p className="text-xs text-red-500 mt-1">{companyLogoError}</p>}
                                         </div>
                                     </div>
@@ -1308,7 +1309,7 @@ export default function CompleteProfile() {
                                         <>
                                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                                 <div className="space-y-2" onClick={e => e.stopPropagation()}>
-                                                    <Label>Bio Safety Level</Label>
+                                                    <Label>Bio Safety Level (BSL)</Label>
                                                     <MultiSelectDropdown
                                                         label="BSL" items={BSL_LEVELS} selected={selectedBSL}
                                                         onToggle={toggleBSL} open={showBSLDropdown}

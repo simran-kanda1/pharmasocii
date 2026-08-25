@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, query, onSnapshot, where, writeBatch, getDocs } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
@@ -20,6 +20,7 @@ import {
 import { normalizeServiceCountriesToArray } from "@/lib/utils";
 import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 import { uploadCompanyLogo, validateCompanyLogo } from "@/lib/companyLogoUpload";
+import { getFriendlyErrorMessage } from "@/lib/errorHandler";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut, Download, FileSpreadsheet, FileText, Info,
@@ -27,7 +28,7 @@ import {
     PlusCircle, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
     CreditCard, Star, Sparkles, Crown, Check, X,
-    Edit3, ArrowUpCircle, AlertTriangle, Globe, Tag, Search
+    Edit3, ArrowUpCircle, Globe, Tag, Search
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -498,7 +499,6 @@ export default function Dashboard() {
         eventDates?: { startDate: string; endDate: string } | null;
     } | null>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
-    const [actionMessage, setActionMessage] = useState({ type: "", text: "" });
     const [cancelModalError, setCancelModalError] = useState("");
 
     const getStandaloneFeatureRecordForPlan = (plan: any) => {
@@ -617,7 +617,6 @@ export default function Dashboard() {
 
         const featureStatus = params.get("feature");
         if (featureStatus === "success") {
-            setActionMessage({ type: "success", text: "Feature activated successfully!" });
             window.history.replaceState({}, document.title, window.location.pathname);
 
             // if we have session_id for feature we can verify it similarly
@@ -809,22 +808,16 @@ export default function Dashboard() {
     const handleAddPlan = (type: string = "offerings") => {
         if (type === "offerings" && businessOfferingLock.blocked) {
             const nextDate = businessOfferingLock.blockedUntil?.toLocaleDateString();
-            setActionMessage({
-                type: "error",
-                text: nextDate
-                    ? `You can add a new Business Offering after ${nextDate}.`
-                    : "You can only have one active Business Offering plan at a time.",
-            });
+            alert(nextDate
+                ? `You can add a new Business Offering after ${nextDate}.`
+                : "You can only have one active Business Offering plan at a time.");
             return;
         }
         if (type === "consulting" && consultingLock.blocked) {
             const nextDate = consultingLock.blockedUntil?.toLocaleDateString();
-            setActionMessage({
-                type: "error",
-                text: nextDate
-                    ? `You can add a new Consulting Service after ${nextDate}.`
-                    : "You can only have one active Consulting Service plan at a time.",
-            });
+            alert(nextDate
+                ? `You can add a new Consulting Service after ${nextDate}.`
+                : "You can only have one active Consulting Service plan at a time.");
             return;
         }
         navigate(`/partner/add-listing/${type}`);
@@ -1058,7 +1051,7 @@ export default function Dashboard() {
             } else if (code === "auth/wrong-password" || code === "auth/invalid-credential") {
                 setProfileMsg("Current password is incorrect. Your profile was not saved.");
             } else {
-                setProfileMsg(err?.message || "Failed to update profile. Please try again.");
+                setProfileMsg(getFriendlyErrorMessage(err, "Failed to update profile. Please try again."));
             }
         } finally {
             setProfileSaving(false);
@@ -1104,7 +1097,7 @@ export default function Dashboard() {
             if (err.code === "auth/wrong-password" || err.code === "auth/invalid-credential") {
                 setPasswordMsg({ type: "error", text: "Current password is incorrect." });
             } else {
-                setPasswordMsg({ type: "error", text: err.message || "Failed to change password." });
+                setPasswordMsg({ type: "error", text: getFriendlyErrorMessage(err, "Failed to change password.") });
             }
         } finally {
             setPasswordSaving(false);
@@ -1155,10 +1148,6 @@ export default function Dashboard() {
                     throw new Error(data.message || "Unexpected upgrade response. Please refresh and try again.");
                 }
                 if (data.success && data.noCheckoutRequired) {
-                    setActionMessage({
-                        type: "success",
-                        text: data.message || "Spotlight tier updated on your subscription.",
-                    });
                     setFeatureProcessing(false);
                     window.location.reload();
                     return;
@@ -1171,7 +1160,7 @@ export default function Dashboard() {
             }
         } catch (err: any) {
             console.error("Failed to add feature plan", err);
-            setActionMessage({ type: "error", text: err.message || "Failed to add feature plan." });
+            alert(getFriendlyErrorMessage(err, "Failed to add feature plan."));
             setFeatureProcessing(false);
         }
     };
@@ -1250,21 +1239,14 @@ export default function Dashboard() {
             return { redirecting: true as const };
         }
         if (data.success && data.noCheckoutRequired) {
-            setActionMessage({
-                type: "success",
-                text: data.message || "Upgrade completed successfully. Your next renewal uses the new plan price.",
-            });
             upgradeCheckoutContextRef.current = null;
             setPendingUpgradePlanId(null);
             setPendingEventUpgradeDates(null);
-            setTimeout(() => {
-                setShowUpgradeModal(false);
-                setShowEditListingModal(false);
-                setSelectedPlanForAction(null);
-                setSelectedListingForEdit(null);
-                setActionMessage({ type: "", text: "" });
-                window.location.reload();
-            }, 1800);
+            setShowUpgradeModal(false);
+            setShowEditListingModal(false);
+            setSelectedPlanForAction(null);
+            setSelectedListingForEdit(null);
+            window.location.reload();
             return { redirecting: false as const };
         }
         throw new Error(data.error || "Stripe did not return a payment page. Please try the upgrade again.");
@@ -1419,7 +1401,6 @@ export default function Dashboard() {
                 await updateDoc(listingRef, updateObj);
 
                 if (upgradePlanId) {
-                    setActionMessage({ type: "success", text: "Details saved. Redirecting to secure checkout for upgrade payment..." });
                     const checkoutResult = await startUpgradeCheckout(
                         upgradePlanId,
                         deferredEventDates,
@@ -1431,17 +1412,13 @@ export default function Dashboard() {
                     return;
                 }
 
-                setActionMessage({ type: "success", text: "Listing updated successfully!" });
-                setTimeout(() => {
-                    setShowEditListingModal(false);
-                    setSelectedListingForEdit(null);
-                    setSelectedPlanForAction(null);
-                    setActionMessage({ type: "", text: "" });
-                }, 1500);
+                setShowEditListingModal(false);
+                setSelectedListingForEdit(null);
+                setSelectedPlanForAction(null);
             }
         } catch (err: any) {
             console.error("Failed to update listing:", err);
-            setActionMessage({ type: "error", text: err?.message || "Failed to update listing. Please try again." });
+            alert(getFriendlyErrorMessage(err, "Failed to update listing. Please try again."));
         } finally {
             if (!redirectingToStripe) {
                 setActionProcessing(false);
@@ -1455,7 +1432,7 @@ export default function Dashboard() {
         try {
             assertPlanUnlockedForChanges(selectedPlanForAction);
         } catch (err: any) {
-            setActionMessage({ type: "error", text: err.message || "This plan cannot be upgraded." });
+            alert(err.message || "This plan cannot be upgraded.");
             return;
         }
         const linkedListing = getLinkedListingForPlan(selectedPlanForAction);
@@ -1471,7 +1448,6 @@ export default function Dashboard() {
             setSelectedListingForEdit(linkedListing);
             setShowUpgradeModal(false);
             setShowEditListingModal(true);
-            setActionMessage({ type: "success", text: "Update your listing details before continuing to secure checkout." });
             return;
         }
 
@@ -1484,7 +1460,7 @@ export default function Dashboard() {
             }
         } catch (err: any) {
             console.error("Failed to upgrade plan:", err);
-            setActionMessage({ type: "error", text: err.message || "Failed to upgrade plan." });
+            alert(getFriendlyErrorMessage(err, "Failed to upgrade plan."));
         } finally {
             if (!redirectingToStripe) {
                 setActionProcessing(false);
@@ -1520,17 +1496,10 @@ export default function Dashboard() {
                         typeof apiError === "string" &&
                         apiError.toLowerCase().includes("already scheduled")
                     ) {
-                        setActionMessage({
-                            type: "success",
-                            text: "Spotlight add-on is already scheduled to end at the close of your paid period.",
-                        });
                         setShowCancelModal(false);
                         setSelectedPlanForAction(null);
                         setPendingUpgradePlanId(null);
-                        window.setTimeout(() => {
-                            setActionMessage({ type: "", text: "" });
-                            window.location.reload();
-                        }, 1200);
+                        window.location.reload();
                         return;
                     }
                     if (!apiError && !response.ok) {
@@ -1547,24 +1516,15 @@ export default function Dashboard() {
                     console.warn("Feature cancellation succeeded without cancelledFeature flag.");
                 }
 
-                const successText =
-                    cancelScope === "feature"
-                        ? "Spotlight add-on scheduled to end at the close of your paid period. It will not renew."
-                        : "Subscription will end after the current billing period. Any separate spotlight add-on keeps running until its own paid period ends.";
-                setActionMessage({ type: "success", text: successText });
                 setPendingUpgradePlanId(null);
                 setShowCancelModal(false);
                 setSelectedPlanForAction(null);
-                window.setTimeout(() => {
-                    setActionMessage({ type: "", text: "" });
-                    window.location.reload();
-                }, 1200);
+                window.location.reload();
             }
         } catch (err: any) {
             console.error("Failed to cancel plan:", err);
-            const message = err?.message || "Failed to cancel subscription. Please try again.";
+            const message = getFriendlyErrorMessage(err, "Failed to cancel subscription. Please try again.");
             setCancelModalError(message);
-            setActionMessage({ type: "error", text: message });
         } finally {
             setActionProcessing(false);
         }
@@ -1614,10 +1574,6 @@ export default function Dashboard() {
                     throw new Error(data.message || "Unexpected upgrade response. Please refresh and try again.");
                 }
                 if (data.success && data.noCheckoutRequired) {
-                    setActionMessage({
-                        type: "success",
-                        text: data.message || "Spotlight tier updated on your subscription.",
-                    });
                     setActionProcessing(false);
                     window.location.reload();
                     return;
@@ -1630,7 +1586,7 @@ export default function Dashboard() {
             }
         } catch (err: any) {
             console.error("Failed to purchase feature:", err);
-            setActionMessage({ type: "error", text: err.message || "Failed to purchase feature plan." });
+            alert(getFriendlyErrorMessage(err, "Failed to purchase feature plan."));
             setActionProcessing(false);
         }
     };
@@ -1716,15 +1672,7 @@ export default function Dashboard() {
         <div className="min-h-screen w-full bg-background flex">
             {/* Sidebar */}
             <aside className="w-[220px] bg-[#1e293b] flex flex-col shrink-0 fixed top-0 left-0 bottom-0 z-30">
-                <div className="p-5 border-b border-white/10 flex items-center gap-2">
-                    <Link to="/" className="flex items-center gap-2">
-                        <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                            <div className="h-4 w-4 bg-foreground/20 rounded-full" />
-                        </div>
-                        <span className="font-bold text-base tracking-tight text-white">Pharma Socii</span>
-                    </Link>
-                </div>
-                <nav className="flex-1 py-3">
+                <nav className="flex-1 py-6">
                     {sidebarItems.map((item) => {
                         const Icon = item.icon;
                         const isActive = item.id === activeTab;
@@ -1845,20 +1793,7 @@ export default function Dashboard() {
                     </div>
                 )}
 
-                {/* Global Action Message */}
-                {actionMessage.text && (
-                    <div className="fixed top-20 right-8 z-50 animate-in slide-in-from-right-8 duration-300">
-                        <div className={`px-6 py-4 rounded-xl shadow-lg border ${actionMessage.type === "success" ? "bg-green-500/10 border-green-500/30 text-green-500" : "bg-red-500/10 border-red-500/30 text-red-500"}`}>
-                            <div className="flex items-center gap-3">
-                                {actionMessage.type === "success" ? <CheckCircle2 className="w-5 h-5" /> : <X className="w-5 h-5" />}
-                                <p className="font-medium">{actionMessage.text}</p>
-                                <button onClick={() => setActionMessage({ type: "", text: "" })} className="ml-4 opacity-70 hover:opacity-100">
-                                    <X className="w-4 h-4" />
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+
 
                 {/* Edit Listing Modal */}
                 {showEditListingModal && selectedListingForEdit && (
@@ -2502,11 +2437,39 @@ export default function Dashboard() {
 
     // ─── PROFILE TAB ───
     function renderProfile() {
+        const isPartnerProfileValid = Boolean(
+            profileForm.firstName?.trim() &&
+            profileForm.lastName?.trim() &&
+            profileForm.email?.trim() &&
+            profileForm.phone?.trim() &&
+            profileForm.altName?.trim() &&
+            profileForm.altEmail?.trim() &&
+            profileForm.companyName?.trim() &&
+            profileForm.companyWebsite?.trim() &&
+            profileForm.businessPhone?.trim() &&
+            profileForm.companyProfile?.trim() &&
+            profileForm.businessCountry?.trim() &&
+            profileForm.businessAddress?.trim() &&
+            isValidBusinessAddress(profileForm.businessAddress) &&
+            ((profileForm.email || "").trim() === (auth.currentUser?.email || "") || profileEmailReauthPassword.trim())
+        );
+
         return (
             <div className="max-w-5xl space-y-8">
                 <div className="flex items-center justify-between">
-                    <h1 className="text-2xl font-bold tracking-tight text-foreground">Partner Information</h1>
-                    <Button onClick={handleProfileSave} disabled={profileSaving} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground">Partner Information</h1>
+                        {!isPartnerProfileValid && (
+                            <p className="text-xs text-amber-600 dark:text-amber-400 font-medium mt-1">
+                                All required fields marked with * must be filled out before saving changes.
+                            </p>
+                        )}
+                    </div>
+                    <Button 
+                        onClick={handleProfileSave} 
+                        disabled={profileSaving || !isPartnerProfileValid} 
+                        className="bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                         <Save className="w-4 h-4 mr-2" />{profileSaving ? "Saving..." : "Save Changes"}
                     </Button>
                 </div>
@@ -2628,7 +2591,7 @@ export default function Dashboard() {
                                     ref={logoInputRef}
                                     type="file" 
                                     className="bg-foreground/5 border-foreground/10 text-sm h-10 pt-2 cursor-pointer" 
-                                    accept="image/jpeg, image/png, image/jpg" 
+                                    accept="image/jpeg, image/png, image/jpg, image/webp" 
                                     onChange={(e) => {
                                         const file = e.target.files?.[0];
                                         if (file) {
@@ -2665,7 +2628,7 @@ export default function Dashboard() {
                                     </Button>
                                 )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-1.5">Formats: JPG, JPEG, PNG | Max size: 2MB</p>
+                            <p className="text-xs text-muted-foreground mt-1.5">Formats: JPG, JPEG, PNG, WebP | Max size: 1MB (Auto-optimized)</p>
                             {companyLogoError && <p className="text-xs text-red-500 mt-1">{companyLogoError}</p>}
                         </div>
                     </div>
@@ -3948,7 +3911,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                     {isBusinessOffering && (
                         <div>
                             <Label className="text-foreground/80 flex items-center gap-2 mb-3">
-                                Bio Safety Levels <span className="text-xs text-muted-foreground">(optional)</span>
+                                Bio Safety Level (BSL) <span className="text-xs text-muted-foreground">(optional)</span>
                             </Label>
                             <div className="flex flex-wrap gap-2">
                                 {BSL_LEVELS.map(level => (
@@ -4371,68 +4334,91 @@ interface CancelPlanModalProps {
     processing: boolean;
 }
 
-function CancelPlanModal({ plan, planConfig, linkedListing, cancelScope, cancelError, onClose, onCancel, processing }: CancelPlanModalProps) {
-    const isFeatureCancel = cancelScope === "feature";
-    const billingEnd =
-        plan.billingPeriodEnd?.seconds
-            ? new Date(plan.billingPeriodEnd.seconds * 1000)
-            : getPlanPeriodEndDate(plan);
-    const spotlightEnd =
-        toDateValue(linkedListing?.featureSpotlightAccessEnd) ||
-        toDateValue(linkedListing?.featureSpotlightPaidThrough) ||
-        billingEnd;
+function CancelPlanModal({
+    plan,
+    planConfig,
+    linkedListing,
+    cancelScope,
+    cancelError,
+    onClose,
+    onCancel,
+    processing,
+}: CancelPlanModalProps) {
+    const hasBoth = hasStandaloneSpotlightAddon(linkedListing, plan?.planId);
+    const [selectedScope, setSelectedScope] = useState<CancelScope>(
+        cancelScope === "feature" ? "feature" : "plan"
+    );
+
+    const isFeatureCancel = (hasBoth ? selectedScope : cancelScope) === "feature";
     const spotlightLabel =
-        FEATURE_PLANS.find((f) => f.id === String(linkedListing?.selectedAddon || linkedListing?.featuredPlacement || "").trim())?.label
-        || "Spotlight add-on";
+        FEATURE_PLANS.find(
+            (f) =>
+                f.id ===
+                String(
+                    linkedListing?.selectedAddon ||
+                    linkedListing?.featuredPlacement ||
+                    ""
+                ).trim()
+        )?.label || "Spotlight add-on";
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-md shadow-2xl overflow-hidden">
-                <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <AlertTriangle className="w-5 h-5 text-yellow-500" />
-                        {isFeatureCancel ? "Cancel Spotlight Add-on" : "Cancel Plan Subscription"}
-                    </h2>
-                    <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
+                <div className="px-6 pt-5 pb-2 flex items-center justify-end">
+                    <button
+                        type="button"
+                        onClick={onClose}
+                        className="text-muted-foreground hover:text-foreground p-1"
+                        aria-label="Close"
+                    >
                         <X className="w-5 h-5" />
                     </button>
                 </div>
-                <div className="p-6 space-y-4">
-                    {isFeatureCancel ? (
-                        <p className="text-foreground">
-                            Cancel your <span className="font-semibold">{spotlightLabel}</span> spotlight add-on?
-                            Your listing plan is not affected and keeps billing until you cancel it separately.
-                        </p>
+                <div className="px-6 pb-6 space-y-4">
+                    {hasBoth ? (
+                        <>
+                            <p className="text-sm text-foreground">
+                                You have an active <span className="font-semibold">spotlight add-on</span> on this listing, plus your <span className="font-semibold">{planConfig?.label || "Standard"}</span> plan. Choose what to cancel.
+                            </p>
+
+                            <div className="space-y-3 pt-1">
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedScope("feature")}
+                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                                        selectedScope === "feature"
+                                            ? "border-primary bg-primary/5"
+                                            : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
+                                    }`}
+                                >
+                                    <p className="font-semibold text-foreground text-sm">
+                                        Cancel Spotlight Add-on Only
+                                    </p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Your plan keeps billing until you cancel it separately.
+                                    </p>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setSelectedScope("plan")}
+                                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                                        selectedScope === "plan"
+                                            ? "border-primary bg-primary/5"
+                                            : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
+                                    }`}
+                                >
+                                    <p className="font-semibold text-foreground text-sm">
+                                        Cancel Plan
+                                    </p>
+                                </button>
+                            </div>
+                        </>
                     ) : (
-                        <p className="text-foreground">
-                            Cancel your <span className="font-semibold">{planConfig?.label || "listing"}</span> plan subscription?
-                            {hasStandaloneSpotlightAddon(linkedListing, plan?.planId) ? (
-                                <> A separate spotlight add-on stays active until you cancel it on its own.</>
-                            ) : null}
+                        <p className="text-base text-foreground">
+                            Cancel your <span className="font-semibold">{isFeatureCancel ? spotlightLabel : (planConfig?.label || "listing")}</span> {isFeatureCancel ? "spotlight add-on" : "subscription"}?
                         </p>
                     )}
-                    <div className="bg-foreground/5 border border-foreground/10 rounded-lg p-4">
-                        <p className="text-sm text-foreground">
-                            {isFeatureCancel ? (
-                                <>
-                                    Spotlight stays active until{" "}
-                                    <span className="font-semibold">
-                                        {spotlightEnd?.toLocaleDateString() || "the end of your paid period"}
-                                    </span>
-                                    , then won&apos;t renew. You&apos;ll see a &quot;Scheduled to end&quot; tag until that date.
-                                </>
-                            ) : (
-                                <>
-                                    Your plan stays active until{" "}
-                                    <span className="font-semibold">
-                                        {billingEnd?.toLocaleDateString() || "the end of your billing period"}
-                                    </span>
-                                    . After that, access tied to this plan ends unless you purchase again.
-                                    You&apos;ll see a &quot;Scheduled to end&quot; tag until that date.
-                                </>
-                            )}
-                        </p>
-                    </div>
 
                     {cancelError && (
                         <p className="text-sm text-destructive">{cancelError}</p>
@@ -4440,11 +4426,11 @@ function CancelPlanModal({ plan, planConfig, linkedListing, cancelScope, cancelE
                 </div>
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
                     <Button variant="ghost" onClick={onClose}>
-                        {isFeatureCancel ? "Keep Spotlight" : "Keep Plan"}
+                        Keep
                     </Button>
                     <Button
                         variant="destructive"
-                        onClick={() => onCancel(cancelScope)}
+                        onClick={() => onCancel(hasBoth ? selectedScope : cancelScope)}
                         disabled={processing}
                     >
                         {processing

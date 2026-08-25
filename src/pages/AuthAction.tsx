@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Loader2, CheckCircle, AlertCircle, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
+import { getFriendlyErrorMessage } from "@/lib/errorHandler";
 
 export default function AuthAction() {
     const [searchParams] = useSearchParams();
@@ -78,8 +79,7 @@ export default function AuthAction() {
             } catch (error: any) {
                 setStatus("error");
                 setMessage(
-                    error.message ||
-                        "An error occurred while processing your request. The link may have expired or already been used.",
+                    getFriendlyErrorMessage(error, "An error occurred while processing your request. The link may have expired or already been used.")
                 );
             }
         };
@@ -106,7 +106,7 @@ export default function AuthAction() {
             setMessage("Your password has been successfully reset. You can now log in with your new password.");
         } catch (error: any) {
             setStatus("error");
-            setMessage(error.message || "Failed to reset password.");
+            setMessage(getFriendlyErrorMessage(error, "Failed to reset password. Please try again."));
         } finally {
             setIsSubmitting(false);
         }

@@ -27,9 +27,9 @@ export function Footer() {
                     </div>
 
                     <div className="space-y-4">
-                        <h4 className="font-semibold text-sm tracking-wider">Support</h4>
+                        <h4 className="font-semibold text-sm tracking-wider">Company</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
-                            <li><Link to="/about-us" className="hover:text-primary transition-colors">About Us</Link></li>
+                            <li><Link to="/about-us" className="hover:text-primary transition-colors">About</Link></li>
                             <li><Link to="/contact" className="hover:text-primary transition-colors">Contact</Link></li>
                             <li><Link to="/faq" className="hover:text-primary transition-colors">FAQ</Link></li>
                         </ul>
@@ -46,15 +46,18 @@ export function Footer() {
                 </div>
 
                 <div className="pt-8 border-t border-foreground/10 flex flex-col md:flex-row items-center justify-between gap-4">
-                    <div className="flex flex-col items-center md:items-start gap-1">
-                        <p className="text-xs text-muted-foreground text-center md:text-left">
+                    <div className="flex flex-col items-center md:items-start gap-2 text-xs text-muted-foreground text-center md:text-left">
+                        <p>
                             &copy; {new Date().getFullYear()} Pharma SocII&trade;. All rights reserved.
                         </p>
-                        <p className="text-[11px] text-muted-foreground/80 max-w-2xl text-center md:text-left">
-                            Pharma SocII is currently offered as an open beta. Features may evolve as we continue to improve the platform, see <Link to="/faq" className="underline hover:text-primary transition-colors">FAQs</Link>.
+                        <p>
+                            Pharma SocII&trade; is a trademark of Pharma SocII.
                         </p>
-                        <p className="text-[11px] text-muted-foreground/80 max-w-2xl text-center md:text-left">
-                            Unauthorized copying, reproduction, or mirroring of this platform is prohibited. Pharma SocII&trade; is a trademark of Pharma SocII.
+                        <p>
+                            Pharma SocII is currently offered as an open beta. Features may evolve as we continue to improve the platform — see <Link to="/faq" className="underline hover:text-primary transition-colors">FAQ</Link>.
+                        </p>
+                        <p>
+                            Unauthorized copying, reproduction, or mirroring of this platform is prohibited.
                         </p>
                     </div>
                     <div className="flex items-center gap-6 text-xs text-muted-foreground">

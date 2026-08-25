@@ -16,6 +16,7 @@ import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_M
 import { normalizeUserNameKey } from "@/lib/community";
 import { ensureVerificationPending } from "@/lib/ensureVerificationPending";
 import { getAllCommunityCountries } from "@/lib/communityCountries";
+import { getFriendlyErrorMessage } from "@/lib/errorHandler";
 
 export default function MemberRegister() {
   const navigate = useNavigate();
@@ -154,15 +155,10 @@ export default function MemberRegister() {
       console.error(err);
       if (err instanceof Error && err.message === "USERNAME_TAKEN") {
         setError("That username is already taken. Try another.");
-      } else if (typeof err === "object" && err !== null && "code" in err) {
-        const code = (err as FirebaseError).code;
-        if (code === "auth/email-already-in-use") {
-          setExistingEmailHint(true);
-        } else {
-          setError("Registration failed. Please try again.");
-        }
+      } else if (typeof err === "object" && err !== null && "code" in err && (err as FirebaseError).code === "auth/email-already-in-use") {
+        setExistingEmailHint(true);
       } else {
-        setError("Registration failed. Please try again.");
+        setError(getFriendlyErrorMessage(err, "Registration failed. Please try again."));
       }
     } finally {
       setIsLoading(false);

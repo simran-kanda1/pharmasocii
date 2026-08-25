@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { auth, db, storage } from "@/firebase";
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { auth, db } from "@/firebase";
 import { doc, updateDoc } from "firebase/firestore";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -15,6 +14,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
+import { getFriendlyErrorMessage } from "@/lib/errorHandler";
 import {
   Eye,
   EyeOff,
@@ -35,6 +35,7 @@ import {
   Briefcase,
   ShieldCheck,
 } from "lucide-react";
+import { uploadCompanyLogo } from "@/lib/companyLogoUpload";
 import { API_BASE_URL } from "@/apiConfig";
 import PhoneInput from 'react-phone-number-input';
 import { toPhoneInputValue } from "@/lib/phone";
@@ -617,12 +618,12 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           className="flex min-h-[42px] w-full items-center gap-2 flex-wrap rounded-md border border-slate-300 bg-white px-3 py-2 text-sm cursor-pointer hover:border-slate-400 transition-colors"
         >
           {selected.length === 0 ? (
-            <span className="text-slate-400">Choose {label.toLowerCase()} (multi-select){label.toLowerCase() === 'service regions' ? ' - Premium plus plans only' : ''}</span>
+            <span className="text-slate-400">Choose {label.toUpperCase() === 'BSL' ? 'BSL' : label.toLowerCase()} (multi-select){label.toLowerCase() === 'service regions' ? ' - Premium plus plans only' : ''}</span>
           ) : (
             selected.map(s => (
               <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-800 text-xs rounded border border-slate-200">
                 <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={(e) => { e.stopPropagation(); onToggle(s); }} />
-                {s}
+                {label.toUpperCase() === 'BSL' && !s.startsWith('BSL') ? `BSL-${s}` : s}
               </span>
             ))
           )}
@@ -650,7 +651,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   className={`px-3 py-2 text-sm cursor-pointer flex items-center justify-between transition-colors
                                       ${isSelected ? "bg-blue-50 text-blue-700 font-medium" : isDisabled ? "opacity-40 cursor-not-allowed" : "hover:bg-slate-50 text-slate-700"}`}
                 >
-                  <span>{item}</span>
+                  <span>{label.toUpperCase() === 'BSL' && !item.startsWith('BSL') ? `BSL-${item}` : item}</span>
                   {isSelected && <Check className="w-4 h-4 text-blue-600" />}
                 </div>
               );
@@ -804,9 +805,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       // Handle file uploads (Logo)
       let logoUrl = "";
       if (logoFile && uid) {
-        const storageRef = ref(storage, `partners/${uid}/logo.png`);
-        await uploadBytes(storageRef, logoFile);
-        logoUrl = await getDownloadURL(storageRef);
+        logoUrl = await uploadCompanyLogo(uid, logoFile);
 
         await updateDoc(doc(db, "partnersCollection", uid), { logoUrl });
         const listingDocRef = collectionName === "businessOfferingsCollection"
@@ -831,7 +830,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
       onSuccess();
     } catch (err: any) {
-      setError(err.message || "An unexpected error occurred.");
+      setError(getFriendlyErrorMessage(err, "An unexpected error occurred. Please try again."));
     } finally {
       setLoading(false);
     }
@@ -1027,7 +1026,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     {logoFile ? logoFile.name : "No file chosen"}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-2">Formats: JPG, JPEG, PNG | Max size: 2MB</p>
+                <p className="text-[11px] text-slate-400 mt-2">Formats: JPG, JPEG, PNG, WebP | Max size: 1MB (Auto-optimized)</p>
               </div>
 
               <div>
@@ -1182,7 +1181,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 <h3 className="text-lg font-bold text-slate-800 border-b pb-3 border-slate-100 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-blue-500" /> Classification & Metadata</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2" onClick={e => e.stopPropagation()}>
-                    <Label className="text-slate-600 font-semibold">Bio Safety Level</Label>
+                    <Label className="text-slate-600 font-semibold">Bio Safety Level (BSL)</Label>
                     <MultiSelectDropdown
                       label="BSL" items={BSL_LEVELS} selected={selectedBSL}
                       onToggle={toggleBSL} open={showBSLDropdown}
