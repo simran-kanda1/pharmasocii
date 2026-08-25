@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { useEffect, useMemo, useState } from "react";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
+import { notifyPasswordChanged } from "@/lib/adminCommunityCallables";
 import { auth, db } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
@@ -631,6 +632,11 @@ export function CommunityMemberPanels({
                 const credential = EmailAuthProvider.credential(user.email, currentPassword);
                 await reauthenticateWithCredential(user, credential);
                 await updatePassword(user, newPassword);
+                try {
+                  await notifyPasswordChanged();
+                } catch (mailErr) {
+                  console.warn("Password changed but confirmation email failed:", mailErr);
+                }
                 await logActivity({
                   partnerId: user.uid,
                   partnerName: userName || name || user.email,

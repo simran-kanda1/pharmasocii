@@ -14,7 +14,8 @@
  *
  * Production SMTP (required to deliver mail): set on Cloud Functions:
  *   SMTP_HOST=smtp.gmail.com  SMTP_PORT=465  SMTP_USER=...  SMTP_PASS=app-password  SMTP_FROM=...
- * Optional QA: VERIFICATION_CC_EMAIL=..., COMMUNITY_EMAIL_CC_ALL=true
+ * Optional QA: VERIFICATION_CC_EMAIL=you@...,... (CC'd on every transactional email with the real subject).
+ * COMMUNITY_EMAIL_CC_ALL is deprecated — CC is on by default whenever VERIFICATION_CC_EMAIL is set.
  *
  * Keep logic aligned with server/cleanupExpiredSpotlights.js (HTTP cron fallback).
  */
@@ -161,7 +162,9 @@ function parseVerificationCcEmails() {
 const VERIFICATION_CC_EMAILS = parseVerificationCcEmails();
 /** Comma-separated CC list for Firestore logs and display. */
 const VERIFICATION_CC_EMAIL = VERIFICATION_CC_EMAILS.join(", ");
-const COMMUNITY_EMAIL_CC_ALL = process.env.COMMUNITY_EMAIL_CC_ALL === "true";
+/** @deprecated CC is always applied via VERIFICATION_CC_EMAIL when set; kept for env compatibility. */
+const COMMUNITY_EMAIL_CC_ALL = process.env.COMMUNITY_EMAIL_CC_ALL !== "false";
+void COMMUNITY_EMAIL_CC_ALL;
 /** Must be an authorized domain in Firebase Auth (e.g. pharmasocii.firebaseapp.com or localhost). */
 const APP_PUBLIC_URL =
     process.env.APP_PUBLIC_URL || "https://pharmasocii.firebaseapp.com";
@@ -411,8 +414,11 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
         ...(link ? { verifyLink: link, resetLink: link } : {}),
     };
     const { subject, text, html } = renderEmail(type, mergedPayload);
-    const ccList = COMMUNITY_EMAIL_CC_ALL ? VERIFICATION_CC_EMAILS : [];
-    const ccTo = ccList.length ? VERIFICATION_CC_EMAIL : null;
+    // CC admin/QA addresses on the same message (same subject/body as the recipient).
+    const ccList = VERIFICATION_CC_EMAILS.filter(
+        (addr) => addr && addr.toLowerCase() !== String(toEmail).trim().toLowerCase(),
+    );
+    const ccTo = ccList.length ? ccList.join(", ") : null;
 
     await db.collection("emailLogCollection").add({
         type,
@@ -444,28 +450,15 @@ async function sendCommunityEmail({ type, toEmail, payload, link }) {
         auth: { user: smtpUser, pass: smtpPass },
     });
     try {
-        // Always send a clean production email to the user (no [CC]/QA markers on their copy).
         await transporter.sendMail({
             from,
             to: toEmail,
+            ...(ccList.length ? { cc: ccList } : {}),
             subject,
             text,
             html,
         });
-        // Optional internal QA copy — separate message, never mixed into the user-facing email.
-        if (ccList.length) {
-            await transporter.sendMail({
-                from,
-                to: ccList,
-                subject: `[Internal] ${subject} → ${toEmail}`,
-                text: `Internal copy of transactional email.\n\nTo: ${toEmail}\nType: ${type}\n\n---\n\n${text}`,
-                html:
-                    `<p style="color:#666;font-size:12px">Internal copy only — recipient: ` +
-                    `${escapeHtmlVerification(toEmail)} · type: ${escapeHtmlVerification(type)}</p>` +
-                    `<hr/>${html}`,
-            });
-        }
-        return { logged: true, sent: true };
+        return { logged: true, sent: true, ccTo };
     } catch (mailErr) {
         console.error("[community-email] SMTP send failed", type, toEmail, mailErr);
         return { logged: true, sent: false, reason: mailErr?.message || String(mailErr) };
@@ -1068,7 +1061,7 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     return { ok: true };
 });
 
-/** Production password reset — generates Auth link and sends branded SMTP template (no Firebase Auth default email). */
+/** Password reset — Auth link + branded SMTP template (not Firebase Auth default mail). */
 exports.sendPasswordResetEmail = onCall({ region: "us-central1", cors: true }, async (request) => {
     const email = String(request.data?.email || "").trim().toLowerCase();
     if (!email) throw new HttpsError("invalid-argument", "email required.");
@@ -1117,41 +1110,9 @@ async function syncPendingVerificationRecord({ userId, userEmail, userName, sour
     return ref;
 }
 
-/** Optional QA copy of activation links when COMMUNITY_EMAIL_CC_ALL is enabled. */
-async function sendVerificationQaCc(userEmail, verifyLink) {
-    if (!COMMUNITY_EMAIL_CC_ALL) return;
-    const host = process.env.SMTP_HOST;
-    const port = parseInt(process.env.SMTP_PORT || "587", 10);
-    const smtpUser = process.env.SMTP_USER;
-    const smtpPass = process.env.SMTP_PASS;
-    const from = getNodemailerFrom();
-    if (!host || !smtpUser || !smtpPass || !from) {
-        console.info(
-            `[verification-qa-cc] SMTP not configured; skipped QA CC for ${userEmail}. ` +
-                "Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM on the function.",
-        );
-        return;
-    }
-    const transporter = nodemailer.createTransport({
-        host,
-        port,
-        secure: port === 465,
-        auth: { user: smtpUser, pass: smtpPass },
-    });
-    try {
-        await transporter.sendMail({
-            from,
-            to: VERIFICATION_CC_EMAILS,
-            subject: `[QA CC] Email verification for ${userEmail}`,
-            text: `QA copy of verification link.\n\nUser: ${userEmail}\n\nLink:\n${verifyLink}\n`,
-            html:
-                `<p><b>User:</b> ${escapeHtmlVerification(userEmail)}</p>` +
-                `<p><a href="${verifyLink}">Open verification link</a></p>` +
-                `<p style="color:#666;font-size:12px">QA copy only — members receive the branded activation email.</p>`,
-        });
-    } catch (mailErr) {
-        console.error("[verification-qa-cc] SMTP send failed", userEmail, mailErr);
-    }
+/** QA CC is now attached on sendCommunityEmail — keep as no-op for callers. */
+async function sendVerificationQaCc(_userEmail, _verifyLink) {
+    return;
 }
 
 const VERIFICATION_MIRROR_REUSE_MS = 15 * 60 * 1000;
@@ -1628,8 +1589,8 @@ exports.onPartnerEmailQueued = onDocumentCreated(
 );
 
 /**
- * Account-update email when primary email, company name, or website changes.
- * Goes to primary + secondary contacts.
+ * Profile-update email when company name or website changes.
+ * Email changes use partner_email_verification instead (do not send this template).
  */
 exports.onPartnerProfileUpdated = onDocumentUpdated(
     {
@@ -1642,17 +1603,15 @@ exports.onPartnerProfileUpdated = onDocumentUpdated(
         const partnerId = event.params.partnerId;
 
         const norm = (v) => String(v || "").trim();
-        const normEmail = (v) => norm(v).toLowerCase();
 
-        const emailChanged = normEmail(before.primaryEmail) !== normEmail(after.primaryEmail);
         const companyChanged =
             norm(before.businessName) !== norm(after.businessName) ||
             norm(before.companyName) !== norm(after.companyName);
         const websiteChanged = norm(before.companyWebsite) !== norm(after.companyWebsite);
 
-        if (!emailChanged && !companyChanged && !websiteChanged) return;
+        // Ignore primaryEmail changes — changePartnerPrimaryEmail already sends verify-email.
+        if (!companyChanged && !websiteChanged) return;
 
-        // Prefer businessName; companyName alone changing to match businessName shouldn't double-fire if both change together — still one email.
         const toEmails = resolvePartnerEmailRecipients(after, "partner_account_updated");
         if (!toEmails.length) return;
 
@@ -1664,7 +1623,6 @@ exports.onPartnerProfileUpdated = onDocumentUpdated(
                 payload: {
                     firstName: after.firstName || after.primaryName || "",
                     changedFields: {
-                        primaryEmail: emailChanged,
                         companyName: companyChanged,
                         companyWebsite: websiteChanged,
                     },
@@ -1675,3 +1633,32 @@ exports.onPartnerProfileUpdated = onDocumentUpdated(
         }
     },
 );
+
+/** After a logged-in partner changes their password in the dashboard. */
+exports.notifyPartnerPasswordChanged = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
+    const uid = request.auth.uid;
+    const email = String(request.auth.token?.email || "").trim().toLowerCase();
+    if (!email) throw new HttpsError("failed-precondition", "No email on this account.");
+
+    let firstName = "";
+    try {
+        const partnerSnap = await db.collection("partnersCollection").doc(uid).get();
+        if (partnerSnap.exists) {
+            const d = partnerSnap.data() || {};
+            firstName = String(d.firstName || d.primaryName || "").trim().split(/\s+/)[0] || "";
+        }
+    } catch (_) {
+        /* optional */
+    }
+
+    await sendCommunityEmail({
+        type: "password_changed",
+        toEmail: email,
+        payload: {
+            firstName,
+            siteUrl: getPartnerSiteUrl(),
+        },
+    });
+    return { ok: true };
+});

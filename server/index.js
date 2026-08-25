@@ -1089,6 +1089,18 @@ async function createUpgradeTransactionIfMissing({
         status: "succeeded",
         type: "listing",
         planId: newPlanId || session.metadata?.newPlanId || null,
+        previousPlanId: session.metadata?.previousPlanId || session.metadata?.fromPlanId || null,
+        isUpgrade: true,
+        description: (() => {
+            const toId = newPlanId || session.metadata?.newPlanId || "";
+            const fromId = session.metadata?.previousPlanId || session.metadata?.fromPlanId || "";
+            const toLabel = String(toId || "plan").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+            if (fromId) {
+                const fromLabel = String(fromId).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                return `Plan upgrade: ${fromLabel} → ${toLabel} (prorated)`;
+            }
+            return `Plan upgrade: ${toLabel} (prorated)`;
+        })(),
         featureId: null,
         group: group || session.metadata?.group || null,
         listingId: listingId || session.metadata?.listingId || null,
@@ -1383,7 +1395,16 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             accessThrough,
                         });
                         Object.assign(listingUpgradePatch, spotlightPatch);
-                        await listingRef.set(listingUpgradePatch, { merge: true });
+                        if (partnerId && upgradeListingId && upgradeCollectionName) {
+                            await applyListingPatchEverywhere(
+                                partnerId,
+                                upgradeCollectionName,
+                                upgradeListingId,
+                                listingUpgradePatch
+                            );
+                        } else {
+                            await listingRef.set(listingUpgradePatch, { merge: true });
+                        }
                     }
                 }
 
@@ -1483,6 +1504,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         const listingSnap = await listingRef.get();
                         if (listingSnap.exists) detailSource = listingSnap.data();
                     }
+                    const previousFeatureId = session.metadata?.previousFeatureId || null;
                     await db.collection("transactionsCollection").add({
                         partnerId,
                         amount: (session.amount_total || 0) / 100,
@@ -1491,6 +1513,13 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         type: "feature",
                         planId: null,
                         featureId: upgradeFeatureId,
+                        previousFeatureId,
+                        isUpgrade: true,
+                        description: buildFeatureTransactionDescription({
+                            featureId: upgradeFeatureId,
+                            previousFeatureId,
+                            isUpgrade: true,
+                        }),
                         group: session.metadata?.group || group || null,
                         listingId: upgradeListingId,
                         collectionName: upgradeCollectionName,
@@ -1988,23 +2017,33 @@ try {
     db.collection("config").doc("plansConfig").onSnapshot((snap) => {
         try {
             const data = snap.exists ? snap.data() : { groups: [] };
-            const newPrices = {};
-            const newTiers = {};
+            // Start from catalog fallbacks so event/job monthly plans are never dropped.
+            const newPrices = { ...PLAN_PRICES };
+            const newTiers = { ...PLAN_TIER_RANK };
             for (const group of data.groups || []) {
+                const hasAnnual = group.hasAnnualToggle === true;
+                const isEventOrJobGroup = group.id === "events" || group.id === "jobs";
                 for (const plan of group.plans || []) {
                     if (plan.stripeMonthlyId) {
                         newPrices[plan.stripeMonthlyId] = {
-                            amount: plan.monthlyPrice * 100,
-                            name: `${plan.badge} (Monthly)`,
-                            interval: "month"
+                            amount: Math.round(Number(plan.monthlyPrice) * 100),
+                            name: hasAnnual ? `${plan.badge} (Monthly)` : String(plan.badge || plan.stripeMonthlyId),
+                            interval: "month",
                         };
                         newTiers[plan.stripeMonthlyId] = plan.tierRank || 1;
                     }
-                    if (plan.stripeYearlyId) {
+                    // Events/jobs are monthly-only. Never register yearly amounts under the same IDs
+                    // (seed data historically set stripeYearlyId === stripeMonthlyId with yearlyTotalPrice).
+                    if (
+                        plan.stripeYearlyId &&
+                        hasAnnual &&
+                        !isEventOrJobGroup &&
+                        plan.stripeYearlyId !== plan.stripeMonthlyId
+                    ) {
                         newPrices[plan.stripeYearlyId] = {
-                            amount: plan.yearlyTotalPrice * 100,
+                            amount: Math.round(Number(plan.yearlyTotalPrice) * 100),
                             name: `${plan.badge} (Annual)`,
-                            interval: "year"
+                            interval: "year",
                         };
                         newTiers[plan.stripeYearlyId] = plan.tierRank || 1;
                     }
@@ -2487,6 +2526,25 @@ function addDays(date, days) {
     return d;
 }
 
+function formatSpotlightFeatureLabel(featureId) {
+    const id = String(featureId || "").trim().toLowerCase();
+    if (id === "landing_page") return "Landing Page";
+    if (id === "home_page") return "Home Page";
+    if (id === "both") return "Both (Module & Home Page)";
+    if (!id) return "Spotlight";
+    return id.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function buildFeatureTransactionDescription({ featureId, previousFeatureId, isUpgrade }) {
+    const nextLabel = formatSpotlightFeatureLabel(featureId);
+    const prev = String(previousFeatureId || "").trim();
+    if (isUpgrade || prev) {
+        const prevLabel = formatSpotlightFeatureLabel(prev || "previous");
+        return `Spotlight upgrade: ${prevLabel} → ${nextLabel} (prorated)`;
+    }
+    return `Spotlight: ${nextLabel}`;
+}
+
 async function resolveSpotlightAddonPeriodEndFromSession(session) {
     const subId = typeof session.subscription === "string"
         ? session.subscription
@@ -2500,6 +2558,23 @@ async function resolveSpotlightAddonPeriodEndFromSession(session) {
         }
     }
     return addDays(new Date(), 30);
+}
+
+async function resolveSpotlightAddonPeriodBoundsFromSub(subId) {
+    if (!subId) return { periodStart: null, periodEnd: null };
+    try {
+        const sub = await stripe.subscriptions.retrieve(subId);
+        return {
+            periodStart: sub?.current_period_start ? new Date(sub.current_period_start * 1000) : null,
+            periodEnd: sub?.current_period_end ? new Date(sub.current_period_end * 1000) : null,
+            subscriptionItemId: sub?.items?.data?.[0]?.id || null,
+            customerId: toStripeCustomerId(sub?.customer),
+            subscription: sub,
+        };
+    } catch (err) {
+        console.error("resolveSpotlightAddonPeriodBoundsFromSub:", err?.message || err);
+        return { periodStart: null, periodEnd: null };
+    }
 }
 
 /**
@@ -2523,14 +2598,19 @@ async function finalizeSpotlightAddonPurchaseWrites({
         ? session.customer
         : session.customer?.id || null;
     let subscriptionItemId = null;
+    let periodStart = null;
     if (subId) {
         try {
             const sub = await stripe.subscriptions.retrieve(subId);
             subscriptionItemId = sub.items?.data?.[0]?.id || null;
+            if (sub?.current_period_start) {
+                periodStart = new Date(sub.current_period_start * 1000);
+            }
         } catch (err) {
             console.error("finalizeSpotlightAddonPurchaseWrites retrieve sub:", err?.message || err);
         }
     }
+    if (!periodStart) periodStart = new Date();
 
     const existingFeature = await partnerRef
         .collection("featuresCollection")
@@ -2551,6 +2631,7 @@ async function finalizeSpotlightAddonPurchaseWrites({
         stripeCustomerId: custId || null,
         subscriptionItemId: subscriptionItemId || null,
         accessThrough: paidThrough,
+        billingPeriodStart: periodStart,
     };
     if (existingFeature.empty) {
         await partnerRef.collection("featuresCollection").add(featPayload);
@@ -2569,6 +2650,7 @@ async function finalizeSpotlightAddonPurchaseWrites({
                 status: "Approved",
                 lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                 lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                featureSpotlightBillingPeriodStart: periodStart,
                 featureSpotlightPaidThrough: paidThrough,
                 featureSpotlightStripeSubscriptionId: subId || null,
                 featureSpotlightSubscriptionItemId: subscriptionItemId || null,
@@ -2680,14 +2762,24 @@ async function finalizeFeatureUpgradeAfterPayment({
         partnerId && listingId && collectionName
             ? await resolveListingDocRef(partnerId, collectionName, listingId)
             : null;
+    let listingData = null;
+    if (listingRef) {
+        const listingSnap = await listingRef.get();
+        if (listingSnap.exists) listingData = listingSnap.data() || {};
+    }
 
     let paidThrough = addDays(new Date(), 30);
+    let periodStart = toDateValue(listingData?.featureSpotlightBillingPeriodStart) || null;
     let newItemId = subscriptionItemId;
     let subId = upgradeSubId;
     let custId = null;
 
     if (!noSeparateSub && upgradeSubId && subscriptionItemId && newPriceId) {
         const currentSub = await stripe.subscriptions.retrieve(upgradeSubId);
+        // Keep the original billing cycle — same as plan upgrades with proration_behavior: none.
+        if (!periodStart && currentSub.current_period_start) {
+            periodStart = new Date(currentSub.current_period_start * 1000);
+        }
         const currentPriceId = currentSub.items?.data?.[0]?.price?.id;
         const updatedSub =
             currentPriceId === newPriceId
@@ -2707,9 +2799,29 @@ async function finalizeFeatureUpgradeAfterPayment({
         paidThrough = updatedSub.current_period_end
             ? new Date(updatedSub.current_period_end * 1000)
             : paidThrough;
+        if (!periodStart && updatedSub.current_period_start) {
+            periodStart = new Date(updatedSub.current_period_start * 1000);
+        }
         newItemId = updatedSub.items?.data?.[0]?.id || subscriptionItemId;
         custId = toStripeCustomerId(updatedSub.customer);
         subId = updatedSub.id;
+    }
+
+    if (!periodStart) {
+        periodStart =
+            toDateValue(listingData?.lastFeaturePaymentReceivedAt) ||
+            null;
+    }
+    // Never use "now" for upgrade period start — derive from paid-through window if needed.
+    if (!periodStart && paidThrough) {
+        const fallbackDays =
+            STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0 ? STRIPE_TEST_BILLING_DAYS : 30;
+        periodStart = addDays(paidThrough, -fallbackDays);
+    }
+    if (!periodStart) {
+        periodStart = toDateValue(listingData?.featureSpotlightPaidThrough)
+            ? addDays(toDateValue(listingData.featureSpotlightPaidThrough), -(STRIPE_IS_TEST && STRIPE_TEST_BILLING_DAYS > 0 ? STRIPE_TEST_BILLING_DAYS : 30))
+            : null;
     }
 
     if (listingRef) {
@@ -2718,7 +2830,9 @@ async function finalizeFeatureUpgradeAfterPayment({
             featuredPlacement: featureId,
             isFeatured: true,
             featureSpotlightPaidThrough: paidThrough,
+            // Track payment time separately; do not use this as the period start in the UI.
             lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            featureSpotlightBillingPeriodStart: periodStart,
             featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
             featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
         };
@@ -2752,9 +2866,18 @@ async function finalizeFeatureUpgradeAfterPayment({
             stripeCustomerId: custId,
             subscriptionItemId: newItemId,
             accessThrough: paidThrough,
+            billingPeriodStart: periodStart,
             sessionId: session?.id || "",
         };
         if (fcDoc) {
+            // Preserve an earlier billingPeriodStart if already stored on the feature doc.
+            const existingStart = toDateValue((fcDoc.data() || {}).billingPeriodStart);
+            if (existingStart && (!periodStart || existingStart.getTime() < periodStart.getTime())) {
+                featPatch.billingPeriodStart = existingStart;
+                if (listingRef) {
+                    await listingRef.set({ featureSpotlightBillingPeriodStart: existingStart }, { merge: true });
+                }
+            }
             await fcDoc.ref.set(featPatch, { merge: true });
         } else {
             await partnerRef.collection("featuresCollection").add(featPatch);
@@ -2857,6 +2980,7 @@ async function tryProcessSpotlightAddonInvoicePaid({
             return { docs: [] };
         });
     const addonDocs = featSnap.docs.filter((d) => (d.data() || {}).source === "spotlight_addon");
+    const periodStart = await resolveBillingPeriodStartFromStripe(stripe, invoice, subscriptionId);
     if (addonDocs.length === 0) {
         console.warn(`   ⚠ No featuresCollection doc for spotlight subscription ${subscriptionId}; trying listing fallback.`);
         const periodEnd = billingPeriodEnd
@@ -2869,13 +2993,13 @@ async function tryProcessSpotlightAddonInvoicePaid({
                 .get();
             for (const lDoc of snap.docs) {
                 fallbackFound = true;
-                const ld = lDoc.data() || {};
                 const patch = {
                     lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                     isFeatured: true,
                     active: true,
                     status: "Approved",
                     ...(periodEnd ? { featureSpotlightPaidThrough: periodEnd } : {}),
+                    ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
                     ...(customerId ? { stripeCustomerId: customerId } : {}),
                 };
                 await lDoc.ref.set(patch, { merge: true });
@@ -2897,6 +3021,7 @@ async function tryProcessSpotlightAddonInvoicePaid({
                         active: true,
                         status: "Approved",
                         ...(periodEnd ? { featureSpotlightPaidThrough: periodEnd } : {}),
+                        ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
                         ...(customerId ? { stripeCustomerId: customerId } : {}),
                     };
                     await lDoc.ref.set(patch, { merge: true });
@@ -2926,6 +3051,7 @@ async function tryProcessSpotlightAddonInvoicePaid({
             lastPaymentReceived: new Date(),
             active: true,
             ...(periodEnd ? { accessThrough: periodEnd } : {}),
+            ...(periodStart ? { billingPeriodStart: periodStart } : {}),
             ...(customerId ? { stripeCustomerId: customerId } : {}),
         }, { merge: true });
 
@@ -2950,6 +3076,7 @@ async function tryProcessSpotlightAddonInvoicePaid({
                     status: "Approved",
                     lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                     featureSpotlightPaidThrough: periodEnd,
+                    ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
                     ...(customerId ? { stripeCustomerId: customerId } : {}),
                 }, { merge: true });
             }
@@ -4023,6 +4150,23 @@ app.post("/api/create-checkout-session", async (req, res) => {
         if (!plan) {
             return res.status(400).json({ error: `Unknown plan: ${planId}` });
         }
+        // Events/jobs are monthly-only — never charge yearly totals for these catalog IDs.
+        if (isEventOrJobPlanId(planId) && (plan.interval === "year" || plan.amount >= 400000)) {
+            console.warn(`Correcting event/job plan ${planId} away from yearly amount ${plan.amount}`);
+            const monthlyFallback = {
+                basic_event: 50000,
+                standard_event: 85000,
+                premium_event: 125000,
+                premium_plus_event: 145000,
+                standard_job: 40000,
+                premium_job: 80000,
+                premium_plus_job: 100000,
+            };
+            plan.amount = monthlyFallback[planId] || Math.round(plan.amount / 12);
+            plan.interval = "month";
+            plan.name = String(plan.name || planId).replace(/\s*\(Annual\)\s*/i, "").trim() || planId;
+            PLAN_PRICES[planId] = { ...plan };
+        }
         if (!partnerId || !group) {
             return res.status(400).json({ error: "partnerId and group are required." });
         }
@@ -4335,12 +4479,19 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                     group,
                 });
             } else {
+                const existingListingSnap = listingRef ? await listingRef.get() : null;
+                const existingListingData = existingListingSnap?.exists ? existingListingSnap.data() || {} : {};
+                const preservedPeriodStart =
+                    toDateValue(existingListingData.featureSpotlightBillingPeriodStart) ||
+                    toDateValue(existingListingData.lastFeaturePaymentReceivedAt) ||
+                    new Date();
                 await listingRef.set(
                     {
                         selectedAddon: featureId,
                         featuredPlacement: featureId,
                         isFeatured: true,
                         lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        featureSpotlightBillingPeriodStart: preservedPeriodStart,
                     },
                     { merge: true }
                 );
@@ -4765,6 +4916,22 @@ app.post("/api/upgrade-subscription", async (req, res) => {
         const newPlan = PLAN_PRICES[newPlanId];
         if (!newPlan) {
             return res.status(400).json({ error: `Unknown plan: ${newPlanId}` });
+        }
+        if (isEventOrJobPlanId(newPlanId) && (newPlan.interval === "year" || newPlan.amount >= 400000)) {
+            console.warn(`Correcting event/job upgrade plan ${newPlanId} away from yearly amount ${newPlan.amount}`);
+            const monthlyFallback = {
+                basic_event: 50000,
+                standard_event: 85000,
+                premium_event: 125000,
+                premium_plus_event: 145000,
+                standard_job: 40000,
+                premium_job: 80000,
+                premium_plus_job: 100000,
+            };
+            newPlan.amount = monthlyFallback[newPlanId] || Math.round(newPlan.amount / 12);
+            newPlan.interval = "month";
+            newPlan.name = String(newPlan.name || newPlanId).replace(/\s*\(Annual\)\s*/i, "").trim() || newPlanId;
+            PLAN_PRICES[newPlanId] = { ...newPlan };
         }
 
         let effectiveSubscriptionId = toStripeSubscriptionId(subscriptionId);
@@ -5322,7 +5489,16 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                             accessThrough: inlineAccessThrough,
                         });
                         Object.assign(inlineListingPatch, spotlightPatch);
-                        await inlineListingRef.set(inlineListingPatch, { merge: true });
+                        if (partnerId && listingId && collectionName) {
+                            await applyListingPatchEverywhere(
+                                partnerId,
+                                collectionName,
+                                listingId,
+                                inlineListingPatch
+                            );
+                        } else {
+                            await inlineListingRef.set(inlineListingPatch, { merge: true });
+                        }
                     }
                 }
 
@@ -5869,6 +6045,7 @@ app.post("/api/verify-payment", async (req, res) => {
                     const listingSnap = await listingRef.get();
                     if (listingSnap.exists) detailSource = listingSnap.data();
                 }
+                const previousFeatureId = session.metadata?.previousFeatureId || null;
                 await db.collection("transactionsCollection").add({
                     partnerId,
                     amount: (session.amount_total || 0) / 100,
@@ -5876,6 +6053,13 @@ app.post("/api/verify-payment", async (req, res) => {
                     status: "succeeded",
                     type: "feature",
                     featureId: upgradeFeatureId,
+                    previousFeatureId,
+                    isUpgrade: true,
+                    description: buildFeatureTransactionDescription({
+                        featureId: upgradeFeatureId,
+                        previousFeatureId,
+                        isUpgrade: true,
+                    }),
                     group: session.metadata?.group || group || null,
                     listingId: upgradeListingId,
                     collectionName: upgradeCollectionName,

@@ -153,3 +153,30 @@ export function isPartnerListingPublic(
 
     return false;
 }
+
+/** Plan IDs that include a spotlight tier (events/jobs). */
+const PLAN_INCLUDED_SPOTLIGHT: Record<string, string> = {
+    premium_event: "landing_page",
+    premium_job: "landing_page",
+    premium_plus_event: "home_page",
+    premium_plus_job: "home_page",
+};
+
+export function inferIncludedSpotlightFromPlan(item: Record<string, unknown>): string {
+    const planId = String(item?.selectedPlan || "").trim().toLowerCase();
+    return PLAN_INCLUDED_SPOTLIGHT[planId] || "";
+}
+
+/**
+ * Resolve where a listing should appear in Featured carousels.
+ * Events/jobs cannot buy standalone spotlight add-ons — the plan tier is source of truth
+ * (P → landing_page, PP → home_page), so stale selectedAddon after a P→PP upgrade cannot
+ * keep them on the wrong page.
+ */
+export function resolveSpotlightPlacement(item: Record<string, unknown>): string {
+    const planIncluded = inferIncludedSpotlightFromPlan(item);
+    if (planIncluded) return planIncluded;
+    return String(item?.selectedAddon || item?.featuredPlacement || "")
+        .trim()
+        .toLowerCase();
+}

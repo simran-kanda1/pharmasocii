@@ -16,6 +16,7 @@ import {
     buildLiveListingKeySet,
     isListingStatusPublic,
     isPartnerListingPublic,
+    resolveSpotlightPlacement,
 } from "@/lib/partnerListingPublic";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 import {
@@ -285,13 +286,6 @@ export default function AllCategories() {
         const endMs = spotlightAccessEndMs(item);
         if (item.featureSpotlightCancelPending && endMs != null && Date.now() > endMs) return false;
         return true;
-    };
-
-    const inferIncludedSpotlightFromPlan = (item: any): string => {
-        const planId = String(item?.selectedPlan || "").trim().toLowerCase();
-        if (planId === "premium_event" || planId === "premium_job") return "landing_page";
-        if (planId === "premium_plus_event" || planId === "premium_plus_job") return "home_page";
-        return "";
     };
 
     // Reset filters when switching category tab or search params (always show listing list, not category-only grid).
@@ -665,9 +659,7 @@ export default function AllCategories() {
 
     const featuredBusinesses = data.filter(item => {
         if (!spotlightDisplayActive(item)) return false;
-        const addon = String(
-            item.selectedAddon || item.featuredPlacement || inferIncludedSpotlightFromPlan(item)
-        ).trim().toLowerCase();
+        const addon = resolveSpotlightPlacement(item);
         const hasLegacyFeatureFlag = item.isFeatured && !addon;
         const isLandingSpotlight = addon === "landing_page" || addon === "both" || addon === "spotlight_addon";
         if (!isLandingSpotlight && !hasLegacyFeatureFlag) return false;

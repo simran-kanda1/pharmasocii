@@ -156,7 +156,7 @@ const seedData = {
                     subtitle: "Single day conference/event",
                     monthlyPrice: 500,
                     yearlyMonthlyPrice: 500,
-                    yearlyTotalPrice: 6000,
+                    yearlyTotalPrice: 500,
                     features: [
                         "Event profile",
                         "Agenda highlights (500 chars) + full agenda PDF",
@@ -172,7 +172,6 @@ const seedData = {
                     maxCategories: -1,
                     maxCountries: -1,
                     stripeMonthlyId: "basic_event",
-                    stripeYearlyId: "basic_event",
                     tierRank: 1
                 },
                 {
@@ -181,7 +180,7 @@ const seedData = {
                     subtitle: "Multi day conference/event",
                     monthlyPrice: 850,
                     yearlyMonthlyPrice: 850,
-                    yearlyTotalPrice: 10200,
+                    yearlyTotalPrice: 850,
                     features: [
                         "Event profile",
                         "Agenda highlights (500 chars) + full agenda PDF",
@@ -197,7 +196,6 @@ const seedData = {
                     maxCategories: -1,
                     maxCountries: -1,
                     stripeMonthlyId: "standard_event",
-                    stripeYearlyId: "standard_event",
                     tierRank: 2
                 },
                 {
@@ -206,7 +204,7 @@ const seedData = {
                     subtitle: "Single or multi-day conference/event",
                     monthlyPrice: 1250,
                     yearlyMonthlyPrice: 1250,
-                    yearlyTotalPrice: 15000,
+                    yearlyTotalPrice: 1250,
                     features: [
                         "Extra Feature: Landing page spotlight for increased visibility",
                         "Event profile",
@@ -223,7 +221,6 @@ const seedData = {
                     maxCategories: -1,
                     maxCountries: -1,
                     stripeMonthlyId: "premium_event",
-                    stripeYearlyId: "premium_event",
                     tierRank: 3
                 },
                 {
@@ -232,7 +229,7 @@ const seedData = {
                     subtitle: "Single or multi-day conference/event",
                     monthlyPrice: 1450,
                     yearlyMonthlyPrice: 1450,
-                    yearlyTotalPrice: 17400,
+                    yearlyTotalPrice: 1450,
                     features: [
                         "Extra Feature: Home page spotlight for maximum visibility",
                         "Event profile",
@@ -249,7 +246,6 @@ const seedData = {
                     maxCategories: -1,
                     maxCountries: -1,
                     stripeMonthlyId: "premium_plus_event",
-                    stripeYearlyId: "premium_plus_event",
                     tierRank: 4
                 }
             ]
@@ -266,7 +262,7 @@ const seedData = {
                     subtitle: "Standard Job Listing",
                     monthlyPrice: 400,
                     yearlyMonthlyPrice: 400,
-                    yearlyTotalPrice: 4800,
+                    yearlyTotalPrice: 400,
                     features: [
                         "Position title for quick search",
                         "Job description outlining key responsibilities",
@@ -281,7 +277,6 @@ const seedData = {
                     maxCategories: -1,
                     maxCountries: -1,
                     stripeMonthlyId: "standard_job",
-                    stripeYearlyId: "standard_job",
                     tierRank: 1
                 },
                 {
@@ -290,7 +285,7 @@ const seedData = {
                     subtitle: "Premium Job Listing",
                     monthlyPrice: 800,
                     yearlyMonthlyPrice: 800,
-                    yearlyTotalPrice: 9600,
+                    yearlyTotalPrice: 800,
                     features: [
                         "Extra Feature: Landing page spotlight for increased visibility",
                         "Position title for quick search",
@@ -306,7 +301,6 @@ const seedData = {
                     maxCategories: -1,
                     maxCountries: -1,
                     stripeMonthlyId: "premium_job",
-                    stripeYearlyId: "premium_job",
                     tierRank: 2
                 },
                 {
@@ -315,7 +309,7 @@ const seedData = {
                     subtitle: "Premium Plus Job Listing",
                     monthlyPrice: 1000,
                     yearlyMonthlyPrice: 1000,
-                    yearlyTotalPrice: 12000,
+                    yearlyTotalPrice: 1000,
                     features: [
                         "Extra Feature: Home page spotlight for maximum visibility",
                         "Position title for quick search",
@@ -331,7 +325,6 @@ const seedData = {
                     maxCategories: -1,
                     maxCountries: -1,
                     stripeMonthlyId: "premium_plus_job",
-                    stripeYearlyId: "premium_plus_job",
                     tierRank: 3
                 }
             ]

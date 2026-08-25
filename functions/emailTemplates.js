@@ -1,4 +1,4 @@
-/** Transactional email templates (production SMTP + emailLogCollection). */
+/** Transactional email templates (SMTP + emailLogCollection). Plain text-first HTML. */
 
 function escapeHtml(s) {
     return String(s)
@@ -19,300 +19,283 @@ function firstNameFrom(payload = {}) {
 const NO_REPLY_TEXT =
     "\n\nThis is a no-reply email. Please use the Contact Us page for support.";
 const NO_REPLY_HTML =
-    '<p style="color:#666;font-size:12px;margin:24px 0 0;line-height:1.5">This is a no-reply email. Please use the Contact Us page for support.</p>';
+    '<p style="color:#555;font-size:13px;margin-top:28px">This is a no-reply email. Please use the Contact Us page for support.</p>';
 
+/** Minimal HTML — readable in any client, no marketing layout. */
 function wrapHtml(bodyHtml) {
     return (
-        `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+        `<!DOCTYPE html><html><head><meta charset="utf-8">` +
+        `<meta name="viewport" content="width=device-width,initial-scale=1">` +
         `<title>Pharma SocII</title></head>` +
-        `<body style="margin:0;padding:0;background:#f4f7f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a">` +
-        `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f7f6;padding:32px 16px">` +
-        `<tr><td align="center">` +
-        `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:#ffffff;border:1px solid #e5ebe9;border-radius:12px;overflow:hidden">` +
-        `<tr><td style="padding:20px 28px;border-bottom:1px solid #e5ebe9;background:#0d9488">` +
-        `<p style="margin:0;font-size:16px;font-weight:600;letter-spacing:0.02em;color:#ffffff">Pharma SocII</p>` +
-        `</td></tr>` +
-        `<tr><td style="padding:28px;font-size:15px;line-height:1.6;color:#1a1a1a">${bodyHtml}${NO_REPLY_HTML}</td></tr>` +
-        `</table>` +
-        `</td></tr></table></body></html>`
+        `<body style="margin:0;padding:24px;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:1.55;color:#111;background:#fff">` +
+        `<div style="max-width:560px">` +
+        `<p style="margin:0 0 20px;font-size:15px"><strong>Pharma SocII</strong></p>` +
+        `${bodyHtml}${NO_REPLY_HTML}` +
+        `</div></body></html>`
     );
 }
 
 function wrapText(bodyText) {
-    return `${bodyText}${NO_REPLY_TEXT}`;
+    return `Pharma SocII\n\n${bodyText}${NO_REPLY_TEXT}`;
 }
 
 function ctaButton(href, label) {
     if (!href) return "";
     return (
-        `<p style="margin:24px 0"><a href="${escapeHtml(href)}" style="display:inline-block;padding:12px 20px;background:#0d9488;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px">${escapeHtml(label)}</a></p>` +
-        `<p style="word-break:break-all;font-size:12px;color:#666;margin:0">Or copy this link:<br/>${escapeHtml(href)}</p>`
+        `<p style="margin:20px 0"><a href="${escapeHtml(href)}">${escapeHtml(label)}</a></p>` +
+        `<p style="word-break:break-all;font-size:13px;color:#555;margin:0">Or copy this link:<br/>${escapeHtml(href)}</p>`
     );
+}
+
+function linkLine(siteUrl) {
+    const url = String(siteUrl || "").trim();
+    if (!url) return { text: "", html: "" };
+    return {
+        text: `\n\n${url}`,
+        html: `<p style="margin:16px 0 0"><a href="${escapeHtml(url)}">${escapeHtml(url)}</a></p>`,
+    };
 }
 
 const templates = {
     partner_welcome: {
         subject: () => "Welcome to Pharma SocII",
         text: (payload) => {
-            const siteUrl = String(payload.siteUrl || "").trim();
+            const site = linkLine(payload.siteUrl);
             return wrapText(
                 "We've received your submission. Thank you for partnering with us.\n\n" +
-                    "Pharma SocII Team\n" +
-                    (siteUrl ? `\n${siteUrl}` : ""),
+                    "Pharma SocII Team" +
+                    site.text,
             );
         },
         html: (payload) => {
-            const siteUrl = String(payload.siteUrl || "").trim();
-            const link = siteUrl
-                ? `<p><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
-                : "";
+            const site = linkLine(payload.siteUrl);
             return wrapHtml(
-                `<p style="margin:0 0 16px">We've received your submission. Thank you for partnering with us.</p>` +
-                    `<p style="margin:0 0 8px">Pharma SocII Team</p>` +
-                    link,
+                `<p>We've received your submission. Thank you for partnering with us.</p>` +
+                    `<p>Pharma SocII Team</p>` +
+                    site.html,
             );
         },
     },
     partner_account_updated: {
-        subject: () => "Changes made to your account",
+        subject: () => "Your company profile was updated",
         text: (payload) => {
-            const siteUrl = String(payload.siteUrl || "").trim();
+            const site = linkLine(payload.siteUrl);
             return wrapText(
-                "We wanted to let you know that updates have been made to your account. " +
-                    "Please log in to review the changes. If you did not make these updates, " +
-                    "we recommend updating your security information.\n\n" +
-                    "Pharma SocII Team\n" +
-                    (siteUrl ? `\n${siteUrl}` : ""),
+                "Updates were made to your company profile on Pharma SocII " +
+                    "(for example company name or website).\n\n" +
+                    "Please sign in to review your profile. If you did not make these changes, " +
+                    "update your password and contact support.\n\n" +
+                    "Pharma SocII Team" +
+                    site.text,
             );
         },
         html: (payload) => {
-            const siteUrl = String(payload.siteUrl || "").trim();
-            const link = siteUrl
-                ? `<p><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
-                : "";
+            const site = linkLine(payload.siteUrl);
             return wrapHtml(
-                `<p style="margin:0 0 16px">We wanted to let you know that updates have been made to your account. ` +
-                    `Please log in to review the changes. If you did not make these updates, ` +
-                    `we recommend updating your security information.</p>` +
-                    `<p style="margin:0 0 8px">Pharma SocII Team</p>` +
-                    link,
+                `<p>Updates were made to your company profile on Pharma SocII ` +
+                    `(for example company name or website).</p>` +
+                    `<p>Please sign in to review your profile. If you did not make these changes, ` +
+                    `update your password and contact support.</p>` +
+                    `<p>Pharma SocII Team</p>` +
+                    site.html,
             );
         },
     },
     partner_plan_changed: {
-        subject: () => "Changes made to your plan",
+        subject: () => "Your Pharma SocII plan was updated",
         text: (payload) => {
-            const siteUrl = String(payload.siteUrl || "").trim();
+            const site = linkLine(payload.siteUrl);
             return wrapText(
-                "Changes to your plan have been successfully processed. Thank you for your continued partnership.\n\n" +
-                    "Pharma SocII Team\n" +
-                    (siteUrl ? `\n${siteUrl}` : ""),
+                "Changes to your plan have been processed successfully. Thank you for your continued partnership.\n\n" +
+                    "Pharma SocII Team" +
+                    site.text,
             );
         },
         html: (payload) => {
-            const siteUrl = String(payload.siteUrl || "").trim();
-            const link = siteUrl
-                ? `<p><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
-                : "";
+            const site = linkLine(payload.siteUrl);
             return wrapHtml(
-                `<p style="margin:0 0 16px">Changes to your plan have been successfully processed. Thank you for your continued partnership.</p>` +
-                    `<p style="margin:0 0 8px">Pharma SocII Team</p>` +
-                    link,
+                `<p>Changes to your plan have been processed successfully. Thank you for your continued partnership.</p>` +
+                    `<p>Pharma SocII Team</p>` +
+                    site.html,
             );
         },
     },
     partner_email_verification: {
-        subject: () => "Verify your email",
+        subject: () => "Verify your new email address",
         text: (payload) => {
-            const siteUrl = String(payload.siteUrl || "").trim();
-            const verifyLink = payload.verifyLink;
+            const site = linkLine(payload.siteUrl);
             let body =
-                "Please verify your email address. Click the link below to confirm.\n\n";
-            if (verifyLink) {
-                body += `${verifyLink}\n\n`;
-            }
-            body += "Pharma SocII Team";
-            if (siteUrl) body += `\n\n${siteUrl}`;
+                "Please verify your new email address for Pharma SocII. Use the link below to confirm.\n\n";
+            if (payload.verifyLink) body += `${payload.verifyLink}\n\n`;
+            body += "Pharma SocII Team" + site.text;
             return wrapText(body);
         },
         html: (payload) => {
-            const siteUrl = String(payload.siteUrl || "").trim();
-            const link = siteUrl
-                ? `<p style="margin:16px 0 0"><a href="${escapeHtml(siteUrl)}">${escapeHtml(siteUrl)}</a></p>`
-                : "";
+            const site = linkLine(payload.siteUrl);
             return wrapHtml(
-                `<p style="margin:0 0 16px">Please verify your email address. Click the link below to confirm.</p>` +
-                    ctaButton(payload.verifyLink, "Verify your email") +
-                    `<p style="margin:24px 0 0">Pharma SocII Team</p>` +
-                    link,
+                `<p>Please verify your new email address for Pharma SocII. Use the link below to confirm.</p>` +
+                    ctaButton(payload.verifyLink, "Verify email") +
+                    `<p>Pharma SocII Team</p>` +
+                    site.html,
             );
         },
     },
     account_activation: {
-        subject: () => "Activate your account",
+        subject: () => "Activate your Pharma SocII account",
         text: ({ verifyLink }) => {
             let body =
                 "Please use the link below to activate your Pharma SocII account.\n" +
-                "Once activated, you will be able to post and comment within the community.\n\n";
-            if (verifyLink) {
-                body += `${verifyLink}\n\n`;
-            }
+                "Once activated, you can post and comment in the community.\n\n";
+            if (verifyLink) body += `${verifyLink}\n\n`;
             body += "Pharma SocII Team";
             return wrapText(body);
         },
         html: ({ verifyLink }) => {
             return wrapHtml(
-                `<p style="margin:0 0 16px">Please use the link below to activate your <b>Pharma SocII</b> account. ` +
-                    `Once activated, you will be able to post and comment within the community.</p>` +
+                `<p>Please use the link below to activate your Pharma SocII account. ` +
+                    `Once activated, you can post and comment in the community.</p>` +
                     ctaButton(verifyLink, "Activate account") +
-                    `<p style="margin:24px 0 0">Pharma SocII Team</p>`,
+                    `<p>Pharma SocII Team</p>`,
             );
         },
     },
     password_reset: {
-        subject: () => "Reset your password",
+        subject: () => "Reset your Pharma SocII password",
         text: ({ resetLink }) => {
             return wrapText(
                 "We received a request to reset the password for your Pharma SocII account.\n\n" +
-                    "To create a new password, please use the link below:\n\n" +
+                    "Create a new password using this link:\n\n" +
                     `${resetLink || "[Reset Password]"}\n\n` +
-                    "If you did not request a password reset, you can safely ignore this email.\n\n" +
-                    "For security reasons, this link may expire after a limited time.\n\n" +
+                    "If you did not request this, you can ignore this email.\n" +
+                    "For security, this link expires after a limited time.\n\n" +
                     "Pharma SocII Team",
             );
         },
         html: ({ resetLink }) => {
             return wrapHtml(
-                `<p style="margin:0 0 16px">We received a request to reset the password for your <b>Pharma SocII</b> account.</p>` +
-                    `<p style="margin:0 0 8px">To create a new password, please use the link below:</p>` +
-                    (resetLink ? ctaButton(resetLink, "Reset Password") : `<p>[Reset Password]</p>`) +
-                    `<p style="margin:24px 0 0">If you did not request a password reset, you can safely ignore this email.</p>` +
-                    `<p>For security reasons, this link may expire after a limited time.</p>` +
-                    `<p style="margin:24px 0 0">Pharma SocII Team</p>`,
+                `<p>We received a request to reset the password for your Pharma SocII account.</p>` +
+                    `<p>Create a new password using this link:</p>` +
+                    (resetLink ? ctaButton(resetLink, "Reset password") : `<p>[Reset Password]</p>`) +
+                    `<p>If you did not request this, you can ignore this email.</p>` +
+                    `<p>For security, this link expires after a limited time.</p>` +
+                    `<p>Pharma SocII Team</p>`,
+            );
+        },
+    },
+    password_changed: {
+        subject: () => "Your Pharma SocII password was changed",
+        text: (payload) => {
+            const site = linkLine(payload.siteUrl);
+            return wrapText(
+                "Your Pharma SocII password was changed successfully.\n\n" +
+                    "If you did not make this change, reset your password immediately and contact support.\n\n" +
+                    "Pharma SocII Team" +
+                    site.text,
+            );
+        },
+        html: (payload) => {
+            const site = linkLine(payload.siteUrl);
+            return wrapHtml(
+                `<p>Your Pharma SocII password was changed successfully.</p>` +
+                    `<p>If you did not make this change, reset your password immediately and contact support.</p>` +
+                    `<p>Pharma SocII Team</p>` +
+                    site.html,
             );
         },
     },
     spam_strike_1: {
         subject: () => "Notice of reported content (1st report)",
-        text: (payload) => {
+        text: () => {
             return wrapText(
-                "We're writing to let you know that one of your recent posts or comments on the Pharma SocII Community " +
-                    "has been reported by a member of the community.\n\n" +
-                    "At this time, no action has been taken against your account. This notice is provided so you are aware of " +
-                    "the report and can review your content to ensure it aligns with our Community Guidelines.\n\n" +
-                    "Our community is built on respectful, professional, and constructive discussion, and we ask all members " +
-                    "to help maintain that standard.\n\n" +
-                    "What happens next:\n\n" +
-                    "If a post or comment receives three reports, it will be automatically removed from the platform. If your " +
-                    "account receives three reports, your account will be automatically paused for 30 days.\n\n" +
-                    "Thank you for helping us keep the community valuable and professional.\n\n" +
-                    "Regards,\n" +
+                "One of your recent posts or comments on the Pharma SocII Community was reported by a member.\n\n" +
+                    "No action has been taken against your account. This notice is so you can review your content " +
+                    "against our Community Guidelines.\n\n" +
+                    "What happens next:\n" +
+                    "- A post or comment is removed after three reports on that item.\n" +
+                    "- An account is paused after three total reports across posts or comments.\n\n" +
+                    "Thank you for helping keep the community professional.\n\n" +
                     "Pharma SocII Community Team",
             );
         },
-        html: (payload) => {
+        html: () => {
             return wrapHtml(
-                `<p>We're writing to let you know that one of your recent posts or comments on the <b>Pharma SocII Community</b> ` +
-                    `has been reported by a member of the community.</p>` +
-                    `<p>At this time, no action has been taken against your account. This notice is provided so you are aware of ` +
-                    `the report and can review your content to ensure it aligns with our Community Guidelines.</p>` +
-                    `<p>Our community is built on respectful, professional, and constructive discussion, and we ask all members ` +
-                    `to help maintain that standard.</p>` +
+                `<p>One of your recent posts or comments on the Pharma SocII Community was reported by a member.</p>` +
+                    `<p>No action has been taken against your account. This notice is so you can review your content ` +
+                    `against our Community Guidelines.</p>` +
                     `<p><b>What happens next:</b></p>` +
                     `<ul>` +
-                    `<li>If a post or comment receives three reports, it will be automatically removed from the platform.</li>` +
-                    `<li>If your account receives three reports, your account will be automatically paused for 30 days.</li>` +
+                    `<li>A post or comment is removed after three reports on that item.</li>` +
+                    `<li>An account is paused after three total reports across posts or comments.</li>` +
                     `</ul>` +
-                    `<p>Thank you for helping us keep the community valuable and professional.</p>` +
-                    `<p>Regards,<br/>Pharma SocII Community Team</p>`,
+                    `<p>Thank you for helping keep the community professional.</p>` +
+                    `<p>Pharma SocII Community Team</p>`,
             );
         },
     },
     spam_strike_2: {
         subject: () => "Second notice regarding reported content",
-        text: (payload) => {
+        text: () => {
             return wrapText(
-                "This is a follow-up regarding your recent post or comment on the Pharma SocII Community.\n\n" +
+                "This is a follow-up about your recent post or comment on the Pharma SocII Community.\n\n" +
                     "Your content has now been reported twice.\n\n" +
-                    "As a reminder of our reporting process:\n\n" +
-                    "A post or comment is automatically removed after receiving three reports on that item.\n\n" +
-                    "An account is automatically paused after receiving three total reports across any posts or comments.\n\n" +
-                    "We encourage you to review your content to ensure it aligns with our Community Guidelines.\n\n" +
-                    "Thank you for helping us keep the community valuable and professional.\n\n" +
-                    "Regards,\n" +
+                    "Reminder:\n" +
+                    "- A post or comment is removed after three reports on that item.\n" +
+                    "- An account is paused after three total reports across posts or comments.\n\n" +
+                    "Please review our Community Guidelines.\n\n" +
                     "Pharma SocII Community Team",
             );
         },
-        html: (payload) => {
+        html: () => {
             return wrapHtml(
-                `<p>This is a follow-up regarding your recent post or comment on the <b>Pharma SocII Community</b>.</p>` +
-                    `<p>Your content has now been reported <b>twice</b>.</p>` +
-                    `<p>As a reminder of our reporting process:</p>` +
+                `<p>This is a follow-up about your recent post or comment on the Pharma SocII Community.</p>` +
+                    `<p>Your content has now been reported twice.</p>` +
+                    `<p><b>Reminder:</b></p>` +
                     `<ul>` +
-                    `<li>A post or comment is automatically removed after receiving three reports on that item.</li>` +
-                    `<li>An account is automatically paused after receiving three total reports across any posts or comments.</li>` +
+                    `<li>A post or comment is removed after three reports on that item.</li>` +
+                    `<li>An account is paused after three total reports across posts or comments.</li>` +
                     `</ul>` +
-                    `<p>We encourage you to review your content to ensure it aligns with our Community Guidelines.</p>` +
-                    `<p>Thank you for helping us keep the community valuable and professional.</p>` +
-                    `<p>Regards,<br/>Pharma SocII Community Team</p>`,
+                    `<p>Please review our Community Guidelines.</p>` +
+                    `<p>Pharma SocII Community Team</p>`,
             );
         },
     },
     spam_strike_3_account_archived: {
         subject: () => "Community guidelines notice: account status update",
-        text: (payload) => {
+        text: () => {
             return wrapText(
-                "This is a follow-up regarding your recent activity on the Pharma SocII Community.\n\n" +
-                    "Your account has now accumulated three total community reports across one or more posts and/or comments/replies.\n\n" +
-                    "In accordance with our Community Guidelines:\n\n" +
-                    "Content that receives three reports may be removed from the community.\n\n" +
-                    "If your account is currently active, it will be placed in read-only mode for 30 days.\n\n" +
-                    "During the pause period, you will continue to have access to view community content and stay current on ongoing discussions; " +
-                    "however, posting, commenting, and other contribution features will be temporarily unavailable. " +
-                    "We will inform you once the account is reactivated.\n\n" +
-                    "We encourage you to review our Community Guidelines to help ensure future contributions align with the standards of the community.\n\n" +
-                    "Thank you for helping us maintain a valuable, respectful, and trusted environment for all members.\n\n" +
-                    "Sincerely,\n" +
+                "Your Pharma SocII Community account has accumulated three total reports across posts and/or comments.\n\n" +
+                    "In accordance with our Community Guidelines, if your account is active it will be placed in " +
+                    "read-only mode for 30 days. You can still view content; posting and commenting will be unavailable " +
+                    "until reactivation.\n\n" +
+                    "Please review our Community Guidelines.\n\n" +
                     "Pharma SocII Community Team",
             );
         },
-        html: (payload) => {
+        html: () => {
             return wrapHtml(
-                `<p>This is a follow-up regarding your recent activity on the <b>Pharma SocII Community</b>.</p>` +
-                    `<p>Your account has now accumulated <b>three total community reports</b> across one or more posts and/or comments/replies.</p>` +
-                    `<p>In accordance with our Community Guidelines:</p>` +
-                    `<ul>` +
-                    `<li>Content that receives three reports may be removed from the community.</li>` +
-                    `<li>If your account is currently active, it will be placed in <b>read-only mode for 30 days</b>.</li>` +
-                    `</ul>` +
-                    `<p>During the pause period, you will continue to have access to view community content and stay current on ongoing discussions; ` +
-                    `however, posting, commenting, and other contribution features will be temporarily unavailable. ` +
-                    `We will inform you once the account is reactivated.</p>` +
-                    `<p>We encourage you to review our Community Guidelines to help ensure future contributions align with the standards of the community.</p>` +
-                    `<p>Thank you for helping us maintain a valuable, respectful, and trusted environment for all members.</p>` +
-                    `<p>Sincerely,<br/>Pharma SocII Community Team</p>`,
+                `<p>Your Pharma SocII Community account has accumulated three total reports across posts and/or comments.</p>` +
+                    `<p>In accordance with our Community Guidelines, if your account is active it will be placed in ` +
+                    `<b>read-only mode for 30 days</b>. You can still view content; posting and commenting will be unavailable ` +
+                    `until reactivation.</p>` +
+                    `<p>Please review our Community Guidelines.</p>` +
+                    `<p>Pharma SocII Community Team</p>`,
             );
         },
     },
     account_reactivated: {
         subject: () => "Your Pharma SocII account has been reactivated",
-        text: (payload) => {
+        text: () => {
             return wrapText(
-                "We're writing to let you know that your Pharma SocII account has been reactivated. You now have full access to the community again.\n\n" +
-                    "We appreciate your cooperation and encourage you to review our Community Guidelines to ensure future contributions remain professional, " +
-                    "respectful, and valuable to the life sciences community.\n\n" +
-                    "If you have any questions, please contact us.\n\n" +
+                "Your Pharma SocII account has been reactivated. You have full community access again.\n\n" +
+                    "Please keep contributions professional and aligned with our Community Guidelines.\n\n" +
                     "Welcome back,\n" +
                     "Pharma SocII Community Team",
             );
         },
-        html: (payload) => {
+        html: () => {
             return wrapHtml(
-                `<p>We're writing to let you know that your <b>Pharma SocII</b> account has been <b>reactivated</b>. ` +
-                    `You now have full access to the community again.</p>` +
-                    `<p>We appreciate your cooperation and encourage you to review our Community Guidelines to ensure future contributions remain professional, ` +
-                    `respectful, and valuable to the life sciences community.</p>` +
-                    `<p>If you have any questions, please contact us.</p>` +
+                `<p>Your Pharma SocII account has been reactivated. You have full community access again.</p>` +
+                    `<p>Please keep contributions professional and aligned with our Community Guidelines.</p>` +
                     `<p>Welcome back,<br/>Pharma SocII Community Team</p>`,
             );
         },
@@ -323,99 +306,78 @@ const templates = {
         html: (payload) => templates.account_reactivated.html(payload),
     },
     admin_content_restored: {
-        subject: () => "Content restored",
-        text: (payload) => {
+        subject: () => "Your content was restored",
+        text: () => {
             return wrapText(
-                "We're writing to let you know that your post or comment on Pharma SocII has been restored by our moderation team.\n\n" +
-                    "Thank you for contributing to the community,\n" +
+                "Your post or comment on Pharma SocII has been restored by our moderation team.\n\n" +
+                    "Thank you for contributing to the community.\n\n" +
                     "Pharma SocII Community Team",
             );
         },
-        html: (payload) => {
+        html: () => {
             return wrapHtml(
-                `<p>We're writing to let you know that your post or comment on <b>Pharma SocII</b> has been restored by our moderation team.</p>` +
-                    `<p>Thank you for contributing to the community,<br/>Pharma SocII Community Team</p>`,
+                `<p>Your post or comment on Pharma SocII has been restored by our moderation team.</p>` +
+                    `<p>Thank you for contributing to the community.</p>` +
+                    `<p>Pharma SocII Community Team</p>`,
             );
         },
     },
     content_archived_admin: {
         subject: () => "Community moderation notice: content archived",
-        text: (payload) => {
+        text: () => {
             return wrapText(
-                "This message is regarding content you posted or commented on within the Pharma SocII Community.\n\n" +
-                    "After review, the moderation team has determined that the content does not align with one or more aspects of " +
-                    "our Community Guidelines. As a result, the content has been archived and is no longer visible to the community.\n\n" +
-                    "Please note that content was archived by the moderation team to help maintain a professional, respectful, and " +
-                    "valuable environment for all members. This action does not necessarily result in an account restriction.\n\n" +
-                    "We encourage you to review our Community Guidelines before creating future posts or comments to help ensure " +
-                    "your contributions remain visible and continue to add value to the community.\n\n" +
-                    "Thank you for helping us build a trusted and collaborative life sciences network.\n\n" +
-                    "The Pharma SocII Team",
+                "Content you posted or commented on in the Pharma SocII Community was archived by the moderation team " +
+                    "because it did not align with our Community Guidelines. It is no longer visible to the community.\n\n" +
+                    "This does not necessarily mean your account is restricted. Please review the Community Guidelines " +
+                    "before posting again.\n\n" +
+                    "Pharma SocII Team",
             );
         },
-        html: (payload) => {
+        html: () => {
             return wrapHtml(
-                `<p>This message is regarding content you posted or commented on within the <b>Pharma SocII Community</b>.</p>` +
-                    `<p>After review, the moderation team has determined that the content does not align with one or more aspects of ` +
-                    `our Community Guidelines. As a result, the content has been <b>archived</b> and is no longer visible to the community.</p>` +
-                    `<p>Please note that content was archived by the moderation team to help maintain a professional, respectful, and ` +
-                    `valuable environment for all members. This action does not necessarily result in an account restriction.</p>` +
-                    `<p>We encourage you to review our Community Guidelines before creating future posts or comments to help ensure ` +
-                    `your contributions remain visible and continue to add value to the community.</p>` +
-                    `<p>Thank you for helping us build a trusted and collaborative life sciences network.</p>` +
-                    `<p>The Pharma SocII Team</p>`,
+                `<p>Content you posted or commented on in the Pharma SocII Community was archived by the moderation team ` +
+                    `because it did not align with our Community Guidelines. It is no longer visible to the community.</p>` +
+                    `<p>This does not necessarily mean your account is restricted. Please review the Community Guidelines ` +
+                    `before posting again.</p>` +
+                    `<p>Pharma SocII Team</p>`,
             );
         },
     },
     content_archived_spam: {
         subject: () => "Community notice: content removed after reports",
-        text: (payload) => {
+        text: () => {
             return wrapText(
-                "Your content on the Pharma SocII Community received three member reports and has been automatically removed from the platform. " +
-                    "We encourage you to review our Community Guidelines before creating future content.\n\n" +
-                    "Regards,\n" +
+                "Your content on the Pharma SocII Community received three member reports and was automatically removed.\n\n" +
+                    "Please review our Community Guidelines before creating future content.\n\n" +
                     "Pharma SocII Community Team",
             );
         },
-        html: (payload) => {
+        html: () => {
             return wrapHtml(
-                `<p>Your content on the <b>Pharma SocII Community</b> received three member reports and has been automatically removed from the platform. ` +
-                    `We encourage you to review our Community Guidelines before creating future content.</p>` +
-                    `<p>Regards,<br/>Pharma SocII Community Team</p>`,
+                `<p>Your content on the Pharma SocII Community received three member reports and was automatically removed.</p>` +
+                    `<p>Please review our Community Guidelines before creating future content.</p>` +
+                    `<p>Pharma SocII Community Team</p>`,
             );
         },
     },
     account_on_hold: {
-        subject: () => "Account put on hold by the moderation team",
-        text: (payload) => {
+        subject: () => "Your Pharma SocII account is on hold",
+        text: () => {
             return wrapText(
-                "We're writing to inform you that your Pharma SocII account has been temporarily paused by our moderation team.\n\n" +
-                    "This action is taken when content or account activity requires further review to ensure alignment with our Community Guidelines.\n\n" +
-                    "What this means:\n\n" +
-                    "You will not be able to post or comment while your account is under review\n\n" +
-                    "You are welcome to review other posts and comments to stay current\n\n" +
-                    "Our moderation team will assess the situation and determine next steps\n\n" +
-                    "After our review is complete, we will notify you of the outcome\n\n" +
-                    "Access may be restored, restricted, or remain paused depending on the results of our team's review\n\n" +
-                    "If you would like to provide context, please contact us.\n\n" +
-                    "Thank you for your understanding,\n" +
+                "Your Pharma SocII account has been temporarily paused by our moderation team for review against " +
+                    "our Community Guidelines.\n\n" +
+                    "While under review you cannot post or comment. You can still read community content. " +
+                    "We will notify you when the review is complete.\n\n" +
                     "Pharma SocII Community Team",
             );
         },
-        html: (payload) => {
+        html: () => {
             return wrapHtml(
-                `<p>We're writing to inform you that your <b>Pharma SocII</b> account has been temporarily paused by our moderation team.</p>` +
-                    `<p>This action is taken when content or account activity requires further review to ensure alignment with our Community Guidelines.</p>` +
-                    `<p><b>What this means:</b></p>` +
-                    `<ul>` +
-                    `<li>You will not be able to post or comment while your account is under review</li>` +
-                    `<li>You are welcome to review other posts and comments to stay current</li>` +
-                    `<li>Our moderation team will assess the situation and determine next steps</li>` +
-                    `<li>After our review is complete, we will notify you of the outcome</li>` +
-                    `<li>Access may be restored, restricted, or remain paused depending on the results of our team's review</li>` +
-                    `</ul>` +
-                    `<p>If you would like to provide context, please contact us.</p>` +
-                    `<p>Thank you for your understanding,<br/>Pharma SocII Community Team</p>`,
+                `<p>Your Pharma SocII account has been temporarily paused by our moderation team for review against ` +
+                    `our Community Guidelines.</p>` +
+                    `<p>While under review you cannot post or comment. You can still read community content. ` +
+                    `We will notify you when the review is complete.</p>` +
+                    `<p>Pharma SocII Community Team</p>`,
             );
         },
     },
@@ -425,9 +387,9 @@ function renderEmail(type, payload = {}) {
     const t = templates[type];
     if (!t) {
         return {
-            subject: `[Pharma SocII] ${type}`,
-            text: JSON.stringify(payload),
-            html: `<pre>${escapeHtml(JSON.stringify(payload))}</pre>`,
+            subject: `Pharma SocII notification (${type})`,
+            text: wrapText(`Notification type: ${type}\n\n${JSON.stringify(payload, null, 2)}`),
+            html: wrapHtml(`<p>Notification type: ${escapeHtml(type)}</p><pre>${escapeHtml(JSON.stringify(payload, null, 2))}</pre>`),
         };
     }
     return {

@@ -45,6 +45,12 @@ export async function requestPasswordReset(email: string) {
   return fn({ email });
 }
 
+/** Notify after a logged-in user changes their password (partners / members). */
+export async function notifyPasswordChanged() {
+  const fn = httpsCallable<Record<string, never>, { ok: boolean }>(fns, "notifyPartnerPasswordChanged");
+  return fn({});
+}
+
 export async function requestVerificationEmail() {
   const fn = httpsCallable(fns, "requestVerificationEmailCc");
   return fn();

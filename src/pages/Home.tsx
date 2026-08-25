@@ -10,6 +10,7 @@ import { collection, collectionGroup, query, where, limit, getDocs, orderBy, doc
 import {
     buildLiveListingKeySet,
     isPartnerListingPublic,
+    resolveSpotlightPlacement,
 } from "@/lib/partnerListingPublic";
 import { onAuthStateChanged } from "firebase/auth";
 import { PostCard } from "@/components/community/PostCard";
@@ -81,12 +82,6 @@ function featuredRecencyMs(item: Record<string, any>): number {
     );
 }
 
-function inferIncludedSpotlightFromPlan(item: Record<string, any>): string {
-    const planId = String(item.selectedPlan || "").trim().toLowerCase();
-    if (planId === "premium_event" || planId === "premium_job") return "landing_page";
-    if (planId === "premium_plus_event" || planId === "premium_plus_job") return "home_page";
-    return "";
-}
 export default function Home() {
     const { categoryDoc } = useCommunityCategories();
     const [featuredBusinesses, setFeaturedBusinesses] = useState<any[]>([]);
@@ -177,9 +172,7 @@ export default function Home() {
         const fetchFeaturedData = async () => {
             const isHomeSpotlight = (item: Record<string, any>) => {
                 if (!spotlightDisplayActive(item)) return false;
-                const addon = String(
-                    item.selectedAddon || item.featuredPlacement || inferIncludedSpotlightFromPlan(item)
-                ).trim().toLowerCase();
+                const addon = resolveSpotlightPlacement(item);
                 return addon === "home_page" || addon === "both" || addon === "spotlight_addon" || (item.isFeatured && !addon);
             };
 

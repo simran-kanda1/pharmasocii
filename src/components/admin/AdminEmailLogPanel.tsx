@@ -60,7 +60,7 @@ export function AdminEmailLogPanel() {
           <div>
             <CardTitle className="text-base">Transactional email log</CardTitle>
             <CardDescription>
-              Production emails sent via SMTP. Optional QA CC when COMMUNITY_EMAIL_CC_ALL=true.
+              Emails sent via SMTP. Addresses in VERIFICATION_CC_EMAIL are CC’d on the same message.
             </CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" onClick={() => setRefreshKey((k) => k + 1)}>

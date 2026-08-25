@@ -56,32 +56,58 @@ function cleanTitleCase(str: string): string {
         .join(" ");
 }
 
-function formatCleanDescription(type: string, planId: string | null, featureId: string | null, rawDesc?: string | null): string {
-    if (rawDesc && typeof rawDesc === "string") {
-        const stripped = rawDesc.replace(/^(Plan|Feature):\s*/i, "").trim();
+function formatCleanDescription(type: string, planId: string | null, featureId: string | null, rawDesc?: string | null, previousFeatureId?: string | null, previousPlanId?: string | null, isUpgrade?: boolean): string {
+    if (rawDesc && typeof rawDesc === "string" && rawDesc.trim()) {
+        const trimmed = rawDesc.trim();
+        // Prefer explicit upgrade / spotlight copy written by the billing server.
+        if (/spotlight upgrade|plan upgrade|spotlight:/i.test(trimmed)) {
+            return trimmed;
+        }
+        const stripped = trimmed.replace(/^(Plan|Feature):\s*/i, "").trim();
         if (stripped && !stripped.toLowerCase().startsWith("plan") && !stripped.toLowerCase().startsWith("feature")) {
             return cleanTitleCase(stripped.replace(/_/g, " "));
         }
     }
     if (type === "feature" || featureId) {
         const f = (featureId || "").toLowerCase();
-        if (f === "landing_page") return "Landing Page";
-        if (f === "home_page") return "Home Page";
-        if (f === "both") return "Landing & Home Page";
-        if (f) return cleanTitleCase(f.replace(/_/g, " "));
-        return "Spotlight Feature";
+        const featureLabel =
+            f === "landing_page" ? "Landing Page"
+            : f === "home_page" ? "Home Page"
+            : f === "both" ? "Both (Module & Home Page)"
+            : f ? cleanTitleCase(f.replace(/_/g, " "))
+            : "Spotlight Feature";
+        const prev = (previousFeatureId || "").toLowerCase();
+        if (isUpgrade || prev) {
+            const prevLabel =
+                prev === "landing_page" ? "Landing Page"
+                : prev === "home_page" ? "Home Page"
+                : prev === "both" ? "Both (Module & Home Page)"
+                : prev ? cleanTitleCase(prev.replace(/_/g, " "))
+                : "Previous Spotlight";
+            return `Spotlight upgrade: ${prevLabel} → ${featureLabel} (prorated)`;
+        }
+        return `Spotlight: ${featureLabel}`;
     }
     if (planId) {
         const p = planId.toLowerCase().replace(/_mo$/, "");
-        if (p === "basic_event") return "Basic Event";
-        if (p === "standard_job") return "Standard Job";
-        if (p === "basic_job") return "Basic Job";
-        if (p === "premium_plus") return "Premium Plus";
-        if (p === "premium") return "Premium";
-        if (p === "standard") return "Standard";
-        if (p === "basic") return "Basic";
-        if (p === "enterprise") return "Enterprise";
-        return cleanTitleCase(p.replace(/_/g, " "));
+        const planLabel =
+            p === "basic_event" ? "Basic Event"
+            : p === "standard_job" ? "Standard Job"
+            : p === "basic_job" ? "Basic Job"
+            : p === "premium_plus" || p === "premium_plus_event" || p === "premium_plus_job" ? "Premium Plus"
+            : p === "premium" || p === "premium_event" || p === "premium_job" ? "Premium"
+            : p === "standard" ? "Standard"
+            : p === "basic" ? "Basic"
+            : p === "enterprise" ? "Enterprise"
+            : cleanTitleCase(p.replace(/_/g, " "));
+        if (isUpgrade || previousPlanId) {
+            const from = String(previousPlanId || "").toLowerCase().replace(/_mo$/, "");
+            const fromLabel = from
+                ? cleanTitleCase(from.replace(/_/g, " "))
+                : "Previous Plan";
+            return `Plan upgrade: ${fromLabel} → ${planLabel} (prorated)`;
+        }
+        return planLabel;
     }
     return type === "feature" ? "Spotlight Feature" : "Listing Plan";
 }
@@ -125,8 +151,11 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
     const type = String(t.type || "");
     const planId = (t.planId as string) || null;
     const featureId = (t.featureId as string) || null;
+    const previousFeatureId = (t.previousFeatureId as string) || null;
+    const previousPlanId = (t.previousPlanId as string) || (t.fromPlanId as string) || null;
+    const isUpgrade = t.isUpgrade === true || Boolean(previousFeatureId) || Boolean(previousPlanId) || Boolean(t.upgradeFlow);
     const rawDesc = t.description ? String(t.description) : null;
-    const description = formatCleanDescription(type, planId, featureId, rawDesc);
+    const description = formatCleanDescription(type, planId, featureId, rawDesc, previousFeatureId, previousPlanId, isUpgrade);
 
     const amountNumeric = typeof t.amount === "number" && Number.isFinite(t.amount) ? t.amount : 0;
     const taxAmountNumeric = typeof t.taxAmount === "number" && Number.isFinite(t.taxAmount)
