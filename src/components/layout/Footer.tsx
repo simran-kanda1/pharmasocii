@@ -4,16 +4,45 @@ export function Footer() {
     return (
         <footer className="w-full border-t border-foreground/10 bg-background/90 pt-16 pb-8">
             <div className="container mx-auto px-4">
-                <div className="flex flex-wrap items-center justify-center gap-8 md:gap-12 mb-12">
-                    <Link to="/about" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-                        About
-                    </Link>
-                    <Link to="/community" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-                        Community
-                    </Link>
-                    <Link to="/signup" className="text-sm font-medium text-muted-foreground hover:text-primary transition-colors">
-                        Become a Partner
-                    </Link>
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+
+                    <div className="space-y-4">
+                        <h4 className="font-semibold text-sm tracking-wider">Explore</h4>
+                        <ul className="space-y-3 text-sm text-muted-foreground">
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Business Offerings</Link></li>
+                            <li><Link to="/community" className="hover:text-primary transition-colors">Community</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Consulting</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Events</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Jobs</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Global Health Authority Sites</Link></li>
+                        </ul>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h4 className="font-semibold text-sm tracking-wider">Partners</h4>
+                        <ul className="space-y-3 text-sm text-muted-foreground">
+                            <li><Link to="/signup" className="hover:text-primary transition-colors">Become a Partner</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Plans</Link></li>
+                        </ul>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h4 className="font-semibold text-sm tracking-wider">Company</h4>
+                        <ul className="space-y-3 text-sm text-muted-foreground">
+                            <li><Link to="/about" className="hover:text-primary transition-colors">About</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Contact</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">FAQ</Link></li>
+                        </ul>
+                    </div>
+
+                    <div className="space-y-4">
+                        <h4 className="font-semibold text-sm tracking-wider">Legal</h4>
+                        <ul className="space-y-3 text-sm text-muted-foreground">
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Privacy Policy</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Terms of Service</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Community Guidelines</Link></li>
+                        </ul>
+                    </div>
                 </div>
 
                 <div className="pt-8 border-t border-foreground/10 flex flex-col md:flex-row items-center justify-between gap-4">
