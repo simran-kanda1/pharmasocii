@@ -8,11 +8,6 @@ import {
     Send, 
     Clock, 
     Building2, 
-    HelpCircle, 
-    Users, 
-    Wrench, 
-    Handshake, 
-    Scale, 
     ArrowRight
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -95,14 +90,7 @@ export default function ContactUs() {
         }
     };
 
-    const getDepartmentIcon = (title: string, iconKey?: string) => {
-        const lower = title.toLowerCase();
-        if (iconKey === "Users" || lower.includes("member")) return <Users className="w-6 h-6 text-primary" />;
-        if (iconKey === "Wrench" || lower.includes("tech") || lower.includes("it")) return <Wrench className="w-6 h-6 text-primary" />;
-        if (iconKey === "Handshake" || lower.includes("partner")) return <Handshake className="w-6 h-6 text-primary" />;
-        if (iconKey === "Scale" || lower.includes("legal") || lower.includes("compliance")) return <Scale className="w-6 h-6 text-primary" />;
-        return <HelpCircle className="w-6 h-6 text-primary" />;
-    };
+
 
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -179,9 +167,6 @@ export default function ContactUs() {
                                 className="border-foreground/10 bg-background shadow-sm hover:shadow-xl hover:border-primary/40 hover:-translate-y-1 transition-all duration-300 rounded-2xl flex flex-col justify-between overflow-hidden group"
                             >
                                 <CardHeader className="p-6 pb-4">
-                                    <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
-                                        {getDepartmentIcon(dept.title, dept.icon)}
-                                    </div>
                                     <CardTitle className="text-xl font-bold text-foreground">
                                         {dept.title}
                                     </CardTitle>
