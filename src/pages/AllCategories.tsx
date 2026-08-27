@@ -462,7 +462,7 @@ export default function AllCategories() {
 
     const isMainCategoryTab = currentTab === "business" || currentTab === "consulting" || currentTab === "events" || currentTab === "jobs";
     const currentCategoriesDict = currentTab === "business" ? BUSINESS_CATEGORIES : currentTab === "consulting" ? CONSULTING_CATEGORIES : currentTab === "events" ? EVENTS_CATEGORIES : JOBS_CATEGORIES;
-    const featuredHeading = currentTab === "business" ? "Featured" : currentTab === "consulting" ? "Featured" : currentTab === "events" ? "Featured Events" : "Featured Jobs/Opportunities";
+    const featuredHeading = "Featured";
     const noFeaturedText = currentTab === "business" ? "No featured businesses available at the moment." : currentTab === "consulting" ? "No experts available at the moment." : currentTab === "events" ? "No featured events available at the moment." : "No featured jobs available at the moment.";
 
     const filteredHealthAuths = HEALTH_AUTHORITIES.filter((auth) =>
