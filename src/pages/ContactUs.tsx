@@ -6,7 +6,6 @@ import {
     Copy, 
     Check, 
     Send, 
-    Clock, 
     Building2, 
     ArrowRight
 } from "lucide-react";
@@ -234,12 +233,7 @@ export default function ContactUs() {
                                         </div>
                                     )}
 
-                                    {dept.hours && (
-                                        <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground font-medium pt-1">
-                                            <Clock className="w-3.5 h-3.5 text-slate-400" />
-                                            <span>{dept.hours}</span>
-                                        </div>
-                                    )}
+
 
                                     <Button asChild className="w-full mt-2 font-semibold shadow-sm hover:shadow-md transition-all" size="sm">
                                         <a href={`mailto:${dept.email}`}>
