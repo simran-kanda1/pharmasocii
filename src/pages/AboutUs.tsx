@@ -33,18 +33,7 @@ export default function AboutUs() {
                             </p>
                         </div>
 
-                        <div className="flex flex-wrap gap-4 pt-2">
-                            <Button size="lg" className="h-12 px-6 rounded-full font-semibold shadow-lg shadow-primary/20 hover:shadow-primary/30 transition-all" asChild>
-                                <Link to="/member/register">
-                                    Join community <ArrowRight className="ml-2 w-4 h-4" />
-                                </Link>
-                            </Button>
-                            <Button size="lg" variant="outline" className="h-12 px-6 rounded-full font-semibold border-foreground/20 bg-foreground/5 hover:bg-foreground/10 transition-all" asChild>
-                                <Link to="/signup">
-                                    Become a partner
-                                </Link>
-                            </Button>
-                        </div>
+
                     </div>
                 </div>
             </section>
