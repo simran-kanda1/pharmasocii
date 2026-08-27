@@ -424,8 +424,13 @@ export default function CompleteProfile() {
         if (!config || !planId) return [];
         for (const group of config.groups) {
             for (const plan of group.plans) {
-                if (plan.stripeMonthlyId === planId || plan.stripeYearlyId === planId) {
-                    return plan.features;
+                if (
+                    plan.stripeMonthlyId === planId || 
+                    plan.stripeYearlyId === planId ||
+                    plan.id === planId ||
+                    plan.badge?.toLowerCase() === planId.toLowerCase()
+                ) {
+                    return plan.features || [];
                 }
             }
         }

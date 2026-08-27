@@ -476,8 +476,13 @@ export default function AddListing() {
         if (!plansConfig || !planId) return [];
         for (const group of plansConfig.groups) {
             for (const p of group.plans) {
-                if (p.stripeMonthlyId === planId || p.stripeYearlyId === planId) {
-                    return p.features;
+                if (
+                    p.stripeMonthlyId === planId || 
+                    p.stripeYearlyId === planId ||
+                    p.id === planId ||
+                    p.badge?.toLowerCase() === planId.toLowerCase()
+                ) {
+                    return p.features || [];
                 }
             }
         }

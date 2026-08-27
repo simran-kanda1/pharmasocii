@@ -52,6 +52,7 @@ import {
     type SubcategoryEntry, type CategoriesDict,
 } from "../AllCategories";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
+import { usePlansConfig } from "@/hooks/usePlansConfig";
 
 
 
@@ -500,6 +501,46 @@ export default function Dashboard() {
     } | null>(null);
     const [actionProcessing, setActionProcessing] = useState(false);
     const [cancelModalError, setCancelModalError] = useState("");
+
+    const { config: livePlansConfig } = usePlansConfig();
+
+    const dynamicPlanConfigs = useMemo(() => {
+        const merged: Record<string, PlanConfig> = { ...PLAN_CONFIGS };
+        if (livePlansConfig && livePlansConfig.groups) {
+            for (const group of livePlansConfig.groups) {
+                for (const plan of group.plans) {
+                    const planKey = plan.stripeMonthlyId || plan.id;
+                    const yearlyKey = plan.stripeYearlyId;
+
+                    const baseConfig: PlanConfig = {
+                        label: plan.badge,
+                        subtitle: plan.subtitle || "",
+                        price: `$${plan.monthlyPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                        period: group.hasAnnualToggle ? "" : "/month",
+                        maxCategories: plan.maxCategories ?? -1,
+                        maxCountries: plan.maxCountries ?? -1,
+                        features: plan.features || [],
+                    };
+
+                    if (planKey) {
+                        merged[planKey] = { ...baseConfig };
+                    }
+                    if (plan.id) {
+                        merged[plan.id] = { ...baseConfig };
+                    }
+                    if (yearlyKey) {
+                        merged[yearlyKey] = {
+                            ...baseConfig,
+                            label: `${plan.badge} (Annual)`,
+                            price: `$${plan.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                            period: "/year",
+                        };
+                    }
+                }
+            }
+        }
+        return merged;
+    }, [livePlansConfig]);
 
     const getStandaloneFeatureRecordForPlan = (plan: any) => {
         if (!plan?.listingId) return null;
@@ -1613,7 +1654,7 @@ export default function Dashboard() {
 
     const isApproved = partnerData.partnerStatus !== "Disabled";
     const displayName = partnerData.primaryName || "Partner";
-    const currentPlan = PLAN_CONFIGS[partnerData.selectedPlan] || null;
+    const currentPlan = dynamicPlanConfigs[partnerData.selectedPlan] || PLAN_CONFIGS[partnerData.selectedPlan] || null;
     const currentGroup = partnerData.selectedGroup || "";
     const businessOfferingLock = getGroupPlanLock(activePlans, "business_offerings");
     const consultingLock = getGroupPlanLock(activePlans, "consulting");
@@ -1800,7 +1841,7 @@ export default function Dashboard() {
                     <EditListingModal
                         listing={selectedListingForEdit}
                         plan={selectedPlanForAction}
-                        planConfig={PLAN_CONFIGS[(pendingUpgradePlanId || selectedListingForEdit?.selectedPlan || selectedPlanForAction?.planId) as string]}
+                        planConfig={dynamicPlanConfigs[(pendingUpgradePlanId || selectedListingForEdit?.selectedPlan || selectedPlanForAction?.planId) as string] || PLAN_CONFIGS[(pendingUpgradePlanId || selectedListingForEdit?.selectedPlan || selectedPlanForAction?.planId) as string]}
                         isUpgradeFlow={Boolean(pendingUpgradePlanId)}
                         targetEventPlanId={pendingUpgradePlanId || undefined}
                         representativeOptions={representativeOptions}
@@ -1821,8 +1862,8 @@ export default function Dashboard() {
                 {showUpgradeModal && selectedPlanForAction && (
                     <UpgradePlanModal
                         currentPlan={selectedPlanForAction}
-                        currentPlanConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
-                        allPlans={PLAN_CONFIGS}
+                        currentPlanConfig={dynamicPlanConfigs[selectedPlanForAction?.planId] || PLAN_CONFIGS[selectedPlanForAction?.planId]}
+                        allPlans={dynamicPlanConfigs}
                         onClose={() => {
                             setShowUpgradeModal(false);
                             setSelectedPlanForAction(null);
@@ -1840,7 +1881,7 @@ export default function Dashboard() {
                     <CancelPlanModal
                         key={`${selectedPlanForAction.id}-${cancelModalScope}`}
                         plan={selectedPlanForAction}
-                        planConfig={PLAN_CONFIGS[selectedPlanForAction?.planId]}
+                        planConfig={dynamicPlanConfigs[selectedPlanForAction?.planId] || PLAN_CONFIGS[selectedPlanForAction?.planId]}
                         linkedListing={getLinkedListingForPlan(selectedPlanForAction)}
                         cancelScope={cancelModalScope}
                         cancelError={cancelModalError}
@@ -1907,7 +1948,7 @@ export default function Dashboard() {
     function renderDashboard() {
         const renderPlanSubscriptionCard = (plan: any, mode: "active" | "past" = "active") => {
             const isPast = mode === "past";
-            const planConfig = PLAN_CONFIGS[plan.planId];
+            const planConfig = dynamicPlanConfigs[plan.planId] || PLAN_CONFIGS[plan.planId];
             // Current billing period start (updates on renewals); fall back to original purchase startDate.
             const startDate =
                 toDateValue(plan.billingPeriodStart) ||
@@ -2291,7 +2332,7 @@ export default function Dashboard() {
                                         <ul className="space-y-2">
                                             {livePlansSorted.map((plan) => {
 
-                                                const planConfig = PLAN_CONFIGS[plan.planId];
+                                                const planConfig = dynamicPlanConfigs[plan.planId] || PLAN_CONFIGS[plan.planId];
                                                 const groupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
                                                 const tierLabel = formatPlanTierLabel(plan, planConfig);
 
@@ -2400,7 +2441,7 @@ export default function Dashboard() {
                                             const listingGroup = inferListingGroup(offering);
                                             const listingName = getListingDisplayName(offering);
                                             const groupLabel = formatPlanGroupLabel(listingGroup);
-                                            const tierLabel = formatPlanTierLabel(offering, PLAN_CONFIGS[offering.selectedPlan || offering.planId]);
+                                            const tierLabel = formatPlanTierLabel(offering, dynamicPlanConfigs[offering.selectedPlan || offering.planId] || PLAN_CONFIGS[offering.selectedPlan || offering.planId]);
                                             return (
                                                 <div key={offering.id} className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                                     <div>

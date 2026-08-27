@@ -43,6 +43,7 @@ import 'react-phone-number-input/style.css';
 import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
 import { uploadJobDescriptionPdf, uploadEventAgendaPdf } from "@/lib/jobDescriptionUpload";
+import { usePlansConfig } from "@/hooks/usePlansConfig";
 
 import {
   BUSINESS_CATEGORIES,
@@ -200,6 +201,8 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   const [showCountriesDropdown, setShowCountriesDropdown] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
 
+  const { config: plansConfig } = usePlansConfig();
+
   // Convert "Business Offerings" -> "business_offerings"
   const getGroupKey = (groupName: string) => {
     switch (groupName) {
@@ -212,7 +215,27 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   };
 
   const groupKey = getGroupKey(formData.selectedGroup);
-  const currentLimits = PLAN_LIMITS[formData.selectedPlan] || { maxCategories: 0, maxCountries: 0 };
+  const currentLimits = useMemo(() => {
+    if (plansConfig && plansConfig.groups) {
+      for (const group of plansConfig.groups) {
+        for (const plan of group.plans) {
+          if (
+            plan.stripeMonthlyId === formData.selectedPlan ||
+            plan.stripeYearlyId === formData.selectedPlan ||
+            plan.id === formData.selectedPlan ||
+            plan.badge?.toLowerCase() === formData.selectedPlan.toLowerCase()
+          ) {
+            return {
+              maxCategories: plan.maxCategories ?? -1,
+              maxCountries: plan.maxCountries ?? -1
+            };
+          }
+        }
+      }
+    }
+    return PLAN_LIMITS[formData.selectedPlan] || { maxCategories: 0, maxCountries: 0 };
+  }, [plansConfig, formData.selectedPlan]);
+
   const canUseRegionHelper = currentLimits.maxCountries === -1;
 
   const categoryCount = useMemo(() => {
@@ -264,6 +287,33 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
   const getPlansForGroup = (groupName: string) => {
     const gk = getGroupKey(groupName);
+    const options: { value: string; label: string }[] = [
+      { value: 'none', label: 'No Plan (Free/Pending)' }
+    ];
+
+    if (plansConfig && plansConfig.groups && plansConfig.groups.length > 0) {
+      const groupId = gk === "consulting" ? "business_offerings" : gk;
+      const groupConfig = plansConfig.groups.find(g => g.id === groupId);
+      if (groupConfig && groupConfig.plans && groupConfig.plans.length > 0) {
+        for (const plan of groupConfig.plans) {
+          const val = plan.stripeMonthlyId || plan.id;
+          if (val) {
+            options.push({
+              value: val,
+              label: `${plan.badge}${groupConfig.hasAnnualToggle ? " (Monthly)" : ""} - $${plan.monthlyPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${groupConfig.hasAnnualToggle ? "" : "/mo"}`
+            });
+          }
+          if (plan.stripeYearlyId && groupConfig.hasAnnualToggle) {
+            options.push({
+              value: plan.stripeYearlyId,
+              label: `${plan.badge} (Annual) - $${plan.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+            });
+          }
+        }
+        return options;
+      }
+    }
+
     switch (gk) {
       case 'business_offerings': case 'consulting':
         return [
@@ -297,6 +347,21 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   };
 
   const getPlanDetailsText = (planId: string): string[] => {
+    if (!planId || planId === 'none') return [];
+    if (plansConfig && plansConfig.groups) {
+      for (const group of plansConfig.groups) {
+        for (const plan of group.plans) {
+          if (
+            plan.stripeMonthlyId === planId ||
+            plan.stripeYearlyId === planId ||
+            plan.id === planId ||
+            plan.badge?.toLowerCase() === planId.toLowerCase()
+          ) {
+            return plan.features || [];
+          }
+        }
+      }
+    }
     const gk = getGroupKey(formData.selectedGroup);
     if (gk === "events" || gk === "jobs") {
       return EVENT_JOB_PLAN_DETAILS[planId] || [];
