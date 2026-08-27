@@ -253,7 +253,7 @@ export default function ContactUs() {
                     <Card className="border-foreground/10 bg-background shadow-xl rounded-3xl p-6 sm:p-10">
                         <div className="text-center space-y-2 mb-8">
                             <h3 className="text-2xl sm:text-3xl font-extrabold text-foreground">
-                                Send Us a Message
+                                Send us a message
                             </h3>
                             <p className="text-sm text-muted-foreground max-w-md mx-auto">
                                 Fill out the details below and we will route your inquiry to the appropriate department.
