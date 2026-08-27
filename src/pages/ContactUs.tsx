@@ -138,7 +138,7 @@ export default function ContactUs() {
                     </p>
 
                     {/* Global Contact Bar (if set) */}
-                    {(config.globalPhone || config.globalHours || config.globalAddress) && (
+                    {(config.globalPhone || config.globalAddress) && (
                         <div className="pt-4 flex flex-wrap items-center justify-center gap-6 text-sm text-foreground/80 font-medium">
                             {config.globalPhone && (
                                 <a 
@@ -148,12 +148,6 @@ export default function ContactUs() {
                                     <Phone className="w-4 h-4 text-primary" />
                                     <span>{config.globalPhone}</span>
                                 </a>
-                            )}
-                            {config.globalHours && (
-                                <div className="flex items-center gap-2 bg-foreground/5 px-4 py-2 rounded-full border border-border">
-                                    <Clock className="w-4 h-4 text-primary" />
-                                    <span>{config.globalHours}</span>
-                                </div>
                             )}
                             {config.globalAddress && (
                                 <div className="flex items-center gap-2 bg-foreground/5 px-4 py-2 rounded-full border border-border">
