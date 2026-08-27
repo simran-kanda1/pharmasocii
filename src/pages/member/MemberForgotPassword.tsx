@@ -38,15 +38,9 @@ export default function MemberForgotPassword() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground relative overflow-hidden min-h-[80vh] px-4">
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[128px] pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-[128px] pointer-events-none" />
-
-      <div className="relative z-10 w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
-        <div className="flex flex-col items-center text-center">
-          <div className="inline-flex items-center py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
-            Password reset
-          </div>
+    <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground min-h-[80vh] px-4 py-12">
+      <div className="w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
+        <div className="flex flex-col items-start text-left">
           <h1 className="text-3xl font-bold tracking-tight mb-2">Reset password</h1>
           <p className="text-sm text-muted-foreground mb-6">
             Enter the email you used to register. We’ll send a link to set a new password.

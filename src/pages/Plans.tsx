@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, ArrowRight, Sparkles } from "lucide-react";
+import { Check, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePlansConfig, type PlanItem } from "@/hooks/usePlansConfig";
 
@@ -34,12 +34,6 @@ export default function Plans() {
 
     return (
         <div className="relative min-h-screen bg-slate-50/50 pb-24 pt-12">
-            {/* Background Decorative Blur Orbs */}
-            <div className="pointer-events-none absolute left-1/2 top-0 h-[600px] w-full max-w-7xl -translate-x-1/2 overflow-hidden opacity-30">
-                <div className="absolute -left-20 top-10 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
-                <div className="absolute right-0 top-40 h-96 w-96 rounded-full bg-blue-400/20 blur-3xl" />
-            </div>
-
             <div className="container relative mx-auto px-4 max-w-7xl">
                 {/* Header */}
                 <div className="text-center max-w-3xl mx-auto space-y-6 mb-12">
@@ -180,7 +174,7 @@ function PlanCard({
                 <div className="h-[56px] mb-5 flex items-center">
                     {extraFeatures.length > 0 ? (
                         <div className="w-full h-full bg-blue-50/90 border border-blue-200/90 rounded-xl px-3 py-1.5 flex items-center gap-2.5 shadow-sm">
-                            <Sparkles className="w-4 h-4 text-blue-600 shrink-0" />
+                            <Check className="w-4 h-4 text-blue-600 shrink-0" />
                             <div className="text-[11px] leading-tight flex-1">
                                 <span className="font-bold text-blue-700 block uppercase tracking-wider text-[9px]">
                                     Extra Feature

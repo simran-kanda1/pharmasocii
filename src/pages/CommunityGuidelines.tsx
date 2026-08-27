@@ -25,10 +25,8 @@ export default function CommunityGuidelines() {
     fetchPolicy();
   }, []);
   return (
-    <div className="flex-1 bg-background py-16 md:py-24 relative overflow-hidden">
-      <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/5 rounded-full blur-[120px] pointer-events-none" />
-
-      <div className="container mx-auto px-6 max-w-4xl relative z-10">
+    <div className="flex-1 bg-background py-16 md:py-24">
+      <div className="container mx-auto px-6 max-w-4xl">
         <div className="text-center mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-foreground">
             Community Guidelines

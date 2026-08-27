@@ -13,9 +13,7 @@ import {
     Wrench, 
     Handshake, 
     Scale, 
-    ArrowRight, 
-    MessageSquare,
-    Sparkles
+    ArrowRight
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -131,11 +129,6 @@ export default function ContactUs() {
             {/* HERO SECTION */}
             <section className="relative py-16 md:py-24 overflow-hidden border-b border-border/40 bg-gradient-to-b from-background via-background to-muted/20">
                 <div className="container mx-auto px-4 max-w-6xl text-center space-y-6">
-                    <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold tracking-wide">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>{config.subtitle || "Got Questions?"}</span>
-                    </div>
-
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-foreground leading-[1.1]">
                         {config.headline || "Contact Us"}
                     </h1>
@@ -286,10 +279,6 @@ export default function ContactUs() {
                 <div className="container mx-auto px-4 max-w-3xl">
                     <Card className="border-foreground/10 bg-background shadow-xl rounded-3xl p-6 sm:p-10">
                         <div className="text-center space-y-2 mb-8">
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wider">
-                                <MessageSquare className="w-3.5 h-3.5" />
-                                Direct Message
-                            </div>
                             <h3 className="text-2xl sm:text-3xl font-extrabold text-foreground">
                                 Send Us a Message
                             </h3>

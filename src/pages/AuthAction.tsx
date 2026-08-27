@@ -37,14 +37,7 @@ export default function AuthAction() {
                 ? "Email verified"
                 : "Authentication";
 
-    const badge =
-        mode === "resetPassword"
-            ? "Password reset"
-            : mode === "recoverEmail"
-              ? "Email recovery"
-              : mode === "verifyEmail"
-                ? "Email verification"
-                : "Account action";
+
 
     useEffect(() => {
         if (!mode || !oobCode) {
@@ -113,15 +106,9 @@ export default function AuthAction() {
     };
 
     return (
-        <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground relative overflow-hidden min-h-[80vh] px-4">
-            <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/20 rounded-full blur-[128px] pointer-events-none" />
-            <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-secondary/20 rounded-full blur-[128px] pointer-events-none" />
-
-            <div className="relative z-10 w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
+        <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground min-h-[80vh] px-4 py-12">
+            <div className="w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
                 <div className="flex flex-col items-center text-center mb-6">
-                    <div className="inline-flex items-center py-1 px-3 mb-6 rounded-full border border-foreground/10 bg-foreground/5 text-sm font-medium">
-                        {badge}
-                    </div>
                     <div className="flex items-center justify-center gap-2 mb-2">
                         {status === "loading" && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
                         {status === "success" && <CheckCircle className="h-6 w-6 text-emerald-600" />}
