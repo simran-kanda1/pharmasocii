@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { MapPin, Building2, Users, Search, ExternalLink, Calendar, Briefcase, X, ChevronLeft, ChevronRight, ChevronDown, ShieldCheck } from "lucide-react";
+import { MapPin, Building2, Users, Search, ExternalLink, Calendar, Briefcase, X, ChevronLeft, ChevronRight, ChevronDown, ShieldCheck, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -1207,20 +1207,80 @@ export default function AllCategories() {
                                     <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
                                     <div className="absolute right-0 top-0 bottom-0 w-32 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
 
-                                    <AutoCarousel speed={50} direction="left" innerClassName="gap-6 px-3 py-2">
-                                        {featuredBusinesses.map((fb, i) => (
-                                            <Link
-                                                to={`/listing/${currentTab}/${fb.id}`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                key={`${currentTab === "business" ? `${fb.partnerId || "na"}-` : ""}${fb.id}-${i}`} className="flex items-center justify-center min-w-[320px] max-w-[320px] p-6 h-32 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-lg transition-all cursor-pointer group shrink-0">
-                                                {fb.companyLogoUrl || fb.logoUrl ? (
-                                                    <img src={fb.companyLogoUrl || fb.logoUrl} alt={currentTab === "business" ? fb.businessName : fb.eventName || fb.jobTitle || ""} className="max-h-20 max-w-full object-contain" />
-                                                ) : (
-                                                    <span className="font-bold text-xl text-foreground group-hover:text-primary transition-colors text-center line-clamp-2">{currentTab === "business" ? fb.businessName : currentTab === "consulting" ? (fb.primaryName || fb.businessName || fb.companyName || "Consulting Listing") : currentTab === "events" ? fb.eventName : fb.jobTitle}</span>
-                                                )}
-                                            </Link>
-                                        ))}
+                                    <AutoCarousel speed={50} direction={currentTab === "jobs" || currentTab === "consulting" ? "right" : "left"} innerClassName="gap-6 px-3 py-4">
+                                        {featuredBusinesses.map((fb, i) => {
+                                            if (currentTab === "events") {
+                                                const dateObj = new Date(fb.startDate);
+                                                const month = isNaN(dateObj.getTime()) ? "" : dateObj.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+                                                const day = isNaN(dateObj.getTime()) ? "" : dateObj.getUTCDate();
+                                                return (
+                                                    <Link
+                                                        to={`/listing/events/${fb.id}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        key={`evt-${fb.id}-${i}`}
+                                                        className="flex flex-col sm:flex-row overflow-hidden bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[380px] max-w-[380px] h-[150px] shrink-0 text-left"
+                                                    >
+                                                        <div className="w-20 shrink-0 bg-foreground/5 group-hover:bg-foreground/10 flex flex-col items-center justify-center p-3 border-r border-foreground/10 transition-colors">
+                                                            <span className="text-xs font-semibold text-muted-foreground tracking-widest">{month}</span>
+                                                            <span className="text-2xl font-extrabold text-foreground">{day}</span>
+                                                        </div>
+                                                        <div className="flex flex-col p-4 w-full">
+                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1.5 gap-2 sm:gap-4">
+                                                                <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 truncate">
+                                                                    <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{fb.city?.trim() || fb.location?.trim() || fb.eventCountry || "Online"}</span>
+                                                                </div>
+                                                            </div>
+                                                            <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{fb.eventName || ""}</h3>
+                                                            <div className="mt-auto pt-2 border-t border-foreground/10 flex items-center justify-between text-muted-foreground group-hover:text-foreground font-medium text-xs w-full transition-colors">
+                                                                <span>View Event</span>
+                                                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                                            </div>
+                                                        </div>
+                                                    </Link>
+                                                );
+                                            }
+
+                                            if (currentTab === "jobs") {
+                                                return (
+                                                    <Link
+                                                        to={`/listing/jobs/${fb.id}`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        key={`job-${fb.id}-${i}`}
+                                                        className="flex flex-col p-5 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[340px] max-w-[340px] h-[150px] shrink-0 text-left"
+                                                    >
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <div className="text-[11px] font-medium text-muted-foreground tracking-wider border border-foreground/15 bg-foreground/5 rounded-full px-2.5 py-0.5 w-fit">
+                                                                {fb.workModel || "Job Opening"}
+                                                            </div>
+                                                            <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
+                                                                <MapPin className="w-3 h-3" /> {fb.city?.trim() || fb.location?.trim() || fb.jobCountry || "Remote"}
+                                                            </div>
+                                                        </div>
+                                                        <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{fb.jobTitle || ""}</h3>
+                                                        <div className="mt-auto pt-3 border-t border-foreground/10 flex items-center justify-between text-muted-foreground group-hover:text-foreground font-medium text-xs w-full transition-colors">
+                                                            <span>View Job</span>
+                                                            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                                        </div>
+                                                    </Link>
+                                                );
+                                            }
+
+                                            return (
+                                                <Link
+                                                    to={`/listing/${currentTab}/${fb.id}`}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    key={`${currentTab === "business" ? `${fb.partnerId || "na"}-` : ""}${fb.id}-${i}`}
+                                                    className="flex items-center justify-center text-center min-w-[260px] max-w-[260px] p-5 h-24 bg-background border border-foreground/10 rounded-xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group shrink-0"
+                                                >
+                                                    <h3 className="text-base md:text-lg font-semibold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-snug">
+                                                        {currentTab === "consulting" ? (fb.businessName || fb.companyName || fb.primaryName || "Consulting Listing") : (fb.businessName || fb.companyName || "")}
+                                                    </h3>
+                                                </Link>
+                                            );
+                                        })}
                                     </AutoCarousel>
                                 </div>
                             ) : (
