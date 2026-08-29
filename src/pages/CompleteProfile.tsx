@@ -28,15 +28,12 @@ import { toPhoneInputValue } from '@/lib/phone'
 import { usePlansConfig } from "@/hooks/usePlansConfig";
 import 'react-phone-number-input/style.css'
 
-// Import actual categories from AllCategories
 import {
-    BUSINESS_CATEGORIES,
-    CONSULTING_CATEGORIES,
-    EVENTS_CATEGORIES,
-    JOBS_CATEGORIES,
-    type SubcategoryEntry,
-    type CategoriesDict,
-} from "./AllCategories";
+    useDirectoryCategories,
+} from "@/hooks/useDirectoryCategories";
+import type {
+    SubcategoryEntry,
+} from "@/lib/defaultDirectoryCategories";
 
 interface CompanyRepresentative {
     firstName: string;
@@ -76,6 +73,7 @@ const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcat
 
 export default function CompleteProfile() {
     const { config, getLimitsForPlanId } = usePlansConfig();
+    const { getCategoriesForGroup } = useDirectoryCategories();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState("");
@@ -247,16 +245,7 @@ export default function CompleteProfile() {
     const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
     const canSelectAllCategories = currentLimits.maxCategories === -1;
 
-    // ─── Category tree helpers ───
-    function getCategoriesForGroup(group: string): CategoriesDict | Record<string, string[]> | null {
-        switch (group) {
-            case "business_offerings": return BUSINESS_CATEGORIES;
-            case "consulting": return CONSULTING_CATEGORIES;
-            case "events": return EVENTS_CATEGORIES;
-            case "jobs": return JOBS_CATEGORIES;
-            default: return null;
-        }
-    }
+
 
     const toggleExpandCategory = (cat: string) => {
         setExpandedCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);

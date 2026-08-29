@@ -46,13 +46,12 @@ import { uploadJobDescriptionPdf, uploadEventAgendaPdf } from "@/lib/jobDescript
 import { usePlansConfig } from "@/hooks/usePlansConfig";
 
 import {
-  BUSINESS_CATEGORIES,
-  CONSULTING_CATEGORIES,
-  EVENTS_CATEGORIES,
-  JOBS_CATEGORIES,
-  type SubcategoryEntry,
-  type CategoriesDict,
-} from "../../pages/AllCategories";
+  useDirectoryCategories,
+} from "@/hooks/useDirectoryCategories";
+import type {
+  SubcategoryEntry,
+  CategoriesDict,
+} from "@/lib/defaultDirectoryCategories";
 
 // ─── Plan limits ───
 interface PlanLimits {
@@ -128,6 +127,7 @@ const FEATURE_OPTIONS = [
 ];
 
 export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
+  const { getCategoriesForGroup: getDirectoryCategoriesForGroup } = useDirectoryCategories();
   const [activeStep, setActiveStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -382,14 +382,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   };
 
   const getCategoriesForGroup = (groupName: string): CategoriesDict | Record<string, string[]> | null => {
-    const gk = getGroupKey(groupName);
-    switch (gk) {
-      case "business_offerings": return BUSINESS_CATEGORIES;
-      case "consulting": return CONSULTING_CATEGORIES;
-      case "events": return EVENTS_CATEGORIES;
-      case "jobs": return JOBS_CATEGORIES;
-      default: return null;
-    }
+    return getDirectoryCategoriesForGroup(groupName);
   };
 
   // ─── Representative Helpers ───

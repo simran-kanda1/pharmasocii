@@ -77,7 +77,8 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
-import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES, type SubcategoryEntry } from "../AllCategories";
+import { useDirectoryCategories } from "@/hooks/useDirectoryCategories";
+import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES, type SubcategoryEntry } from "@/lib/defaultDirectoryCategories";
 import { DEFAULT_COMMUNITY_CATEGORIES } from "@/lib/defaultCommunityCategories";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import {
@@ -334,23 +335,14 @@ function CategoryTreeDropdown({
     selectedSubSubcategories: string[];
   }) => void;
 }) {
+  const { getCategoriesForGroup } = useDirectoryCategories();
   const [open, setOpen] = useState(false);
   const [expandedCats, setExpandedCats] = useState<string[]>([]);
   const [expandedSubs, setExpandedSubs] = useState<string[]>([]);
 
   const catDict = useMemo(() => {
-    const gk = (selectedGroup || "").toLowerCase().replace(" ", "_");
-    if (gk === "business_offerings" || gk === "business") {
-      return BUSINESS_CATEGORIES;
-    } else if (gk === "consulting_services" || gk === "consulting") {
-      return CONSULTING_CATEGORIES;
-    } else if (gk === "events") {
-      return EVENTS_CATEGORIES;
-    } else if (gk === "jobs") {
-      return JOBS_CATEGORIES;
-    }
-    return null;
-  }, [selectedGroup]);
+    return getCategoriesForGroup(selectedGroup);
+  }, [selectedGroup, getCategoriesForGroup]);
 
   // Auto-expand parents based on initial selection when opening the dropdown
   useEffect(() => {
@@ -3217,21 +3209,18 @@ function CategoryBreakdownTable({
   const [dbCategoriesMap, setDbCategoriesMap] = useState<Record<string, any>>({});
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
 
-  const fetchDbCategories = async () => {
-    try {
-      const snap = await getDocs(collection(db, "categoriesCollection"));
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "categoriesCollection"), (snap) => {
       const map: Record<string, any> = {};
       snap.docs.forEach((docSnap) => {
         map[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
       });
       setDbCategoriesMap(map);
-    } catch (err) {
-      console.error("Error fetching db categories:", err);
-    }
-  };
+    }, (err) => {
+      console.error("Error subscribing to db categories:", err);
+    });
 
-  useEffect(() => {
-    fetchDbCategories();
+    return () => unsub();
   }, []);
 
   const mergedRows = useMemo(() => {
@@ -3276,7 +3265,15 @@ function CategoryBreakdownTable({
       }
     });
 
-    return list;
+    return list.sort((a, b) => {
+      const gComp = (a.group || "").localeCompare(b.group || "", undefined, { sensitivity: "base" });
+      if (gComp !== 0) return gComp;
+      const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
+      if (cComp !== 0) return cComp;
+      const sComp = (a.subcategory || "").localeCompare(b.subcategory || "", undefined, { sensitivity: "base" });
+      if (sComp !== 0) return sComp;
+      return (a.subSubcategory || "").localeCompare(b.subSubcategory || "", undefined, { sensitivity: "base" });
+    });
   }, [rows, dbCategoriesMap]);
 
   return (
@@ -3347,7 +3344,6 @@ function CategoryBreakdownTable({
           onClose={() => setEditingCategory(null)}
           onSaved={() => {
             setEditingCategory(null);
-            fetchDbCategories();
           }}
         />
       )}

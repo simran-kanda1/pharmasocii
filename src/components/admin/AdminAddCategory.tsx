@@ -54,6 +54,10 @@ export function AdminAddCategory({ onCancel, onSuccess }: { onCancel: () => void
       // 1. Create the document in Firestore
       const docRef = await addDoc(collection(db, "categoriesCollection"), {
         ...formData,
+        group: formData.parentCategory,
+        category: formData.categoryName,
+        subcategory: "-",
+        subSubcategory: "-",
         imageUrl: "", // We will update this after upload
         createdAt: new Date(),
       });

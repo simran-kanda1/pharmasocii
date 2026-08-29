@@ -48,9 +48,11 @@ import PhoneInput from 'react-phone-number-input';
 import { toPhoneInputValue } from "@/lib/phone";
 import 'react-phone-number-input/style.css';
 import {
-    BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES,
-    type SubcategoryEntry, type CategoriesDict,
-} from "../AllCategories";
+    useDirectoryCategories,
+} from "@/hooks/useDirectoryCategories";
+import type {
+    SubcategoryEntry,
+} from "@/lib/defaultDirectoryCategories";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 import { usePlansConfig } from "@/hooks/usePlansConfig";
 
@@ -3282,16 +3284,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
         return selectedUnits.size;
     }, [selectedCategories, selectedSubcategories, selectedSubSubcategories]);
     const isCategoryLimitReached = maxCategories !== -1 && categoryCount >= maxCategories;
-
-    function getCategoriesForGroup(group: string): CategoriesDict | Record<string, string[]> | null {
-        switch (group) {
-            case "business_offerings": return BUSINESS_CATEGORIES;
-            case "consulting": return CONSULTING_CATEGORIES;
-            case "events": return EVENTS_CATEGORIES;
-            case "jobs": return JOBS_CATEGORIES;
-            default: return null;
-        }
-    }
+    const { getCategoriesForGroup } = useDirectoryCategories();
 
     // Filter countries based on search
     const filteredCountries = SERVICE_COUNTRIES.filter(c =>

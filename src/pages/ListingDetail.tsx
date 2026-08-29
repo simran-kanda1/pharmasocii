@@ -10,7 +10,7 @@ import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedi
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES } from "./AllCategories";
+import { useDirectoryCategories } from "@/hooks/useDirectoryCategories";
 import { REGION_COUNTRY_MAP } from "@/constants/regions";
 import { matchCategoryOrSub } from "@/lib/categorySelection";
 
@@ -19,6 +19,7 @@ import { matchCategoryOrSub } from "@/lib/categorySelection";
 const Skeleton = ({ className }: { className: string }) => <div className={`animate-pulse bg-muted rounded ${className}`} />;
 
 export default function ListingDetail() {
+    const { businessCategories, consultingCategories } = useDirectoryCategories();
     const BUSINESS_LOOKUP_LIMIT = 10000;
     const { type, id } = useParams<{ type: string; id: string }>();
     const [item, setItem] = useState<any>(null);
@@ -241,7 +242,7 @@ export default function ListingDetail() {
 
         const normalize = (s: any) => (typeof s === 'string' ? s.toLowerCase().trim() : "");
 
-        const categoriesDict = type === "business" ? BUSINESS_CATEGORIES : CONSULTING_CATEGORIES;
+        const categoriesDict = type === "business" ? businessCategories : consultingCategories;
 
         const grouped = (selectedAreas as string[]).map(area => {
             const areaConfig = (categoriesDict as any)[area] || [];

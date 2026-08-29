@@ -19,9 +19,11 @@ import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPd
 
 
 import {
-    BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES,
-    type SubcategoryEntry, type CategoriesDict,
-} from "../AllCategories";
+    useDirectoryCategories,
+} from "@/hooks/useDirectoryCategories";
+import type {
+    SubcategoryEntry,
+} from "@/lib/defaultDirectoryCategories";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 import { getFriendlyErrorMessage } from "@/lib/errorHandler";
 import { usePlansConfig } from "@/hooks/usePlansConfig";
@@ -177,6 +179,7 @@ function MultiSelectDropdown({ label, items, selected, onToggle, open, onToggleO
 
 export default function AddListing() {
     const navigate = useNavigate();
+    const { getCategoriesForGroup } = useDirectoryCategories();
     const { type } = useParams<{ type: string }>();
     const groupKey = type || "offerings";
     const config = GROUP_CONFIG[groupKey];
@@ -333,15 +336,7 @@ export default function AddListing() {
     const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
 
 
-    function getCategoriesForGroup(group: string): CategoriesDict | Record<string, string[]> | null {
-        switch (group) {
-            case "business_offerings": return BUSINESS_CATEGORIES;
-            case "consulting": return CONSULTING_CATEGORIES;
-            case "events": return EVENTS_CATEGORIES;
-            case "jobs": return JOBS_CATEGORIES;
-            default: return null;
-        }
-    }
+
 
     const toggleExpandCategory = (cat: string) => setExpandedCategories(prev => prev.includes(cat) ? prev.filter(c => c !== cat) : [...prev, cat]);
     const toggleExpandSubcategory = (sub: string) => setExpandedSubcategories(prev => prev.includes(sub) ? prev.filter(s => s !== sub) : [...prev, sub]);
