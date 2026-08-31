@@ -10,7 +10,7 @@ export function Footer() {
                         <h4 className="font-semibold text-sm tracking-wider">Explore</h4>
                         <ul className="space-y-3 text-sm text-muted-foreground">
                             <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Business Offerings</Link></li>
-                            <li><Link to="/community" className="hover:text-primary transition-colors">Community</Link></li>
+                            <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Community</Link></li>
                             <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Consulting</Link></li>
                             <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Events</Link></li>
                             <li><Link to="/preview-notice" className="hover:text-primary transition-colors">Jobs</Link></li>

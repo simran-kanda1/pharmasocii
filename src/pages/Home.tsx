@@ -1,33 +1,17 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, PlayCircle, ShieldCheck, Building2, Users, Calendar, Briefcase, MessageSquare, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 import { AutoCarousel } from "@/components/ui/auto-carousel";
-import { auth, db } from "@/firebase";
-import { collection, collectionGroup, query, where, limit, getDocs, orderBy, doc, getDoc } from "firebase/firestore";
+import { db } from "@/firebase";
+import { collection, collectionGroup, query, limit, getDocs } from "firebase/firestore";
 import {
     buildLiveListingKeySet,
     isPartnerListingPublic,
     resolveSpotlightPlacement,
 } from "@/lib/partnerListingPublic";
-import { onAuthStateChanged } from "firebase/auth";
-import { PostCard } from "@/components/community/PostCard";
-import { useCommunityCategories } from "@/hooks/useCommunityCategories";
-
-import {
-    loadMemberEngagementIds,
-    togglePostHelpful,
-    toggleSavedPost,
-} from "@/lib/communityEngagement";
-import {
-    canEngageCommunity,
-    canReportCommunitySpam,
-    canSaveCommunityContent,
-    canShareCommunityContent,
-    communityAccessHint,
-} from "@/lib/communityAccess";
 
 const FEATURE_FETCH_LIMIT = 5000;
 /** When no rows match paid home spotlight, still show recent active listings so the home page is not empty. */
@@ -83,90 +67,10 @@ function featuredRecencyMs(item: Record<string, any>): number {
 }
 
 export default function Home() {
-    const { categoryDoc } = useCommunityCategories();
     const [featuredBusinesses, setFeaturedBusinesses] = useState<any[]>([]);
     const [featuredJobs, setFeaturedJobs] = useState<any[]>([]);
     const [featuredEvents, setFeaturedEvents] = useState<any[]>([]);
     const [featuredConsulting, setFeaturedConsulting] = useState<any[]>([]);
-    const [communityHighlights, setCommunityHighlights] = useState<any[]>([]);
-    const [user, setUser] = useState<import("firebase/auth").User | null>(null);
-    const [verified, setVerified] = useState(false);
-    const [hasMemberProfile, setHasMemberProfile] = useState(false);
-    const [memberRestricted, setMemberRestricted] = useState(false);
-    const [savedPostIds, setSavedPostIds] = useState<Set<string>>(new Set());
-    const [helpfulPostIds, setHelpfulPostIds] = useState<Set<string>>(new Set());
-
-    useEffect(() => {
-        const unsub = onAuthStateChanged(auth, async (u) => {
-            setUser(u);
-            if (!u) {
-                setVerified(false);
-                setHasMemberProfile(false);
-                setMemberRestricted(false);
-                setSavedPostIds(new Set());
-                setHelpfulPostIds(new Set());
-                return;
-            }
-            await u.reload();
-            setVerified(u.emailVerified);
-            const m = await getDoc(doc(db, "membersCollection", u.uid));
-            setHasMemberProfile(m.exists());
-            const st = m.data()?.accountStatus;
-            setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
-            if (m.exists()) {
-                const engagement = await loadMemberEngagementIds(u.uid);
-                setSavedPostIds(engagement.savedPostIds);
-                setHelpfulPostIds(engagement.helpfulPostIds);
-            } else {
-                setSavedPostIds(new Set());
-                setHelpfulPostIds(new Set());
-            }
-        });
-        return () => unsub();
-    }, []);
-
-    const canEngage = canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
-    const canShare = canShareCommunityContent();
-    const canReport = canReportCommunitySpam(user, verified, hasMemberProfile, memberRestricted);
-    const canSave = canSaveCommunityContent(user, verified, hasMemberProfile, memberRestricted);
-    const engageHint = communityAccessHint(memberRestricted, user, verified, hasMemberProfile);
-
-    const toggleSavePost = useCallback(async (postId: string) => {
-        if (!canSave || !user) return;
-        try {
-            const nowSaved = await toggleSavedPost(user.uid, postId, savedPostIds.has(postId));
-            setSavedPostIds((prev) => {
-                const next = new Set(prev);
-                if (nowSaved) next.add(postId);
-                else next.delete(postId);
-                return next;
-            });
-        } catch (e) {
-            console.error(e);
-        }
-    }, [canSave, user, savedPostIds]);
-
-    const toggleHelpfulPost = useCallback(async (postId: string) => {
-        if (!canEngage || !user) return;
-        try {
-            const nowHelpful = await togglePostHelpful(user.uid, postId, helpfulPostIds.has(postId));
-            setHelpfulPostIds((prev) => {
-                const next = new Set(prev);
-                if (nowHelpful) next.add(postId);
-                else next.delete(postId);
-                return next;
-            });
-            setCommunityHighlights((prev) =>
-                prev.map((p) =>
-                    p.id === postId
-                        ? { ...p, likeCount: Math.max(0, Number(p.likeCount ?? 0) + (nowHelpful ? 1 : -1)) }
-                        : p,
-                ),
-            );
-        } catch (e) {
-            console.error(e);
-        }
-    }, [canEngage, user, helpfulPostIds]);
 
     useEffect(() => {
         const fetchFeaturedData = async () => {
@@ -250,19 +154,6 @@ export default function Home() {
             }
             setFeaturedConsulting(pickSpotlightOrRecent(consultingRows, isHomeSpotlight, FALLBACK_CAROUSEL_CAP));
 
-            try {
-                const postsQ = query(
-                    collection(db, "postsCollection"),
-                    where("archived", "==", false),
-                    orderBy("createdAt", "desc"),
-                    limit(5),
-                );
-                const postsSnap = await getDocs(postsQ);
-                setCommunityHighlights(postsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-            } catch (postsErr) {
-                console.error("Failed to load community highlights:", postsErr);
-                setCommunityHighlights([]);
-            }
         };
         fetchFeaturedData();
     }, []);
@@ -333,53 +224,7 @@ export default function Home() {
                 </div>
             </section>
 
-            {/* COMMUNITY HIGHLIGHTS */}
-            <section className="py-24 bg-muted/40 border-y border-foreground/10 relative">
-                <div className="container mx-auto px-6 md:px-12 max-w-7xl">
-                    <SectionHeader
-                        title="Community Highlights"
-                        subtitle="Where people, expertise, & ideas connect"
-                        action={
-                            <div className="flex flex-wrap gap-3">
-                                <Button asChild size="lg" variant="outline" className="rounded-full">
-                                    <Link to="/member/register">Join community</Link>
-                                </Button>
-                                <Button asChild size="lg" className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-md font-semibold px-8 h-12 rounded-full border-none">
-                                    <Link to="/community">View community <ArrowRight className="ml-2 w-4 h-4" /></Link>
-                                </Button>
-                            </div>
-                        }
-                    />
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-12">
-                        {communityHighlights.length === 0 ? (
-                            <p className="text-muted-foreground col-span-full">No community posts yet.</p>
-                        ) : (
-                            communityHighlights.map((p) => (
-                                <PostCard
-                                    key={p.id}
-                                    post={p}
-                                    categoryDoc={categoryDoc}
-                                    showActionBar={Boolean(user)}
-                                    canEngage={canEngage}
-                                    canShare={canShare}
-                                    canReport={canReport}
-                                    hideContent={true}
-                                    hideTimestamp={true}
-                                    canSave={canSave}
-                                    engageHint={engageHint}
-                                    saved={savedPostIds.has(p.id)}
-                                    helpful={helpfulPostIds.has(p.id)}
-                                    onToggleSave={() => toggleSavePost(p.id)}
-                                    onToggleHelpful={() => toggleHelpfulPost(p.id)}
-                                />
-                            ))
-                        )}
-                    </div>
-                </div>
-            </section>
-
-{/* BUSINESS OFFERINGS CAROUSEL */}
+            {/* BUSINESS OFFERINGS CAROUSEL */}
             <section className="py-20 bg-background relative z-10 overflow-hidden">
                 <div className="container mx-auto px-4 mb-8">
                     <div className="text-center max-w-4xl mx-auto">
@@ -522,23 +367,6 @@ export default function Home() {
 
         </div>
     );
-}
-
-// Helper components
-
-function SectionHeader({ title, subtitle, icon, action }: { title: string, subtitle: string, icon?: React.ReactNode, action?: React.ReactNode }) {
-    return (
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-foreground/10">
-            <div>
-                <div className="inline-flex items-center gap-3 mb-2">
-                    {icon && <div className="p-2 rounded-lg bg-foreground/5 border border-foreground/10">{icon}</div>}
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">{title}</h2>
-                </div>
-                <p className="text-muted-foreground text-sm md:text-base">{subtitle}</p>
-            </div>
-            {action && <div>{action}</div>}
-        </div>
-    )
 }
 
 

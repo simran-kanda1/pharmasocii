@@ -20,9 +20,6 @@ export default function PreviewNotice() {
                 <Button asChild variant="outline">
                     <Link to="/about">About Us</Link>
                 </Button>
-                <Button asChild variant="outline">
-                    <Link to="/community">Community</Link>
-                </Button>
             </div>
         </div>
     );
