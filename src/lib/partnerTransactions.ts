@@ -10,6 +10,8 @@ export type PartnerTransactionRow = {
     type: string;
     typeLabel: string;
     description: string;
+    planDisplay: string;
+    eventDisplay: string;
     planId: string | null;
     featureId: string | null;
     group: string | null;
@@ -46,6 +48,14 @@ function firestoreDateToDate(createdAt: { seconds?: number } | null | undefined)
     return new Date(createdAt.seconds * 1000);
 }
 
+function formatPaddedDate(d: Date | null): string {
+    if (!d) return "N/A";
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${month}/${day}/${year}`;
+}
+
 function cleanTitleCase(str: string): string {
     if (!str) return "";
     return str
@@ -54,6 +64,103 @@ function cleanTitleCase(str: string): string {
         .filter(Boolean)
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
+}
+
+function cleanPlanCycle(str: string): string {
+    const s = str
+        .replace(/\bYr\b/g, "Yearly")
+        .replace(/\bMo\b/g, "Monthly")
+        .replace(/\byr\b/g, "Yearly")
+        .replace(/\bmo\b/g, "Monthly");
+    return cleanTitleCase(s);
+}
+
+function formatCleanPlanName(
+    type: string,
+    planId: string | null,
+    featureId: string | null,
+    rawDesc?: string | null,
+    planName?: string | null
+): string {
+    if (type === "feature" || featureId) {
+        const f = (featureId || "").toLowerCase();
+        if (f === "home_page" || /home page/i.test(rawDesc || "")) return "Home Page Spotlight";
+        if (f === "landing_page" || /landing page/i.test(rawDesc || "")) return "Landing Page Spotlight";
+        if (f === "both" || /both/i.test(rawDesc || "")) return "Both (Module & Home Page)";
+        if (f) return `${cleanTitleCase(f.replace(/_/g, " "))} Spotlight`;
+        return "Spotlight Feature";
+    }
+
+    if (planName && typeof planName === "string" && planName.trim()) {
+        const pn = planName.trim();
+        if (!/^(Plan|Feature):/i.test(pn)) {
+            return cleanPlanCycle(pn);
+        }
+    }
+
+    if (planId) {
+        const p = planId.toLowerCase();
+        const isYearly = p.endsWith("_yr") || p.endsWith("_yearly") || p.includes("year");
+        const isMonthly = p.endsWith("_mo") || p.endsWith("_monthly") || p.includes("month");
+        const cycle = isYearly ? "Yearly" : isMonthly ? "Monthly" : "";
+
+        const baseTier = p
+            .replace(/_yr$/, "")
+            .replace(/_mo$/, "")
+            .replace(/_yearly$/, "")
+            .replace(/_monthly$/, "");
+
+        let tierLabel = "";
+        if (baseTier === "basic_event") tierLabel = "Basic Event";
+        else if (baseTier === "standard_event") tierLabel = "Standard Event";
+        else if (baseTier === "premium_event") tierLabel = "Premium Event";
+        else if (baseTier === "premium_plus_event") tierLabel = "Premium Plus Event";
+        else if (baseTier === "basic_job") tierLabel = "Basic Job";
+        else if (baseTier === "standard_job") tierLabel = "Standard Job";
+        else if (baseTier === "premium_job") tierLabel = "Premium Job";
+        else if (baseTier === "premium_plus_job") tierLabel = "Premium Plus Job";
+        else if (baseTier === "premium_plus") tierLabel = "Premium Plus";
+        else if (baseTier === "premium") tierLabel = "Premium";
+        else if (baseTier === "standard") tierLabel = "Standard";
+        else if (baseTier === "basic") tierLabel = "Basic";
+        else if (baseTier === "enterprise") tierLabel = "Enterprise";
+        else tierLabel = cleanTitleCase(baseTier.replace(/_/g, " "));
+
+        if (cycle && !tierLabel.toLowerCase().includes(cycle.toLowerCase())) {
+            return `${tierLabel} ${cycle}`;
+        }
+        return tierLabel;
+    }
+
+    if (rawDesc && typeof rawDesc === "string" && rawDesc.trim()) {
+        const cleaned = rawDesc
+            .replace(/^Plan upgrade:\s*/i, "")
+            .replace(/\(prorated\)/i, "")
+            .replace(/^Spotlight:\s*/i, "")
+            .trim();
+        if (cleaned) return cleanPlanCycle(cleaned);
+    }
+
+    return "Standard Monthly";
+}
+
+function formatCleanEvent(
+    _type: string,
+    isUpgrade: boolean,
+    rawDesc?: string | null,
+    eventType?: string | null,
+    previousPlanId?: string | null,
+    previousFeatureId?: string | null
+): string {
+    const desc = (rawDesc || "").toLowerCase();
+    const evt = (eventType || "").toLowerCase();
+    if (isUpgrade || previousPlanId || previousFeatureId || desc.includes("upgrade") || evt.includes("upgrade")) {
+        return desc.includes("prorated") || isUpgrade ? "Upgrade (prorated)" : "Upgrade";
+    }
+    if (desc.includes("renewal") || evt.includes("renewal")) {
+        return "Renewal";
+    }
+    return "Initial";
 }
 
 function formatCleanDescription(type: string, planId: string | null, featureId: string | null, rawDesc?: string | null, previousFeatureId?: string | null, previousPlanId?: string | null, isUpgrade?: boolean): string {
@@ -146,7 +253,7 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
     const t = doc as Record<string, unknown>;
     const created = firestoreDateToDate(t.createdAt as { seconds?: number } | undefined);
     const createdAtIso = created ? created.toISOString() : "";
-    const dateDisplay = created ? created.toLocaleDateString() : "N/A";
+    const dateDisplay = formatPaddedDate(created);
 
     const type = String(t.type || "");
     const planId = (t.planId as string) || null;
@@ -155,7 +262,10 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
     const previousPlanId = (t.previousPlanId as string) || (t.fromPlanId as string) || null;
     const isUpgrade = t.isUpgrade === true || Boolean(previousFeatureId) || Boolean(previousPlanId) || Boolean(t.upgradeFlow);
     const rawDesc = t.description ? String(t.description) : null;
+    const planName = t.planName ? String(t.planName) : null;
     const description = formatCleanDescription(type, planId, featureId, rawDesc, previousFeatureId, previousPlanId, isUpgrade);
+    const planDisplay = formatCleanPlanName(type, planId, featureId, rawDesc, planName);
+    const eventDisplay = formatCleanEvent(type, isUpgrade, rawDesc, t.eventType as string, previousPlanId, previousFeatureId);
 
     const amountNumeric = typeof t.amount === "number" && Number.isFinite(t.amount) ? t.amount : 0;
     const taxAmountNumeric = typeof t.taxAmount === "number" && Number.isFinite(t.taxAmount)
@@ -200,6 +310,8 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
         type,
         typeLabel: type === "feature" ? "Feature" : type === "listing" ? "Listing" : type || "—",
         description,
+        planDisplay,
+        eventDisplay,
         planId,
         featureId,
         group: groupDisplay,

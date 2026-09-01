@@ -31,17 +31,17 @@ export function transactionRowToExportRecord(row: PartnerTransactionRow): Record
         Date: row.dateDisplay,
         "ISO date": row.createdAtIso,
         Type: row.typeLabel,
-        Description: row.description,
-        "Upgrade / Item For": row.upgradeFor || row.targetTitle || "",
         Group: row.group || "",
-        "Plan ID": row.planId || "",
-        "Feature ID": row.featureId || "",
-        "Business name": row.businessName || "",
-        "Partner ID": row.partnerId || "",
+        Plan: row.planDisplay || row.description || "",
+        Event: row.eventDisplay || "Initial",
         Amount: row.amountNumeric,
         "Amount (display)": row.amountDisplay,
         Currency: row.currency,
         Status: row.statusLabel,
+        "Plan ID": row.planId || "",
+        "Feature ID": row.featureId || "",
+        "Business name": row.businessName || "",
+        "Partner ID": row.partnerId || "",
         "Payment method": row.paymentMethod,
         "Session ID": row.sessionId || "",
         "Invoice ID": row.invoiceId || "",
@@ -98,15 +98,13 @@ export function downloadPartnerTransactionsPdf(rows: PartnerTransactionRow[]): v
     doc.text("Pharma SocII — transactions", 14, 12);
     doc.setFontSize(8);
 
-    const head = [["Date", "Partner", "Business", "Type", "Description", "Upgrade For", "Group", "Amount", "Status"]];
+    const head = [["Date", "Type", "Group", "Plan", "Event", "Amount", "Status"]];
     const body = rows.map((r) => [
         r.dateDisplay,
-        r.customerEmail || r.partnerId || "—",
-        r.businessName || "—",
         r.typeLabel,
-        r.description,
-        r.upgradeFor || r.targetTitle || "—",
         r.group || "—",
+        r.planDisplay || r.description || "—",
+        r.eventDisplay || "Initial",
         r.amountDisplay,
         r.statusLabel,
     ]);

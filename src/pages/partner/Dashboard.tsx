@@ -3097,14 +3097,14 @@ export default function Dashboard() {
                                         <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Type
                                         </th>
-                                        <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10">
-                                            Description
-                                        </th>
                                         <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Group
                                         </th>
+                                        <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10">
+                                            Plan
+                                        </th>
                                         <th className="text-left font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
-                                            Upgrade For
+                                            Event
                                         </th>
                                         <th className="text-right font-semibold text-foreground/80 tracking-wide text-xs px-3 py-2.5 border-r border-foreground/10 whitespace-nowrap">
                                             Amount
@@ -3136,17 +3136,17 @@ export default function Dashboard() {
                                                 <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 whitespace-nowrap align-top">
                                                     {txn.typeLabel}
                                                 </td>
-                                                <td className="px-3 py-2 border-r border-foreground/10 text-foreground align-top max-w-[220px]">
-                                                    <span className="line-clamp-2" title={txn.description}>
-                                                        {txn.description}
-                                                    </span>
-                                                </td>
                                                 <td className="px-3 py-2 border-r border-foreground/10 text-muted-foreground capitalize align-top whitespace-nowrap">
                                                     {txn.group || "—"}
                                                 </td>
-                                                <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 align-top max-w-[180px]">
-                                                    <span className="line-clamp-1 text-xs" title={txn.upgradeFor || txn.targetTitle || "—"}>
-                                                        {txn.upgradeFor || txn.targetTitle || "—"}
+                                                <td className="px-3 py-2 border-r border-foreground/10 text-foreground font-medium align-top max-w-[200px]">
+                                                    <span className="line-clamp-2" title={txn.planDisplay || txn.description}>
+                                                        {txn.planDisplay || txn.description}
+                                                    </span>
+                                                </td>
+                                                <td className="px-3 py-2 border-r border-foreground/10 text-foreground/90 align-top whitespace-nowrap">
+                                                    <span className={txn.eventDisplay?.toLowerCase().includes("upgrade") ? "text-primary font-medium" : ""}>
+                                                        {txn.eventDisplay || "Initial"}
                                                     </span>
                                                 </td>
                                                 <td className="px-3 py-2 border-r border-foreground/10 text-right font-semibold tabular-nums text-foreground align-top whitespace-nowrap">
@@ -3238,16 +3238,16 @@ export default function Dashboard() {
                                         <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Group</dt>
                                         <dd className="text-foreground mt-0.5 capitalize">{detail.group || "—"}</dd>
                                     </div>
-                                    <div>
-                                        <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Plan Description</dt>
-                                        <dd className="text-foreground mt-0.5 font-medium">{detail.description}</dd>
-                                    </div>
-                                    {(detail.upgradeFor || detail.targetTitle) && (
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Upgrade / Item For</dt>
-                                            <dd className="text-foreground mt-0.5 font-medium">{detail.upgradeFor || detail.targetTitle}</dd>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Plan</dt>
+                                            <dd className="text-foreground mt-0.5 font-medium">{detail.planDisplay || detail.description || "—"}</dd>
                                         </div>
-                                    )}
+                                        <div>
+                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Event</dt>
+                                            <dd className="text-foreground mt-0.5 font-medium">{detail.eventDisplay || "Initial"}</dd>
+                                        </div>
+                                    </div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                         <div>
                                             <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Invoice Number</dt>
