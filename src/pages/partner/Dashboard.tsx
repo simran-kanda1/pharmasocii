@@ -4455,6 +4455,14 @@ interface UpgradePlanModalProps {
 function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, onUpgrade, processing }: UpgradePlanModalProps) {
     const [selectedPlan, setSelectedPlan] = useState<string>("");
 
+    const isJobOrEvent =
+        currentPlan?.collectionName === "eventsCollection" ||
+        currentPlan?.collectionName === "jobsCollection" ||
+        currentPlan?.group === "events" ||
+        currentPlan?.group === "jobs" ||
+        String(currentPlan?.planId || "").includes("_event") ||
+        String(currentPlan?.planId || "").includes("_job");
+
     const upgradePlanIds = getAvailablePlanUpgradeIds(currentPlan.planId, currentPlan.collectionName);
     const upgradePlans = upgradePlanIds
         .map((id) => [id, allPlans[id]] as const)
@@ -4484,9 +4492,11 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                         <p className="text-sm text-muted-foreground">Current plan</p>
                         <p className="text-lg font-bold text-foreground">{currentPlanConfig?.label}</p>
                         <p className="text-sm text-foreground/80">{currentPlanConfig?.price}{currentPlanConfig?.period}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                            {currentPlanConfig?.maxCategories === -1 ? "Unlimited" : currentPlanConfig?.maxCategories} categories, {currentPlanConfig?.maxCountries === -1 ? "Unlimited" : currentPlanConfig?.maxCountries} countries
-                        </p>
+                        {!isJobOrEvent && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                                {currentPlanConfig?.maxCategories === -1 ? "Unlimited" : currentPlanConfig?.maxCategories} categories, {currentPlanConfig?.maxCountries === -1 ? "Unlimited" : currentPlanConfig?.maxCountries} countries
+                            </p>
+                        )}
                     </div>
 
                     {upgradePlans.length === 0 ? (
@@ -4500,6 +4510,7 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                             <p className="text-sm font-medium text-foreground">Select a plan to upgrade to:</p>
                             <div className="space-y-3">
                                 {upgradePlans.map(([id, config]) => {
+                                    const isPlanJobOrEvent = isJobOrEvent || id.includes("_event") || id.includes("_job");
                                     return (
                                         <button
                                             key={id}
@@ -4520,9 +4531,11 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                                                         )}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground mt-0.5">{config.subtitle}</p>
-                                                    <p className="text-xs text-muted-foreground mt-1">
-                                                        {config.maxCategories === -1 ? "Unlimited" : config.maxCategories} categories, {config.maxCountries === -1 ? "Unlimited" : config.maxCountries} countries
-                                                    </p>
+                                                    {!isPlanJobOrEvent && (
+                                                        <p className="text-xs text-muted-foreground mt-1">
+                                                            {config.maxCategories === -1 ? "Unlimited" : config.maxCategories} categories, {config.maxCountries === -1 ? "Unlimited" : config.maxCountries} countries
+                                                        </p>
+                                                    )}
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-lg font-bold text-foreground">{config.price}<span className="text-sm font-normal text-muted-foreground">{config.period}</span></p>
