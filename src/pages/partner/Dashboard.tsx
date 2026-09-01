@@ -2350,10 +2350,10 @@ export default function Dashboard() {
                         <CardHeader className="pb-4 border-b border-foreground/10">
                             <CardTitle className="text-xl flex items-center gap-2"><Building className="w-5 h-5 text-primary" /> Business Information</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-5 pt-6">
+                        <CardContent className="space-y-4 pt-6">
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground tracking-wider mb-1">Company Name</p>
-                                <p className="text-2xl text-foreground font-bold">{partnerData.businessName}</p>
+                                <p className="text-xs font-medium text-muted-foreground tracking-wider mb-1">Company Name</p>
+                                <p className="text-base text-foreground font-semibold">{partnerData.businessName}</p>
                             </div>
                             <div className="grid grid-cols-1 gap-4 bg-muted/40 p-4 rounded-lg border border-foreground/10">
                                 {livePlansSorted.length > 0 ? (
@@ -2388,11 +2388,13 @@ export default function Dashboard() {
                                     </div>
                                 )}
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div>
-                                    <p className="text-sm font-medium text-muted-foreground flex items-center gap-2 mb-1"><FileText className="w-4 h-4" /> Business Tax ID</p>
-                                    <p className="text-foreground/90 font-medium pl-6">{partnerData.VAT_ABN_EIN_businessId || "To be added"}</p>
-                                </div>
+                            <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
+                                <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1 flex items-center gap-1.5">
+                                    <FileText className="w-3.5 h-3.5 text-muted-foreground" /> Business Tax ID
+                                </p>
+                                <p className={`text-xs ${partnerData.VAT_ABN_EIN_businessId ? "text-foreground font-medium" : "text-muted-foreground"}`}>
+                                    {partnerData.VAT_ABN_EIN_businessId || "To be added"}
+                                </p>
                             </div>
                         </CardContent>
                     </Card>
@@ -2402,10 +2404,10 @@ export default function Dashboard() {
                         <CardHeader className="pb-4 border-b border-foreground/10">
                             <CardTitle className="text-xl flex items-center gap-2"><Mail className="w-5 h-5 text-secondary" /> Contact Details</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-5 pt-6">
+                        <CardContent className="space-y-4 pt-6">
                             <div>
-                                <p className="text-sm font-medium text-muted-foreground tracking-wider mb-1">Primary Representative</p>
-                                <p className="text-xl text-foreground font-bold">{partnerData.primaryName}</p>
+                                <p className="text-xs font-medium text-muted-foreground tracking-wider mb-1">Primary Representative</p>
+                                <p className="text-base text-foreground font-normal">{partnerData.primaryName}</p>
                             </div>
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3">
@@ -2417,15 +2419,6 @@ export default function Dashboard() {
                                     <div><p className="text-xs font-medium text-muted-foreground tracking-wider">Phone</p><p className="text-foreground font-medium">{partnerData.phoneNumber || partnerData.businessPhoneNumber || "N/A"}</p></div>
                                 </div>
                             </div>
-                            {(partnerData.secondaryName || partnerData.secondaryEmail) && (
-                                <div className="pt-5 border-t border-foreground/10 mt-5">
-                                    <p className="text-sm font-bold text-primary mb-3 tracking-wider">Alternate Contact</p>
-                                    <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
-                                        {partnerData.secondaryName && <p className="text-foreground font-semibold mb-1">{partnerData.secondaryName}</p>}
-                                        {partnerData.secondaryEmail && <p className="text-foreground/80 text-sm">{partnerData.secondaryEmail}</p>}
-                                    </div>
-                                </div>
-                            )}
                         </CardContent>
                     </Card>
                 </div>
