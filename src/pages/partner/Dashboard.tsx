@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "@/firebase";
-import { doc, getDoc, updateDoc, collection, query, onSnapshot, where, writeBatch, getDocs } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteDoc, collection, query, onSnapshot, where, writeBatch, getDocs } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
 import { onAuthStateChanged, signOut, updatePassword, EmailAuthProvider, reauthenticateWithCredential, reload } from "firebase/auth";
 import { API_BASE_URL } from "@/apiConfig";
@@ -28,7 +28,7 @@ import {
     PlusCircle, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
     CreditCard, Star, Sparkles, Crown, Check, X,
-    Edit3, ArrowUpCircle, Globe, Tag, Search
+    Edit3, ArrowUpCircle, Globe, Tag, Search, Trash2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -451,6 +451,36 @@ export default function Dashboard() {
     const [txnMonth, setTxnMonth] = useState("all");
     const [activePlans, setActivePlans] = useState<any[]>([]);
     const [partnerFeatures, setPartnerFeatures] = useState<any[]>([]);
+    const [showAllPending, setShowAllPending] = useState(false);
+
+    // Auto-heal any listing marked as pending_payment that corresponds to an active plan in planCollection
+    useEffect(() => {
+        if (!auth.currentUser || activePlans.length === 0 || offerings.length === 0) return;
+        const activePlanListingIds = new Set(
+            activePlans.filter(p => p.active !== false && p.listingId).map(p => p.listingId)
+        );
+        offerings.forEach(async (offering) => {
+            if (offering.status === "pending_payment" && activePlanListingIds.has(offering.id)) {
+                try {
+                    const col = offering.__col || "businessOfferingsCollection";
+                    const source = offering.__source || "partner";
+                    if (source === "partner" || col === "businessOfferingsCollection") {
+                        await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), {
+                            status: "Approved",
+                            active: true
+                        });
+                    } else {
+                        await updateDoc(doc(db, col, offering.id), {
+                            status: "Approved",
+                            active: true
+                        });
+                    }
+                } catch (e) {
+                    console.error("Error auto-healing paid listing:", e);
+                }
+            }
+        });
+    }, [activePlans, offerings]);
 
     // Feature plan modal
     const [showFeatureModal, setShowFeatureModal] = useState(false);
@@ -903,6 +933,108 @@ export default function Dashboard() {
             return;
         }
         navigate(`/partner/add-listing/${type}`);
+    };
+
+    const handleDeletePendingListing = async (offering: any) => {
+        if (!auth.currentUser) return;
+        try {
+            setActionProcessing(true);
+            const col = offering.__col || "businessOfferingsCollection";
+            const source = offering.__source || "partner";
+            if (source === "partner" || col === "businessOfferingsCollection") {
+                await deleteDoc(doc(db, "partnersCollection", auth.currentUser.uid, col, offering.id));
+            } else {
+                await deleteDoc(doc(db, col, offering.id));
+            }
+            try {
+                await deleteDoc(doc(db, "partnersCollection", auth.currentUser.uid, col, offering.id));
+            } catch (_) {}
+            try {
+                await deleteDoc(doc(db, col, offering.id));
+            } catch (_) {}
+
+            setOfferings(prev => prev.filter(o => o.id !== offering.id));
+        } catch (err) {
+            console.error("Error deleting pending listing draft:", err);
+        } finally {
+            setActionProcessing(false);
+        }
+    };
+
+    const handleClearAllPendingListings = async (pendingList: any[]) => {
+        if (!auth.currentUser || !pendingList || pendingList.length === 0) return;
+        try {
+            setActionProcessing(true);
+            for (const offering of pendingList) {
+                const col = offering.__col || "businessOfferingsCollection";
+                const source = offering.__source || "partner";
+                try {
+                    if (source === "partner" || col === "businessOfferingsCollection") {
+                        await deleteDoc(doc(db, "partnersCollection", auth.currentUser.uid, col, offering.id));
+                    } else {
+                        await deleteDoc(doc(db, col, offering.id));
+                    }
+                } catch (_) {}
+                try {
+                    await deleteDoc(doc(db, "partnersCollection", auth.currentUser.uid, col, offering.id));
+                } catch (_) {}
+                try {
+                    await deleteDoc(doc(db, col, offering.id));
+                } catch (_) {}
+            }
+            const deletedIds = new Set(pendingList.map(o => o.id));
+            setOfferings(prev => prev.filter(o => !deletedIds.has(o.id)));
+        } catch (err) {
+            console.error("Error clearing pending listing drafts:", err);
+        } finally {
+            setActionProcessing(false);
+        }
+    };
+
+    const handleResumePendingPayment = async (offering: any) => {
+        if (!auth.currentUser) return;
+        try {
+            setActionProcessing(true);
+            const planId = offering.selectedPlan || offering.planId;
+            const group = inferListingGroup(offering);
+            const origin = window.location.origin;
+            const collectionName = offering.__col || (group === "business_offerings" ? "businessOfferingsCollection" : group === "consulting" ? "consultingServicesCollection" : group === "events" ? "eventsCollection" : "jobsCollection");
+
+            if (!planId) {
+                navigate(`/partner/add-listing/${group === "business_offerings" ? "offerings" : group}`);
+                return;
+            }
+
+            const resp = await fetch(`${API_BASE_URL}/api/create-checkout-session`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    planId,
+                    group,
+                    partnerId: auth.currentUser.uid,
+                    partnerEmail: auth.currentUser.email,
+                    listingId: offering.id,
+                    collectionName,
+                    successUrl: `${origin}/partner/dashboard?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+                    cancelUrl: `${origin}/partner/dashboard?payment=cancelled`,
+                }),
+            });
+
+            if (!resp.ok) {
+                const errData = await resp.json().catch(() => ({}));
+                throw new Error(errData.error || "Failed to create checkout session");
+            }
+
+            const data = await resp.json();
+            if (data.url) {
+                window.location.href = data.url;
+            }
+        } catch (err: any) {
+            console.error("Resume payment error:", err);
+            alert(err.message || "Failed to resume checkout. Please try again.");
+        } finally {
+            setActionProcessing(false);
+        }
     };
 
     const handleProfileSave = async () => {
@@ -2273,8 +2405,15 @@ export default function Dashboard() {
             );
         };
 
-        const pendingPaymentListings = offerings.filter((o) => o.status === "pending_payment");
-        const pendingPaymentDisplayLimit = 2;
+        const activePlanListingIds = new Set(
+            activePlans.filter((p) => p.active !== false && p.listingId).map((p) => p.listingId)
+        );
+        const pendingPaymentListings = offerings.filter((o) => {
+            if (o.status !== "pending_payment") return false;
+            if (activePlanListingIds.has(o.id)) return false;
+            return true;
+        });
+        const pendingPaymentDisplayLimit = showAllPending ? pendingPaymentListings.length : 3;
         const visiblePendingPaymentListings = pendingPaymentListings.slice(0, pendingPaymentDisplayLimit);
         const hiddenPendingPaymentCount = pendingPaymentListings.length - visiblePendingPaymentListings.length;
         const renderAddListingDropdown = (buttonClassName?: string) => (
@@ -2439,40 +2578,91 @@ export default function Dashboard() {
                                 </div>
                             )}
                             {pendingPaymentListings.length > 0 && (
-                                <div className="space-y-3">
-                                    <h3 className="text-sm font-bold tracking-wider text-muted-foreground flex items-center gap-2">
-                                        <Clock className="w-4 h-4 text-yellow-500" />
-                                        Pending Payment ({pendingPaymentListings.length})
-                                    </h3>
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                                        <h3 className="text-sm font-bold tracking-wider text-muted-foreground flex items-center gap-2">
+                                            <Clock className="w-4 h-4 text-yellow-500" />
+                                            Pending Payment ({pendingPaymentListings.length})
+                                        </h3>
+                                        <div className="flex items-center gap-2">
+                                            {pendingPaymentListings.length > 3 && (
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="text-xs h-7 px-2 text-muted-foreground hover:text-foreground"
+                                                    onClick={() => setShowAllPending(prev => !prev)}
+                                                >
+                                                    {showAllPending ? "Show less" : `View all (${pendingPaymentListings.length})`}
+                                                </Button>
+                                            )}
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="text-xs h-7 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                onClick={() => handleClearAllPendingListings(pendingPaymentListings)}
+                                                disabled={actionProcessing}
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5 mr-1" /> Discard all drafts
+                                            </Button>
+                                        </div>
+                                    </div>
                                     <div className="space-y-3">
                                         {visiblePendingPaymentListings.map((offering) => {
                                             const listingGroup = inferListingGroup(offering);
                                             const listingName = getListingDisplayName(offering);
                                             const groupLabel = formatPlanGroupLabel(listingGroup);
                                             const tierLabel = formatPlanTierLabel(offering, dynamicPlanConfigs[offering.selectedPlan || offering.planId] || PLAN_CONFIGS[offering.selectedPlan || offering.planId]);
+                                            const isGroupAlreadyActive =
+                                                (listingGroup === "business_offerings" && businessOfferingLock.blocked) ||
+                                                (listingGroup === "consulting" && consultingLock.blocked);
+
                                             return (
                                                 <div key={offering.id} className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                                     <div>
-                                                        <p className="font-semibold text-foreground">{listingName || groupLabel}</p>
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <p className="font-semibold text-foreground">{listingName || groupLabel}</p>
+                                                            {isGroupAlreadyActive && (
+                                                                <Badge variant="outline" className="border-foreground/20 text-[10px] text-muted-foreground">
+                                                                    Active plan exists
+                                                                </Badge>
+                                                            )}
+                                                        </div>
                                                         <p className="text-sm text-muted-foreground mt-0.5">{[groupLabel, tierLabel].filter(Boolean).join(" · ")}</p>
                                                     </div>
-                                                    <Button
-                                                        size="sm"
-                                                        className="shrink-0"
-                                                        onClick={() => {
-                                                            navigate(`/partner/add-listing/${listingGroup === "business_offerings" ? "offerings" : listingGroup}`);
-                                                        }}
-                                                    >
-                                                        <CreditCard className="w-4 h-4 mr-2" /> Complete payment
-                                                    </Button>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                                            onClick={() => handleDeletePendingListing(offering)}
+                                                            disabled={actionProcessing}
+                                                            title="Discard unneeded draft"
+                                                        >
+                                                            <Trash2 className="w-3.5 h-3.5 mr-1" /> Discard
+                                                        </Button>
+                                                        {!isGroupAlreadyActive && (
+                                                            <Button
+                                                                size="sm"
+                                                                className="h-8 px-3 text-xs bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm"
+                                                                onClick={() => handleResumePendingPayment(offering)}
+                                                                disabled={actionProcessing}
+                                                            >
+                                                                Complete payment
+                                                            </Button>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
-                                    {hiddenPendingPaymentCount > 0 && (
-                                        <p className="text-xs text-muted-foreground">
-                                            + {hiddenPendingPaymentCount} more pending {hiddenPendingPaymentCount === 1 ? "listing" : "listings"} not shown
-                                        </p>
+                                    {hiddenPendingPaymentCount > 0 && !showAllPending && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllPending(true)}
+                                            className="text-xs text-muted-foreground hover:text-foreground underline block cursor-pointer"
+                                        >
+                                            + {hiddenPendingPaymentCount} more pending {hiddenPendingPaymentCount === 1 ? "draft" : "drafts"} (click to show all)
+                                        </button>
                                     )}
                                 </div>
                             )}
