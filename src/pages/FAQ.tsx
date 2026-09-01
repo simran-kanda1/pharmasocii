@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/firebase";
-import { Loader2, ChevronDown, HelpCircle } from "lucide-react";
+import { Loader2, ChevronDown } from "lucide-react";
 import { FAQ_CATEGORIES } from "@/components/admin/AdminFaqsPanel";
 
 type FAQDoc = {
@@ -87,18 +87,13 @@ export default function FAQ() {
                                         className="w-full flex items-center justify-between p-5 md:p-6 text-left transition-colors hover:bg-foreground/5 cursor-pointer select-none"
                                         aria-expanded={isOpen}
                                     >
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-9 h-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                                                <HelpCircle className="w-5 h-5" />
-                                            </div>
-                                            <div>
-                                                <h2 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-foreground">
-                                                    {category}
-                                                </h2>
-                                                <p className="text-xs text-muted-foreground mt-0.5">
-                                                    {items.length} question{items.length === 1 ? "" : "s"}
-                                                </p>
-                                            </div>
+                                        <div>
+                                            <h2 className="text-lg sm:text-xl md:text-2xl font-bold tracking-tight text-foreground">
+                                                {category}
+                                            </h2>
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                                {items.length} question{items.length === 1 ? "" : "s"}
+                                            </p>
                                         </div>
 
                                         <div className="flex items-center gap-2 text-muted-foreground">
