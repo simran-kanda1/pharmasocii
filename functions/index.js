@@ -165,9 +165,9 @@ const VERIFICATION_CC_EMAIL = VERIFICATION_CC_EMAILS.join(", ");
 /** @deprecated CC is always applied via VERIFICATION_CC_EMAIL when set; kept for env compatibility. */
 const COMMUNITY_EMAIL_CC_ALL = process.env.COMMUNITY_EMAIL_CC_ALL !== "false";
 void COMMUNITY_EMAIL_CC_ALL;
-/** Must be an authorized domain in Firebase Auth (e.g. pharmasocii.firebaseapp.com or localhost). */
+/** Must be an authorized domain in Firebase Auth (e.g. pharmasocii.com, pharmasocii.firebaseapp.com or localhost). */
 const APP_PUBLIC_URL =
-    process.env.APP_PUBLIC_URL || "https://pharmasocii.firebaseapp.com";
+    process.env.APP_PUBLIC_URL || "https://pharmasocii.com";
 
 function escapeHtmlVerification(s) {
     return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -487,7 +487,13 @@ async function generateVerificationLinkForEmail(userEmail) {
         link = await admin.auth().generateEmailVerificationLink(userEmail);
     }
     if (link) {
-        link = link.replace(/^https?:\/\/[^/]+\/__\/auth\/action/, `${base}/auth/action`);
+        link = link.replace(/^https?:\/\/[^/]+(\/__\/auth\/action|\/auth\/action)/, `${base}/auth/action`);
+        if (!link.startsWith(base)) {
+            try {
+                const parsed = new URL(link);
+                link = `${base}/auth/action${parsed.search}`;
+            } catch (_) {}
+        }
     }
     return link;
 }
@@ -1072,7 +1078,13 @@ exports.sendPasswordResetEmail = onCall({ region: "us-central1", cors: true }, a
         );
         if (resetLink) {
             const base = APP_PUBLIC_URL.replace(/\/$/, "");
-            resetLink = resetLink.replace(/^https?:\/\/[^/]+\/__\/auth\/action/, `${base}/auth/action`);
+            resetLink = resetLink.replace(/^https?:\/\/[^/]+(\/__\/auth\/action|\/auth\/action)/, `${base}/auth/action`);
+            if (!resetLink.startsWith(base)) {
+                try {
+                    const parsed = new URL(resetLink);
+                    resetLink = `${base}/auth/action${parsed.search}`;
+                } catch (_) {}
+            }
         }
         const profile = await getMemberProfileByEmail(email);
         await sendCommunityEmail({
@@ -1440,7 +1452,13 @@ exports.changePartnerPrimaryEmail = onCall({ region: "us-central1", cors: true }
     }
 
     if (verifyLink) {
-        verifyLink = verifyLink.replace(/^https?:\/\/[^/]+\/__\/auth\/action/, `${base}/auth/action`);
+        verifyLink = verifyLink.replace(/^https?:\/\/[^/]+(\/__\/auth\/action|\/auth\/action)/, `${base}/auth/action`);
+        if (!verifyLink.startsWith(base)) {
+            try {
+                const parsed = new URL(verifyLink);
+                verifyLink = `${base}/auth/action${parsed.search}`;
+            } catch (_) {}
+        }
         await recordVerificationMirror(newEmail, verifyLink, "partner_email_change", { userId: uid });
         try {
             await sendCommunityEmail({
@@ -1475,7 +1493,7 @@ const PARTNER_EMAIL_PRIMARY_ONLY = new Set(["partner_welcome", "partner_plan_cha
 const PARTNER_EMAIL_PRIMARY_AND_SECONDARY = new Set(["partner_account_updated"]);
 
 function getPartnerSiteUrl() {
-    return String(APP_PUBLIC_URL || "").replace(/\/$/, "") || "https://pharmasocii.firebaseapp.com";
+    return String(APP_PUBLIC_URL || "").replace(/\/$/, "") || "https://pharmasocii.com";
 }
 
 function normalizeEmailAddress(value) {
