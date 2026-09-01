@@ -120,10 +120,6 @@ export default function ContactUs() {
                         {config.headline || "Contact Us"}
                     </h1>
 
-                    <p className="text-lg md:text-xl text-muted-foreground leading-relaxed max-w-2xl mx-auto font-normal">
-                        {config.description}
-                    </p>
-
                     {/* Global Contact Bar (if set) */}
                     {(config.globalPhone || config.globalAddress) && (
                         <div className="pt-4 flex flex-wrap items-center justify-center gap-6 text-sm text-foreground/80 font-medium">
@@ -154,9 +150,6 @@ export default function ContactUs() {
                         <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
                             Got Questions? Reach Out Directly
                         </h2>
-                        <p className="text-muted-foreground text-sm sm:text-base mt-2">
-                            Select the relevant department below for prompt and dedicated assistance.
-                        </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
