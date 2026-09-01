@@ -2102,27 +2102,29 @@ export default function Dashboard() {
                                         Spotlight changes are disabled until that date; you can still edit the listing or upgrade the plan.
                                     </p>
                                 )}
-                                <div className={isPast ? "grid grid-cols-2 sm:grid-cols-4 gap-4 mt-2" : "grid grid-cols-2 sm:grid-cols-3 gap-4 mt-2"}>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">
+                                <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
+                                    <div className="min-w-[140px]">
+                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
                                             {isPast ? "Last Period Start" : "Current Period Start"}
                                         </p>
                                         <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
                                     </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">{isPast ? "Ended On" : isEnding ? "Ends On" : "Renewal Date"}</p>
+                                    <div className="min-w-[140px]">
+                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
+                                            {isPast ? "Ended On" : isEnding ? "Ends On" : "Renewal Date"}
+                                        </p>
                                         <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
                                     </div>
                                     {isPast && (
-                                        <div>
-                                            <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Cancelled On</p>
+                                        <div className="min-w-[140px]">
+                                            <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Cancelled On</p>
                                             <p className="text-sm text-foreground font-medium">
                                                 {cancelledAt ? cancelledAt.toLocaleDateString() : "N/A"}
                                             </p>
                                         </div>
                                     )}
-                                    <div>
-                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Price</p>
+                                    <div className="min-w-[120px]">
+                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Price</p>
                                         <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
                                     </div>
                                 </div>
@@ -2144,23 +2146,23 @@ export default function Dashboard() {
                                         <p className="text-sm text-muted-foreground mb-3">
                                             Spotlight Add-on Subscription
                                         </p>
-                                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-                                            <div>
-                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Current Period Start</p>
+                                        <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
+                                            <div className="min-w-[140px]">
+                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Current Period Start</p>
                                                 <p className="text-sm text-foreground font-medium">
                                                     {standaloneSpotlightStart ? standaloneSpotlightStart.toLocaleDateString() : "N/A"}
                                                 </p>
                                             </div>
-                                            <div>
-                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">
+                                            <div className="min-w-[140px]">
+                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
                                                     {spotlightCancelPending ? "Ends On" : "Renewal Date"}
                                                 </p>
                                                 <p className="text-sm text-foreground font-medium">
                                                     {standaloneSpotlightRenewal ? standaloneSpotlightRenewal.toLocaleDateString() : "N/A"}
                                                 </p>
                                             </div>
-                                            <div>
-                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1">Price</p>
+                                            <div className="min-w-[120px]">
+                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Price</p>
                                                 <p className="text-sm text-foreground font-medium">
                                                     {standaloneSpotlightPlan?.price || "N/A"}/month
                                                 </p>
