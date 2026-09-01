@@ -456,25 +456,46 @@ export default function Dashboard() {
     // Auto-heal any listing marked as pending_payment that corresponds to an active plan in planCollection
     useEffect(() => {
         if (!auth.currentUser || activePlans.length === 0 || offerings.length === 0) return;
-        const activePlanListingIds = new Set(
-            activePlans.filter(p => p.active !== false && p.listingId).map(p => p.listingId)
-        );
+        const livePlans = activePlans.filter((p) => p.active !== false);
+        if (livePlans.length === 0) return;
+
         offerings.forEach(async (offering) => {
-            if (offering.status === "pending_payment" && activePlanListingIds.has(offering.id)) {
+            if (offering.status !== "pending_payment") return;
+            const listingGroup = inferListingGroup(offering);
+
+            // Find matching active plan by explicit listingId OR by group for single-plan groups
+            const matchingPlan = livePlans.find((p) => {
+                if (p.listingId && p.listingId === offering.id) return true;
+                const planGroup = inferPlanGroup(p);
+                if (planGroup && listingGroup && planGroup === listingGroup && (listingGroup === "business_offerings" || listingGroup === "consulting")) {
+                    return true;
+                }
+                return false;
+            });
+
+            if (matchingPlan) {
                 try {
-                    const col = offering.__col || "businessOfferingsCollection";
+                    const col = offering.__col || (listingGroup === "business_offerings" ? "businessOfferingsCollection" : listingGroup === "consulting" ? "consultingServicesCollection" : listingGroup === "events" ? "eventsCollection" : "jobsCollection");
                     const source = offering.__source || "partner";
+                    const listingPatch = { status: "Approved", active: true };
+
                     if (source === "partner" || col === "businessOfferingsCollection") {
-                        await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), {
-                            status: "Approved",
-                            active: true
-                        });
+                        await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), listingPatch);
                     } else {
-                        await updateDoc(doc(db, col, offering.id), {
-                            status: "Approved",
-                            active: true
-                        });
+                        await updateDoc(doc(db, col, offering.id), listingPatch);
                     }
+
+                    // Also link plan to listing if missing
+                    if (!matchingPlan.listingId && matchingPlan.id) {
+                        try {
+                            const planRef = doc(db, "partnersCollection", auth.currentUser!.uid, "planCollection", matchingPlan.id);
+                            await updateDoc(planRef, { listingId: offering.id, collectionName: col });
+                        } catch (_) {}
+                    }
+
+                    setOfferings((prev) =>
+                        prev.map((o) => (o.id === offering.id ? { ...o, status: "Approved", active: true } : o))
+                    );
                 } catch (e) {
                     console.error("Error auto-healing paid listing:", e);
                 }
@@ -2408,9 +2429,15 @@ export default function Dashboard() {
         const activePlanListingIds = new Set(
             activePlans.filter((p) => p.active !== false && p.listingId).map((p) => p.listingId)
         );
+        const hasActiveBusinessPlan = activePlans.some((p) => p.active !== false && inferPlanGroup(p) === "business_offerings");
+        const hasActiveConsultingPlan = activePlans.some((p) => p.active !== false && inferPlanGroup(p) === "consulting");
+
         const pendingPaymentListings = offerings.filter((o) => {
             if (o.status !== "pending_payment") return false;
             if (activePlanListingIds.has(o.id)) return false;
+            const group = inferListingGroup(o);
+            if (group === "business_offerings" && (hasActiveBusinessPlan || businessOfferingLock.blocked)) return false;
+            if (group === "consulting" && (hasActiveConsultingPlan || consultingLock.blocked)) return false;
             return true;
         });
         const pendingPaymentDisplayLimit = showAllPending ? pendingPaymentListings.length : 3;
