@@ -2170,12 +2170,12 @@ export default function Dashboard() {
                                 )}
                             </div>
                             {!isPast && (
-                            <div className="flex flex-wrap gap-2 shrink-0">
+                            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                                 {linkedListing && (
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="border-foreground/20 text-foreground/80 hover:bg-foreground/5"
+                                        className="h-8 px-2.5 text-xs border-foreground/20 text-foreground/80 hover:bg-foreground/5"
                                         disabled={planActionsLocked}
                                         title={
                                             planActionsLocked
@@ -2191,13 +2191,13 @@ export default function Dashboard() {
                                             setShowEditListingModal(true);
                                         }}
                                     >
-                                        <Edit3 className="w-3.5 h-3.5 mr-1.5" /> Edit listing
+                                        Edit listing
                                     </Button>
                                 )}
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className={`border-primary/40 ${canListingPlanUpgradeAction ? "text-primary hover:bg-primary/10" : "text-muted-foreground border-foreground/15 opacity-60 cursor-not-allowed"}`}
+                                    className={`h-8 px-2.5 text-xs border-primary/40 ${canListingPlanUpgradeAction ? "text-primary hover:bg-primary/10" : "text-muted-foreground border-foreground/15 opacity-60 cursor-not-allowed"}`}
                                     disabled={planActionsLocked || !canListingPlanUpgradeAction}
                                     title={
                                         planActionsLocked
@@ -2212,12 +2212,12 @@ export default function Dashboard() {
                                         setShowUpgradeModal(true);
                                     }}
                                 >
-                                    <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade plan
+                                    Upgrade plan
                                 </Button>
                                 {canAddFeature && (
                                     <Button
                                         size="sm"
-                                        className="bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-semibold disabled:opacity-50"
+                                        className="h-8 px-2.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-semibold disabled:opacity-50"
                                         disabled={featureActionsLocked}
                                         onClick={() => {
                                             setSelectedPlanForAction(plan);
@@ -2227,13 +2227,13 @@ export default function Dashboard() {
                                             setShowAddFeatureModal(true);
                                         }}
                                     >
-                                        <Sparkles className="w-3.5 h-3.5 mr-1.5" /> Add spotlight
+                                        Add spotlight
                                     </Button>
                                 )}
                                 {canUpgradeFeature && linkedListing && (
                                     <Button
                                         size="sm"
-                                        className="bg-violet-700 text-white border border-violet-800 hover:bg-violet-800 hover:text-white shadow-sm font-semibold disabled:opacity-50"
+                                        className="h-8 px-2.5 text-xs bg-violet-700 text-white border border-violet-800 hover:bg-violet-800 hover:text-white shadow-sm font-semibold disabled:opacity-50"
                                         disabled={featureActionsLocked}
                                         onClick={() => {
                                             setSelectedPlanForAction(plan);
@@ -2243,40 +2243,23 @@ export default function Dashboard() {
                                             setShowUpgradeFeatureModal(true);
                                         }}
                                     >
-                                        <ArrowUpCircle className="w-3.5 h-3.5 mr-1.5" /> Upgrade spotlight
+                                        Upgrade spotlight
                                     </Button>
                                 )}
-                                {hasStandaloneAddon && !spotlightCancelPending && (
+                                {((hasStandaloneAddon && !spotlightCancelPending) || (!isEnding && !plan.cancelAtPeriodEnd)) && (
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                        disabled={featureActionsLocked && !hasStandaloneAddon}
+                                        className="h-8 px-2.5 text-xs text-foreground/80 hover:text-foreground hover:bg-foreground/10"
                                         onClick={() => {
                                             setSelectedPlanForAction(plan);
                                             setPendingUpgradePlanId(null);
-                                            setCancelModalScope("feature");
+                                            setCancelModalScope((!isEnding && !plan.cancelAtPeriodEnd) ? "plan" : "feature");
                                             setCancelModalError("");
                                             setShowCancelModal(true);
                                         }}
                                     >
-                                        Cancel spotlight
-                                    </Button>
-                                )}
-                                {!isEnding && !plan.cancelAtPeriodEnd && (
-                                    <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                                        onClick={() => {
-                                            setSelectedPlanForAction(plan);
-                                            setPendingUpgradePlanId(null);
-                                            setCancelModalScope("plan");
-                                            setCancelModalError("");
-                                            setShowCancelModal(true);
-                                        }}
-                                    >
-                                        Cancel plan
+                                        Cancel
                                     </Button>
                                 )}
                             </div>
