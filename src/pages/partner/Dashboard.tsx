@@ -1816,7 +1816,6 @@ export default function Dashboard() {
                                                 ? globalModalUpgradeTargets.includes(fp.id)
                                                 : globalModalPurchaseTargets.includes(fp.id),
                                         ).map(fp => {
-                                            const Ic = fp.icon;
                                             const isSelected = selectedFeaturePlan === fp.id;
                                             const alreadyHasExact =
                                                 getEffectiveSpotlightTier(listingForGlobalFeatureModal, liveListingPlanForFeatures?.planId) >=
@@ -1831,10 +1830,7 @@ export default function Dashboard() {
                                             return (
                                                 <button key={fp.id} type="button" disabled={disabled} onClick={() => setSelectedFeaturePlan(fp.id)}
                                                     className={`w-full text-left p-4 rounded-xl border-2 transition-all ${disabled ? "border-foreground/10 opacity-50 cursor-not-allowed" : isSelected ? "border-primary bg-primary/5" : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"}`}>
-                                                    <div className="flex items-center gap-3">
-                                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
-                                                            <Ic className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
-                                                        </div>
+                                                    <div className="flex items-center justify-between gap-3">
                                                         <div className="flex-1">
                                                             <p className="font-semibold text-foreground flex items-center gap-2">
                                                                 {fp.label}
@@ -1843,7 +1839,6 @@ export default function Dashboard() {
                                                                     <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">Upgrade</Badge>
                                                                 )}
                                                             </p>
-                                                            <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
                                                         </div>
                                                         <div className="text-right shrink-0">
                                                             {inUpgradeMode && isValidUpgradeChoice && globalModalAddonTier ? (
@@ -4507,8 +4502,8 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onP
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <ArrowUpCircle className="w-5 h-5 text-primary" /> Upgrade Spotlight
+                    <h2 className="text-xl font-bold text-foreground">
+                        Upgrade Spotlight
                     </h2>
                     <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
@@ -4523,7 +4518,6 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onP
                     ) : (
                         <div className="space-y-3">
                             {targets.map((fp) => {
-                                const Icon = fp.icon;
                                 const isSelected = selectedFeature === fp.id;
                                 return (
                                     <button
@@ -4536,14 +4530,8 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onP
                                             }`}
                                     >
                                         <div className="flex items-center justify-between gap-3">
-                                            <div className="flex items-center gap-3">
-                                                <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
-                                                    <Icon className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold text-foreground">{fp.label}</p>
-                                                    <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
-                                                </div>
+                                            <div>
+                                                <p className="font-semibold text-foreground">{fp.label}</p>
                                             </div>
                                             <div className="text-right shrink-0">
                                                 <p className="text-lg font-bold text-foreground">
@@ -4563,7 +4551,6 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onP
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
                     <Button onClick={() => onPurchase(selectedFeature)} disabled={!selectedFeature || processing || targets.length === 0}>
-                        <CreditCard className="w-4 h-4 mr-2" />
                         {processing ? "Processing..." : "Continue to Payment"}
                     </Button>
                 </div>
@@ -4588,8 +4575,8 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-primary" /> Add Feature Plan
+                    <h2 className="text-xl font-bold text-foreground">
+                        Add Feature Plan
                     </h2>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
@@ -4601,7 +4588,6 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
                     </p>
                     <div className="space-y-3">
                         {featurePlans.map(fp => {
-                            const Icon = fp.icon;
                             const isSelected = selectedFeature === fp.id;
                             return (
                                 <button
@@ -4613,14 +4599,8 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
                                         }`}
                                 >
                                     <div className="flex items-center justify-between gap-3">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${isSelected ? "bg-primary/20" : "bg-foreground/10"}`}>
-                                                <Icon className={`w-5 h-5 ${isSelected ? "text-primary" : "text-foreground/60"}`} />
-                                            </div>
-                                            <div>
-                                                <p className="font-semibold text-foreground">{fp.label}</p>
-                                                <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
-                                            </div>
+                                        <div>
+                                            <p className="font-semibold text-foreground">{fp.label}</p>
                                         </div>
                                         <div className="text-right shrink-0">
                                             <p className="text-lg font-bold text-foreground">
@@ -4636,7 +4616,6 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
                 <div className="px-6 py-4 border-t border-foreground/10 flex justify-end gap-3">
                     <Button variant="ghost" onClick={onClose}>Cancel</Button>
                     <Button onClick={() => onPurchase(selectedFeature)} disabled={!selectedFeature || processing}>
-                        <CreditCard className="w-4 h-4 mr-2" />
                         {processing ? "Processing..." : "Purchase Feature"}
                     </Button>
                 </div>
