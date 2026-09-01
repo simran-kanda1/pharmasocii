@@ -2078,11 +2078,6 @@ export default function Dashboard() {
                                             <Badge variant="outline" className="bg-foreground/10 text-muted-foreground border-foreground/20">{pastStatusLabel}</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
                                         </>
-                                    ) : isEnding ? (
-                                        <>
-                                            <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#78350f', borderColor: '#d97706' }}>Scheduled to end</Badge>
-                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-                                        </>
                                     ) : (
                                         <>
                                             <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>Active</Badge>
@@ -2091,15 +2086,11 @@ export default function Dashboard() {
                                     )}
                                 </div>
                                 {listingName && planSummaryParts.length > 0 && (
-                                    <p className="text-sm text-muted-foreground mb-2">{planSummaryParts.join(" · ")}</p>
+                                    <p className="text-sm text-muted-foreground mb-1">{planSummaryParts.join(" · ")}</p>
                                 )}
-
-
-                                {spotlightCancelPending && !isEnding && (
-                                    <p className="text-sm text-muted-foreground mb-2 max-w-2xl">
-                                        Your spotlight add-on is scheduled to end on{" "}
-                                        {standaloneSpotlightRenewal?.toLocaleDateString() || "the end of your paid period"}.
-                                        Spotlight changes are disabled until that date; you can still edit the listing or upgrade the plan.
+                                {isEnding && !isPast && (
+                                    <p className="text-xs mt-1 mb-1" style={{ color: '#78350f' }}>
+                                        Plan scheduled to end on {billingEnd ? billingEnd.toLocaleDateString() : "the end of your billing period"}. It will not renew.
                                     </p>
                                 )}
                                 <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
@@ -2134,18 +2125,17 @@ export default function Dashboard() {
                                             <h5 className="text-lg font-bold text-foreground">
                                                 {standaloneSpotlightPlan?.label || "Spotlight add-on"}
                                             </h5>
-                                            {spotlightCancelPending ? (
-                                                <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#78350f', borderColor: '#d97706' }}>
-                                                    Scheduled to end
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>Active</Badge>
-                                            )}
+                                            <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>Active</Badge>
                                             <Badge variant="outline" className="border-foreground/20">Monthly</Badge>
                                         </div>
-                                        <p className="text-sm text-muted-foreground mb-3">
+                                        <p className="text-sm text-muted-foreground mb-1">
                                             Spotlight Add-on Subscription
                                         </p>
+                                        {spotlightCancelPending && (
+                                            <p className="text-xs mt-1 mb-2" style={{ color: '#78350f' }}>
+                                                Spotlight add-on scheduled to end on {standaloneSpotlightRenewal?.toLocaleDateString() || "the end of your paid period"}. It will not renew.
+                                            </p>
+                                        )}
                                         <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
                                             <div className="min-w-[140px]">
                                                 <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Current Period Start</p>
