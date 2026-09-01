@@ -206,7 +206,6 @@ export default function ListingDetail() {
             ? [
                 item.city || item.eventCity,
                 item.stateRegion || item.state || item.eventStateRegion,
-                item.eventCountry || item.country,
             ].filter((x: any) => typeof x === "string" && x.trim()).join(", ")
             : "";
     const jobLocationLine =
@@ -214,7 +213,6 @@ export default function ListingDetail() {
             ? [
                 item.city || item.jobCity,
                 item.stateRegion || item.state || item.jobStateRegion,
-                item.jobCountry || item.country,
             ].filter((x: any) => typeof x === "string" && x.trim()).join(", ")
             : "";
     const jobCatsArray = type === "jobs" 

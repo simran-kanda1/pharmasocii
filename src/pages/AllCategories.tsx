@@ -973,7 +973,7 @@ export default function AllCategories() {
                                         const bottomLabel = currentTab === "business"
                                             ? (certsDisplay ? certsDisplay : null)
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
-                                                : currentTab === "events" ? ([item.stateRegion || item.state, item.eventCountry || item.country].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Online")
+                                                : currentTab === "events" ? ([item.city, item.stateRegion || item.state].filter((x: any) => typeof x === "string" && x.trim()).join(", ") || "Online")
                                                     : `${item.businessName || "Company"} • ${toTitleCase(item.jobtype || "Role")}`;
 
                                         return (
