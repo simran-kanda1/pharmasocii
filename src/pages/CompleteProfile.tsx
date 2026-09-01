@@ -72,7 +72,7 @@ const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcat
     typeof entry !== "string";
 
 export default function CompleteProfile() {
-    const { config, getLimitsForPlanId } = usePlansConfig();
+    const { config, getLimitsForPlanId, getFeaturesForPlanId } = usePlansConfig();
     const { getCategoriesForGroup } = useDirectoryCategories();
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState("");
@@ -410,20 +410,7 @@ export default function CompleteProfile() {
 
     // ─── Plan details text ───
     const getPlanDetailsText = (planId: string): string[] => {
-        if (!config || !planId) return [];
-        for (const group of config.groups) {
-            for (const plan of group.plans) {
-                if (
-                    plan.stripeMonthlyId === planId || 
-                    plan.stripeYearlyId === planId ||
-                    plan.id === planId ||
-                    plan.badge?.toLowerCase() === planId.toLowerCase()
-                ) {
-                    return plan.features || [];
-                }
-            }
-        }
-        return [];
+        return getFeaturesForPlanId(planId);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {

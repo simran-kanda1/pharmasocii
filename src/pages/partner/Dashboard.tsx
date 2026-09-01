@@ -54,7 +54,7 @@ import type {
     SubcategoryEntry,
 } from "@/lib/defaultDirectoryCategories";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
-import { usePlansConfig } from "@/hooks/usePlansConfig";
+import { usePlansConfig, DEFAULT_PLANS_CONFIG } from "@/hooks/usePlansConfig";
 
 
 
@@ -559,8 +559,9 @@ export default function Dashboard() {
 
     const dynamicPlanConfigs = useMemo(() => {
         const merged: Record<string, PlanConfig> = { ...PLAN_CONFIGS };
-        if (livePlansConfig && livePlansConfig.groups) {
-            for (const group of livePlansConfig.groups) {
+        const activeConfig = livePlansConfig || DEFAULT_PLANS_CONFIG;
+        if (activeConfig && activeConfig.groups) {
+            for (const group of activeConfig.groups) {
                 for (const plan of group.plans) {
                     const planKey = plan.stripeMonthlyId || plan.id;
                     const yearlyKey = plan.stripeYearlyId;
@@ -569,10 +570,11 @@ export default function Dashboard() {
                         label: plan.badge,
                         subtitle: plan.subtitle || "",
                         price: `$${plan.monthlyPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                        period: group.hasAnnualToggle ? "" : "/month",
+                        period: "/month",
                         maxCategories: plan.maxCategories ?? -1,
                         maxCountries: plan.maxCountries ?? -1,
                         features: plan.features || [],
+                        featurePlan: plan.id === "premium_event" || plan.id === "premium_job" ? "landing_page" : plan.id === "premium_plus_event" || plan.id === "premium_plus_job" ? "home_page" : undefined,
                     };
 
                     if (planKey) {
@@ -4549,6 +4551,19 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                                                     </p>
                                                 </div>
                                             </div>
+                                            {selectedPlan === id && config.features && config.features.length > 0 && (
+                                                <div className="mt-3 pt-3 border-t border-primary/20 space-y-1.5">
+                                                    <p className="text-[11px] font-bold uppercase tracking-wider text-primary">Included Features</p>
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                                                        {config.features.map((feat: string, fi: number) => (
+                                                            <div key={fi} className="flex items-center gap-1.5 text-xs text-foreground/90">
+                                                                <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                                                <span className="truncate" title={feat}>{feat}</span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
                                         </button>
                                     );
                                 })}

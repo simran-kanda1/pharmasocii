@@ -201,7 +201,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   const [showCountriesDropdown, setShowCountriesDropdown] = useState(false);
   const [countrySearch, setCountrySearch] = useState("");
 
-  const { config: plansConfig } = usePlansConfig();
+  const { config: plansConfig, getFeaturesForPlanId } = usePlansConfig();
 
   // Convert "Business Offerings" -> "business_offerings"
   const getGroupKey = (groupName: string) => {
@@ -348,20 +348,8 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
   const getPlanDetailsText = (planId: string): string[] => {
     if (!planId || planId === 'none') return [];
-    if (plansConfig && plansConfig.groups) {
-      for (const group of plansConfig.groups) {
-        for (const plan of group.plans) {
-          if (
-            plan.stripeMonthlyId === planId ||
-            plan.stripeYearlyId === planId ||
-            plan.id === planId ||
-            plan.badge?.toLowerCase() === planId.toLowerCase()
-          ) {
-            return plan.features || [];
-          }
-        }
-      }
-    }
+    const features = getFeaturesForPlanId(planId);
+    if (features && features.length > 0) return features;
     const gk = getGroupKey(formData.selectedGroup);
     if (gk === "events" || gk === "jobs") {
       return EVENT_JOB_PLAN_DETAILS[planId] || [];

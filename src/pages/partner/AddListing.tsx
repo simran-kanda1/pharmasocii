@@ -189,7 +189,7 @@ export default function AddListing() {
     const [error, setError] = useState("");
     const [groupPurchaseLock, setGroupPurchaseLock] = useState<{ blocked: boolean; blockedUntil: Date | null }>({ blocked: false, blockedUntil: null });
     const [showPlanDetails, setShowPlanDetails] = useState(false);
-    const { config: plansConfig, getLimitsForPlanId } = usePlansConfig();
+    const { config: plansConfig, getLimitsForPlanId, getFeaturesForPlanId } = usePlansConfig();
 
     // ─── Plan selection ───
     const [plan, setPlan] = useState("");
@@ -468,20 +468,7 @@ export default function AddListing() {
 
 
     const getPlanDetailsText = (planId: string): string[] => {
-        if (!plansConfig || !planId) return [];
-        for (const group of plansConfig.groups) {
-            for (const p of group.plans) {
-                if (
-                    p.stripeMonthlyId === planId || 
-                    p.stripeYearlyId === planId ||
-                    p.id === planId ||
-                    p.badge?.toLowerCase() === planId.toLowerCase()
-                ) {
-                    return p.features || [];
-                }
-            }
-        }
-        return [];
+        return getFeaturesForPlanId(planId);
     };
 
     const filteredCountries = SERVICE_COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
