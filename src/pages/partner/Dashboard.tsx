@@ -45,7 +45,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import PhoneInput from 'react-phone-number-input';
-import { toPhoneInputValue } from "@/lib/phone";
+import { toPhoneInputValue, getServiceCountryFromPhone, isCompletePhoneNumber } from "@/lib/phone";
 import 'react-phone-number-input/style.css';
 import {
     useDirectoryCategories,
@@ -692,23 +692,62 @@ export default function Dashboard() {
                         body: JSON.stringify({ partnerId: user.uid }),
                     }).catch((err) => console.warn("Partner billing sync:", err?.message || err));
 
+                    const [fName, ...lNames] = (data.primaryName || "").trim().split(/\s+/);
+                    const resolvedAltName =
+                        data.secondaryName ||
+                        data.altName ||
+                        (data.secondaryFirstName ? `${data.secondaryFirstName} ${data.secondaryLastName || ""}`.trim() : "") ||
+                        (Array.isArray(data.companyRepresentatives) && data.companyRepresentatives.length > 0
+                            ? `${data.companyRepresentatives[0].firstName || ""} ${data.companyRepresentatives[0].lastName || ""}`.trim()
+                            : "");
+
+                    const resolvedAltEmail =
+                        data.secondaryEmail ||
+                        data.altEmail ||
+                        (Array.isArray(data.companyRepresentatives) && data.companyRepresentatives.length > 0
+                            ? data.companyRepresentatives[0].email || ""
+                            : "");
+
+                    const primaryPhone = toPhoneInputValue(data.phoneNumber || data.phone || "");
+                    const rawBusinessPhone = data.businessPhoneNumber || data.businessPhone || "";
+                    const resolvedBusinessPhone = isCompletePhoneNumber(rawBusinessPhone)
+                        ? toPhoneInputValue(rawBusinessPhone)
+                        : primaryPhone;
+
+                    let resolvedCountry = data.businessCountry || data.headquartersCountry || data.country || "";
+                    if (!resolvedCountry && Array.isArray(data.countries) && data.countries.length > 0) {
+                        resolvedCountry = data.countries[0];
+                    }
+                    if (!resolvedCountry && Array.isArray(data.selectedCountries) && data.selectedCountries.length > 0) {
+                        resolvedCountry = data.selectedCountries[0];
+                    }
+                    if (!resolvedCountry && data.businessAddress) {
+                        const matched = SERVICE_COUNTRIES.find((c) =>
+                            new RegExp(`\\b${c}\\b`, "i").test(data.businessAddress)
+                        );
+                        if (matched) resolvedCountry = matched;
+                    }
+                    if (!resolvedCountry && primaryPhone) {
+                        resolvedCountry = getServiceCountryFromPhone(primaryPhone) || "";
+                    }
+
                     setProfileForm({
-                        firstName: data.firstName || "",
-                        lastName: data.lastName || "",
-                        email: data.primaryEmail || "",
-                        phone: toPhoneInputValue(data.phoneNumber || ""),
-                        altName: data.secondaryName || "",
-                        altEmail: data.secondaryEmail || "",
-                        companyName: data.businessName || "",
-                        companyWebsite: data.companyWebsite || "",
-                        businessPhone: toPhoneInputValue(data.businessPhoneNumber || ""),
-                        linkedin: data.linkedInProfileLink || "",
-                        companyProfile: data.companyProfileText || "",
-                        businessAddress: data.businessAddress || "",
-                        businessCountry: data.businessCountry || "",
-                        billingEmail: data.billingEmailAddress || "",
-                        businessId: data.VAT_ABN_EIN_businessId || "",
-                        companyLogoUrl: data.companyLogoUrl || "",
+                        firstName: data.firstName || fName || "",
+                        lastName: data.lastName || (lNames.length > 0 ? lNames.join(" ") : ""),
+                        email: data.primaryEmail || data.email || user.email || "",
+                        phone: primaryPhone,
+                        altName: resolvedAltName,
+                        altEmail: resolvedAltEmail,
+                        companyName: data.businessName || data.companyName || "",
+                        companyWebsite: data.companyWebsite || data.website || "",
+                        businessPhone: resolvedBusinessPhone,
+                        linkedin: data.linkedInProfileLink || data.linkedin || "",
+                        companyProfile: data.companyProfileText || data.companyProfile || data.description || "",
+                        businessAddress: data.businessAddress || data.address || "",
+                        businessCountry: resolvedCountry,
+                        billingEmail: data.billingEmailAddress || data.billingEmail || "",
+                        businessId: data.VAT_ABN_EIN_businessId || data.businessId || "",
+                        companyLogoUrl: data.companyLogoUrl || data.logoUrl || "",
                     });
 
                     const sortAndDedupeOfferings = (items: any[]) => {
@@ -891,13 +930,8 @@ export default function Dashboard() {
             setProfileSaving(false);
             return;
         }
-        if (!profileForm.altName?.trim()) {
-            setProfileMsg("Please enter the alternate contact first & last name.");
-            setProfileSaving(false);
-            return;
-        }
-        if (!profileForm.altEmail?.trim()) {
-            setProfileMsg("Please enter the alternate contact email address.");
+        if (profileForm.altEmail?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(profileForm.altEmail.trim())) {
+            setProfileMsg("Please enter a valid alternate contact email address.");
             setProfileSaving(false);
             return;
         }
@@ -997,17 +1031,26 @@ export default function Dashboard() {
                 }
 
                 const docRef = doc(db, "partnersCollection", auth.currentUser.uid);
+                const [altFName, ...altLNames] = (profileForm.altName || "").trim().split(/\s+/);
                 await updateDoc(docRef, {
+                    firstName: profileForm.firstName.trim(),
+                    lastName: profileForm.lastName.trim(),
                     primaryName: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
-                    primaryEmail: nextEmail, phoneNumber: profileForm.phone,
-                    secondaryName: profileForm.altName, secondaryEmail: profileForm.altEmail,
-                    businessName: profileForm.companyName, companyWebsite: profileForm.companyWebsite,
-                    businessPhoneNumber: profileForm.businessPhone, linkedInProfileLink: profileForm.linkedin,
+                    primaryEmail: nextEmail,
+                    phoneNumber: profileForm.phone,
+                    secondaryName: (profileForm.altName || "").trim(),
+                    secondaryFirstName: altFName || "",
+                    secondaryLastName: altLNames.join(" ") || "",
+                    secondaryEmail: (profileForm.altEmail || "").trim(),
+                    businessName: (profileForm.companyName || "").trim(),
+                    companyWebsite: (profileForm.companyWebsite || "").trim(),
+                    businessPhoneNumber: profileForm.businessPhone,
+                    linkedInProfileLink: (profileForm.linkedin || "").trim(),
                     companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
-                    businessAddress: profileForm.businessAddress,
+                    businessAddress: (profileForm.businessAddress || "").trim(),
                     businessCountry: profileForm.businessCountry || "",
-                    billingEmailAddress: profileForm.billingEmail || "",
-                    VAT_ABN_EIN_businessId: profileForm.businessId || "",
+                    billingEmailAddress: (profileForm.billingEmail || "").trim(),
+                    VAT_ABN_EIN_businessId: (profileForm.businessId || "").trim(),
                     companyLogoUrl: finalLogoUrl,
                 });
 
@@ -2485,8 +2528,6 @@ export default function Dashboard() {
             profileForm.lastName?.trim() &&
             profileForm.email?.trim() &&
             profileForm.phone?.trim() &&
-            profileForm.altName?.trim() &&
-            profileForm.altEmail?.trim() &&
             profileForm.companyName?.trim() &&
             profileForm.companyWebsite?.trim() &&
             profileForm.businessPhone?.trim() &&
@@ -2565,12 +2606,12 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-foreground/10">
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Alternate Contact First & Last Name <span className="text-red-400">*</span></Label>
-                        <Input value={profileForm.altName} onChange={e => setProfileForm({ ...profileForm, altName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
+                        <Label className="text-foreground/80">Alternate Contact First & Last Name</Label>
+                        <Input value={profileForm.altName} onChange={e => setProfileForm({ ...profileForm, altName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" placeholder="Optional backup contact" />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Alternate Email Address <span className="text-red-400">*</span></Label>
-                        <Input value={profileForm.altEmail} onChange={e => setProfileForm({ ...profileForm, altEmail: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
+                        <Label className="text-foreground/80">Alternate Email Address</Label>
+                        <Input value={profileForm.altEmail} onChange={e => setProfileForm({ ...profileForm, altEmail: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" placeholder="Optional backup email" />
                     </div>
                 </div>
 

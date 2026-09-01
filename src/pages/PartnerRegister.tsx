@@ -81,15 +81,18 @@ export default function PartnerRegister() {
             // Create partner document in Firestore
             const partnerData = {
                 partnerId: user.uid,
-                primaryName: `${formData.firstName} ${formData.lastName}`,
-                primaryEmail: formData.email,
-                businessName: formData.companyName,
+                firstName: formData.firstName.trim(),
+                lastName: formData.lastName.trim(),
+                primaryName: `${formData.firstName} ${formData.lastName}`.trim(),
+                primaryEmail: formData.email.trim(),
+                businessName: formData.companyName.trim(),
                 phoneNumber: formData.phone,
-                billingEmailAddress: formData.email, // Default to primary email initially
+                businessPhoneNumber: formData.phone,
+                billingEmailAddress: formData.email.trim(), // Default to primary email initially
                 secondaryName: `${formData.altFirstName} ${formData.altLastName}`.trim(),
-                secondaryFirstName: formData.altFirstName,
-                secondaryLastName: formData.altLastName,
-                secondaryEmail: formData.altEmail,
+                secondaryFirstName: formData.altFirstName.trim(),
+                secondaryLastName: formData.altLastName.trim(),
+                secondaryEmail: formData.altEmail.trim(),
                 createdAt: serverTimestamp(),
             };
 
