@@ -547,7 +547,7 @@ export default function AddListing() {
                 !highlights ||
                 !hasAgendaPdf
             ) {
-                setError("Please complete all required event fields (venue, highlights, agenda PDF upload or URL, and categories).");
+                setError("Please complete all required event fields (highlights, agenda PDF upload or URL, and categories).");
                 return;
             }
             if (highlights.length > AGENDA_HIGHLIGHTS_MAX) {

@@ -528,12 +528,11 @@ export default function CompleteProfile() {
                 !ev.eventCountry ||
                 !ev.stateRegion.trim() ||
                 !ev.city.trim() ||
-                !ev.location.trim() ||
                 !ev.eventProfile.trim() ||
                 !highlights ||
                 !hasAgendaPdf
             ) {
-                setError("Please complete all required event fields (venue, highlights, agenda PDF, categories).");
+                setError("Please complete all required event fields (highlights, agenda PDF, categories).");
                 return;
             }
             if (highlights.length > AGENDA_HIGHLIGHTS_MAX) {
@@ -1457,10 +1456,6 @@ export default function CompleteProfile() {
                                             <div className="space-y-2">
                                                 <Label>City / Town <span className="text-red-400">*</span></Label>
                                                 <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
-                                            </div>
-                                            <div className="space-y-2 md:col-span-2">
-                                                <Label>Venue / Location <span className="text-red-400">*</span></Label>
-                                                <Input placeholder="Venue name or online details" value={eventData.location} onChange={e => setEventData(prev => ({ ...prev, location: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
                                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
