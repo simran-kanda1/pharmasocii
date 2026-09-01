@@ -2233,7 +2233,7 @@ export default function Dashboard() {
                                 {canUpgradeFeature && linkedListing && (
                                     <Button
                                         size="sm"
-                                        className="h-8 px-2.5 text-xs bg-violet-700 text-white border border-violet-800 hover:bg-violet-800 hover:text-white shadow-sm font-semibold disabled:opacity-50"
+                                        className="h-8 px-2.5 text-xs bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm font-semibold disabled:opacity-50"
                                         disabled={featureActionsLocked}
                                         onClick={() => {
                                             setSelectedPlanForAction(plan);
@@ -2293,7 +2293,7 @@ export default function Dashboard() {
         const renderAddListingDropdown = (buttonClassName?: string) => (
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button className={buttonClassName || "bg-blue-600 text-white hover:bg-blue-700"}>
+                    <Button className={buttonClassName || "bg-violet-700 text-white border border-violet-800 hover:bg-violet-800 hover:text-white"}>
                         <PlusCircle className="w-4 h-4 mr-2" /> Add Listing
                     </Button>
                 </DropdownMenuTrigger>
