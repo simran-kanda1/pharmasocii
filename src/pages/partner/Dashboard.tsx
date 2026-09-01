@@ -28,7 +28,7 @@ import {
     PlusCircle, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
     CreditCard, Star, Sparkles, Crown, Check, X,
-    Edit3, ArrowUpCircle, Globe, Tag, Search, Trash2
+    Edit3, Globe, Tag, Search, Trash2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -4455,14 +4455,6 @@ interface UpgradePlanModalProps {
 function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, onUpgrade, processing }: UpgradePlanModalProps) {
     const [selectedPlan, setSelectedPlan] = useState<string>("");
 
-    const isJobOrEvent =
-        currentPlan?.collectionName === "eventsCollection" ||
-        currentPlan?.collectionName === "jobsCollection" ||
-        currentPlan?.group === "events" ||
-        currentPlan?.group === "jobs" ||
-        String(currentPlan?.planId || "").includes("_event") ||
-        String(currentPlan?.planId || "").includes("_job");
-
     const upgradePlanIds = getAvailablePlanUpgradeIds(currentPlan.planId, currentPlan.collectionName);
     const upgradePlans = upgradePlanIds
         .map((id) => [id, allPlans[id]] as const)
@@ -4480,9 +4472,7 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between shrink-0">
-                    <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-                        <ArrowUpCircle className="w-5 h-5 text-primary" /> Upgrade Plan
-                    </h2>
+                    <h2 className="text-xl font-bold text-foreground">Upgrade Plan</h2>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
                     </button>
@@ -4492,16 +4482,10 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                         <p className="text-sm text-muted-foreground">Current plan</p>
                         <p className="text-lg font-bold text-foreground">{currentPlanConfig?.label}</p>
                         <p className="text-sm text-foreground/80">{currentPlanConfig?.price}{currentPlanConfig?.period}</p>
-                        {!isJobOrEvent && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                                {currentPlanConfig?.maxCategories === -1 ? "Unlimited" : currentPlanConfig?.maxCategories} categories, {currentPlanConfig?.maxCountries === -1 ? "Unlimited" : currentPlanConfig?.maxCountries} countries
-                            </p>
-                        )}
                     </div>
 
                     {upgradePlans.length === 0 ? (
                         <div className="text-center py-8">
-                            <Crown className="w-12 h-12 text-primary mx-auto mb-3" />
                             <p className="text-foreground font-medium">You're on the highest tier!</p>
                             <p className="text-sm text-muted-foreground mt-1">There are no higher plans available for upgrade.</p>
                         </div>
@@ -4510,7 +4494,6 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                             <p className="text-sm font-medium text-foreground">Select a plan to upgrade to:</p>
                             <div className="space-y-3">
                                 {upgradePlans.map(([id, config]) => {
-                                    const isPlanJobOrEvent = isJobOrEvent || id.includes("_event") || id.includes("_job");
                                     return (
                                         <button
                                             key={id}
@@ -4531,11 +4514,6 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                                                         )}
                                                     </p>
                                                     <p className="text-xs text-muted-foreground mt-0.5">{config.subtitle}</p>
-                                                    {!isPlanJobOrEvent && (
-                                                        <p className="text-xs text-muted-foreground mt-1">
-                                                            {config.maxCategories === -1 ? "Unlimited" : config.maxCategories} categories, {config.maxCountries === -1 ? "Unlimited" : config.maxCountries} countries
-                                                        </p>
-                                                    )}
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-lg font-bold text-foreground">{config.price}<span className="text-sm font-normal text-muted-foreground">{config.period}</span></p>
