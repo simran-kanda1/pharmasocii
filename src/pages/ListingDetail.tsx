@@ -203,11 +203,19 @@ export default function ListingDetail() {
     const eventEnd = type === "events" ? formatDate(item.endDate) : null;
     const eventLocationLine =
         type === "events"
-            ? [item.stateRegion || item.state, item.eventCountry || item.country].filter((x: any) => typeof x === "string" && x.trim()).join(" · ")
+            ? [
+                item.city || item.eventCity,
+                item.stateRegion || item.state || item.eventStateRegion,
+                item.eventCountry || item.country,
+            ].filter((x: any) => typeof x === "string" && x.trim()).join(", ")
             : "";
     const jobLocationLine =
         type === "jobs"
-            ? [item.city, item.stateRegion || item.state].filter((x: any) => typeof x === "string" && x.trim()).join(", ")
+            ? [
+                item.city || item.jobCity,
+                item.stateRegion || item.state || item.jobStateRegion,
+                item.jobCountry || item.country,
+            ].filter((x: any) => typeof x === "string" && x.trim()).join(", ")
             : "";
     const jobCatsArray = type === "jobs" 
         ? (Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0 ? item.selectedCategoriesDisplay : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0 ? item.selectedCategories : Array.isArray(item.categories) && item.categories.length > 0 ? item.categories : []) 
