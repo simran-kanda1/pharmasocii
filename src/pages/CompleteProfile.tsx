@@ -1648,18 +1648,6 @@ export default function CompleteProfile() {
                                                 <Label>City / Town <span className="text-red-400">*</span></Label>
                                                 <Input value={jobData.city} onChange={e => setJobData(prev => ({ ...prev, city: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                             </div>
-                                            <div className="space-y-2 md:col-span-2">
-                                                <Label>Location (Display Line)</Label>
-                                                <Input value={jobData.location} onChange={e => setJobData(prev => ({ ...prev, location: e.target.value }))} className="bg-muted/40 border-foreground/10" />
-                                            </div>
-                                            <div className="space-y-2 md:col-span-2">
-                                                <Label>Company Website Link</Label>
-                                                <Input type="url" value={jobData.companyWebsiteLink} onChange={e => setJobData(prev => ({ ...prev, companyWebsiteLink: e.target.value }))} className="bg-muted/40 border-foreground/10" />
-                                            </div>
-                                            <div className="space-y-2 md:col-span-2">
-                                                <Label>LinkedIn</Label>
-                                                <Input value={jobData.linkedInJob} onChange={e => setJobData(prev => ({ ...prev, linkedInJob: e.target.value }))} className="bg-muted/40 border-foreground/10" />
-                                            </div>
                                         </div>
                                     )}
 
