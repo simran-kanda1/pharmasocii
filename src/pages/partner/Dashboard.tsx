@@ -2293,7 +2293,7 @@ export default function Dashboard() {
         const renderAddListingDropdown = (buttonClassName?: string) => (
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button className={buttonClassName || "bg-violet-700 text-white border border-violet-800 hover:bg-violet-800 hover:text-white"}>
+                    <Button className={buttonClassName || "bg-[#031542] text-white hover:bg-[#020e2e] border border-[#09256e]/50 shadow-sm"}>
                         <PlusCircle className="w-4 h-4 mr-2" /> Add Listing
                     </Button>
                 </DropdownMenuTrigger>
