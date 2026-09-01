@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { useDirectoryCategories } from "@/hooks/useDirectoryCategories";
 import { REGION_COUNTRY_MAP } from "@/constants/regions";
 import { matchCategoryOrSub } from "@/lib/categorySelection";
+import { formatEventLocation, formatJobLocation } from "@/lib/utils";
 
 
 // Simple skeleton placeholder
@@ -203,17 +204,17 @@ export default function ListingDetail() {
     const eventEnd = type === "events" ? formatDate(item.endDate) : null;
     const eventLocationLine =
         type === "events"
-            ? [
+            ? formatEventLocation(
                 item.city || item.eventCity,
-                item.stateRegion || item.state || item.eventStateRegion,
-            ].filter((x: any) => typeof x === "string" && x.trim()).join(", ")
+                item.stateRegion || item.state || item.eventStateRegion
+            )
             : "";
     const jobLocationLine =
         type === "jobs"
-            ? [
+            ? formatJobLocation(
                 item.city || item.jobCity,
-                item.stateRegion || item.state || item.jobStateRegion,
-            ].filter((x: any) => typeof x === "string" && x.trim()).join(", ")
+                item.stateRegion || item.state || item.jobStateRegion
+            )
             : "";
     const jobCatsArray = type === "jobs" 
         ? (Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0 ? item.selectedCategoriesDisplay : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0 ? item.selectedCategories : Array.isArray(item.categories) && item.categories.length > 0 ? item.categories : []) 
