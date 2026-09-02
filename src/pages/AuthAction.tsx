@@ -15,6 +15,13 @@ export default function AuthAction() {
 
     const mode = searchParams.get("mode");
     const oobCode = searchParams.get("oobCode");
+    const nextPath = searchParams.get("next");
+    const loginPath =
+        nextPath && nextPath.startsWith("/") && !nextPath.startsWith("//")
+            ? nextPath
+            : mode === "verifyEmail"
+              ? "/member/login"
+              : "/login";
 
     const [status, setStatus] = useState<"loading" | "success" | "error" | "input">("loading");
     const [message, setMessage] = useState("");
@@ -199,7 +206,7 @@ export default function AuthAction() {
 
                 {(status === "success" || status === "error") && (
                     <div className="space-y-3">
-                        <Button className="w-full h-11" onClick={() => navigate("/login")}>
+                        <Button className="w-full h-11" onClick={() => navigate(loginPath)}>
                             Continue to login
                         </Button>
                         <Button variant="ghost" asChild className="w-full">

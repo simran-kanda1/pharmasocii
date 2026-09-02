@@ -473,8 +473,28 @@ function getVerificationActionCodeSettings() {
     };
 }
 
-async function generateVerificationLinkForEmail(userEmail) {
+/** Point Firebase Auth action links at our SPA (Hostinger), not firebaseapp.com. */
+function rewriteAuthActionLink(link, options = {}) {
+    if (!link) return link;
     const base = APP_PUBLIC_URL.replace(/\/$/, "");
+    let rewritten = link.replace(/^https?:\/\/[^/]+(\/__\/auth\/action|\/auth\/action)/, `${base}/auth/action`);
+    if (!rewritten.startsWith(base)) {
+        try {
+            const parsed = new URL(rewritten);
+            rewritten = `${base}/auth/action${parsed.search}`;
+        } catch (_) {}
+    }
+    if (options.nextPath) {
+        try {
+            const parsed = new URL(rewritten);
+            parsed.searchParams.set("next", options.nextPath);
+            rewritten = parsed.toString();
+        } catch (_) {}
+    }
+    return rewritten;
+}
+
+async function generateVerificationLinkForEmail(userEmail) {
     const settings = getVerificationActionCodeSettings();
     let link = null;
     try {
@@ -486,16 +506,7 @@ async function generateVerificationLinkForEmail(userEmail) {
         );
         link = await admin.auth().generateEmailVerificationLink(userEmail);
     }
-    if (link) {
-        link = link.replace(/^https?:\/\/[^/]+(\/__\/auth\/action|\/auth\/action)/, `${base}/auth/action`);
-        if (!link.startsWith(base)) {
-            try {
-                const parsed = new URL(link);
-                link = `${base}/auth/action${parsed.search}`;
-            } catch (_) {}
-        }
-    }
-    return link;
+    return rewriteAuthActionLink(link, { nextPath: "/member/login" });
 }
 
 async function getMemberEmailAndName(userId) {
@@ -1076,17 +1087,11 @@ exports.sendPasswordResetEmail = onCall({ region: "us-central1", cors: true }, a
             email,
             getVerificationActionCodeSettings(),
         );
-        if (resetLink) {
-            const base = APP_PUBLIC_URL.replace(/\/$/, "");
-            resetLink = resetLink.replace(/^https?:\/\/[^/]+(\/__\/auth\/action|\/auth\/action)/, `${base}/auth/action`);
-            if (!resetLink.startsWith(base)) {
-                try {
-                    const parsed = new URL(resetLink);
-                    resetLink = `${base}/auth/action${parsed.search}`;
-                } catch (_) {}
-            }
-        }
         const profile = await getMemberProfileByEmail(email);
+        const isMember = Boolean(profile.userName || profile.firstName);
+        resetLink = rewriteAuthActionLink(resetLink, {
+            nextPath: isMember ? "/member/login" : "/login",
+        });
         await sendCommunityEmail({
             type: "password_reset",
             toEmail: email,
@@ -1434,14 +1439,13 @@ exports.changePartnerPrimaryEmail = onCall({ region: "us-central1", cors: true }
         { merge: true }
     );
 
-    const base = APP_PUBLIC_URL.replace(/\/$/, "");
     let verifyLink = null;
     let linkError = null;
     try {
-        verifyLink = await admin.auth().generateEmailVerificationLink(newEmail, {
-            url: `${base}/login`,
-            handleCodeInApp: false,
-        });
+        verifyLink = await admin.auth().generateEmailVerificationLink(
+            newEmail,
+            getVerificationActionCodeSettings(),
+        );
     } catch (firstErr) {
         try {
             verifyLink = await admin.auth().generateEmailVerificationLink(newEmail);
@@ -1452,13 +1456,7 @@ exports.changePartnerPrimaryEmail = onCall({ region: "us-central1", cors: true }
     }
 
     if (verifyLink) {
-        verifyLink = verifyLink.replace(/^https?:\/\/[^/]+(\/__\/auth\/action|\/auth\/action)/, `${base}/auth/action`);
-        if (!verifyLink.startsWith(base)) {
-            try {
-                const parsed = new URL(verifyLink);
-                verifyLink = `${base}/auth/action${parsed.search}`;
-            } catch (_) {}
-        }
+        verifyLink = rewriteAuthActionLink(verifyLink, { nextPath: "/login" });
         await recordVerificationMirror(newEmail, verifyLink, "partner_email_change", { userId: uid });
         try {
             await sendCommunityEmail({

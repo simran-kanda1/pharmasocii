@@ -1,4 +1,13 @@
 {
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "orange-bear-967180.hostingersite.com",
+      "pharmasocii.com",
+      "www.pharmasocii.com",
+      "pharmasocii.firebaseapp.com"
+    ]
+  },
   "storage": {
     "rules": "storage.rules"
   },
