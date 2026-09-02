@@ -91,20 +91,6 @@
       ]
     },
     {
-      "collectionGroup": "planCollection",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "stripeSubscriptionId", "order": "ASCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "featuresCollection",
-      "queryScope": "COLLECTION_GROUP",
-      "fields": [
-        { "fieldPath": "stripeSubscriptionId", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "verificationMirrors",
       "queryScope": "COLLECTION",
       "fields": [
@@ -113,5 +99,22 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "planCollection",
+      "fieldPath": "stripeSubscriptionId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    },
+    {
+      "collectionGroup": "featuresCollection",
+      "fieldPath": "stripeSubscriptionId",
+      "indexes": [
+        { "order": "ASCENDING", "queryScope": "COLLECTION" },
+        { "order": "ASCENDING", "queryScope": "COLLECTION_GROUP" }
+      ]
+    }
+  ]
 }

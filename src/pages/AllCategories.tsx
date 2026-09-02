@@ -17,6 +17,7 @@ import {
     isListingStatusPublic,
     isPartnerListingPublic,
     resolveSpotlightPlacement,
+    spotlightDisplayActive,
 } from "@/lib/partnerListingPublic";
 import { AutoCarousel } from "@/components/ui/auto-carousel";
 import {
@@ -160,19 +161,6 @@ export default function AllCategories() {
     const itemsPerPage = 30;
 
     // ── Persistence Logic ──
-
-    const spotlightAccessEndMs = (item: any): number | null => {
-        const raw = item.featureSpotlightAccessEnd;
-        if (raw?.toDate) return raw.toDate().getTime();
-        if (typeof raw?.seconds === "number") return raw.seconds * 1000;
-        return null;
-    };
-
-    const spotlightDisplayActive = (item: any): boolean => {
-        const endMs = spotlightAccessEndMs(item);
-        if (item.featureSpotlightCancelPending && endMs != null && Date.now() > endMs) return false;
-        return true;
-    };
 
     // Reset filters when switching category tab or search params (always show listing list, not category-only grid).
     useEffect(() => {

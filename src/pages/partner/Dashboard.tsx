@@ -742,7 +742,7 @@ export default function Dashboard() {
                     fetch(`${API_BASE_URL}/api/sync-partner-billing`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ partnerId: user.uid }),
+                        body: JSON.stringify({ partnerId: user.uid, processInvoices: true }),
                     }).catch((err) => console.warn("Partner billing sync:", err?.message || err));
 
                     const [fName, ...lNames] = (data.primaryName || "").trim().split(/\s+/);
@@ -1757,9 +1757,14 @@ export default function Dashboard() {
                     console.warn("Feature cancellation succeeded without cancelledFeature flag.");
                 }
 
+                const successText =
+                    cancelScope === "feature"
+                        ? "Spotlight add-on scheduled to end at the close of your paid period. It will not renew."
+                        : "Your plan and any linked spotlight are scheduled to end at the close of your billing period.";
                 setPendingUpgradePlanId(null);
                 setShowCancelModal(false);
                 setSelectedPlanForAction(null);
+                alert(successText);
                 window.location.reload();
             }
         } catch (err: any) {
@@ -4611,6 +4616,14 @@ function CancelPlanModal({
     );
 
     const isFeatureCancel = (hasBoth ? selectedScope : cancelScope) === "feature";
+    const billingEnd =
+        plan.billingPeriodEnd?.seconds
+            ? new Date(plan.billingPeriodEnd.seconds * 1000)
+            : getPlanPeriodEndDate(plan);
+    const spotlightEnd =
+        toDateValue(linkedListing?.featureSpotlightAccessEnd) ||
+        toDateValue(linkedListing?.featureSpotlightPaidThrough) ||
+        billingEnd;
     const spotlightLabel =
         FEATURE_PLANS.find(
             (f) =>
@@ -4672,14 +4685,43 @@ function CancelPlanModal({
                                     <p className="font-semibold text-foreground text-sm">
                                         Cancel Plan
                                     </p>
+                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                        Your linked spotlight will also end on the same date as your plan.
+                                    </p>
                                 </button>
                             </div>
                         </>
                     ) : (
                         <p className="text-base text-foreground">
-                            Cancel your <span className="font-semibold">{isFeatureCancel ? spotlightLabel : (planConfig?.label || "listing")}</span> {isFeatureCancel ? "spotlight add-on" : "subscription"}?
+                            Cancel your <span className="font-semibold">{isFeatureCancel ? spotlightLabel : (planConfig?.label || "listing")}</span> {isFeatureCancel ? "spotlight add-on" : "plan subscription"}?
+                            {!isFeatureCancel && hasStandaloneSpotlightAddon(linkedListing, plan?.planId) ? (
+                                <> Your linked spotlight will also end on the same date as your plan.</>
+                            ) : null}
                         </p>
                     )}
+
+                    <div className="bg-foreground/5 border border-foreground/10 rounded-lg p-4">
+                        <p className="text-sm text-foreground">
+                            {isFeatureCancel ? (
+                                <>
+                                    Spotlight stays active until{" "}
+                                    <span className="font-semibold">
+                                        {spotlightEnd?.toLocaleDateString() || "the end of your paid period"}
+                                    </span>
+                                    , then won&apos;t renew. You&apos;ll see a &quot;Scheduled to end&quot; tag until that date.
+                                </>
+                            ) : (
+                                <>
+                                    Your plan and any linked spotlight stay active until{" "}
+                                    <span className="font-semibold">
+                                        {billingEnd?.toLocaleDateString() || "the end of your billing period"}
+                                    </span>
+                                    . After that, access tied to this plan ends unless you purchase again.
+                                    You&apos;ll see a &quot;Scheduled to end&quot; tag until that date.
+                                </>
+                            )}
+                        </p>
+                    </div>
 
                     {cancelError && (
                         <p className="text-sm text-destructive">{cancelError}</p>

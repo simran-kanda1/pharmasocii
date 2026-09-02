@@ -167,7 +167,7 @@ function formatCleanDescription(type: string, planId: string | null, featureId: 
     if (rawDesc && typeof rawDesc === "string" && rawDesc.trim()) {
         const trimmed = rawDesc.trim();
         // Prefer explicit upgrade / spotlight copy written by the billing server.
-        if (/spotlight upgrade|plan upgrade|spotlight:/i.test(trimmed)) {
+        if (/spotlight upgrade|plan upgrade|spotlight:|plan renewal|spotlight renewal/i.test(trimmed)) {
             return trimmed;
         }
         const stripped = trimmed.replace(/^(Plan|Feature):\s*/i, "").trim();

@@ -11,6 +11,7 @@ import {
     buildLiveListingKeySet,
     isPartnerListingPublic,
     resolveSpotlightPlacement,
+    spotlightDisplayActive,
 } from "@/lib/partnerListingPublic";
 import { onAuthStateChanged } from "firebase/auth";
 import { PostCard } from "@/components/community/PostCard";
@@ -44,20 +45,6 @@ function pickSpotlightOrRecent(
         .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a));
     if (spotlight.length > 0) return spotlight.slice(0, cap);
     return [...rows].sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a)).slice(0, cap);
-}
-
-function spotlightAccessEndMs(item: Record<string, any>): number | null {
-    const raw = item.featureSpotlightAccessEnd;
-    if (raw?.toDate) return raw.toDate().getTime();
-    if (typeof raw?.seconds === "number") return raw.seconds * 1000;
-    return null;
-}
-
-/** Spotlight stays visible until scheduled removal when user cancels mid-cycle. */
-function spotlightDisplayActive(item: Record<string, any>): boolean {
-    const endMs = spotlightAccessEndMs(item);
-    if (item.featureSpotlightCancelPending && endMs != null && Date.now() > endMs) return false;
-    return true;
 }
 
 function toMillis(value: any): number {

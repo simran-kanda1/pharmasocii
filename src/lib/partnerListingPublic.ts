@@ -25,6 +25,12 @@ export function toDateValue(value: unknown): Date | null {
 
 export function isPlanBillingLive(plan: Record<string, unknown>): boolean {
     if (plan?.active === false) return false;
+    const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
+    if (["active", "trialing", "past_due"].includes(stripeStatus)) {
+        const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
+        if (plan?.cancelAtPeriodEnd && end && end.getTime() < Date.now()) return false;
+        return true;
+    }
     const end =
         toDateValue(plan?.billingPeriodEnd) ||
         toDateValue(plan?.cancelAt);
@@ -162,6 +168,24 @@ const PLAN_INCLUDED_SPOTLIGHT: Record<string, string> = {
     premium_plus_job: "home_page",
 };
 
+const SPOTLIGHT_TIER_RANK: Record<string, number> = {
+    landing_page: 1,
+    home_page: 2,
+    both: 3,
+    spotlight_addon: 2,
+};
+
+function spotlightTierRank(placement: string): number {
+    return SPOTLIGHT_TIER_RANK[String(placement || "").trim().toLowerCase()] || 0;
+}
+
+function spotlightPlacementFromTier(tier: number): string {
+    if (tier >= 3) return "both";
+    if (tier >= 2) return "home_page";
+    if (tier >= 1) return "landing_page";
+    return "";
+}
+
 export function inferIncludedSpotlightFromPlan(item: Record<string, unknown>): string {
     const planId = String(item?.selectedPlan || "").trim().toLowerCase();
     return PLAN_INCLUDED_SPOTLIGHT[planId] || "";
@@ -169,14 +193,24 @@ export function inferIncludedSpotlightFromPlan(item: Record<string, unknown>): s
 
 /**
  * Resolve where a listing should appear in Featured carousels.
- * Events/jobs cannot buy standalone spotlight add-ons — the plan tier is source of truth
- * (P → landing_page, PP → home_page), so stale selectedAddon after a P→PP upgrade cannot
- * keep them on the wrong page.
+ * Uses the higher spotlight tier when plan-included and add-on fields disagree
+ * (e.g. stale selectedPlan after upgrade, or stale selectedAddon before repair).
  */
 export function resolveSpotlightPlacement(item: Record<string, unknown>): string {
-    const planIncluded = inferIncludedSpotlightFromPlan(item);
-    if (planIncluded) return planIncluded;
-    return String(item?.selectedAddon || item?.featuredPlacement || "")
+    const addon = String(item?.selectedAddon || item?.featuredPlacement || "")
         .trim()
         .toLowerCase();
+    const planIncluded = inferIncludedSpotlightFromPlan(item);
+    const tier = Math.max(spotlightTierRank(addon), spotlightTierRank(planIncluded));
+    const resolved = spotlightPlacementFromTier(tier);
+    return resolved || addon || planIncluded;
+}
+
+/** Spotlight stays visible until scheduled removal when user cancels mid-cycle. */
+export function spotlightDisplayActive(item: Record<string, unknown>): boolean {
+    const cancelEnd = toDateValue(item.featureSpotlightAccessEnd);
+    if (item.featureSpotlightCancelPending && cancelEnd && cancelEnd.getTime() < Date.now()) {
+        return false;
+    }
+    return true;
 }

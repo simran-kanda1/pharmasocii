@@ -653,23 +653,43 @@ async function processPartnerPaidSubscriptionInvoices(partnerId) {
         if (subId) subIds.add(subId);
     }
 
+    const featSnap = await db.collection("partnersCollection")
+        .doc(partnerId)
+        .collection("featuresCollection")
+        .get()
+        .catch(() => ({ docs: [] }));
+    for (const featDoc of featSnap.docs || []) {
+        const subId = toStripeSubscriptionId(featDoc.data()?.stripeSubscriptionId);
+        if (subId) subIds.add(subId);
+    }
+
     let processed = 0;
+    let inserted = 0;
+    let alreadyPresent = 0;
     const invoiceIds = [];
+    const errors = [];
     for (const subId of subIds) {
         try {
-            const invoices = await stripe.invoices.list({ subscription: subId, limit: 12 });
+            const invoices = await stripe.invoices.list({ subscription: subId, limit: 24 });
             for (const invoice of invoices.data) {
                 if (invoice.status !== "paid") continue;
                 if (invoice.billing_reason !== "subscription_cycle") continue;
+                const existing = await db.collection("transactionsCollection")
+                    .where("invoiceId", "==", invoice.id).limit(1).get();
+                const wasMissing = existing.empty;
                 await processSubscriptionInvoicePaid(invoice, { partnerId });
                 processed += 1;
                 invoiceIds.push(invoice.id);
+                if (wasMissing) inserted += 1;
+                else alreadyPresent += 1;
             }
         } catch (err) {
-            console.warn(`processPartnerPaidSubscriptionInvoices ${subId}:`, err?.message || err);
+            const message = err?.message || String(err);
+            console.warn(`processPartnerPaidSubscriptionInvoices ${subId}:`, message);
+            errors.push({ subscriptionId: subId, error: message });
         }
     }
-    return { processed, invoiceIds };
+    return { processed, inserted, alreadyPresent, invoiceIds, errors };
 }
 
 // ─── Firebase Admin ───
@@ -1014,6 +1034,117 @@ async function resolveSpotlightAddonAccessEndDate(listingData, plan) {
     }
     if (!end) end = addDays(new Date(), 30);
     return end;
+}
+
+/**
+ * When a plan is cancelled at period end, schedule any linked spotlight (standalone or included)
+ * to end on the same date. Visibility stays until that date.
+ */
+async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, planAccessEnd) {
+    if (!partnerId || !plan?.listingId || !plan?.collectionName || !planAccessEnd) {
+        return { cancelledFeature: false };
+    }
+
+    const listingRef = await resolveListingDocRef(partnerId, plan.collectionName, plan.listingId);
+    if (!listingRef) return { cancelledFeature: false };
+
+    const listingSnap = await listingRef.get();
+    if (!listingSnap.exists) return { cancelledFeature: false };
+    const listingData = listingSnap.data() || {};
+
+    if (isSpotlightCancelPending(listingData)) {
+        return { cancelledFeature: false, alreadyScheduled: true };
+    }
+
+    const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[plan.planId] || null;
+    const isIncluded = Boolean(includedSpotlight) || isEventOrJobCollection(plan.collectionName);
+
+    if (isIncluded) {
+        const listingPatch = {
+            featureSpotlightCancelPending: true,
+            featureSpotlightAccessEnd: planAccessEnd,
+            featureSpotlightPaidThrough: planAccessEnd,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        };
+        await applyListingPatchEverywhere(partnerId, plan.collectionName, plan.listingId, listingPatch);
+
+        const featSnap = await partnerRef
+            .collection("featuresCollection")
+            .where("listingId", "==", plan.listingId)
+            .where("active", "==", true)
+            .limit(20)
+            .get();
+        for (const fDoc of featSnap.docs) {
+            const fd = fDoc.data() || {};
+            if (fd.collectionName && fd.collectionName !== plan.collectionName) continue;
+            if (fd.source !== "included_plan") continue;
+            await fDoc.ref.set(
+                {
+                    cancelPending: true,
+                    accessThrough: planAccessEnd,
+                    cancelScope: "plan",
+                },
+                { merge: true },
+            );
+        }
+        return { cancelledFeature: true, included: true };
+    }
+
+    const spotlightCtx = await resolveStandaloneSpotlightForCancel(
+        partnerRef,
+        plan.listingId,
+        plan.collectionName,
+        listingData,
+    );
+    if (!spotlightCtx.hasPaidStandalone || !spotlightCtx.linkedFeatureId) {
+        return { cancelledFeature: false };
+    }
+
+    const planSubId = toStripeSubscriptionId(plan.stripeSubscriptionId);
+    const listingPlanSubId = toStripeSubscriptionId(listingData.stripeSubscriptionId);
+    const distinctFeatureSubId = await resolveDistinctSpotlightSubscriptionId({
+        candidateSubId: spotlightCtx.featureSubId || toStripeSubscriptionId(listingData.featureSpotlightStripeSubscriptionId),
+        planSubId,
+        listingPlanSubId,
+        featureDocs: spotlightCtx.featureDocs,
+        stripeCustomerId:
+            toStripeCustomerId(listingData.stripeCustomerId) ||
+            toStripeCustomerId(plan.stripeCustomerId),
+    });
+
+    if (distinctFeatureSubId) {
+        try {
+            await stripe.subscriptions.update(distinctFeatureSubId, { cancel_at_period_end: true });
+            if (distinctFeatureSubId !== listingData.featureSpotlightStripeSubscriptionId) {
+                await applyListingPatchEverywhere(partnerId, plan.collectionName, plan.listingId, {
+                    featureSpotlightStripeSubscriptionId: distinctFeatureSubId,
+                });
+            }
+        } catch (stripeErr) {
+            console.warn("   ⚠ Could not set Stripe spotlight cancel_at_period_end on plan cancel:", stripeErr?.message || stripeErr);
+        }
+    }
+
+    const listingPatch = {
+        featureSpotlightCancelPending: true,
+        featureSpotlightAccessEnd: planAccessEnd,
+        featureSpotlightPaidThrough: planAccessEnd,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    await applyListingPatchEverywhere(partnerId, plan.collectionName, plan.listingId, listingPatch);
+
+    for (const fDoc of spotlightCtx.featureDocs) {
+        await fDoc.ref.set(
+            {
+                cancelPending: true,
+                accessThrough: planAccessEnd,
+                cancelScope: "plan",
+            },
+            { merge: true },
+        );
+    }
+
+    return { cancelledFeature: true, linkedFeatureId: spotlightCtx.linkedFeatureId };
 }
 
 function partnerIdFromPartnersPlanRef(ref) {
@@ -1758,7 +1889,11 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
 
         case "invoice.paid": {
             const invoice = event.data.object;
-            await processSubscriptionInvoicePaid(invoice);
+            try {
+                await processSubscriptionInvoicePaid(invoice);
+            } catch (invoiceErr) {
+                console.error("invoice.paid handler failed:", invoiceErr?.message || invoiceErr);
+            }
             break;
         }
 
@@ -2971,15 +3106,30 @@ async function tryProcessSpotlightAddonInvoicePaid({
     customerId,
     billingReason,
     billingPeriodEnd,
+    partnerId = null,
 }) {
-    const featSnap = await db.collectionGroup("featuresCollection")
-        .where("stripeSubscriptionId", "==", subscriptionId)
-        .get()
-        .catch((err) => {
-            console.warn("tryProcessSpotlightAddonInvoicePaid featuresCollection query:", err?.message || err);
-            return { docs: [] };
-        });
-    const addonDocs = featSnap.docs.filter((d) => (d.data() || {}).source === "spotlight_addon");
+    let addonDocs = [];
+    if (partnerId) {
+        const featSnap = await db.collection("partnersCollection")
+            .doc(partnerId)
+            .collection("featuresCollection")
+            .where("stripeSubscriptionId", "==", subscriptionId)
+            .get()
+            .catch((err) => {
+                console.warn("tryProcessSpotlightAddonInvoicePaid featuresCollection query:", err?.message || err);
+                return { docs: [] };
+            });
+        addonDocs = featSnap.docs.filter((d) => (d.data() || {}).source === "spotlight_addon");
+    } else {
+        const featSnap = await db.collectionGroup("featuresCollection")
+            .where("stripeSubscriptionId", "==", subscriptionId)
+            .get()
+            .catch((err) => {
+                console.warn("tryProcessSpotlightAddonInvoicePaid featuresCollection query:", err?.message || err);
+                return { docs: [] };
+            });
+        addonDocs = featSnap.docs.filter((d) => (d.data() || {}).source === "spotlight_addon");
+    }
     const periodStart = await resolveBillingPeriodStartFromStripe(stripe, invoice, subscriptionId);
     if (addonDocs.length === 0) {
         console.warn(`   ⚠ No featuresCollection doc for spotlight subscription ${subscriptionId}; trying listing fallback.`);
@@ -3134,6 +3284,8 @@ async function tryProcessSpotlightAddonInvoicePaid({
         group: primaryCtx?.group || null,
         listingId: primaryCtx?.listingId || null,
         collectionName: primaryCtx?.collectionName || null,
+        description: "Spotlight renewal",
+        billingReason,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         invoiceId: invoice.id,
         stripeInvoiceId: invoice.id,
@@ -3270,6 +3422,7 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
             status: "Approved",
             stripeSubscriptionId: subId,
             lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            ...(planData.planId ? { selectedPlan: planData.planId } : {}),
             ...(customerId ? { stripeCustomerId: customerId } : {}),
         };
         if (includedSpotlight) {
@@ -3561,14 +3714,14 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
     }
 
     let invoiceSubscription = null;
-    if (subIdForPeriod) {
+    if (subscriptionId) {
         try {
-            invoiceSubscription = await stripe.subscriptions.retrieve(subIdForPeriod);
+            invoiceSubscription = await stripe.subscriptions.retrieve(subscriptionId);
         } catch (_) {
             invoiceSubscription = null;
         }
     }
-    if (await isKnownSpotlightAddonSubscriptionId(subscriptionId, invoiceSubscription)) {
+    if (await isKnownSpotlightAddonSubscriptionId(subscriptionId, invoiceSubscription, options.partnerId)) {
         console.log(`   ℹ Invoice ${invoice.id} belongs to a spotlight add-on subscription.`);
         const collidingPlans = options.partnerId
             ? await db.collection("partnersCollection")
@@ -3605,6 +3758,7 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
             customerId,
             billingReason,
             billingPeriodEnd,
+            partnerId: options.partnerId || null,
         });
         return;
     }
@@ -3643,6 +3797,7 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
             customerId,
             billingReason,
             billingPeriodEnd,
+            partnerId: options.partnerId || null,
         });
         return;
     }
@@ -3697,6 +3852,7 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
                     status: "Approved",
                     lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                     stripeSubscriptionId: subscriptionId,
+                    ...(planData.planId ? { selectedPlan: planData.planId } : {}),
                     ...(customerId ? { stripeCustomerId: customerId } : {}),
                 };
                 if (includedSpotlight) {
@@ -3783,6 +3939,8 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
         group: primaryPlanContext?.group || null,
         listingId: primaryPlanContext?.listingId || null,
         collectionName: primaryPlanContext?.collectionName || null,
+        description: billingReason === "subscription_cycle" ? "Plan renewal" : `Subscription payment (${billingReason})`,
+        billingReason,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         invoiceId: invoice.id,
         stripeInvoiceId: invoice.id,
@@ -5851,8 +6009,25 @@ app.post("/api/cancel-plan", async (req, res) => {
                     }),
             }, { merge: true });
 
+            const planAccessEnd = stripeCancelAt
+                ? new Date(stripeCancelAt * 1000)
+                : await resolveAccessEndDate();
+
+            const spotlightCascade = await scheduleSpotlightEndWithPlanCancel(
+                partnerRef,
+                partnerId,
+                plan,
+                planAccessEnd,
+            );
+            if (spotlightCascade.cancelledFeature) {
+                cancelledFeature = true;
+                if (spotlightCascade.linkedFeatureId) {
+                    linkedFeatureId = spotlightCascade.linkedFeatureId;
+                }
+            }
+
             // Events/Jobs included spotlight ends with the plan at period end — do not strip early.
-            // Business/Consulting standalone spotlights are independent and are left untouched here.
+            // Business/Consulting standalone spotlights are scheduled above to end with the plan.
             cancelledPlan = true;
         }
 
@@ -6938,6 +7113,71 @@ async function runBillingCli() {
         });
         console.log(JSON.stringify(result, null, 2));
         if (!result.ok) process.exit(1);
+        return;
+    }
+
+    if (cliCommand === "backfill-renewal-transactions") {
+        const onlyPartnerId = process.argv[3] && !String(process.argv[3]).startsWith("--")
+            ? String(process.argv[3]).trim()
+            : null;
+        const skipPlanSync = process.argv.includes("--invoices-only");
+
+        let partnerIds = [];
+        if (onlyPartnerId) {
+            partnerIds = [onlyPartnerId];
+        } else {
+            const partnersSnap = await db.collection("partnersCollection").select().get();
+            partnerIds = partnersSnap.docs.map((d) => d.id);
+        }
+
+        let totalInserted = 0;
+        let totalAlreadyPresent = 0;
+        let totalProcessed = 0;
+        let partnersWithInserts = 0;
+        const allErrors = [];
+
+        for (const partnerId of partnerIds) {
+            try {
+                if (!skipPlanSync) {
+                    await syncPartnerPlansFromStripe(partnerId, {
+                        waitForClock: false,
+                        processInvoices: false,
+                    });
+                }
+                const invoiceSync = await processPartnerPaidSubscriptionInvoices(partnerId);
+                totalInserted += invoiceSync.inserted || 0;
+                totalAlreadyPresent += invoiceSync.alreadyPresent || 0;
+                totalProcessed += invoiceSync.processed || 0;
+                if ((invoiceSync.inserted || 0) > 0) partnersWithInserts += 1;
+                if (invoiceSync.errors?.length) {
+                    allErrors.push({ partnerId, errors: invoiceSync.errors });
+                }
+                if ((invoiceSync.inserted || 0) > 0) {
+                    console.log(
+                        `✓ ${partnerId}: inserted ${invoiceSync.inserted} renewal transaction(s)`,
+                    );
+                }
+            } catch (err) {
+                allErrors.push({ partnerId, error: err?.message || String(err) });
+            }
+        }
+
+        console.log(
+            JSON.stringify(
+                {
+                    ok: true,
+                    partnersScanned: partnerIds.length,
+                    partnersWithInserts,
+                    totalProcessed,
+                    totalInserted,
+                    totalAlreadyPresent,
+                    errors: allErrors,
+                },
+                null,
+                2,
+            ),
+        );
+        if (allErrors.length > 0) process.exit(1);
         return;
     }
 
