@@ -327,6 +327,28 @@ const toDateValue = (value: any): Date | null => {
 const getPlanPeriodEndDate = (plan: any): Date | null =>
     toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
 
+const formatBillingDate = (date: Date | null | undefined): string =>
+    date ? date.toLocaleDateString() : "N/A";
+
+/** Stripe period_end is exclusive — last paid calendar day is the day before. */
+const getInclusivePeriodLastDay = (periodEnd: Date | null): Date | null => {
+    if (!periodEnd) return null;
+    const lastDay = new Date(periodEnd.getTime());
+    lastDay.setDate(lastDay.getDate() - 1);
+    return lastDay;
+};
+
+const formatPlanDuration = (periodStart: Date | null, periodEnd: Date | null): string => {
+    const inclusiveEnd = getInclusivePeriodLastDay(periodEnd);
+    if (periodStart && inclusiveEnd) {
+        return `${formatBillingDate(periodStart)} – ${formatBillingDate(inclusiveEnd)}`;
+    }
+    return formatBillingDate(periodStart) || formatBillingDate(inclusiveEnd);
+};
+
+/** Renewal charges on period_end (start of the next cycle). */
+const getRenewalDate = (periodEnd: Date | null): Date | null => periodEnd;
+
 /** Paid access still in effect (not lapsed / not deactivated). */
 const isPlanBillingLive = (plan: any): boolean => {
     if (plan?.active === false) return false;
@@ -2149,12 +2171,11 @@ export default function Dashboard() {
         const renderPlanSubscriptionCard = (plan: any, mode: "active" | "past" = "active") => {
             const isPast = mode === "past";
             const planConfig = dynamicPlanConfigs[plan.planId] || PLAN_CONFIGS[plan.planId];
-            // Current billing period start (updates on renewals); fall back to original purchase startDate.
-            const startDate =
+            const periodStart =
                 toDateValue(plan.billingPeriodStart) ||
-                toDateValue(plan.lastPaymentReceivedAt) ||
                 toDateValue(plan.startDate);
-            const billingEnd = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
+            const periodEnd = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
+            const renewalDate = getRenewalDate(periodEnd);
             const cancelledAt = toDateValue(plan.cancelledAt);
             const isYearly = plan.billingInterval === "year" || plan.planId?.includes("_yr");
             const billingCycleLabel = isYearly ? "Annual" : "Monthly";
@@ -2171,7 +2192,6 @@ export default function Dashboard() {
             // If an upgrade incorrectly stamped payment day as period start, align to plan period when renewal matches.
             const planPeriodStart =
                 toDateValue(plan.billingPeriodStart) ||
-                toDateValue(plan.lastPaymentReceivedAt) ||
                 toDateValue(plan.startDate);
             const storedFeatureStart = toDateValue(linkedListing?.featureSpotlightBillingPeriodStart);
             const lastFeaturePay = toDateValue(linkedListing?.lastFeaturePaymentReceivedAt);
@@ -2245,21 +2265,25 @@ export default function Dashboard() {
                                 )}
                                 {isEnding && !isPast && (
                                     <p className="text-xs mt-1 mb-1" style={{ color: '#78350f' }}>
-                                        Plan scheduled to end on {billingEnd ? billingEnd.toLocaleDateString() : "the end of your billing period"}. It will not renew.
+                                        Plan scheduled to end on {renewalDate ? renewalDate.toLocaleDateString() : "the end of your billing period"}. It will not renew.
                                     </p>
                                 )}
                                 <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
-                                    <div className="min-w-[140px]">
+                                    <div className="min-w-[180px]">
                                         <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
-                                            {isPast ? "Last Period Start" : "Current Period Start"}
+                                            {isPast ? "Last Plan Duration" : "Plan Duration"}
                                         </p>
-                                        <p className="text-sm text-foreground font-medium">{startDate ? startDate.toLocaleDateString() : "N/A"}</p>
+                                        <p className="text-sm text-foreground font-medium">
+                                            {formatPlanDuration(periodStart, periodEnd)}
+                                        </p>
                                     </div>
                                     <div className="min-w-[140px]">
                                         <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
                                             {isPast ? "Ended On" : isEnding ? "Ends On" : "Renewal Date"}
                                         </p>
-                                        <p className="text-sm text-foreground font-medium">{billingEnd ? billingEnd.toLocaleDateString() : "N/A"}</p>
+                                        <p className="text-sm text-foreground font-medium">
+                                            {renewalDate ? renewalDate.toLocaleDateString() : "N/A"}
+                                        </p>
                                     </div>
                                     {isPast && (
                                         <div className="min-w-[140px]">
@@ -2292,10 +2316,10 @@ export default function Dashboard() {
                                             </p>
                                         )}
                                         <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
-                                            <div className="min-w-[140px]">
-                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Current Period Start</p>
+                                            <div className="min-w-[180px]">
+                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Plan Duration</p>
                                                 <p className="text-sm text-foreground font-medium">
-                                                    {standaloneSpotlightStart ? standaloneSpotlightStart.toLocaleDateString() : "N/A"}
+                                                    {formatPlanDuration(standaloneSpotlightStart, standaloneSpotlightRenewal)}
                                                 </p>
                                             </div>
                                             <div className="min-w-[140px]">
