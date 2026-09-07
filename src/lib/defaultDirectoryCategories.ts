@@ -32,8 +32,9 @@ export const DEFAULT_BUSINESS_CATEGORIES: CategoriesDict = {
     "Cleaning Agents": [],
     "Cleaning Services": [],
     "Clinical & Diagnostic Testing": ["Blood", "Compartmental Specimens", "Donor", "Genetics", "HLA Typing", "Molecular Specimens", "Plasma", "Serum", "Tissues"],
-    "Clinical Research & Development": [],
-    "Container Closures & Packaging": ["Adverse Event Management", "Animal Research Centers", "Audits", "Biobanking & Storage", "Biospecimen Services", "Biostats", "Contract Support", "Data Management", "Decentralized Trials", "End to End Pharmacovigilance System", "EU QPPV", "Lab & Analytical Services", "Literature Screening", "Local Contact Person", "Mice Models for Research", "Non-Human Primates for Research", "Other", "Patient Recruitment & Support", "Patient Support", "Pharmacovigilance", "Post Authorization Safety Studies", "Post Marketing Surveillance", "Pre-Clinical Studies", "Primate Models for Research", "Product Complaints Management", "Project Management", "Protocol Writing", "Real World Evidence", "Research Platforms", "Site Management", "Site Selection & Qualification", "Specialty Testing", "Target & Lead Optimization", "Translational Sciences", "Trial Planning & Management", "Vendor Management"],
+    "Clinical Research": ["Adverse Event Management", "Animal Research Centers", "Audits", "Biobanking & Storage", "Biospecimen Services", "Biostats", "Contract Support", "Data Management", "Decentralized Trials", "End to End Pharmacovigilance System", "EU QPPV", "Lab & Analytical Services", "Literature Screening", "Local Contact Person", "Mice Models for Research", "Non-Human Primates for Research", "Other", "Patient Recruitment & Support", "Patient Support", "Pharmacovigilance", "Post Authorization Safety Studies", "Post Marketing Surveillance", "Pre-Clinical Studies", "Primate Models for Research", "Product Complaints Management", "Project Management", "Protocol Writing", "Real World Evidence", "Research Platforms", "Site Management", "Site Selection & Qualification", "Specialty Testing", "Study Design", "Target & Lead Optimization", "Translational Sciences", "Trial Planning & Management", "Vendor Management"],
+    "Clinical Research & Development": ["Adverse Event Management", "Animal Research Centers", "Audits", "Biobanking & Storage", "Biospecimen Services", "Biostats", "Contract Support", "Data Management", "Decentralized Trials", "End to End Pharmacovigilance System", "EU QPPV", "Lab & Analytical Services", "Literature Screening", "Local Contact Person", "Mice Models for Research", "Non-Human Primates for Research", "Other", "Patient Recruitment & Support", "Patient Support", "Pharmacovigilance", "Post Authorization Safety Studies", "Post Marketing Surveillance", "Pre-Clinical Studies", "Primate Models for Research", "Product Complaints Management", "Project Management", "Protocol Writing", "Real World Evidence", "Research Platforms", "Site Management", "Site Selection & Qualification", "Specialty Testing", "Study Design", "Target & Lead Optimization", "Translational Sciences", "Trial Planning & Management", "Vendor Management"],
+    "Container Closures & Packaging": ["Ampoules & Vials", "Blister Packaging", "Bottles & Jars", "Caps & Closures", "Cartons & Boxes", "Child-Resistant Packaging", "Cold Chain Packaging", "Desiccants & Absorbers", "Droppers & Pipettes", "Labels & Seals", "Medical Device Packaging", "PFS (Prefilled Syringes)", "Pouches & Bags", "Primary Packaging", "Secondary Packaging", "Sterile Packaging", "Tamper-Evident Packaging", "Temperature-Controlled Containers", "Track & Trace / Serialization", "Tubes", "Visual Inspection", "Other"],
     "Digital Solutions For Life Sciences": [],
     "Engineering": ["Computer Systems", "Environmental Controls", "Equipment", "Facility", "Process", "Utilities", "Warehouse"],
     "Environmental Monitoring & Testing": [],
@@ -405,41 +406,63 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
         const categoryName = (doc.categoryName || doc.category || "").trim();
         if (!categoryName) return;
 
-        const subcategory = (doc.subcategory || "").trim();
-        const subSubcategory = (doc.subSubcategory || "").trim();
+        const rawSubcategory = (doc.subcategory || "").trim();
+        const rawSubSubcategory = (doc.subSubcategory || "").trim();
         const isInactive = (doc.status || "Active").toLowerCase() === "inactive";
 
-        // Store metadata keyed by ID and by paths
+        // Parse comma-separated lists, filtering out empty items and "-"
+        const parseList = (val: string): string[] => {
+            if (!val || val === "-") return [];
+            return val
+                .split(",")
+                .map((s) => s.trim())
+                .filter((s) => s && s !== "-");
+        };
+
+        let subList = parseList(rawSubcategory);
+        let subSubList = parseList(rawSubSubcategory);
+
+        // Crucial fix: If subcategory was "-" (or empty) but subSubcategory has items,
+        // those items were entered by the user to be subcategories of categoryName!
+        if (subList.length === 0 && subSubList.length > 0) {
+            subList = subSubList;
+            subSubList = [];
+        }
+
+        // Store metadata keyed by ID and by hierarchy paths
         if (doc.id) {
             categoryMetadataMap[doc.id] = doc;
         }
         categoryMetadataMap[`${groupKey}:${categoryName}`] = doc;
-        if (subcategory && subcategory !== "-") {
-            categoryMetadataMap[`${groupKey}:${categoryName}:${subcategory}`] = doc;
-            if (subSubcategory && subSubcategory !== "-") {
-                categoryMetadataMap[`${groupKey}:${categoryName}:${subcategory}:${subSubcategory}`] = doc;
-            }
-        }
+        subList.forEach((sub) => {
+            categoryMetadataMap[`${groupKey}:${categoryName}:${sub}`] = doc;
+            subSubList.forEach((ss) => {
+                categoryMetadataMap[`${groupKey}:${categoryName}:${sub}:${ss}`] = doc;
+            });
+        });
 
         // Handle inactive items
         if (isInactive) {
-            if (!subcategory || subcategory === "-") {
+            if (subList.length === 0) {
                 delete targetDict[categoryName];
                 return;
             }
 
             if (targetDict[categoryName]) {
-                if (!subSubcategory || subSubcategory === "-") {
+                if (subSubList.length === 0) {
+                    const subSet = new Set(subList.map((s) => s.toLowerCase()));
                     targetDict[categoryName] = targetDict[categoryName].filter(
-                        (entry) => getSubLabel(entry).toLowerCase() !== subcategory.toLowerCase()
+                        (entry) => !subSet.has(getSubLabel(entry).toLowerCase())
                     );
                 } else {
+                    const subSubSet = new Set(subSubList.map((s) => s.toLowerCase()));
+                    const subSet = new Set(subList.map((s) => s.toLowerCase()));
                     targetDict[categoryName] = targetDict[categoryName].map((entry) => {
-                        if (typeof entry !== "string" && entry.label.toLowerCase() === subcategory.toLowerCase()) {
+                        if (typeof entry !== "string" && subSet.has(entry.label.toLowerCase())) {
                             return {
                                 ...entry,
                                 subSubcategories: entry.subSubcategories.filter(
-                                    (ss) => ss.toLowerCase() !== subSubcategory.toLowerCase()
+                                    (ss) => !subSubSet.has(ss.toLowerCase())
                                 ),
                             };
                         }
@@ -455,39 +478,53 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
             targetDict[categoryName] = [];
         }
 
-        if (!subcategory || subcategory === "-") {
+        // If no subcategories specified, just ensure category exists
+        if (subList.length === 0) {
             return;
         }
 
-        // Add subcategory / sub-subcategory
         const currentEntries = targetDict[categoryName];
-        const existingEntryIndex = currentEntries.findIndex(
-            (entry) => getSubLabel(entry).toLowerCase() === subcategory.toLowerCase()
-        );
 
-        if (!subSubcategory || subSubcategory === "-") {
-            if (existingEntryIndex === -1) {
-                currentEntries.push(subcategory);
-            }
+        if (subSubList.length === 0) {
+            // Add each subcategory as a flat subcategory if not already present
+            subList.forEach((sub) => {
+                const existingIndex = currentEntries.findIndex(
+                    (entry) => getSubLabel(entry).toLowerCase() === sub.toLowerCase()
+                );
+                if (existingIndex === -1) {
+                    currentEntries.push(sub);
+                }
+            });
         } else {
-            if (existingEntryIndex === -1) {
-                currentEntries.push({
-                    label: subcategory,
-                    subSubcategories: [subSubcategory],
-                });
-            } else {
-                const existing = currentEntries[existingEntryIndex];
-                if (typeof existing === "string") {
-                    currentEntries[existingEntryIndex] = {
-                        label: existing,
-                        subSubcategories: [subSubcategory],
-                    };
+            // We have sub-subcategories!
+            subList.forEach((sub) => {
+                const existingIndex = currentEntries.findIndex(
+                    (entry) => getSubLabel(entry).toLowerCase() === sub.toLowerCase()
+                );
+
+                if (existingIndex === -1) {
+                    currentEntries.push({
+                        label: sub,
+                        subSubcategories: [...subSubList],
+                    });
                 } else {
-                    if (!existing.subSubcategories.some((ss) => ss.toLowerCase() === subSubcategory.toLowerCase())) {
-                        existing.subSubcategories.push(subSubcategory);
+                    const existing = currentEntries[existingIndex];
+                    if (typeof existing === "string") {
+                        currentEntries[existingIndex] = {
+                            label: existing,
+                            subSubcategories: [...subSubList],
+                        };
+                    } else {
+                        const existingSet = new Set(existing.subSubcategories.map((s) => s.toLowerCase()));
+                        subSubList.forEach((ss) => {
+                            if (!existingSet.has(ss.toLowerCase())) {
+                                existing.subSubcategories.push(ss);
+                                existingSet.add(ss.toLowerCase());
+                            }
+                        });
                     }
                 }
-            }
+            });
         }
     });
 

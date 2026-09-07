@@ -177,22 +177,28 @@ export function AdminEditCategoryModal({
 
           <div className="grid grid-cols-[160px_1fr] items-center gap-3">
             <Label className="text-slate-700 font-medium">Sub Category:</Label>
-            <Input
-              placeholder="e.g. Equipment (or - if none)"
-              value={formData.subcategory}
-              onChange={(e) => handleChange("subcategory", e.target.value)}
-              className="text-sm"
-            />
+            <div>
+              <Input
+                placeholder="e.g. Equipment (or multiple separated by commas)"
+                value={formData.subcategory}
+                onChange={(e) => handleChange("subcategory", e.target.value)}
+                className="text-sm"
+              />
+              <p className="text-xs text-slate-400 mt-0.5">Separate multiple subcategories with commas</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-[160px_1fr] items-center gap-3">
-            <Label className="text-slate-700 font-medium">Sub Sub Category:</Label>
-            <Input
-              placeholder="e.g. Analytics (or - if none)"
-              value={formData.subSubcategory}
-              onChange={(e) => handleChange("subSubcategory", e.target.value)}
-              className="text-sm"
-            />
+            <Label className="text-slate-700 font-medium">Sub Sub Categories:</Label>
+            <div>
+              <Input
+                placeholder="e.g. Analytics, Bioassays (separated by commas)"
+                value={formData.subSubcategory}
+                onChange={(e) => handleChange("subSubcategory", e.target.value)}
+                className="text-sm"
+              />
+              <p className="text-xs text-slate-400 mt-0.5">Nested under subcategory (separate with commas)</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-[160px_1fr] items-center gap-3">

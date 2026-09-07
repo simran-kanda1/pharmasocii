@@ -23,6 +23,8 @@ export function AdminAddCategory({ onCancel, onSuccess }: { onCancel: () => void
     metaKeywords: "",
     categoryName: "",
     parentCategory: PARENT_CATEGORIES[0],
+    subcategory: "",
+    subSubcategory: "",
     description: "",
     status: "Active",
   });
@@ -56,8 +58,8 @@ export function AdminAddCategory({ onCancel, onSuccess }: { onCancel: () => void
         ...formData,
         group: formData.parentCategory,
         category: formData.categoryName,
-        subcategory: "-",
-        subSubcategory: "-",
+        subcategory: formData.subcategory.trim() || "-",
+        subSubcategory: formData.subSubcategory.trim() || "-",
         imageUrl: "", // We will update this after upload
         createdAt: new Date(),
       });
@@ -146,6 +148,30 @@ export function AdminAddCategory({ onCancel, onSuccess }: { onCancel: () => void
                 <option value="" disabled>Choose Category</option>
                 {PARENT_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
               </select>
+            </div>
+
+            <div className="grid grid-cols-[200px_1fr] items-center gap-4">
+              <Label className="text-slate-600 font-medium">Sub Category :</Label>
+              <div>
+                <Input 
+                  placeholder="e.g. Equipment (or multiple separated by commas)" 
+                  value={formData.subcategory} 
+                  onChange={(e) => handleChange("subcategory", e.target.value)} 
+                />
+                <p className="text-xs text-slate-400 mt-1">Separate multiple subcategories with commas</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-[200px_1fr] items-center gap-4">
+              <Label className="text-slate-600 font-medium">Sub Sub Categories :</Label>
+              <div>
+                <Input 
+                  placeholder="e.g. Analytics, Bioassays (separated by commas)" 
+                  value={formData.subSubcategory} 
+                  onChange={(e) => handleChange("subSubcategory", e.target.value)} 
+                />
+                <p className="text-xs text-slate-400 mt-1">Nested under the subcategory above (separate with commas)</p>
+              </div>
             </div>
 
             <div className="grid grid-cols-[200px_1fr] items-center gap-4">

@@ -78,7 +78,10 @@ import {
 } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useDirectoryCategories } from "@/hooks/useDirectoryCategories";
-import { BUSINESS_CATEGORIES, CONSULTING_CATEGORIES, EVENTS_CATEGORIES, JOBS_CATEGORIES, type SubcategoryEntry } from "@/lib/defaultDirectoryCategories";
+import {
+  normalizeGroupKey,
+  type SubcategoryEntry,
+} from "@/lib/defaultDirectoryCategories";
 import { DEFAULT_COMMUNITY_CATEGORIES } from "@/lib/defaultCommunityCategories";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
 import {
@@ -737,6 +740,13 @@ const FEATURED_PLAN_CATALOG = [
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
+  const {
+    businessCategories,
+    consultingCategories,
+    eventsCategories,
+    jobsCategories,
+    categoryMetadataMap,
+  } = useDirectoryCategories();
 
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [partners, setPartners] = useState<PartnerRecord[]>([]);
@@ -1736,40 +1746,95 @@ export default function AdminDashboard() {
 
   const categoryRows = useMemo(() => {
     const sources = [
-      { group: "Business Offerings", data: BUSINESS_CATEGORIES },
-      { group: "Consulting Services", data: CONSULTING_CATEGORIES },
-      { group: "Events", data: EVENTS_CATEGORIES },
-      { group: "Jobs", data: JOBS_CATEGORIES },
+      { group: "Business Offerings", data: businessCategories },
+      { group: "Consulting Services", data: consultingCategories },
+      { group: "Events", data: eventsCategories },
+      { group: "Jobs", data: jobsCategories },
     ];
-    const rows: Array<{ group: string; category: string; subcategory: string; subSubcategory: string }> = [];
+    const rows: Array<{
+      id?: string;
+      group: string;
+      category: string;
+      subcategory: string;
+      subSubcategory: string;
+      status?: string;
+      imageUrl?: string;
+      metaDescription?: string;
+      metaKeywords?: string;
+      description?: string;
+    }> = [];
+
+    const defaultImg = "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80";
 
     sources.forEach(({ group, data }) => {
+      const groupKey = normalizeGroupKey(group) || "";
       Object.entries(data).forEach(([category, subEntries]) => {
+        const catMeta = categoryMetadataMap[`${groupKey}:${category}`] || {};
         if (!Array.isArray(subEntries) || subEntries.length === 0) {
-          rows.push({ group, category, subcategory: "-", subSubcategory: "-" });
+          rows.push({
+            id: catMeta.id,
+            group,
+            category,
+            subcategory: "-",
+            subSubcategory: "-",
+            status: catMeta.status || "Active",
+            imageUrl: catMeta.imageUrl || defaultImg,
+            metaDescription: catMeta.metaDescription || "",
+            metaKeywords: catMeta.metaKeywords || "",
+            description: catMeta.description || "",
+          });
           return;
         }
 
         subEntries.forEach((sub: any) => {
           if (typeof sub === "string") {
-            rows.push({ group, category, subcategory: sub, subSubcategory: "-" });
+            const subMeta = categoryMetadataMap[`${groupKey}:${category}:${sub}`] || catMeta;
+            rows.push({
+              id: subMeta.id || catMeta.id,
+              group,
+              category,
+              subcategory: sub,
+              subSubcategory: "-",
+              status: subMeta.status || catMeta.status || "Active",
+              imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
+              metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
+              metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
+              description: subMeta.description || catMeta.description || "",
+            });
             return;
           }
+          const subLabel = sub.label || "-";
+          const subSubs =
+            Array.isArray(sub.subSubcategories) && sub.subSubcategories.length > 0
+              ? sub.subSubcategories.join(", ")
+              : "-";
+          const subMeta = categoryMetadataMap[`${groupKey}:${category}:${subLabel}`] || catMeta;
           rows.push({
+            id: subMeta.id || catMeta.id,
             group,
             category,
-            subcategory: sub.label || "-",
-            subSubcategory:
-              Array.isArray(sub.subSubcategories) && sub.subSubcategories.length > 0
-                ? sub.subSubcategories.join(", ")
-                : "-",
+            subcategory: subLabel,
+            subSubcategory: subSubs,
+            status: subMeta.status || catMeta.status || "Active",
+            imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
+            metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
+            metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
+            description: subMeta.description || catMeta.description || "",
           });
         });
       });
     });
 
-    return rows;
-  }, []);
+    return rows.sort((a, b) => {
+      const gComp = (a.group || "").localeCompare(b.group || "", undefined, { sensitivity: "base" });
+      if (gComp !== 0) return gComp;
+      const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
+      if (cComp !== 0) return cComp;
+      const sComp = (a.subcategory || "").localeCompare(b.subcategory || "", undefined, { sensitivity: "base" });
+      if (sComp !== 0) return sComp;
+      return (a.subSubcategory || "").localeCompare(b.subSubcategory || "", undefined, { sensitivity: "base" });
+    });
+  }, [businessCategories, consultingCategories, eventsCategories, jobsCategories, categoryMetadataMap]);
 
   const filteredCategoryRows = useMemo(() => {
     if (!categorySearch.trim()) return categoryRows;
@@ -3206,75 +3271,7 @@ function CategoryBreakdownTable({
 }: {
   rows: Array<{ group: string; category: string; subcategory: string; subSubcategory: string; [key: string]: any }>;
 }) {
-  const [dbCategoriesMap, setDbCategoriesMap] = useState<Record<string, any>>({});
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
-
-  useEffect(() => {
-    const unsub = onSnapshot(collection(db, "categoriesCollection"), (snap) => {
-      const map: Record<string, any> = {};
-      snap.docs.forEach((docSnap) => {
-        map[docSnap.id] = { id: docSnap.id, ...docSnap.data() };
-      });
-      setDbCategoriesMap(map);
-    }, (err) => {
-      console.error("Error subscribing to db categories:", err);
-    });
-
-    return () => unsub();
-  }, []);
-
-  const mergedRows = useMemo(() => {
-    const list = rows.map((row) => {
-      const docId = `${row.group}_${row.category}_${row.subcategory || "none"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
-      const custom = dbCategoriesMap[docId];
-      if (custom) {
-        return {
-          ...row,
-          ...custom,
-          group: custom.group || custom.parentCategory || row.group,
-          category: custom.category || custom.categoryName || row.category,
-          subcategory: custom.subcategory || row.subcategory,
-          subSubcategory: custom.subSubcategory || row.subSubcategory,
-          status: custom.status || "Active",
-          imageUrl: custom.imageUrl || "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80",
-        };
-      }
-      return {
-        ...row,
-        status: "Active",
-        imageUrl: "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80",
-      };
-    });
-
-    // Also include any new categories added dynamically in categoriesCollection
-    Object.keys(dbCategoriesMap).forEach((id) => {
-      const custom = dbCategoriesMap[id];
-      const exists = list.some(
-        (r) => r.id === id || (r.group === custom.group && r.category === custom.category && r.subcategory === custom.subcategory)
-      );
-      if (!exists) {
-        list.push({
-          id,
-          group: custom.group || custom.parentCategory || "General",
-          category: custom.category || custom.categoryName || "Uncategorized",
-          subcategory: custom.subcategory || "-",
-          subSubcategory: custom.subSubcategory || "-",
-          status: custom.status || "Active",
-          imageUrl: custom.imageUrl || "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80",
-        });
-      }
-    });
-
-    return list.sort((a, b) => {
-      const gComp = (a.group || "").localeCompare(b.group || "", undefined, { sensitivity: "base" });
-      if (gComp !== 0) return gComp;
-      const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
-      if (cComp !== 0) return cComp;
-      const sComp = (a.subcategory || "").localeCompare(b.subcategory || "", undefined, { sensitivity: "base" });
-      if (sComp !== 0) return sComp;
-      return (a.subSubcategory || "").localeCompare(b.subSubcategory || "", undefined, { sensitivity: "base" });
-    });
-  }, [rows, dbCategoriesMap]);
 
   return (
     <>
@@ -3297,14 +3294,14 @@ function CategoryBreakdownTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mergedRows.length === 0 ? (
+              {rows.length === 0 ? (
                 <TableRow>
                   <TableCell className="pl-6 text-slate-500" colSpan={7}>
                     No categories found.
                   </TableCell>
                 </TableRow>
               ) : (
-                mergedRows.map((row, index) => (
+                rows.map((row, index) => (
                   <TableRow key={row.id || `${row.group}-${row.category}-${row.subcategory}-${index}`}>
                     <TableCell className="pl-6 font-medium">{row.group}</TableCell>
                     <TableCell>{row.category}</TableCell>
@@ -3317,7 +3314,7 @@ function CategoryBreakdownTable({
                     </TableCell>
                     <TableCell className="text-center">
                       <div className="w-10 h-8 mx-auto bg-slate-100 rounded border border-slate-200 flex items-center justify-center overflow-hidden">
-                        <img src={row.imageUrl} alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
+                        <img src={row.imageUrl || "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80"} alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
                       </div>
                     </TableCell>
                     <TableCell className="pr-6 text-right">
@@ -3342,9 +3339,7 @@ function CategoryBreakdownTable({
         <AdminEditCategoryModal
           category={editingCategory}
           onClose={() => setEditingCategory(null)}
-          onSaved={() => {
-            setEditingCategory(null);
-          }}
+          onSaved={() => setEditingCategory(null)}
         />
       )}
     </>
