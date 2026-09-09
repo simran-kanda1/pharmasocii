@@ -114,7 +114,7 @@ export default function ContactUs() {
     return (
         <div className="flex flex-col w-full bg-background min-h-screen">
             {/* HERO SECTION */}
-            <section className="relative py-16 md:py-24 overflow-hidden border-b border-border/40 bg-gradient-to-b from-background via-background to-muted/20">
+            <section className="relative py-16 md:py-24 overflow-hidden bg-gradient-to-b from-background via-background to-muted/20">
                 <div className="container mx-auto px-4 max-w-6xl text-center space-y-6">
                     <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-foreground leading-[1.1]">
                         {config.headline || "Contact Us"}
@@ -241,7 +241,7 @@ export default function ContactUs() {
             </section>
 
             {/* SEND A MESSAGE FORM */}
-            <section className="py-16 md:py-24 bg-muted/20 border-t border-border/40">
+            <section className="py-16 md:py-24 bg-muted/20">
                 <div className="container mx-auto px-4 max-w-3xl">
                     <Card className="border-foreground/10 bg-background shadow-xl rounded-3xl p-6 sm:p-10">
                         <div className="text-center space-y-2 mb-8">
@@ -361,7 +361,7 @@ export default function ContactUs() {
             </section>
 
             {/* QUICK LINKS & SUPPORT BANNER */}
-            <section className="py-12 bg-background border-t border-border/40">
+            <section className="py-12 bg-background">
                 <div className="container mx-auto px-4 max-w-5xl text-center space-y-4">
                     <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                         Additional Resources

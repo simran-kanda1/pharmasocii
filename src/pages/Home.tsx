@@ -288,7 +288,7 @@ export default function Home() {
 
 
             {/* CATEGORIES GRID */}
-            <section className="py-24 bg-background relative z-10 border-b border-border">
+            <section className="py-24 bg-background relative z-10">
                 <div className="container mx-auto px-4">
                     <div className="text-center max-w-4xl mx-auto mb-16">
                         <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">Discover, Connect & Collaborate</h2>
@@ -317,7 +317,7 @@ export default function Home() {
             </section>
 
             {/* COMMUNITY HIGHLIGHTS */}
-            <section className="py-24 bg-muted/40 border-y border-foreground/10 relative">
+            <section className="py-24 bg-muted/40 relative">
                 <div className="container mx-auto px-6 md:px-12 max-w-7xl">
                     <SectionHeader
                         title="Community Highlights"
@@ -511,7 +511,7 @@ export default function Home() {
 
 function SectionHeader({ title, subtitle, icon, action }: { title: string, subtitle: string, icon?: React.ReactNode, action?: React.ReactNode }) {
     return (
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-foreground/10">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6">
             <div>
                 <div className="inline-flex items-center gap-3 mb-2">
                     {icon && <div className="p-2 rounded-lg bg-foreground/5 border border-foreground/10">{icon}</div>}

@@ -690,7 +690,7 @@ export default function AllCategories() {
 
     return (
         <div className="flex min-h-0 flex-1 flex-col bg-background w-full">
-            <div className="bg-muted/40 border-b border-foreground/10 py-12">
+            <div className="bg-muted/40 py-12">
                 <div className="container mx-auto px-4">
                     <h1 className="text-4xl font-bold tracking-tight mb-4">
                         {CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Areas"}
