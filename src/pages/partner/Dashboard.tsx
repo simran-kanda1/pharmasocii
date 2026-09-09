@@ -3617,15 +3617,19 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
         }
     };
 
+    const dismissOtherCertInput = () => {
+        const customValues = (otherCertText || "").split(',').map((s: string) => s.trim()).filter(Boolean);
+        setShowOtherCertInput(false);
+        setOtherCertText("");
+        if (customValues.length > 0) {
+            setCertifications(prev => prev.filter(c => !customValues.includes(c) && c !== OTHER_CERT_OPTION));
+        }
+    };
+
     const toggleCert = (cert: string) => {
         if (cert === OTHER_CERT_OPTION) {
             if (showOtherCertInput) {
-                const customValues = (otherCertText || "").split(',').map((s: string) => s.trim()).filter(Boolean);
-                setShowOtherCertInput(false);
-                setOtherCertText("");
-                if (customValues.length > 0) {
-                    setCertifications(prev => prev.filter(c => !customValues.includes(c)));
-                }
+                dismissOtherCertInput();
             } else {
                 setShowOtherCertInput(true);
             }
@@ -4241,17 +4245,22 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 ))}
                             </div>
                             {showOtherCertInput && (
-                                <div className="mt-3 space-y-1">
+                                <div className="mt-3 relative">
                                     <Input
                                         autoFocus
                                         value={otherCertText}
                                         onChange={(e) => handleOtherCertTextChange(e.target.value)}
-                                        placeholder='Enter "other" certification'
-                                        className="bg-foreground/5 border-foreground/10"
+                                        placeholder='Enter "other" certification (e.g. ISO 27001)'
+                                        className="bg-foreground/5 border-foreground/10 pr-9"
                                     />
-                                    {!otherCertText.trim() && (
-                                        <p className="text-xs text-muted-foreground">Please enter a value for "Other".</p>
-                                    )}
+                                    <button
+                                        type="button"
+                                        onClick={dismissOtherCertInput}
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors"
+                                        title="Remove other certification"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
                                 </div>
                             )}
                         </div>
@@ -4453,7 +4462,6 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             processing ||
                             jobPdfUploading ||
                             eventAgendaPdfUploading ||
-                            (showOtherCertInput && !otherCertText.trim()) ||
                             representatives
                                 .map((rep) => ({
                                     firstName: rep.firstName.trim(),

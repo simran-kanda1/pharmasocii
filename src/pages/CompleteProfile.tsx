@@ -243,7 +243,6 @@ export default function CompleteProfile() {
 
     const isCategoryLimitReached = currentLimits.maxCategories !== -1 && categoryCount >= currentLimits.maxCategories;
     const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
-    const canSelectAllCategories = currentLimits.maxCategories === -1;
 
 
 
@@ -300,16 +299,19 @@ export default function CompleteProfile() {
 
     // ─── Multi-select toggle handlers ───
     const toggleBSL = (val: string) => setSelectedBSL(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
+    const dismissOtherCertInput = () => {
+        const customValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+        setShowOtherCertInput(false);
+        setOtherCertText("");
+        if (customValues.length > 0) {
+            setSelectedCerts(prev => prev.filter(cert => !customValues.includes(cert) && cert !== OTHER_CERT_OPTION));
+        }
+    };
     const toggleCert = (val: string) => {
         if (val === OTHER_CERT_OPTION) {
             setShowCertsDropdown(false);
             if (showOtherCertInput) {
-                const customValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
-                setShowOtherCertInput(false);
-                setOtherCertText("");
-                if (customValues.length > 0) {
-                    setSelectedCerts(prev => prev.filter(cert => !customValues.includes(cert)));
-                }
+                dismissOtherCertInput();
             } else {
                 setShowOtherCertInput(true);
             }
@@ -472,10 +474,6 @@ export default function CompleteProfile() {
 
         if (!formData.group || !formData.plan) {
             setError("Please select a group and plan before continuing.");
-            return;
-        }
-        if (formData.group === "business_offerings" && showOtherCertInput && !otherCertText.trim()) {
-            setError('Please enter a value for "Other" certification.');
             return;
         }
         const normalizedRepresentatives = companyRepresentatives
@@ -907,40 +905,7 @@ export default function CompleteProfile() {
         });
     }
 
-    const handleSelectAllCategories = () => {
-        const catDict = getCategoriesForGroup(formData.group);
-        if (!catDict || !canSelectAllCategories) return;
 
-        const allLeafCategories: string[] = [];
-        const allLeafSubcategories: string[] = [];
-        const allSubSubcategories: string[] = [];
-        const allCategoryKeys = Object.keys(catDict);
-        const allNestedSubcategoryLabels: string[] = [];
-        const isBusinessGroup = formData.group === "business_offerings";
-
-        Object.entries(catDict).forEach(([cat, subs]) => {
-            if (!subs.length) {
-                allLeafCategories.push(cat);
-                return;
-            }
-
-            subs.forEach((entry: SubcategoryEntry) => {
-                const subLabel = getSubLabel(entry);
-                if (isBusinessGroup && hasSubSub(entry)) {
-                    allNestedSubcategoryLabels.push(`${cat} > ${subLabel}`);
-                    entry.subSubcategories.forEach((ss) => allSubSubcategories.push(`${cat} > ${subLabel} > ${ss}`));
-                } else {
-                    allLeafSubcategories.push(`${cat} > ${subLabel}`);
-                }
-            });
-        });
-
-        setSelectedCategories(Array.from(new Set(allLeafCategories)));
-        setSelectedSubcategories(Array.from(new Set(allLeafSubcategories)));
-        setSelectedSubSubcategories(Array.from(new Set(allSubSubcategories)));
-        setExpandedCategories(allCategoryKeys);
-        setExpandedSubcategories(Array.from(new Set(allNestedSubcategoryLabels)));
-    };
 
     // ─── Multi-select dropdown component ───
     function MultiSelectDropdown({ label, items, selected, onToggle, open, onToggleOpen, disabled, search, setSearch, filteredItems }: {
@@ -1304,18 +1269,22 @@ export default function CompleteProfile() {
                                                         onToggleOpen={() => { setShowCertsDropdown(!showCertsDropdown); setShowBSLDropdown(false); setShowRegionsDropdown(false); setShowCountriesDropdown(false); }}
                                                     />
                                                     {showOtherCertInput && (
-                                                        <div className="space-y-1">
+                                                        <div className="relative mt-2">
                                                             <Input
                                                                 autoFocus
-                                                                required={showOtherCertInput}
                                                                 value={otherCertText}
                                                                 onChange={(e) => handleOtherCertTextChange(e.target.value)}
-                                                                placeholder='Enter "other" certification'
-                                                                className="bg-muted/40 border-foreground/10"
+                                                                placeholder='Enter "other" certification (e.g. ISO 27001)'
+                                                                className="bg-muted/40 border-foreground/10 pr-9"
                                                             />
-                                                            {!otherCertText.trim() && (
-                                                                <p className="text-xs text-muted-foreground">Please enter a value for "Other".</p>
-                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={dismissOtherCertInput}
+                                                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors"
+                                                                title="Remove other certification"
+                                                            >
+                                                                <X className="w-4 h-4" />
+                                                            </button>
                                                         </div>
                                                     )}
                                                 </div>
@@ -1656,11 +1625,6 @@ export default function CompleteProfile() {
                                                 <p className="text-xs text-muted-foreground mt-1">Select categories from the lowest level. Parent categories expand when clicked.</p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {canSelectAllCategories && (
-                                                    <Button type="button" variant="outline" size="sm" onClick={handleSelectAllCategories}>
-                                                        Select all
-                                                    </Button>
-                                                )}
                                                 <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>
                                                     {currentLimits.maxCategories === -1 ? "Unlimited" : `${categoryCount} / ${currentLimits.maxCategories}`}
                                                 </div>

@@ -248,7 +248,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
   const isCategoryLimitReached = currentLimits.maxCategories !== -1 && categoryCount >= currentLimits.maxCategories;
   const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
-  const canSelectAllCategories = currentLimits.maxCategories === -1;
 
   // Sync Event End Date on Single Day Plans
   useEffect(() => {
@@ -389,14 +388,24 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     setSelectedBSL(prev => prev.includes(bsl) ? prev.filter(b => b !== bsl) : [...prev, bsl]);
   };
 
+  const dismissOtherCertInput = () => {
+    const customValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+    setShowOtherCertInput(false);
+    setOtherCertText("");
+    if (customValues.length > 0) {
+      setSelectedCerts(prev => prev.filter(c => !customValues.includes(c) && c !== OTHER_CERT_OPTION && !c.toLowerCase().startsWith("other:")));
+    } else {
+      setSelectedCerts(prev => prev.filter(c => c !== OTHER_CERT_OPTION && !c.toLowerCase().startsWith("other:")));
+    }
+  };
+
   const toggleCert = (cert: string) => {
     if (cert === OTHER_CERT_OPTION) {
-      setShowOtherCertInput(prev => !prev);
-      if (selectedCerts.includes(OTHER_CERT_OPTION)) {
-        setSelectedCerts(prev => prev.filter(c => c !== OTHER_CERT_OPTION));
-        setOtherCertText("");
+      setShowCertsDropdown(false);
+      if (showOtherCertInput) {
+        dismissOtherCertInput();
       } else {
-        setSelectedCerts(prev => [...prev, OTHER_CERT_OPTION]);
+        setShowOtherCertInput(true);
       }
       return;
     }
@@ -404,13 +413,13 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   };
 
   const handleOtherCertTextChange = (text: string) => {
+    const previousCustomValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+    const nextCustomValues = text.split(',').map(s => s.trim()).filter(Boolean);
     setOtherCertText(text);
     setSelectedCerts(prev => {
-      const filtered = prev.filter(c => !c.toLowerCase().startsWith("other:"));
-      if (text.trim()) {
-        return [...filtered, `Other: ${text.trim()}`];
-      }
-      return filtered;
+      const withoutPreviousCustom = prev.filter(cert => !previousCustomValues.includes(cert) && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"));
+      if (nextCustomValues.length === 0) return withoutPreviousCustom;
+      return Array.from(new Set([...withoutPreviousCustom, ...nextCustomValues]));
     });
   };
 
@@ -491,39 +500,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     }
   };
 
-  const handleSelectAllCategories = () => {
-    const catDict = getCategoriesForGroup(formData.selectedGroup);
-    if (!catDict || !canSelectAllCategories) return;
 
-    const allLeafCategories: string[] = [];
-    const allLeafSubcategories: string[] = [];
-    const allSubSubcategories: string[] = [];
-    const allCategoryKeys = Object.keys(catDict);
-    const allNestedSubcategoryLabels: string[] = [];
-    const isBusinessGroup = groupKey === "business_offerings";
-
-    Object.entries(catDict).forEach(([cat, subs]) => {
-      if (!subs.length) {
-        allLeafCategories.push(cat);
-        return;
-      }
-      subs.forEach((entry: SubcategoryEntry) => {
-        const subLabel = getSubLabel(entry);
-        if (isBusinessGroup && hasSubSub(entry)) {
-          allNestedSubcategoryLabels.push(`${cat} > ${subLabel}`);
-          entry.subSubcategories.forEach((ss) => allSubSubcategories.push(`${cat} > ${subLabel} > ${ss}`));
-        } else {
-          allLeafSubcategories.push(`${cat} > ${subLabel}`);
-        }
-      });
-    });
-
-    setSelectedCategories(Array.from(new Set(allLeafCategories)));
-    setSelectedSubcategories(Array.from(new Set(allLeafSubcategories)));
-    setSelectedSubSubcategories(Array.from(new Set(allSubSubcategories)));
-    setExpandedCategories(allCategoryKeys);
-    setExpandedSubcategories(Array.from(new Set(allNestedSubcategoryLabels)));
-  };
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -1242,15 +1219,22 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                       onToggleOpen={() => { setShowCertsDropdown(!showCertsDropdown); setShowBSLDropdown(false); setShowRegionsDropdown(false); setShowCountriesDropdown(false); }}
                     />
                     {showOtherCertInput && (
-                      <div className="space-y-1">
+                      <div className="relative mt-2">
                         <Input
                           autoFocus
-                          required={showOtherCertInput}
                           value={otherCertText}
                           onChange={(e) => handleOtherCertTextChange(e.target.value)}
-                          placeholder='Enter "other" certification'
-                          className="bg-white border-slate-200 mt-2"
+                          placeholder='Enter "other" certification (e.g. ISO 27001)'
+                          className="bg-white border-slate-200 pr-9"
                         />
+                        <button
+                          type="button"
+                          onClick={dismissOtherCertInput}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-md transition-colors"
+                          title="Remove other certification"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     )}
                   </div>
@@ -1540,9 +1524,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     Selected {categoryCount} of {currentLimits.maxCategories === -1 ? "Unlimited" : currentLimits.maxCategories} categories
                   </p>
                 </div>
-                {canSelectAllCategories && (
-                  <Button type="button" variant="outline" size="sm" onClick={handleSelectAllCategories}>Select All Categories</Button>
-                )}
               </div>
 
               <div className="max-h-[360px] overflow-y-auto bg-white p-4 rounded-xl border border-slate-200 space-y-2">

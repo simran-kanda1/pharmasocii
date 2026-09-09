@@ -363,16 +363,19 @@ export default function AddListing() {
     };
 
     const toggleBSL = (val: string) => setSelectedBSL(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
+    const dismissOtherCertInput = () => {
+        const customValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+        setShowOtherCertInput(false);
+        setOtherCertText("");
+        if (customValues.length > 0) {
+            setSelectedCerts(prev => prev.filter(cert => !customValues.includes(cert) && cert !== OTHER_CERT_OPTION));
+        }
+    };
     const toggleCert = (val: string) => {
         if (val === OTHER_CERT_OPTION) {
             setShowCertsDropdown(false);
             if (showOtherCertInput) {
-                const customValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
-                setShowOtherCertInput(false);
-                setOtherCertText("");
-                if (customValues.length > 0) {
-                    setSelectedCerts(prev => prev.filter(cert => !customValues.includes(cert)));
-                }
+                dismissOtherCertInput();
             } else {
                 setShowOtherCertInput(true);
             }
@@ -489,10 +492,6 @@ export default function AddListing() {
         }
 
         if (!plan) { setError("Please select a plan before continuing."); return; }
-        if (dbGroup === "business_offerings" && showOtherCertInput && !otherCertText.trim()) {
-            setError('Please enter a value for "Other" certification.');
-            return;
-        }
         const normalizedRepresentatives = companyRepresentatives
             .map((rep) => ({
                 firstName: rep.firstName.trim(),
@@ -953,18 +952,22 @@ export default function AddListing() {
                                                 <MultiSelectDropdown label="certifications" items={CERTIFICATIONS} selected={selectedCerts} onToggle={toggleCert} open={showCertsDropdown}
                                                     onToggleOpen={() => { setShowCertsDropdown(!showCertsDropdown); setShowBSLDropdown(false); setShowRegionsDropdown(false); setShowCountriesDropdown(false); }} />
                                                 {showOtherCertInput && (
-                                                    <div className="space-y-1">
+                                                    <div className="relative mt-2">
                                                         <Input
                                                             autoFocus
-                                                            required={showOtherCertInput}
                                                             value={otherCertText}
                                                             onChange={(e) => handleOtherCertTextChange(e.target.value)}
-                                                            placeholder='Enter "other" certification'
-                                                            className="bg-muted/40 border-foreground/10"
+                                                            placeholder='Enter "other" certification (e.g. ISO 27001)'
+                                                            className="bg-muted/40 border-foreground/10 pr-9"
                                                         />
-                                                        {!otherCertText.trim() && (
-                                                            <p className="text-xs text-muted-foreground">Please enter a value for "Other".</p>
-                                                        )}
+                                                        <button
+                                                            type="button"
+                                                            onClick={dismissOtherCertInput}
+                                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-1 rounded-md transition-colors"
+                                                            title="Remove other certification"
+                                                        >
+                                                            <X className="w-4 h-4" />
+                                                        </button>
                                                     </div>
                                                 )}
                                             </div>
