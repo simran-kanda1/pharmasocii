@@ -108,7 +108,7 @@ const CATEGORY_CONFIG = {
     },
     compliance: {
         title: "Global Health Authority Sites",
-        description: "A structured gateway to every health authority links, all in one place."
+        description: "A structured gateway to health authority sites, all in one place."
     }
 };
 
