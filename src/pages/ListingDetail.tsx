@@ -206,14 +206,16 @@ export default function ListingDetail() {
         type === "events"
             ? formatEventLocation(
                 item.city || item.eventCity,
-                item.stateRegion || item.state || item.eventStateRegion
+                item.stateRegion || item.state || item.eventStateRegion,
+                item.eventCountry || item.country
             )
             : "";
     const jobLocationLine =
         type === "jobs"
             ? formatJobLocation(
                 item.city || item.jobCity,
-                item.stateRegion || item.state || item.jobStateRegion
+                item.stateRegion || item.state || item.jobStateRegion,
+                item.jobCountry || item.country
             )
             : "";
     const jobCatsArray = type === "jobs" 

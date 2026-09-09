@@ -949,7 +949,7 @@ export default function AllCategories() {
                                         const rawTitle = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
                                         const title = rawTitle || "";
                                         const bslDisplay = Array.isArray(item.bioSafetyLevel) ? [...item.bioSafetyLevel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ") : item.bioSafetyLevel;
-                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : formatJobLocation(item.city, item.stateRegion || item.state);
+                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : formatJobLocation(item.city, item.stateRegion || item.state, item.jobCountry || item.country);
                                         const certsRawArray = Array.isArray(item.certifications)
                                             ? item.certifications.flatMap((c: any) => typeof c === 'string' ? c.split(',').map((s: string) => s.trim()) : [c])
                                             : (typeof item.certifications === 'string'
@@ -961,7 +961,7 @@ export default function AllCategories() {
                                         const bottomLabel = currentTab === "business"
                                             ? (certsDisplay ? certsDisplay : null)
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
-                                                : currentTab === "events" ? formatEventLocation(item.city || item.eventCity, item.stateRegion || item.state || item.eventStateRegion)
+                                                : currentTab === "events" ? formatEventLocation(item.city || item.eventCity, item.stateRegion || item.state || item.eventStateRegion, item.eventCountry || item.country)
                                                     : `${item.businessName || "Company"} • ${toTitleCase(item.jobtype || "Role")}`;
 
                                         const hasFooterInfo = currentTab !== "consulting" && Boolean(topLabel || bottomLabel);
@@ -1103,7 +1103,7 @@ export default function AllCategories() {
                                                         <div className="flex flex-col p-4 w-full">
                                                             <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1.5 gap-2 sm:gap-4">
                                                                 <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 truncate">
-                                                                    <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{formatEventLocation(fb.city, fb.stateRegion || fb.state)}</span>
+                                                                    <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{formatEventLocation(fb.city, fb.stateRegion || fb.state, fb.eventCountry || fb.country)}</span>
                                                                 </div>
                                                             </div>
                                                             <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{fb.eventName || ""}</h3>
@@ -1130,7 +1130,7 @@ export default function AllCategories() {
                                                                 {fb.workModel || "Job Opening"}
                                                             </div>
                                                             <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                                                                <MapPin className="w-3 h-3" /> {formatJobLocation(fb.city, fb.stateRegion || fb.state)}
+                                                                <MapPin className="w-3 h-3" /> {formatJobLocation(fb.city, fb.stateRegion || fb.state, fb.jobCountry || fb.country)}
                                                             </div>
                                                         </div>
                                                         <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{fb.jobTitle || ""}</h3>

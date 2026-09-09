@@ -24,47 +24,66 @@ export function toTitleCase(str: string): string {
   }).join(' ');
 }
 
-/** Format event location to City, State / Region, or "Virtual" if online/virtual/empty */
-export function formatEventLocation(city?: string | null, stateRegion?: string | null): string {
+/** Format event location to City, State / Region, Country, or "Virtual" if online/virtual/empty */
+export function formatEventLocation(city?: string | null, stateRegion?: string | null, country?: string | null): string {
   const rawCity = (city || "").trim();
   const rawState = (stateRegion || "").trim();
+  const rawCountry = (country || "").trim();
 
   const isVirtualCity = /^(virtual|online|remote|webinar|n\/a)$/i.test(rawCity);
   const isVirtualState = /^(virtual|online|remote|webinar|n\/a)$/i.test(rawState);
+  const isVirtualCountry = /^(virtual|online|remote|webinar|n\/a)$/i.test(rawCountry);
 
-  // If both are virtual/online/empty or one is virtual and other is empty
-  if ((isVirtualCity && isVirtualState) || (isVirtualCity && !rawState) || (isVirtualState && !rawCity) || (!rawCity && !rawState)) {
+  const hasRealCity = rawCity && !isVirtualCity;
+  const hasRealState = rawState && !isVirtualState;
+  const hasRealCountry = rawCountry && !isVirtualCountry;
+
+  if (!hasRealCity && !hasRealState && !hasRealCountry) {
     return "Virtual";
   }
 
-  // If city is virtual but state is a location (or vice versa)
-  if (isVirtualCity && rawState) return toTitleCase(rawState);
-  if (isVirtualState && rawCity) return toTitleCase(rawCity);
-
-  // If both are identical (e.g. "Virtual, Virtual" or "Boston, Boston")
-  if (rawCity.toLowerCase() === rawState.toLowerCase()) {
-    return isVirtualCity ? "Virtual" : toTitleCase(rawCity);
+  const parts: string[] = [];
+  if (hasRealCity) {
+    parts.push(toTitleCase(rawCity));
+  }
+  if (hasRealState && rawState.toLowerCase() !== rawCity.toLowerCase()) {
+    parts.push(toTitleCase(rawState));
+  }
+  if (hasRealCountry && rawCountry.toLowerCase() !== rawState.toLowerCase() && rawCountry.toLowerCase() !== rawCity.toLowerCase()) {
+    parts.push(toTitleCase(rawCountry));
   }
 
-  return [toTitleCase(rawCity), toTitleCase(rawState)].filter(Boolean).join(", ");
+  return parts.length > 0 ? parts.join(", ") : "Virtual";
 }
 
-/** Format job location to City, State / Region, or "Remote" if remote/virtual/empty */
-export function formatJobLocation(city?: string | null, stateRegion?: string | null): string {
+/** Format job location to City, State / Region, Country, or "Remote" if remote/virtual/empty */
+export function formatJobLocation(city?: string | null, stateRegion?: string | null, country?: string | null): string {
   const rawCity = (city || "").trim();
   const rawState = (stateRegion || "").trim();
+  const rawCountry = (country || "").trim();
 
   const isRemoteCity = /^(remote|virtual|online|n\/a)$/i.test(rawCity);
   const isRemoteState = /^(remote|virtual|online|n\/a)$/i.test(rawState);
+  const isRemoteCountry = /^(remote|virtual|online|n\/a)$/i.test(rawCountry);
 
-  if ((isRemoteCity && isRemoteState) || (isRemoteCity && !rawState) || (isRemoteState && !rawCity) || (!rawCity && !rawState)) {
+  const hasRealCity = rawCity && !isRemoteCity;
+  const hasRealState = rawState && !isRemoteState;
+  const hasRealCountry = rawCountry && !isRemoteCountry;
+
+  if (!hasRealCity && !hasRealState && !hasRealCountry) {
     return "Remote";
   }
-  if (isRemoteCity && rawState) return toTitleCase(rawState);
-  if (isRemoteState && rawCity) return toTitleCase(rawCity);
-  if (rawCity.toLowerCase() === rawState.toLowerCase()) {
-    return isRemoteCity ? "Remote" : toTitleCase(rawCity);
+
+  const parts: string[] = [];
+  if (hasRealCity) {
+    parts.push(toTitleCase(rawCity));
+  }
+  if (hasRealState && rawState.toLowerCase() !== rawCity.toLowerCase()) {
+    parts.push(toTitleCase(rawState));
+  }
+  if (hasRealCountry && rawCountry.toLowerCase() !== rawState.toLowerCase() && rawCountry.toLowerCase() !== rawCity.toLowerCase()) {
+    parts.push(toTitleCase(rawCountry));
   }
 
-  return [toTitleCase(rawCity), toTitleCase(rawState)].filter(Boolean).join(", ");
+  return parts.length > 0 ? parts.join(", ") : "Remote";
 }
