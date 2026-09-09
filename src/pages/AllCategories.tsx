@@ -336,8 +336,7 @@ export default function AllCategories() {
 
     const isMainCategoryTab = currentTab === "business" || currentTab === "consulting" || currentTab === "events" || currentTab === "jobs";
     const currentCategoriesDict = currentTab === "business" ? businessCategories : currentTab === "consulting" ? consultingCategories : currentTab === "events" ? eventsCategories : jobsCategories;
-    const featuredHeading = "Featured";
-    const noFeaturedText = currentTab === "business" ? "No featured businesses available at the moment." : currentTab === "consulting" ? "No experts available at the moment." : currentTab === "events" ? "No featured events available at the moment." : "No featured jobs available at the moment.";
+    const noFeaturedText = currentTab === "business" ? "No businesses available at the moment." : currentTab === "consulting" ? "No experts available at the moment." : currentTab === "events" ? "No events available at the moment." : "No jobs available at the moment.";
 
     const filteredHealthAuths = HEALTH_AUTHORITIES.filter((auth) =>
         auth.country.toLowerCase().includes(healthAuthSearch.toLowerCase())
@@ -1061,10 +1060,9 @@ export default function AllCategories() {
             </div>
 
             {isMainCategoryTab && (
-                <div className="w-full border-t border-foreground/10 bg-muted/10 py-16">
+                <div className="w-full bg-muted/10 py-16">
                     <div className="container mx-auto px-4">
                         <div className="flex flex-col items-center overflow-hidden w-full">
-                            <h3 className="text-2xl font-bold tracking-widest mb-12">{featuredHeading}</h3>
                             {featuredBusinesses.length > 0 ? (
                                 <div className="relative flex w-full">
                                     <div className="absolute left-0 top-0 bottom-0 w-32 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
