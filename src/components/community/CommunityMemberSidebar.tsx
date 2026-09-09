@@ -1,5 +1,4 @@
 import { useNavigate } from "react-router-dom";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Bell, Home, Monitor, User, X } from "lucide-react";
@@ -10,7 +9,7 @@ export type CommunityView = "home" | "my-space" | "profile" | "notifications";
 
 type CommunityMemberSidebarProps = {
   welcomeName: string;
-  profileInitials: string;
+  profileInitials?: string;
   activeView: CommunityView;
   onViewChange: (view: CommunityView) => void;
   notificationUnread: number;
@@ -25,7 +24,6 @@ type CommunityMemberSidebarProps = {
 
 export function CommunityMemberSidebar({
   welcomeName,
-  profileInitials,
   activeView,
   onViewChange,
   notificationUnread,
@@ -65,13 +63,8 @@ export function CommunityMemberSidebar({
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-foreground/15 dark:bg-card space-y-4">
-      <div className="flex items-center gap-3 pb-3 border-b border-slate-100 dark:border-foreground/10">
-        <Avatar className="h-9 w-9">
-          <AvatarFallback className="text-sm bg-slate-800 text-white font-semibold dark:bg-primary">{profileInitials}</AvatarFallback>
-        </Avatar>
-        <div>
-          <p className="font-semibold leading-tight">{welcomeName}</p>
-        </div>
+      <div className="pb-3 border-b border-slate-100 dark:border-foreground/10">
+        <p className="font-semibold leading-tight">{welcomeName}</p>
       </div>
 
       {signedIn ? (
