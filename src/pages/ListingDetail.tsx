@@ -968,19 +968,12 @@ export default function ListingDetail() {
                             </div>
                             <div className="overflow-x-auto">
                                 <table className="w-full text-left border-collapse">
-                                    <thead>
-                                        <tr className="bg-muted/30 border-b border-foreground/10">
-                                            <th className="px-8 py-4 text-sm font-bold text-foreground">First Name</th>
-                                            <th className="px-8 py-4 text-sm font-bold text-foreground">Last Name</th>
-                                            <th className="px-8 py-4 text-sm font-bold text-foreground">Email</th>
-                                        </tr>
-                                    </thead>
                                     <tbody>
                                         {item.companyRepresentatives.map((rep: any, idx: number) => (
                                             <tr key={`${rep.email || "rep"}-${idx}`} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
-                                                <td className="px-8 py-4 text-sm text-foreground">{rep.firstName || "-"}</td>
-                                                <td className="px-8 py-4 text-sm text-foreground">{rep.lastName || "-"}</td>
-                                                <td className="px-8 py-4 text-sm">
+                                                <td className="px-8 py-5 text-sm font-medium text-foreground">{rep.firstName || "-"}</td>
+                                                <td className="px-8 py-5 text-sm font-medium text-foreground">{rep.lastName || "-"}</td>
+                                                <td className="px-8 py-5 text-sm">
                                                     {rep.email ? (
                                                         <a href={`mailto:${rep.email}`} className="text-primary underline underline-offset-4 hover:text-primary/80">
                                                             {rep.email}
