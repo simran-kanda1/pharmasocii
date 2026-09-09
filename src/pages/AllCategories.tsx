@@ -753,16 +753,16 @@ export default function AllCategories() {
 
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
-                            <Button variant="outline" className="h-[52px] px-6 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm hover:bg-foreground/5 flex items-center gap-3 min-w-[280px] justify-between transition-colors">
+                            <Button variant="outline" className="h-[52px] px-6 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm hover:bg-foreground/5 flex items-center gap-3 min-w-[200px] justify-between transition-colors">
                                 <div className="flex items-center gap-2">
-                                    {currentTab === "business" && <Building2 className="w-5 h-5 text-primary" />}
-                                    {currentTab === "consulting" && <Users className="w-5 h-5 text-primary" />}
-                                    {currentTab === "events" && <Calendar className="w-5 h-5 text-primary" />}
-                                    {currentTab === "jobs" && <Briefcase className="w-5 h-5 text-primary" />}
-                                    {currentTab === "compliance" && <ShieldCheck className="w-5 h-5 text-primary" />}
+                                    {currentTab === "business" && <Building2 className="w-5 h-5 text-primary shrink-0" />}
+                                    {currentTab === "consulting" && <Users className="w-5 h-5 text-primary shrink-0" />}
+                                    {currentTab === "events" && <Calendar className="w-5 h-5 text-primary shrink-0" />}
+                                    {currentTab === "jobs" && <Briefcase className="w-5 h-5 text-primary shrink-0" />}
+                                    {currentTab === "compliance" && <ShieldCheck className="w-5 h-5 text-primary shrink-0" />}
                                     <span>{CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Areas"}</span>
                                 </div>
-                                <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                                <ChevronDown className="w-5 h-5 text-muted-foreground shrink-0" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-[280px] rounded-xl p-2 bg-background border-foreground/10 shadow-xl">
