@@ -964,22 +964,23 @@ export default function AllCategories() {
                                                 : currentTab === "events" ? formatEventLocation(item.city || item.eventCity, item.stateRegion || item.state || item.eventStateRegion)
                                                     : `${item.businessName || "Company"} • ${toTitleCase(item.jobtype || "Role")}`;
 
+                                        const hasFooterInfo = currentTab !== "consulting" && Boolean(topLabel || bottomLabel);
+
                                         return (
                                             <Link
                                                 key={currentTab === "business" ? `${item.partnerId || "na"}-${item.id}` : item.id}
                                                 to={`/listing/${currentTab}/${item.id}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="group rounded-xl border border-foreground/10 bg-foreground/5 hover:bg-foreground/10 transition-colors cursor-pointer overflow-hidden flex flex-col h-[320px]"
+                                                className="group rounded-xl border border-foreground/10 bg-background hover:bg-foreground/5 hover:border-primary/40 hover:shadow-md transition-all cursor-pointer overflow-hidden flex flex-col h-[320px]"
                                             >
                                                 <div className="p-6 flex-1 flex items-center justify-center bg-background text-center relative overflow-hidden">
                                                     <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
                                                 </div>
-                                                {currentTab !== "consulting" && (
+                                                {hasFooterInfo && (
                                                     <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24 border-t border-foreground/10">
                                                         {topLabel && <div className="text-xs font-semibold text-foreground tracking-wider mb-1">{topLabel}</div>}
                                                         {bottomLabel && <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>}
-
                                                     </div>
                                                 )}
                                             </Link>
