@@ -6,7 +6,7 @@ import {
     buildLiveListingKeySet,
     isPartnerListingPublic,
 } from "@/lib/partnerListingPublic";
-import { MapPin, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText, LayoutList } from "lucide-react";
+import { MapPin, Users, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -959,28 +959,42 @@ export default function ListingDetail() {
 
                 {/* Representatives Section (listing-level only) */}
                 {Array.isArray(item.companyRepresentatives) && item.companyRepresentatives.length > 0 && (
-                    <div className="space-y-4">
-                        <h3 className="text-lg font-black text-foreground tracking-wider px-1">Representative(s)</h3>
-                        <div className="rounded-2xl border border-foreground/10 bg-background overflow-hidden shadow-sm">
-                            <table className="w-full text-left border-collapse">
-                                <thead>
-                                    <tr className="bg-muted/30 border-b border-foreground/10">
-                                        <th className="px-8 py-4 text-sm font-bold">First Name</th>
-                                        <th className="px-8 py-4 text-sm font-bold">Last Name</th>
-                                        <th className="px-8 py-4 text-sm font-bold">Email</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {item.companyRepresentatives.map((rep: any, idx: number) => (
-                                        <tr key={`${rep.email || "rep"}-${idx}`} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
-                                            <td className="px-8 py-4 text-sm">{rep.firstName || "-"}</td>
-                                            <td className="px-8 py-4 text-sm">{rep.lastName || "-"}</td>
-                                            <td className="px-8 py-4 text-sm text-primary underline underline-offset-4">{rep.email || "-"}</td>
+                    <div className="mb-12">
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden border-2 border-slate-200">
+                            <div className="bg-slate-50 px-8 py-6 border-b border-foreground/10">
+                                <h3 className="text-lg font-black text-foreground tracking-tight flex items-center gap-2 tracking-wider">
+                                    <Users className="w-5 h-5 text-slate-500" /> Representative(s)
+                                </h3>
+                            </div>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="bg-muted/30 border-b border-foreground/10">
+                                            <th className="px-8 py-4 text-sm font-bold text-foreground">First Name</th>
+                                            <th className="px-8 py-4 text-sm font-bold text-foreground">Last Name</th>
+                                            <th className="px-8 py-4 text-sm font-bold text-foreground">Email</th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody>
+                                        {item.companyRepresentatives.map((rep: any, idx: number) => (
+                                            <tr key={`${rep.email || "rep"}-${idx}`} className="border-b border-foreground/10 last:border-0 hover:bg-muted/5 transition-colors">
+                                                <td className="px-8 py-4 text-sm text-foreground">{rep.firstName || "-"}</td>
+                                                <td className="px-8 py-4 text-sm text-foreground">{rep.lastName || "-"}</td>
+                                                <td className="px-8 py-4 text-sm">
+                                                    {rep.email ? (
+                                                        <a href={`mailto:${rep.email}`} className="text-primary underline underline-offset-4 hover:text-primary/80">
+                                                            {rep.email}
+                                                        </a>
+                                                    ) : (
+                                                        "-"
+                                                    )}
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </Card>
                     </div>
                 )}
             </div>
