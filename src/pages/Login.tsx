@@ -80,9 +80,8 @@ export default function Login() {
     return (
         <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground min-h-[80vh] px-4 py-12">
             <div className="w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
-                <div className="flex flex-col items-start text-left">
-                    <h1 className="text-3xl font-bold tracking-tight mb-2">Welcome back</h1>
-                    <p className="text-sm text-muted-foreground mb-6 text-left w-full">Please verify your email for active participation in the community.</p>
+                <div className="flex flex-col items-center text-center mb-6">
+                    <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-4">
