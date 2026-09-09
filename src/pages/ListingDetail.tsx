@@ -6,7 +6,7 @@ import {
     buildLiveListingKeySet,
     isPartnerListingPublic,
 } from "@/lib/partnerListingPublic";
-import { MapPin, ArrowLeft, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText, LayoutList } from "lucide-react";
+import { MapPin, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -307,12 +307,6 @@ export default function ListingDetail() {
     return (
         <div className="min-h-0 w-full flex-1 bg-background">
             <div className="container mx-auto px-4 py-12 max-w-7xl pt-32">
-                <Button asChild variant="ghost" className="mb-8 -ml-4 text-muted-foreground hover:text-primary transition-colors group rounded-full">
-                    <Link to={`/all-categories/${type || 'business'}`}>
-                        <ArrowLeft className="mr-2 w-4 h-4 group-hover:-translate-x-1 transition-transform" /> Back to {type === 'business' ? 'Business Offerings' : type === 'consulting' ? 'Consulting' : (type || '').charAt(0).toUpperCase() + (type || '').slice(1)}
-                    </Link>
-                </Button>
-
                 {/* Main Profile Header Section */}
                 <Card className="rounded-3xl border-foreground/10 shadow-xl overflow-hidden mb-12">
                     <div className="bg-muted/30 p-8 md:p-12">
