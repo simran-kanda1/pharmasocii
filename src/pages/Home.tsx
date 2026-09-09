@@ -265,7 +265,7 @@ export default function Home() {
             <section className="py-20 bg-background relative z-10 overflow-hidden">
                 <div className="container mx-auto px-4 mb-8">
                     <div className="text-center max-w-4xl mx-auto">
-                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-8 text-center text-foreground">Featured</h2>
+                        <h2 className="text-3xl md:text-5xl font-bold tracking-tight mb-8 text-center text-foreground">Meet Our Featured Partners</h2>
                         <h2 className="text-xl md:text-3xl font-bold tracking-tight mb-2">Business Offerings</h2>
                         <p className="text-sm md:text-base text-muted-foreground font-normal mb-4">Find the right partners to support your next phase of growth</p>
                     </div>
