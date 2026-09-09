@@ -1,7 +1,7 @@
-export const DEFAULT_TERMS_OF_USE = `Welcome to Pharma SocII (“Platform”), operated by Pharma SocII (“we, our, us”). These Terms of Service (“Terms”) govern your access to and use of the Platform.
+export const DEFAULT_TERMS_OF_USE = `Welcome to Pharma SocII (“Platform”), operated by Pharma SocII (“we, our, us”). These Terms of Use (“Terms”) govern your access to and use of the Platform.
 
 1. Acceptance & Entire Agreement
-By accessing or using the Platform (including browsing, registering, signing up, or posting), you agree to be bound by these Terms of Service, our Community Guidelines, and our Privacy Policy (collectively, the “Agreement”).
+By accessing or using the Platform (including browsing, registering, signing up, or posting), you agree to be bound by these Terms of Use, our Community Guidelines, and our Privacy Policy (collectively, the “Agreement”).
 The Agreement constitutes the entire agreement between you and Pharma SocII regarding your use of the Platform and supersedes any prior or contemporaneous agreements, representations, or understandings, whether written or oral. Continued use of the Platform after updates to these Terms constitutes acceptance of those updates.
 
 2. Eligibility & Accounts

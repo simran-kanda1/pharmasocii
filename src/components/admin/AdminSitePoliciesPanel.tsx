@@ -150,7 +150,7 @@ export function AdminSitePoliciesPanel() {
                                 : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50"
                         } rounded-t-lg`}
                     >
-                        Terms of Service
+                        Terms of Use
                     </button>
                     <button
                         onClick={() => setActiveTab("privacy")}
@@ -179,7 +179,7 @@ export function AdminSitePoliciesPanel() {
                     {activeTab === "terms" && (
                         <div>
                             <label className="block text-sm font-medium text-slate-700 mb-1">
-                                Terms of Service Content (Supports Plain Text or HTML)
+                                Terms of Use Content (Supports Plain Text or HTML)
                             </label>
                             <Textarea
                                 value={policies.termsOfUse}

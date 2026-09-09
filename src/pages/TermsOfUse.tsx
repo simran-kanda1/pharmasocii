@@ -29,10 +29,10 @@ export default function TermsOfUse() {
       <div className="container mx-auto px-6 max-w-4xl">
         <div className="text-center mb-16 animate-in fade-in slide-in-from-bottom-8 duration-700">
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-foreground">
-            Terms of Service
+            Terms of Use
           </h1>
           <p className="text-lg md:text-xl text-primary font-medium">
-            Pharma SocII Platform Terms of Service
+            Pharma SocII Platform Terms of Use
           </p>
         </div>
 
@@ -43,13 +43,13 @@ export default function TermsOfUse() {
             ) : (
               <>
                 <p>
-                  Welcome to <strong>Pharma SocII</strong> (“Platform”), operated by Pharma SocII (“we, our, us”). These Terms of Service (“Terms”) govern your access to and use of the Platform.
+                  Welcome to <strong>Pharma SocII</strong> (“Platform”), operated by Pharma SocII (“we, our, us”). These Terms of Use (“Terms”) govern your access to and use of the Platform.
                 </p>
 
             <section className="space-y-3">
               <h2 className="text-xl font-bold text-foreground">1. Acceptance & Entire Agreement</h2>
               <p>
-                By accessing or using the Platform (including browsing, registering, signing up, or posting), you agree to be bound by these Terms of Service, our{" "}
+                By accessing or using the Platform (including browsing, registering, signing up, or posting), you agree to be bound by these Terms of Use, our{" "}
                 <Link to="/guidelines" className="text-primary hover:underline font-medium">
                   Community Guidelines
                 </Link>
