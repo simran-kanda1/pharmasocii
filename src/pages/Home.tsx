@@ -1,34 +1,20 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { ArrowRight, PlayCircle, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 import { AutoCarousel } from "@/components/ui/auto-carousel";
-import { auth, db } from "@/firebase";
-import { collection, collectionGroup, query, where, limit, getDocs, orderBy, doc, getDoc } from "firebase/firestore";
+import { db } from "@/firebase";
+import { collection, collectionGroup, query, where, limit, getDocs, orderBy } from "firebase/firestore";
 import {
     buildLiveListingKeySet,
     isPartnerListingPublic,
     resolveSpotlightPlacement,
     spotlightDisplayActive,
 } from "@/lib/partnerListingPublic";
-import { onAuthStateChanged } from "firebase/auth";
 import { PostCard } from "@/components/community/PostCard";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
-
-import {
-    loadMemberEngagementIds,
-    togglePostHelpful,
-    toggleSavedPost,
-} from "@/lib/communityEngagement";
-import {
-    canEngageCommunity,
-    canReportCommunitySpam,
-    canSaveCommunityContent,
-    canShareCommunityContent,
-    communityAccessHint,
-} from "@/lib/communityAccess";
 import { formatEventLocation, formatJobLocation } from "@/lib/utils";
 
 const FEATURE_FETCH_LIMIT = 5000;
@@ -77,84 +63,6 @@ export default function Home() {
     const [featuredEvents, setFeaturedEvents] = useState<any[]>([]);
     const [featuredConsulting, setFeaturedConsulting] = useState<any[]>([]);
     const [communityHighlights, setCommunityHighlights] = useState<any[]>([]);
-    const [user, setUser] = useState<import("firebase/auth").User | null>(null);
-    const [verified, setVerified] = useState(false);
-    const [hasMemberProfile, setHasMemberProfile] = useState(false);
-    const [memberRestricted, setMemberRestricted] = useState(false);
-    const [savedPostIds, setSavedPostIds] = useState<Set<string>>(new Set());
-    const [helpfulPostIds, setHelpfulPostIds] = useState<Set<string>>(new Set());
-
-    useEffect(() => {
-        const unsub = onAuthStateChanged(auth, async (u) => {
-            setUser(u);
-            if (!u) {
-                setVerified(false);
-                setHasMemberProfile(false);
-                setMemberRestricted(false);
-                setSavedPostIds(new Set());
-                setHelpfulPostIds(new Set());
-                return;
-            }
-            await u.reload();
-            setVerified(u.emailVerified);
-            const m = await getDoc(doc(db, "membersCollection", u.uid));
-            setHasMemberProfile(m.exists());
-            const st = m.data()?.accountStatus;
-            setMemberRestricted(st === "spam_blocked" || st === "admin_hold");
-            if (m.exists()) {
-                const engagement = await loadMemberEngagementIds(u.uid);
-                setSavedPostIds(engagement.savedPostIds);
-                setHelpfulPostIds(engagement.helpfulPostIds);
-            } else {
-                setSavedPostIds(new Set());
-                setHelpfulPostIds(new Set());
-            }
-        });
-        return () => unsub();
-    }, []);
-
-    const canEngage = canEngageCommunity(user, verified, hasMemberProfile, memberRestricted);
-    const canShare = canShareCommunityContent();
-    const canReport = canReportCommunitySpam(user, verified, hasMemberProfile, memberRestricted);
-    const canSave = canSaveCommunityContent(user, verified, hasMemberProfile, memberRestricted);
-    const engageHint = communityAccessHint(memberRestricted, user, verified, hasMemberProfile);
-
-    const toggleSavePost = useCallback(async (postId: string) => {
-        if (!canSave || !user) return;
-        try {
-            const nowSaved = await toggleSavedPost(user.uid, postId, savedPostIds.has(postId));
-            setSavedPostIds((prev) => {
-                const next = new Set(prev);
-                if (nowSaved) next.add(postId);
-                else next.delete(postId);
-                return next;
-            });
-        } catch (e) {
-            console.error(e);
-        }
-    }, [canSave, user, savedPostIds]);
-
-    const toggleHelpfulPost = useCallback(async (postId: string) => {
-        if (!canEngage || !user) return;
-        try {
-            const nowHelpful = await togglePostHelpful(user.uid, postId, helpfulPostIds.has(postId));
-            setHelpfulPostIds((prev) => {
-                const next = new Set(prev);
-                if (nowHelpful) next.add(postId);
-                else next.delete(postId);
-                return next;
-            });
-            setCommunityHighlights((prev) =>
-                prev.map((p) =>
-                    p.id === postId
-                        ? { ...p, likeCount: Math.max(0, Number(p.likeCount ?? 0) + (nowHelpful ? 1 : -1)) }
-                        : p,
-                ),
-            );
-        } catch (e) {
-            console.error(e);
-        }
-    }, [canEngage, user, helpfulPostIds]);
 
     useEffect(() => {
         const fetchFeaturedData = async () => {
@@ -343,18 +251,9 @@ export default function Home() {
                                     key={p.id}
                                     post={p}
                                     categoryDoc={categoryDoc}
-                                    showActionBar={Boolean(user)}
-                                    canEngage={canEngage}
-                                    canShare={canShare}
-                                    canReport={canReport}
+                                    showActionBar={false}
                                     hideContent={true}
                                     hideTimestamp={true}
-                                    canSave={canSave}
-                                    engageHint={engageHint}
-                                    saved={savedPostIds.has(p.id)}
-                                    helpful={helpfulPostIds.has(p.id)}
-                                    onToggleSave={() => toggleSavePost(p.id)}
-                                    onToggleHelpful={() => toggleHelpfulPost(p.id)}
                                 />
                             ))
                         )}
