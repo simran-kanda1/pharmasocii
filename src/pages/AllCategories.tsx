@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
-import { MapPin, Building2, Users, Search, ExternalLink, Calendar, Briefcase, X, ChevronLeft, ChevronRight, ChevronDown, ShieldCheck, ArrowRight } from "lucide-react";
+import { MapPin, Search, ExternalLink, Calendar, X, ChevronLeft, ChevronRight, ChevronDown, ShieldCheck, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -754,45 +754,33 @@ export default function AllCategories() {
                     <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                             <Button variant="outline" className="h-[52px] px-6 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm hover:bg-foreground/5 flex items-center gap-3 min-w-[200px] justify-between transition-colors">
-                                <div className="flex items-center gap-2">
-                                    {currentTab === "business" && <Building2 className="w-5 h-5 text-primary shrink-0" />}
-                                    {currentTab === "consulting" && <Users className="w-5 h-5 text-primary shrink-0" />}
-                                    {currentTab === "events" && <Calendar className="w-5 h-5 text-primary shrink-0" />}
-                                    {currentTab === "jobs" && <Briefcase className="w-5 h-5 text-primary shrink-0" />}
-                                    {currentTab === "compliance" && <ShieldCheck className="w-5 h-5 text-primary shrink-0" />}
-                                    <span>{CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Areas"}</span>
-                                </div>
+                                <span className="font-medium">{CATEGORY_CONFIG[currentTab as keyof typeof CATEGORY_CONFIG]?.title || "Areas"}</span>
                                 <ChevronDown className="w-5 h-5 text-muted-foreground shrink-0" />
                             </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-[280px] rounded-xl p-2 bg-background border-foreground/10 shadow-xl">
                             <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg mb-1 focus:bg-primary/10">
-                                <Link to="/all-categories/business" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
-                                    <Building2 className="w-5 h-5 text-muted-foreground" />
+                                <Link to="/all-categories/business" onClick={resetCategorySelection} className="flex items-center w-full">
                                     <span className="font-medium text-base">Business Offerings</span>
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg mb-1 focus:bg-primary/10">
-                                <Link to="/all-categories/consulting" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
-                                    <Users className="w-5 h-5 text-muted-foreground" />
+                                <Link to="/all-categories/consulting" onClick={resetCategorySelection} className="flex items-center w-full">
                                     <span className="font-medium text-base">Consulting Services</span>
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg mb-1 focus:bg-primary/10">
-                                <Link to="/all-categories/events" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
-                                    <Calendar className="w-5 h-5 text-muted-foreground" />
+                                <Link to="/all-categories/events" onClick={resetCategorySelection} className="flex items-center w-full">
                                     <span className="font-medium text-base">Events</span>
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg mb-1 focus:bg-primary/10">
-                                <Link to="/all-categories/jobs" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
-                                    <Briefcase className="w-5 h-5 text-muted-foreground" />
+                                <Link to="/all-categories/jobs" onClick={resetCategorySelection} className="flex items-center w-full">
                                     <span className="font-medium text-base">Jobs</span>
                                 </Link>
                             </DropdownMenuItem>
                             <DropdownMenuItem asChild className="p-3 cursor-pointer rounded-lg focus:bg-primary/10">
-                                <Link to="/all-categories/compliance" onClick={resetCategorySelection} className="flex items-center gap-3 w-full">
-                                    <ShieldCheck className="w-5 h-5 text-muted-foreground" />
+                                <Link to="/all-categories/compliance" onClick={resetCategorySelection} className="flex items-center w-full">
                                     <span className="font-medium text-base">Global Health Authority Sites</span>
                                 </Link>
                             </DropdownMenuItem>

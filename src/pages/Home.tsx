@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { ArrowRight, PlayCircle, ShieldCheck, Building2, Users, Calendar, Briefcase, MessageSquare, MapPin } from "lucide-react";
+import { ArrowRight, PlayCircle, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -296,22 +296,17 @@ export default function Home() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
                         {[
-                            { title: 'Business Offerings', icon: Building2, link: '/all-categories/business' },
-                            { title: 'Consulting Services', icon: Users, link: '/all-categories/consulting' },
-                            { title: 'Events/Conferences', icon: Calendar, link: '/all-categories/events' },
-                            { title: 'Global Health Authority Sites', icon: ShieldCheck, link: '/all-categories/compliance' },
-                            { title: 'Jobs', icon: Briefcase, link: '/all-categories/jobs' },
-                            { title: 'Community', icon: MessageSquare, link: '/community' },
+                            { title: 'Business Offerings', link: '/all-categories/business' },
+                            { title: 'Consulting Services', link: '/all-categories/consulting' },
+                            { title: 'Events/Conferences', link: '/all-categories/events' },
+                            { title: 'Global Health Authority Sites', link: '/all-categories/compliance' },
+                            { title: 'Jobs', link: '/all-categories/jobs' },
+                            { title: 'Community', link: '/community' },
                         ].map((cat, i) => (
                             <Link to={cat.link} key={i} className="h-full">
                                 <Card className="group hover:border-primary/50 border-foreground/10 transition-all cursor-pointer hover:shadow-md bg-background overflow-hidden h-full">
                                     <CardContent className="p-6 flex items-center justify-between gap-4 h-full">
-                                        <div className="flex items-center gap-4">
-                                            <div className="p-3 bg-primary/10 rounded-xl group-hover:bg-primary/20 transition-colors shrink-0">
-                                                <cat.icon className="w-6 h-6 text-primary" />
-                                            </div>
-                                            <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">{cat.title}</h3>
-                                        </div>
+                                        <h3 className="text-lg font-bold text-foreground group-hover:text-primary transition-colors">{cat.title}</h3>
                                         <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all shrink-0" />
                                     </CardContent>
                                 </Card>
