@@ -1,6 +1,7 @@
 import { Routes, Route, useLocation } from "react-router-dom";
 import Navbar from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
+import { CookieConsentBanner } from "./components/layout/CookieConsentBanner";
 import Home from "./pages/Home";
 import AllCategories from "./pages/AllCategories";
 import Login from "./pages/Login";
@@ -45,8 +46,9 @@ function AppLayout({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Routes>
-      {/* Admin specific flows - NO layout, standalone pages */}
+    <>
+      <Routes>
+        {/* Admin specific flows - NO layout, standalone pages */}
       <Route path="/admin" element={<AdminLogin />} />
       <Route path="/admin/" element={<AdminLogin />} />
       <Route path="/admin/dashboard" element={<AdminDashboard />} />
@@ -96,6 +98,8 @@ function App() {
       {/* Catch-all */}
       <Route path="*" element={<AppLayout><div className="flex-1 flex items-center justify-center text-4xl font-bold p-24">Coming Soon.</div></AppLayout>} />
     </Routes>
+    <CookieConsentBanner />
+    </>
   );
 }
 
