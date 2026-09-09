@@ -424,14 +424,14 @@ export default function CommunityFeed() {
 
   const composerBlock = canCompose ? (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-foreground/15 dark:bg-card">
-      <div className="bg-slate-800 text-white px-4 py-3 flex items-center gap-3 dark:bg-slate-900">
+      <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
         <Avatar className="h-9 w-9 shrink-0">
-          <AvatarFallback className="bg-white/15 text-white text-xs font-semibold">{profileInitials}</AvatarFallback>
+          <AvatarFallback className="bg-white/20 text-white text-xs font-semibold">{profileInitials}</AvatarFallback>
         </Avatar>
         <button
           type="button"
           onClick={() => openCreate()}
-          className="flex-1 text-left text-sm text-slate-300 hover:text-white transition-colors py-2"
+          className="flex-1 text-left text-sm text-blue-100 hover:text-white transition-colors py-2 font-medium"
         >
           Share what&apos;s on your mind
         </button>
