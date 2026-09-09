@@ -371,10 +371,10 @@ export default function PartnerRegister() {
 
                         <div className="pt-8 border-t border-foreground/10">
                             <p className="text-sm text-muted-foreground mb-4">
-                                Don't see a category that best fits your business? <a href="#" className="text-primary hover:underline">Contact us.</a>
+                                Don't see a category that best fits your business? <Link to="/contact" className="text-primary hover:underline">Contact us.</Link>
                             </p>
                             <p className="text-sm text-muted-foreground">
-                                <span className="font-semibold text-foreground">Need help?</span> visit our FAQs or <a href="#" className="text-primary hover:underline">contact us anytime</a> — we're here to support you.
+                                <span className="font-semibold text-foreground">Need help?</span> visit our <Link to="/faq" className="text-primary hover:underline">FAQs</Link> or <Link to="/contact" className="text-primary hover:underline">contact us</Link> — we're here to support you.
                             </p>
                         </div>
 
