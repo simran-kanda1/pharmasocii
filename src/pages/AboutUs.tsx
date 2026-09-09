@@ -8,7 +8,7 @@ export default function AboutUs() {
     return (
         <div className="flex flex-col w-full bg-background">
             {/* SECTION 1: HERO & THE FOUNDATION */}
-            <section className="relative py-20 md:py-28 overflow-hidden bg-background border-b border-border/40">
+            <section className="relative py-20 md:py-28 overflow-hidden bg-background">
                 <div className="container relative z-10 mx-auto px-4 max-w-4xl">
                     <div className="space-y-6">
                         <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-foreground leading-[1.1]">
@@ -17,7 +17,7 @@ export default function AboutUs() {
                         
                         <div className="space-y-4 text-lg md:text-xl text-muted-foreground leading-relaxed font-normal">
                             <p>
-                                We provide a centralized platform and community for the global life sciences ecosystem — bringing businesses, service providers, and professionals together in one structured place.
+                                We provide a centralized platform and community for the global life sciences ecosystem, bringing businesses, service providers, and professionals together in one structured place.
                             </p>
                             <p>
                                 Our platform supports discovery, knowledge sharing, and collaboration that help accelerate projects and advance therapies for patients worldwide.
