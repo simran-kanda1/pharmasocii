@@ -21,6 +21,7 @@ import { normalizeServiceCountriesToArray } from "@/lib/utils";
 import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 import { uploadCompanyLogo, validateCompanyLogo } from "@/lib/companyLogoUpload";
 import { getFriendlyErrorMessage } from "@/lib/errorHandler";
+import { isSpotlightAccessEnded } from "@/lib/partnerListingPublic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut, Download, FileSpreadsheet, FileText, Info,
@@ -191,7 +192,8 @@ const spotlightIdFromTier = (tier: number): string | null => {
 };
 
 const getEffectiveSpotlightTier = (listing: any, planId?: string | null) => {
-    const addon = getSpotlightAddonTierId(listing);
+    // Expired cancelled add-ons should not block repurchase or keep an "active" tier.
+    const addon = isSpotlightAccessEnded(listing) ? null : getSpotlightAddonTierId(listing);
     const included = planId ? PLAN_CONFIGS[planId]?.featurePlan : null;
     return Math.max(spotlightTierFromId(addon), spotlightTierFromId(included));
 };
@@ -201,6 +203,8 @@ const getEffectiveSpotlightFeatureId = (listing: any, planId?: string | null) =>
 
 const hasStandaloneSpotlightAddon = (listing: any, planId?: string | null) => {
     if (!listing) return false;
+    // After cancel access ends, treat as no longer having an active add-on so Buy returns.
+    if (isSpotlightAccessEnded(listing)) return false;
     if (isEventOrJobListing(planId, listing)) return false;
     const listingPlanSubId = String(listing.stripeSubscriptionId || "").trim();
     const featureSubId = String(listing.featureSpotlightStripeSubscriptionId || "").trim();
@@ -216,8 +220,10 @@ const hasStandaloneSpotlightAddon = (listing: any, planId?: string | null) => {
     );
 };
 
+/** Scheduled to cancel, still within paid window. */
 const isSpotlightCancelPending = (listing: any): boolean => {
     if (!listing?.featureSpotlightCancelPending) return false;
+    if (isSpotlightAccessEnded(listing)) return false;
     const end =
         toDateValue(listing?.featureSpotlightAccessEnd) ||
         toDateValue(listing?.featureSpotlightPaidThrough);
@@ -2304,7 +2310,15 @@ export default function Dashboard() {
                                             <h5 className="text-lg font-bold text-foreground">
                                                 {standaloneSpotlightPlan?.label || "Spotlight add-on"}
                                             </h5>
-                                            <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>Active</Badge>
+                                            {spotlightCancelPending ? (
+                                                <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>
+                                                    Scheduled to end
+                                                </Badge>
+                                            ) : (
+                                                <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>
+                                                    Active
+                                                </Badge>
+                                            )}
                                             <Badge variant="outline" className="border-foreground/20">Monthly</Badge>
                                         </div>
                                         <p className="text-sm text-muted-foreground mb-1">
@@ -4718,7 +4732,7 @@ function CancelPlanModal({
                                         Cancel Plan
                                     </p>
                                     <p className="text-xs text-muted-foreground mt-0.5">
-                                        Your linked spotlight will also end on the same date as your plan.
+                                        Also cancels your spotlight add-on on the plan end date — even if the spotlight was paid through a later date.
                                     </p>
                                 </button>
                             </div>
@@ -4726,8 +4740,8 @@ function CancelPlanModal({
                     ) : (
                         <p className="text-base text-foreground">
                             Cancel your <span className="font-semibold">{isFeatureCancel ? spotlightLabel : (planConfig?.label || "listing")}</span> {isFeatureCancel ? "spotlight add-on" : "plan subscription"}?
-                            {!isFeatureCancel && hasStandaloneSpotlightAddon(linkedListing, plan?.planId) ? (
-                                <> Your linked spotlight will also end on the same date as your plan.</>
+                            {!isFeatureCancel ? (
+                                <> Cancelling the plan also ends any linked spotlight on the plan end date, even if the spotlight was paid through a later date.</>
                             ) : null}
                         </p>
                     )}
@@ -4744,10 +4758,16 @@ function CancelPlanModal({
                                 </>
                             ) : (
                                 <>
-                                    Your plan and any linked spotlight stay active until{" "}
+                                    Your plan stays active until{" "}
                                     <span className="font-semibold">
                                         {billingEnd?.toLocaleDateString() || "the end of your billing period"}
                                     </span>
+                                    . Any linked spotlight add-on will also end on that same date
+                                    {spotlightEnd &&
+                                    billingEnd &&
+                                    spotlightEnd.getTime() > billingEnd.getTime()
+                                        ? ` (even though your spotlight is currently paid through ${spotlightEnd.toLocaleDateString()})`
+                                        : ""}
                                     . After that, access tied to this plan ends unless you purchase again.
                                     You&apos;ll see a &quot;Scheduled to end&quot; tag until that date.
                                 </>
@@ -4809,6 +4829,14 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onP
                 <div className="p-6 space-y-4">
                     <p className="text-muted-foreground text-sm">
                         Choose a higher tier. You are charged only the difference in list price (handled at checkout).
+                        {currentAddonId === "landing_page" ? (
+                            <>
+                                {" "}
+                                <span className="text-foreground/80">
+                                    Home Page replaces Landing Page (module Featured is removed). Choose Both if you want to keep Landing and add Home.
+                                </span>
+                            </>
+                        ) : null}
                     </p>
                     {targets.length === 0 ? (
                         <p className="text-sm text-muted-foreground">You are already on the highest spotlight tier.</p>

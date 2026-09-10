@@ -1070,7 +1070,8 @@ async function resolveSpotlightAddonAccessEndDate(listingData, plan) {
 
 /**
  * When a plan is cancelled at period end, schedule any linked spotlight (standalone or included)
- * to end on the same date. Visibility stays until that date.
+ * to end on the same date — even if the spotlight was paid through a later date.
+ * Visibility stays until that date.
  */
 async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, planAccessEnd) {
     if (!partnerId || !plan?.listingId || !plan?.collectionName || !planAccessEnd) {
@@ -1084,7 +1085,15 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
     if (!listingSnap.exists) return { cancelledFeature: false };
     const listingData = listingSnap.data() || {};
 
-    if (isSpotlightCancelPending(listingData)) {
+    const existingAccessEnd =
+        toDateValue(listingData.featureSpotlightAccessEnd) ||
+        toDateValue(listingData.featureSpotlightPaidThrough);
+    // Already scheduled to end with (or before) the plan — nothing more to do.
+    if (
+        listingData.featureSpotlightCancelPending &&
+        existingAccessEnd &&
+        existingAccessEnd.getTime() <= planAccessEnd.getTime()
+    ) {
         return { cancelledFeature: false, alreadyScheduled: true };
     }
 
@@ -1129,6 +1138,16 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
         listingData,
     );
     if (!spotlightCtx.hasPaidStandalone || !spotlightCtx.linkedFeatureId) {
+        // No standalone add-on — still clear included-style fields if any cancel was pending longer.
+        if (listingData.featureSpotlightCancelPending || listingData.selectedAddon) {
+            await applyListingPatchEverywhere(partnerId, plan.collectionName, plan.listingId, {
+                featureSpotlightCancelPending: true,
+                featureSpotlightAccessEnd: planAccessEnd,
+                featureSpotlightPaidThrough: planAccessEnd,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            });
+            return { cancelledFeature: true, shortenedOnly: true };
+        }
         return { cancelledFeature: false };
     }
 
@@ -2416,6 +2435,75 @@ function spotlightIdFromTier(tier) {
     return null;
 }
 
+/** Map Stripe unit amount (cents) to spotlight tier — used when metadata is missing/stale. */
+function spotlightFeatureIdFromUnitAmount(unitAmount) {
+    const amount = Number(unitAmount) || 0;
+    if (amount >= 95000) return "both"; // $1000 both (tolerate minor variance)
+    if (amount >= 60000) return "home_page"; // $800
+    if (amount >= 20000) return "landing_page"; // $400
+    return null;
+}
+
+function normalizeSpotlightFeatureId(value) {
+    const id = String(value || "").trim().toLowerCase();
+    if (id === "landing_page" || id === "home_page" || id === "both") return id;
+    return null;
+}
+
+/**
+ * Canonical spotlight tier for an add-on subscription.
+ * Prefer Stripe metadata + charged amount over stale Firestore docs so renewals
+ * never "upgrade" home_page → both (or similar) from leftover history.
+ */
+async function resolveCanonicalSpotlightFeatureId({
+    subscriptionId,
+    featureDocs = [],
+    listingData = null,
+}) {
+    let metaId = null;
+    let amountId = null;
+    const subId = toStripeSubscriptionId(subscriptionId);
+    if (subId) {
+        try {
+            const sub = await stripe.subscriptions.retrieve(subId);
+            metaId = normalizeSpotlightFeatureId(sub?.metadata?.featureId);
+            const unitAmount = sub?.items?.data?.[0]?.price?.unit_amount;
+            amountId = spotlightFeatureIdFromUnitAmount(unitAmount);
+        } catch (err) {
+            console.warn("resolveCanonicalSpotlightFeatureId retrieve:", err?.message || err);
+        }
+    }
+
+    const listingId = normalizeSpotlightFeatureId(
+        listingData?.selectedAddon || listingData?.featuredPlacement,
+    );
+    const docIds = featureDocs
+        .map((d) => {
+            const raw = typeof d?.data === "function" ? d.data() : d;
+            return normalizeSpotlightFeatureId((raw || {}).featureId);
+        })
+        .filter(Boolean);
+
+    // Prefer amount (what Stripe is actually charging) when it disagrees with a higher stale tier.
+    if (amountId && metaId && amountId !== metaId) {
+        console.warn(
+            `   ⚠ Spotlight sub ${subId}: metadata=${metaId} but price maps to ${amountId}; using amount.`,
+        );
+        return amountId;
+    }
+    if (amountId && listingId && amountId !== listingId) {
+        // e.g. listing still says both but subscription is $800 home
+        console.warn(
+            `   ⚠ Spotlight sub ${subId}: listing=${listingId} but price maps to ${amountId}; using amount.`,
+        );
+        return amountId;
+    }
+    if (amountId) return amountId;
+    if (metaId) return metaId;
+    if (listingId) return listingId;
+    return docIds[0] || null;
+}
+
 function resolveEffectiveSpotlightTier(listingData, includedSpotlight) {
     const current = String(listingData?.selectedAddon || listingData?.featuredPlacement || "").trim();
     return Math.max(spotlightTierFromId(current), spotlightTierFromId(includedSpotlight));
@@ -3167,6 +3255,29 @@ async function tryProcessSpotlightAddonInvoicePaid({
         billingPeriodEnd: resolvedPeriodEnd,
     } = await resolveBillingPeriodFromStripe(stripe, invoice, subscriptionId);
     const periodEnd = resolvedPeriodEnd || billingPeriodEnd;
+
+    // Resolve canonical tier from Stripe price/metadata so renewals keep home_page
+    // (or landing) instead of drifting to "both" from stale feature docs.
+    let listingHint = null;
+    if (addonDocs.length > 0) {
+        const fd0 = addonDocs[0].data() || {};
+        if (fd0.listingId && fd0.collectionName) {
+            const pid = partnerId || partnerIdFromPartnersPlanRef(addonDocs[0].ref);
+            if (pid) {
+                const lref = await resolveListingDocRef(pid, fd0.collectionName, fd0.listingId);
+                if (lref) {
+                    const lsnap = await lref.get();
+                    if (lsnap.exists) listingHint = lsnap.data() || null;
+                }
+            }
+        }
+    }
+    const canonicalFeatureId = await resolveCanonicalSpotlightFeatureId({
+        subscriptionId,
+        featureDocs: addonDocs,
+        listingData: listingHint,
+    });
+
     if (addonDocs.length === 0) {
         console.warn(`   ⚠ No featuresCollection doc for spotlight subscription ${subscriptionId}; trying listing fallback.`);
         const listingCollections = ["eventsCollection", "jobsCollection", "consultingServicesCollection", "consultingCollection"];
@@ -3228,9 +3339,17 @@ async function tryProcessSpotlightAddonInvoicePaid({
         if (!partnerId) continue;
         partnerIds.add(partnerId);
 
+        const resolvedFeatureId = canonicalFeatureId || normalizeSpotlightFeatureId(fd.featureId) || fd.featureId || null;
+
         await fDoc.ref.set({
             lastPaymentReceived: new Date(),
             active: true,
+            ...(resolvedFeatureId
+                ? {
+                    featureId: resolvedFeatureId,
+                    featureName: String(resolvedFeatureId).replace(/_/g, " "),
+                }
+                : {}),
             ...(periodEnd ? { accessThrough: periodEnd } : {}),
             ...(periodStart ? { billingPeriodStart: periodStart } : {}),
             ...(customerId ? { stripeCustomerId: customerId } : {}),
@@ -3241,17 +3360,17 @@ async function tryProcessSpotlightAddonInvoicePaid({
                 partnerId,
                 listingId: fd.listingId,
                 collectionName: fd.collectionName,
-                featureId: fd.featureId || null,
+                featureId: resolvedFeatureId,
                 group: fd.group || null,
             };
         }
 
-        if (fd.listingId && fd.collectionName && fd.featureId && periodEnd) {
+        if (fd.listingId && fd.collectionName && resolvedFeatureId && periodEnd) {
             const listingRef = await resolveListingDocRef(partnerId, fd.collectionName, fd.listingId);
             if (listingRef) {
                 await listingRef.set({
-                    selectedAddon: fd.featureId,
-                    featuredPlacement: fd.featureId,
+                    selectedAddon: resolvedFeatureId,
+                    featuredPlacement: resolvedFeatureId,
                     isFeatured: true,
                     active: true,
                     status: "Approved",
@@ -5850,7 +5969,8 @@ app.post("/api/upgrade-subscription", async (req, res) => {
 /**
  * POST /api/cancel-plan
  * Cancel spotlight add-on only, or cancel the plan subscription.
- * Standalone business/consulting spotlights are independent of plan cancel and keep running until their paid period ends.
+ * Cancelling the plan also schedules any linked spotlight to end on the plan end date
+ * (even if the spotlight was paid through a later date).
  * Body: { partnerId, planDocId, cancelScope }
  * cancelScope: "feature" | "plan" (plan_and_feature accepted as alias of plan for older clients)
  */

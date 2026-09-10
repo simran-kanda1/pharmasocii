@@ -533,8 +533,11 @@ export default function AllCategories() {
     const featuredBusinesses = data.filter(item => {
         if (!spotlightDisplayActive(item)) return false;
         const addon = resolveSpotlightPlacement(item);
-        const hasLegacyFeatureFlag = item.isFeatured && !addon;
+        // Premium Plus (events/jobs) is home-only — never land in the module Featured strip.
+        if (addon === "home_page") return false;
         const isLandingSpotlight = addon === "landing_page" || addon === "both" || addon === "spotlight_addon";
+        // Legacy isFeatured only when placement is unknown and this is not a home-only plan.
+        const hasLegacyFeatureFlag = Boolean(item.isFeatured) && !addon;
         if (!isLandingSpotlight && !hasLegacyFeatureFlag) return false;
         return true;
     });

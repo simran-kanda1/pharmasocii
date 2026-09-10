@@ -193,14 +193,26 @@ export function inferIncludedSpotlightFromPlan(item: Record<string, unknown>): s
 
 /**
  * Resolve where a listing should appear in Featured carousels.
- * Uses the higher spotlight tier when plan-included and add-on fields disagree
- * (e.g. stale selectedPlan after upgrade, or stale selectedAddon before repair).
+ * Events/Jobs: plan-included spotlight is source of truth (Premium = landing only,
+ * Premium Plus = home only — not a tier hierarchy that keeps landing).
+ * Business/Consulting: use the higher of plan-included vs add-on fields.
  */
 export function resolveSpotlightPlacement(item: Record<string, unknown>): string {
     const addon = String(item?.selectedAddon || item?.featuredPlacement || "")
         .trim()
         .toLowerCase();
     const planIncluded = inferIncludedSpotlightFromPlan(item);
+    const planId = String(item?.selectedPlan || "").trim().toLowerCase();
+    const isEventOrJobPlan =
+        planId.includes("_event") ||
+        planId.includes("_job") ||
+        planId.endsWith("event") ||
+        planId.endsWith("job");
+
+    if (isEventOrJobPlan && planIncluded) {
+        return planIncluded;
+    }
+
     const tier = Math.max(spotlightTierRank(addon), spotlightTierRank(planIncluded));
     const resolved = spotlightPlacementFromTier(tier);
     return resolved || addon || planIncluded;
@@ -208,9 +220,17 @@ export function resolveSpotlightPlacement(item: Record<string, unknown>): string
 
 /** Spotlight stays visible until scheduled removal when user cancels mid-cycle. */
 export function spotlightDisplayActive(item: Record<string, unknown>): boolean {
-    const cancelEnd = toDateValue(item.featureSpotlightAccessEnd);
+    const cancelEnd =
+        toDateValue(item.featureSpotlightAccessEnd) ||
+        toDateValue(item.featureSpotlightPaidThrough);
     if (item.featureSpotlightCancelPending && cancelEnd && cancelEnd.getTime() < Date.now()) {
         return false;
     }
     return true;
+}
+
+/** True when a cancelled spotlight's paid window has ended (public + dashboard). */
+export function isSpotlightAccessEnded(item: Record<string, unknown> | null | undefined): boolean {
+    if (!item) return false;
+    return !spotlightDisplayActive(item);
 }

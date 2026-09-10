@@ -39,9 +39,46 @@ const listingClearPayload = () => ({
     featureSpotlightCancelPending: FieldValue.delete(),
     featureSpotlightAccessEnd: FieldValue.delete(),
     featureSpotlightPaidThrough: FieldValue.delete(),
+    featureSpotlightBillingPeriodStart: FieldValue.delete(),
     lastFeaturePaymentReceivedAt: FieldValue.delete(),
+    featureSpotlightStripeSubscriptionId: FieldValue.delete(),
+    featureSpotlightSubscriptionItemId: FieldValue.delete(),
     updatedAt: FieldValue.serverTimestamp(),
 });
+
+async function deactivateFeaturesForListing(listingDoc) {
+    const path = listingDoc.ref.path || "";
+    let partnerId = null;
+    const parts = path.split("/");
+    if (parts[0] === "partnersCollection" && parts[1]) {
+        partnerId = parts[1];
+    } else {
+        partnerId = String(listingDoc.data()?.partnerId || "").trim() || null;
+    }
+    if (!partnerId) return;
+
+    const listingId = listingDoc.id;
+    const featSnap = await db
+        .collection("partnersCollection")
+        .doc(partnerId)
+        .collection("featuresCollection")
+        .where("listingId", "==", listingId)
+        .limit(20)
+        .get();
+    for (const fDoc of featSnap.docs) {
+        const fd = fDoc.data() || {};
+        if (fd.source === "included_plan") continue;
+        if (fd.active === false) continue;
+        await fDoc.ref.set(
+            {
+                active: false,
+                cancelPending: FieldValue.delete(),
+                deactivatedAt: FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+        );
+    }
+}
 
 async function cleanupCollectionGroup(collectionId, useCollectionGroup) {
     const now = admin.firestore.Timestamp.now();
@@ -62,6 +99,7 @@ async function cleanupCollectionGroup(collectionId, useCollectionGroup) {
     let n = 0;
     for (const doc of snap.docs) {
         await doc.ref.set(listingClearPayload(), { merge: true });
+        await deactivateFeaturesForListing(doc);
         n += 1;
     }
     return n;

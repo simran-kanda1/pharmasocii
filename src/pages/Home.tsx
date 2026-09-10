@@ -69,7 +69,9 @@ export default function Home() {
             const isHomeSpotlight = (item: Record<string, any>) => {
                 if (!spotlightDisplayActive(item)) return false;
                 const addon = resolveSpotlightPlacement(item);
-                return addon === "home_page" || addon === "both" || addon === "spotlight_addon" || (item.isFeatured && !addon);
+                // Landing-only plans (e.g. Premium event/job) must not appear on the homepage.
+                if (addon === "landing_page") return false;
+                return addon === "home_page" || addon === "both" || addon === "spotlight_addon";
             };
 
             let liveListingKeys = new Set<string>();
