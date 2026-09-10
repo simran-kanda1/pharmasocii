@@ -37,6 +37,7 @@ import {
   type MemberNotification,
 } from "@/lib/communityNotifications";
 import { postMatchesFilterKeys } from "@/lib/communityCategoryDisplay";
+import { HIDE_DIRECTORY_DATA_PREVIEW } from "@/lib/partnerListingPublic";
 
 type Props = {
   view: CommunityView;
@@ -130,67 +131,73 @@ export function CommunityMemberPanels({
         }
 
         if (view === "my-space" || view === "notifications") {
-          const pq = query(
-            collection(db, "postsCollection"),
-            where("authorId", "==", userId),
-            where("archived", "==", false),
-            orderBy("createdAt", "desc"),
-          );
-          const ps = await getDocs(pq);
-          setMyPosts(ps.docs.map((d) => ({ id: d.id, ...(d.data() as CommunityPost) })));
+          if (HIDE_DIRECTORY_DATA_PREVIEW) {
+            setMyPosts([]);
+            setSavedPosts([]);
+            setSavedComments([]);
+          } else {
+            const pq = query(
+              collection(db, "postsCollection"),
+              where("authorId", "==", userId),
+              where("archived", "==", false),
+              orderBy("createdAt", "desc"),
+            );
+            const ps = await getDocs(pq);
+            setMyPosts(ps.docs.map((d) => ({ id: d.id, ...(d.data() as CommunityPost) })));
 
-          const savedSnap = await getDocs(collection(db, "membersCollection", userId, "savedPostsCollection"));
-          const sortedSavedDocs = [...savedSnap.docs].sort((a, b) => {
-            const tA = a.data().savedAt?.toDate?.()?.getTime() || a.data().savedAt?.seconds || 0;
-            const tB = b.data().savedAt?.toDate?.()?.getTime() || b.data().savedAt?.seconds || 0;
-            return tB - tA;
-          });
-          const loaded: Array<{ id: string; unavailable?: boolean } & CommunityPost> = [];
-          for (const d of sortedSavedDocs) {
-            try {
-              const pr = await getDoc(doc(db, "postsCollection", d.id));
-              if (!pr.exists()) {
+            const savedSnap = await getDocs(collection(db, "membersCollection", userId, "savedPostsCollection"));
+            const sortedSavedDocs = [...savedSnap.docs].sort((a, b) => {
+              const tA = a.data().savedAt?.toDate?.()?.getTime() || a.data().savedAt?.seconds || 0;
+              const tB = b.data().savedAt?.toDate?.()?.getTime() || b.data().savedAt?.seconds || 0;
+              return tB - tA;
+            });
+            const loaded: Array<{ id: string; unavailable?: boolean } & CommunityPost> = [];
+            for (const d of sortedSavedDocs) {
+              try {
+                const pr = await getDoc(doc(db, "postsCollection", d.id));
+                if (!pr.exists()) {
+                  loaded.push({ id: d.id, unavailable: true } as { id: string; unavailable?: boolean } & CommunityPost);
+                  continue;
+                }
+                const data = pr.data() as CommunityPost;
+                loaded.push({
+                  id: pr.id,
+                  ...data,
+                  unavailable: data.archived === true,
+                });
+              } catch (err) {
+                console.warn(`Failed to fetch saved post ${d.id}:`, err);
                 loaded.push({ id: d.id, unavailable: true } as { id: string; unavailable?: boolean } & CommunityPost);
-                continue;
               }
-              const data = pr.data() as CommunityPost;
-              loaded.push({
-                id: pr.id,
-                ...data,
-                unavailable: data.archived === true,
-              });
-            } catch (err) {
-              console.warn(`Failed to fetch saved post ${d.id}:`, err);
-              loaded.push({ id: d.id, unavailable: true } as { id: string; unavailable?: boolean } & CommunityPost);
             }
-          }
-          setSavedPosts(loaded);
+            setSavedPosts(loaded);
 
-          const savedCommentsSnap = await getDocs(
-            collection(db, "membersCollection", userId, "savedCommentsCollection"),
-          );
-          const sortedSavedCommentsDocs = [...savedCommentsSnap.docs].sort((a, b) => {
-            const tA = a.data().savedAt?.toDate?.()?.getTime() || a.data().savedAt?.seconds || 0;
-            const tB = b.data().savedAt?.toDate?.()?.getTime() || b.data().savedAt?.seconds || 0;
-            return tB - tA;
-          });
-          const rows: typeof savedComments = [];
-          for (const d of sortedSavedCommentsDocs) {
-            const postId = String(d.data().postId || "");
-            if (!postId) continue;
-            try {
-              const cref = await getDoc(doc(db, "postsCollection", postId, "commentsCollection", d.id));
-              if (!cref.exists() || cref.data()?.archived === true) {
+            const savedCommentsSnap = await getDocs(
+              collection(db, "membersCollection", userId, "savedCommentsCollection"),
+            );
+            const sortedSavedCommentsDocs = [...savedCommentsSnap.docs].sort((a, b) => {
+              const tA = a.data().savedAt?.toDate?.()?.getTime() || a.data().savedAt?.seconds || 0;
+              const tB = b.data().savedAt?.toDate?.()?.getTime() || b.data().savedAt?.seconds || 0;
+              return tB - tA;
+            });
+            const rows: typeof savedComments = [];
+            for (const d of sortedSavedCommentsDocs) {
+              const postId = String(d.data().postId || "");
+              if (!postId) continue;
+              try {
+                const cref = await getDoc(doc(db, "postsCollection", postId, "commentsCollection", d.id));
+                if (!cref.exists() || cref.data()?.archived === true) {
+                  rows.push({ commentId: d.id, postId, unavailable: true });
+                } else {
+                  rows.push({ commentId: d.id, postId, preview: String(cref.data()?.text || "").slice(0, 120) });
+                }
+              } catch (err) {
+                console.warn(`Failed to fetch saved comment ${d.id}:`, err);
                 rows.push({ commentId: d.id, postId, unavailable: true });
-              } else {
-                rows.push({ commentId: d.id, postId, preview: String(cref.data()?.text || "").slice(0, 120) });
               }
-            } catch (err) {
-              console.warn(`Failed to fetch saved comment ${d.id}:`, err);
-              rows.push({ commentId: d.id, postId, unavailable: true });
             }
+            setSavedComments(rows);
           }
-          setSavedComments(rows);
         }
 
         if (view === "notifications") {

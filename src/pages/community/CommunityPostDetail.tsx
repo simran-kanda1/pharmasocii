@@ -45,6 +45,7 @@ import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
 import { syncPostCommentCount, recordCommentNotification } from "@/lib/communityCallables";
 import { CreatePostModal } from "@/components/community/CreatePostModal";
 import type { PostCardPost } from "@/components/community/PostCard";
+import { HIDE_DIRECTORY_DATA_PREVIEW } from "@/lib/partnerListingPublic";
 
 const MAX_COMMENT_IMAGE_BYTES = 1.5 * 1024 * 1024;
 const ALLOWED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -162,6 +163,11 @@ export default function CommunityPostDetail() {
 
   useEffect(() => {
     if (!postId) return;
+    if (HIDE_DIRECTORY_DATA_PREVIEW) {
+      setPostMissing(true);
+      setPost(null);
+      return;
+    }
     const pref = doc(db, "postsCollection", postId);
     const unsub = onSnapshot(
       pref,
@@ -196,6 +202,10 @@ export default function CommunityPostDetail() {
 
   useEffect(() => {
     if (!postId) return;
+    if (HIDE_DIRECTORY_DATA_PREVIEW) {
+      setComments([]);
+      return;
+    }
     const q = query(collection(db, "postsCollection", postId, "commentsCollection"));
     const unsub = onSnapshot(
       q,

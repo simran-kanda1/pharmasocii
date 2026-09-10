@@ -149,17 +149,21 @@ export default function Home() {
             }
             setFeaturedConsulting(pickSpotlightOrRecent(consultingRows, isHomeSpotlight, FALLBACK_CAROUSEL_CAP));
 
-            try {
-                const postsQ = query(
-                    collection(db, "postsCollection"),
-                    where("archived", "==", false),
-                    orderBy("createdAt", "desc"),
-                    limit(5),
-                );
-                const postsSnap = await getDocs(postsQ);
-                setCommunityHighlights(postsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-            } catch (postsErr) {
-                console.error("Failed to load community highlights:", postsErr);
+            if (!HIDE_DIRECTORY_DATA_PREVIEW) {
+                try {
+                    const postsQ = query(
+                        collection(db, "postsCollection"),
+                        where("archived", "==", false),
+                        orderBy("createdAt", "desc"),
+                        limit(5),
+                    );
+                    const postsSnap = await getDocs(postsQ);
+                    setCommunityHighlights(postsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+                } catch (postsErr) {
+                    console.error("Failed to load community highlights:", postsErr);
+                    setCommunityHighlights([]);
+                }
+            } else {
                 setCommunityHighlights([]);
             }
         };
