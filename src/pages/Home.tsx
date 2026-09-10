@@ -263,7 +263,8 @@ export default function Home() {
                 </div>
             </section>
 
-{/* BUSINESS OFFERINGS CAROUSEL */}
+            {/* BUSINESS OFFERINGS CAROUSEL */}
+            {(featuredBusinesses.length > 0 || featuredConsulting.length > 0 || featuredEvents.length > 0 || featuredJobs.length > 0) && (
             <section className="py-20 bg-background relative z-10 overflow-hidden">
                 <div className="container mx-auto px-4 mb-8">
                     <div className="text-center max-w-4xl mx-auto">
@@ -403,6 +404,7 @@ export default function Home() {
                     </div>
                 </div>
             </section>
+            )}
 
         </div>
     );

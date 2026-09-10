@@ -1,5 +1,12 @@
 /** Shared rules for whether a partner listing should appear on public pages. */
 
+/**
+ * Temporary preview toggle:
+ * Set to true to hide all business offerings, consulting services, events, and jobs
+ * from the public-facing preview site, while keeping all data intact in the backend.
+ */
+export const HIDE_DIRECTORY_DATA_PREVIEW = true;
+
 export function toDateValue(value: unknown): Date | null {
     if (!value) return null;
     if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
@@ -134,6 +141,7 @@ export function isPartnerListingPublic(
     collectionName: string,
     liveKeys: Set<string>,
 ): boolean {
+    if (HIDE_DIRECTORY_DATA_PREVIEW) return false;
     if (!isListingStatusPublic(listing)) return false;
 
     const partnerId = listing.partnerId;
