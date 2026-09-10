@@ -126,38 +126,14 @@ export function isListingStatusPublic(data: Record<string, unknown>): boolean {
 }
 
 /**
- * A listing is public only when its status fields allow it and a billing-live plan backs it.
- * Listings without partner linkage keep the legacy `active !== false` behavior.
+ * A listing is public when its status fields allow it (active !== false and not inactive status).
  */
 export function isPartnerListingPublic(
     listing: Record<string, unknown> & { id?: string; partnerId?: string },
-    collectionName: string,
-    liveKeys: Set<string>,
+    _collectionName?: string,
+    _liveKeys?: Set<string>,
 ): boolean {
-    if (!isListingStatusPublic(listing)) return false;
-
-    const partnerId = listing.partnerId;
-    const listingId = listing.id;
-    if (!partnerId || !listingId) {
-        return listing.active !== false;
-    }
-
-    if (hasLiveListingKey(liveKeys, partnerId, collectionName, listingId)) return true;
-
-    // Allow partners on the "none" (free/pending) plan to be publicly visible if approved
-    if (String(listing.selectedPlan || "").trim().toLowerCase() === "none") {
-        return true;
-    }
-
-    // Plans could not be loaded (e.g. rules not deployed yet) — fall back to listing fields.
-    if (liveKeys.size === 0) {
-        const status = String(listing.status || "").trim().toLowerCase();
-        const approved =
-            !status || status === "approved" || status === "active" || status === "published";
-        return listing.active !== false && approved;
-    }
-
-    return false;
+    return isListingStatusPublic(listing);
 }
 
 /** Plan IDs that include a spotlight tier (events/jobs). */
