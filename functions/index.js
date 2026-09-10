@@ -411,7 +411,8 @@ async function sendAccountActivationEmail(userId, userEmail, userName, verifyLin
 
     if (!forceResend && userId) {
         const pending = await db.collection("pendingVerifications").doc(userId).get();
-        if (pending.exists() && pending.data()?.activationEmailSentAt) {
+        // Admin SDK DocumentSnapshot uses `.exists` (boolean property), not `.exists()`.
+        if (pending.exists && pending.data()?.activationEmailSentAt) {
             return { sent: false, skipped: "already_sent" };
         }
     }
@@ -1583,6 +1584,7 @@ exports.onPartnerEmailQueued = onDocumentCreated(
         const data = snap.data() || {};
         const queueRef = snap.ref;
         if (data.status && data.status !== "pending") return;
+        if (data.type === "session_lock") return;
 
         const type = String(data.type || "").trim();
         const partnerId = String(data.partnerId || "").trim();
@@ -1665,6 +1667,12 @@ exports.onPartnerProfileUpdated = onDocumentUpdated(
 
         // Ignore primaryEmail changes — changePartnerPrimaryEmail already sends verify-email.
         if (!companyChanged && !websiteChanged) return;
+
+        // Skip first-time profile fill (empty → value during Complete Profile / onboarding).
+        // That was overlapping with welcome emails and felt like "changes" on every signup.
+        const hadCompanyIdentity =
+            Boolean(norm(before.businessName) || norm(before.companyName) || norm(before.companyWebsite));
+        if (!hadCompanyIdentity) return;
 
         const toEmails = resolvePartnerEmailRecipients(after, "partner_account_updated");
         if (!toEmails.length) return;

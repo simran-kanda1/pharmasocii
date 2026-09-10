@@ -1411,6 +1411,8 @@ async function enqueuePartnerEmail({ type, partnerId, dedupeKey = null, payload 
 /**
  * After a paid listing goes live: welcome once (first time), else plan-changed.
  * Upgrades / feature purchases always use plan-changed.
+ * Uses a per-session lock so webhook + /api/verify-payment do not send both welcome
+ * and plan-changed for the same checkout.
  */
 async function notifyPartnerAfterPaidChange({
     partnerId,
@@ -1420,29 +1422,56 @@ async function notifyPartnerAfterPaidChange({
     const pid = partnerId && String(partnerId).trim();
     if (!pid) return { queued: false, reason: "missing_partner" };
 
-    let type = "partner_plan_changed";
-    if (kind === "listing") {
-        const partnerRef = db.collection("partnersCollection").doc(pid);
-        const claimedWelcome = await db.runTransaction(async (tx) => {
-            const snap = await tx.get(partnerRef);
-            if (!snap.exists) return false;
-            if (snap.data()?.partnerWelcomeEmailSentAt) return false;
-            tx.set(
-                partnerRef,
-                { partnerWelcomeEmailSentAt: admin.firestore.FieldValue.serverTimestamp() },
-                { merge: true },
-            );
-            return true;
-        });
-        if (claimedWelcome) type = "partner_welcome";
-    }
+    try {
+        const sessionKey = sessionId ? String(sessionId).trim() : "";
+        if (sessionKey) {
+            const lockRef = db.collection("partnerEmailQueue").doc(`session_lock_${sessionKey}`);
+            try {
+                await lockRef.create({
+                    type: "session_lock",
+                    partnerId: pid,
+                    kind,
+                    status: "claimed",
+                    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+            } catch (lockErr) {
+                const code = lockErr?.code;
+                const msg = String(lockErr?.message || lockErr || "");
+                if (code === 6 || code === "already-exists" || /already exists/i.test(msg)) {
+                    console.log(`   ✉ Partner email skipped (session already notified): ${sessionKey}`);
+                    return { queued: false, reason: "duplicate_session" };
+                }
+                throw lockErr;
+            }
+        }
 
-    const dedupeKey = sessionId
-        ? `${type}:${sessionId}`
-        : `${type}:${pid}:${kind}:${Date.now()}`;
-    const result = await enqueuePartnerEmail({ type, partnerId: pid, dedupeKey });
-    console.log(`   ✉ Partner email queued (${type}): ${result.queued ? "yes" : result.reason}`);
-    return { ...result, type };
+        let type = "partner_plan_changed";
+        if (kind === "listing") {
+            const partnerRef = db.collection("partnersCollection").doc(pid);
+            const claimedWelcome = await db.runTransaction(async (tx) => {
+                const snap = await tx.get(partnerRef);
+                if (!snap.exists) return false;
+                if (snap.data()?.partnerWelcomeEmailSentAt) return false;
+                tx.set(
+                    partnerRef,
+                    { partnerWelcomeEmailSentAt: admin.firestore.FieldValue.serverTimestamp() },
+                    { merge: true },
+                );
+                return true;
+            });
+            if (claimedWelcome) type = "partner_welcome";
+        }
+
+        const dedupeKey = sessionKey
+            ? `${type}:${sessionKey}`
+            : `${type}:${pid}:${kind}:${Date.now()}`;
+        const result = await enqueuePartnerEmail({ type, partnerId: pid, dedupeKey });
+        console.log(`   ✉ Partner email queued (${type}): ${result.queued ? "yes" : result.reason}`);
+        return { ...result, type };
+    } catch (err) {
+        console.error(`   ✉ Partner email queue failed for ${pid}:`, err?.message || err);
+        return { queued: false, reason: "error", error: err?.message || String(err) };
+    }
 }
 
 const app = express();
@@ -6327,6 +6356,11 @@ app.post("/api/verify-payment", async (req, res) => {
                 toPlanId,
                 group: session.metadata?.group || "jobs",
             });
+            await notifyPartnerAfterPaidChange({
+                partnerId,
+                sessionId: session.id,
+                kind: "plan",
+            });
             return res.json({
                 success: true,
                 updated: true,
@@ -6399,6 +6433,11 @@ app.post("/api/verify-payment", async (req, res) => {
                     businessName: detailSource?.businessName || detailSource?.eventName || "",
                 });
             }
+            await notifyPartnerAfterPaidChange({
+                partnerId,
+                sessionId: session.id,
+                kind: "plan",
+            });
             return res.json({
                 success: true,
                 updated: true,
@@ -6539,6 +6578,13 @@ app.post("/api/verify-payment", async (req, res) => {
                 console.log(`   ✓ Upgrade transaction recorded via verify-payment (${session.id})`);
             } else {
                 console.log(`   ℹ verify-payment upgrade transaction: ${upgradeTxnVerify.reason}`);
+                // createUpgradeTransactionIfMissing only notifies when it inserts; still notify
+                // when the txn already existed (e.g. webhook wrote txn but email queue failed).
+                await notifyPartnerAfterPaidChange({
+                    partnerId,
+                    sessionId: session.id,
+                    kind: "plan",
+                });
             }
 
             return res.json({
@@ -6744,6 +6790,18 @@ app.post("/api/verify-payment", async (req, res) => {
             });
             updated = true;
             console.log(`   ✓ Transaction record created`);
+        }
+
+        // Client return path often finalizes payment here when the Stripe webhook is delayed
+        // or missed — queue welcome / plan-changed the same way checkout.session.completed does.
+        if (partnerId) {
+            const paidKind =
+                listingId && resolvedCollectionName && !featureId ? "listing" : "plan";
+            await notifyPartnerAfterPaidChange({
+                partnerId,
+                sessionId: session.id,
+                kind: paidKind,
+            });
         }
 
         res.json({
