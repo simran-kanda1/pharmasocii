@@ -4,6 +4,7 @@ import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
 import { db } from "@/firebase";
 import { Loader2, ChevronDown } from "lucide-react";
 import { FAQ_CATEGORIES } from "@/components/admin/AdminFaqsPanel";
+import { HIDE_DIRECTORY_DATA_PREVIEW } from "@/lib/partnerListingPublic";
 
 type FAQDoc = {
     id: string;
@@ -14,6 +15,18 @@ type FAQDoc = {
 };
 
 export default function FAQ() {
+    if (HIDE_DIRECTORY_DATA_PREVIEW) {
+        return (
+            <div className="relative min-h-[60vh] flex items-center justify-center bg-background py-24">
+                <div className="container relative mx-auto px-4 max-w-3xl text-center">
+                    <p className="text-lg md:text-xl text-muted-foreground font-normal">
+                        Coming Soon.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
     const [faqs, setFaqs] = useState<FAQDoc[]>([]);
     const [loading, setLoading] = useState(true);
     const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
