@@ -84,10 +84,17 @@ function formatCleanPlanName(
 ): string {
     if (type === "feature" || featureId) {
         const f = (featureId || "").toLowerCase();
-        if (f === "home_page" || /home page/i.test(rawDesc || "")) return "Home Page Spotlight";
-        if (f === "landing_page" || /landing page/i.test(rawDesc || "")) return "Landing Page Spotlight";
-        if (f === "both" || /both/i.test(rawDesc || "")) return "Both (Module & Home Page)";
+        // Prefer explicit featureId — never infer from description substrings first.
+        // "Both (Module & Home Page)" contains "Home Page" and used to mislabel Both upgrades.
+        if (f === "both") return "Both (Module & Home Page)";
+        if (f === "home_page") return "Home Page Spotlight";
+        if (f === "landing_page") return "Landing Page Spotlight";
         if (f) return `${cleanTitleCase(f.replace(/_/g, " "))} Spotlight`;
+
+        const desc = String(rawDesc || "");
+        if (/\bboth\b/i.test(desc)) return "Both (Module & Home Page)";
+        if (/landing page/i.test(desc)) return "Landing Page Spotlight";
+        if (/home page/i.test(desc)) return "Home Page Spotlight";
         return "Spotlight Feature";
     }
 
