@@ -168,7 +168,7 @@ export default function PartnerRegister() {
                         className="space-y-5 text-left relative z-10 text-foreground/90"
                     >
                         {error && (
-                            <div className="p-3 bg-destructive/20 border border-destructive/50 rounded-md text-destructive-foreground text-sm">
+                            <div className="p-3 bg-destructive/20 border border-destructive/50 rounded-md text-black text-sm font-medium">
                                 {error}
                             </div>
                         )}
