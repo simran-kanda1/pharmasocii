@@ -167,12 +167,6 @@ export default function PartnerRegister() {
                         }}
                         className="space-y-5 text-left relative z-10 text-foreground/90"
                     >
-                        {error && (
-                            <div className="p-3 bg-destructive/20 border border-destructive/50 rounded-md text-black text-sm font-medium">
-                                {error}
-                            </div>
-                        )}
-
                         <div className="space-y-1.5">
                             <Label htmlFor="firstName" className="text-foreground/80">First Name *</Label>
                             <Input id="firstName" value={formData.firstName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
@@ -300,6 +294,12 @@ export default function PartnerRegister() {
                                 </Link>
                             </label>
                         </div>
+
+                        {error && (
+                            <div className="p-3 bg-destructive/20 border border-destructive/50 rounded-md text-black text-sm font-medium">
+                                {error}
+                            </div>
+                        )}
 
                         <div className="pt-2">
                             <Button type="submit" className="w-full shadow-lg shadow-primary/20 h-12" disabled={isLoading}>
