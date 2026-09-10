@@ -45,6 +45,7 @@ import {
   communityAccessHint,
 } from "@/lib/communityAccess";
 import { looksLikeEmail } from "@/lib/community";
+import { HIDE_DIRECTORY_DATA_PREVIEW } from "@/lib/partnerListingPublic";
 
 import { cn } from "@/lib/utils";
 
@@ -195,7 +196,7 @@ export default function CommunityFeed() {
     }
   }, [user, verified, hasMemberProfile, communityView, setCommunityView]);
   const loadMore = useCallback(async () => {
-    if (loading || loadingMore || !hasNextPage || !lastVisibleDocRef.current) return;
+    if (HIDE_DIRECTORY_DATA_PREVIEW || loading || loadingMore || !hasNextPage || !lastVisibleDocRef.current) return;
     setLoadingMore(true);
     try {
       const constraints: QueryConstraint[] = [
@@ -252,6 +253,11 @@ export default function CommunityFeed() {
     (async () => {
       try {
         setLoading(true);
+        if (HIDE_DIRECTORY_DATA_PREVIEW) {
+          setPosts([]);
+          setHasNextPage(false);
+          return;
+        }
         const isSearchingOrFiltering = !!(
           search.trim() ||
           selectedCountries.length > 0 ||

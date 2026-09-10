@@ -27,7 +27,6 @@ export default function Navbar() {
     const [user, setUser] = useState<any>(null);
     const [userName, setUserName] = useState("");
     const [isPartner, setIsPartner] = useState(false);
-    const [hasMemberProfile, setHasMemberProfile] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
 
     useEffect(() => {
@@ -39,7 +38,6 @@ export default function Navbar() {
                     const memberSnap = await getDoc(doc(db, "membersCollection", currentUser.uid));
                     const partnerSnap = await getDoc(doc(db, "partnersCollection", currentUser.uid));
                     setIsPartner(partnerSnap.exists());
-                    setHasMemberProfile(memberSnap.exists());
                     if (memberSnap.exists() && memberSnap.data().name) {
                         nameToSet = memberSnap.data().name.split(" ")[0];
                     } else if (partnerSnap.exists() && partnerSnap.data().primaryName) {
@@ -58,7 +56,6 @@ export default function Navbar() {
             } else {
                 setUserName("");
                 setIsPartner(false);
-                setHasMemberProfile(false);
             }
         });
 
@@ -90,6 +87,14 @@ export default function Navbar() {
                             }`}
                         >
                             Home
+                        </Link>
+                        <Link
+                            to="/about"
+                            className={`text-sm font-medium transition-colors hover:text-primary ${
+                                location.pathname.startsWith("/about") ? "text-primary font-semibold" : "text-muted-foreground"
+                            }`}
+                        >
+                            About
                         </Link>
                         <DropdownMenu>
                             <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors text-muted-foreground outline-none">
@@ -136,12 +141,6 @@ export default function Navbar() {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-56 bg-background/90 border-foreground/10 shadow-2xl backdrop-blur-xl">
-                                    {!hasMemberProfile && (
-                                        <DropdownMenuItem className="p-3 focus:bg-foreground/5 cursor-pointer" onClick={() => navigate("/member/setup")}>
-                                            <User className="w-4 h-4 mr-2 text-primary" />
-                                            <span>Create community profile</span>
-                                        </DropdownMenuItem>
-                                    )}
                                     {isPartner && (
                                         <DropdownMenuItem className="p-3 focus:bg-foreground/5 cursor-pointer" onClick={() => navigate("/partner/dashboard")}>
                                             <LayoutDashboard className="w-4 h-4 mr-2 text-primary" />
@@ -157,23 +156,21 @@ export default function Navbar() {
                             </DropdownMenu>
                         ) : (
                             <>
-                                {location.pathname !== "/community" && (
-                                    <div className="relative group">
-                                        <Button variant="ghost" className="hover:bg-primary/20 hover:text-primary flex items-center gap-1">
-                                            Login <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
-                                        </Button>
-                                        <div className="absolute top-[100%] right-0 pt-2 w-32 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-                                            <div className="bg-background border border-foreground/10 shadow-2xl rounded-md flex flex-col p-1">
-                                                <Link to="/login?type=partner" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
-                                                    Partner
-                                                </Link>
-                                                <Link to="/member/login" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
-                                                    Member
-                                                </Link>
-                                            </div>
+                                <div className="relative group">
+                                    <Button variant="ghost" className="hover:bg-primary/20 hover:text-primary flex items-center gap-1">
+                                        Login <ChevronDown className="w-3 h-3 transition-transform group-hover:rotate-180" />
+                                    </Button>
+                                    <div className="absolute top-[100%] right-0 pt-2 w-32 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+                                        <div className="bg-background border border-foreground/10 shadow-2xl rounded-md flex flex-col p-1">
+                                            <Link to="/login?type=partner" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
+                                                Partner
+                                            </Link>
+                                            <Link to="/member/login" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
+                                                Member
+                                            </Link>
                                         </div>
                                     </div>
-                                )}
+                                </div>
                                 <Button asChild variant="outline" className="hidden lg:inline-flex">
                                     <Link to="/member/register">Join community</Link>
                                 </Button>
@@ -210,6 +207,16 @@ export default function Navbar() {
                                             }`}
                                         >
                                             Home
+                                        </Link>
+                                    </SheetClose>
+                                    <SheetClose asChild>
+                                        <Link
+                                            to="/about"
+                                            className={`text-base font-medium py-2 px-3 rounded-lg hover:bg-foreground/5 transition-colors ${
+                                                location.pathname.startsWith("/about") ? "text-primary font-semibold bg-primary/10" : "text-foreground"
+                                            }`}
+                                        >
+                                            About
                                         </Link>
                                     </SheetClose>
                                     <SheetClose asChild>
@@ -263,14 +270,6 @@ export default function Navbar() {
                                             <User className="w-4 h-4 text-primary" />
                                             <span className="font-medium text-sm truncate">{userName}</span>
                                         </div>
-                                        {!hasMemberProfile && (
-                                            <SheetClose asChild>
-                                                <Button variant="outline" className="w-full justify-start" onClick={() => navigate("/member/setup")}>
-                                                    <User className="w-4 h-4 mr-2 text-primary" />
-                                                    <span>Create community profile</span>
-                                                </Button>
-                                            </SheetClose>
-                                        )}
                                         {isPartner && (
                                             <SheetClose asChild>
                                                 <Button variant="outline" className="w-full justify-start" onClick={() => navigate("/partner/dashboard")}>
@@ -286,6 +285,18 @@ export default function Navbar() {
                                     </div>
                                 ) : (
                                     <div className="flex flex-col space-y-2">
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <SheetClose asChild>
+                                                <Button asChild variant="outline" className="w-full justify-center">
+                                                    <Link to="/login?type=partner">Partner Login</Link>
+                                                </Button>
+                                            </SheetClose>
+                                            <SheetClose asChild>
+                                                <Button asChild variant="outline" className="w-full justify-center">
+                                                    <Link to="/member/login">Member Login</Link>
+                                                </Button>
+                                            </SheetClose>
+                                        </div>
                                         <SheetClose asChild>
                                             <Button asChild variant="outline" className="w-full justify-center">
                                                 <Link to="/member/register">Join community</Link>
@@ -296,18 +307,6 @@ export default function Navbar() {
                                                 <Link to="/signup">Become a partner</Link>
                                             </Button>
                                         </SheetClose>
-                                        <div className="grid grid-cols-2 gap-2 pt-2">
-                                            <SheetClose asChild>
-                                                <Button asChild variant="ghost" size="sm" className="w-full text-xs">
-                                                    <Link to="/login?type=partner">Partner Login</Link>
-                                                </Button>
-                                            </SheetClose>
-                                            <SheetClose asChild>
-                                                <Button asChild variant="ghost" size="sm" className="w-full text-xs">
-                                                    <Link to="/member/login">Member Login</Link>
-                                                </Button>
-                                            </SheetClose>
-                                        </div>
                                     </div>
                                 )}
                             </div>
