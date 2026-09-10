@@ -12,6 +12,7 @@ import {
     isPartnerListingPublic,
     resolveSpotlightPlacement,
     spotlightDisplayActive,
+    HIDE_DIRECTORY_DATA_PREVIEW,
 } from "@/lib/partnerListingPublic";
 import { PostCard } from "@/components/community/PostCard";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
@@ -227,6 +228,7 @@ export default function Home() {
             </section>
 
             {/* COMMUNITY HIGHLIGHTS */}
+            {!HIDE_DIRECTORY_DATA_PREVIEW && (
             <section className="py-24 bg-muted/40 relative">
                 <div className="container mx-auto px-6 md:px-12 max-w-7xl">
                     <SectionHeader
@@ -262,6 +264,7 @@ export default function Home() {
                     </div>
                 </div>
             </section>
+            )}
 
             {/* BUSINESS OFFERINGS CAROUSEL */}
             {(featuredBusinesses.length > 0 || featuredConsulting.length > 0 || featuredEvents.length > 0 || featuredJobs.length > 0) && (
