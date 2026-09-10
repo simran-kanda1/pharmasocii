@@ -3,11 +3,27 @@ import { useNavigate } from "react-router-dom";
 import { Check, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { usePlansConfig, type PlanItem } from "@/hooks/usePlansConfig";
+import { HIDE_DIRECTORY_DATA_PREVIEW } from "@/lib/partnerListingPublic";
 
 export default function Plans() {
     const navigate = useNavigate();
     const [isYearly, setIsYearly] = useState(true);
     const { config, loading, error } = usePlansConfig();
+
+    if (HIDE_DIRECTORY_DATA_PREVIEW) {
+        return (
+            <div className="relative min-h-[60vh] flex items-center justify-center bg-background py-24">
+                <div className="container relative mx-auto px-4 max-w-3xl text-center space-y-4">
+                    <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-foreground">
+                        Plans
+                    </h1>
+                    <p className="text-lg md:text-xl text-muted-foreground font-normal">
+                        Plan details are shared after company profile creation.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     if (loading) {
         return (
