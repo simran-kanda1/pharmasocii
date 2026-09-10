@@ -3,31 +3,10 @@ import Navbar from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
 import { CookieConsentBanner } from "./components/layout/CookieConsentBanner";
 import Home from "./pages/Home";
-import AllCategories from "./pages/AllCategories";
 import Login from "./pages/Login";
-import MemberLogin from "./pages/MemberLogin";
 import PartnerRegister from "./pages/PartnerRegister";
-import CompleteProfile from "./pages/CompleteProfile";
-import AdminLogin from "./pages/admin/AdminLogin";
-import AdminDashboard from "./pages/admin/AdminDashboard";
-import PartnerDashboard from "./pages/partner/Dashboard";
-import ListingDetail from "./pages/ListingDetail";
-import AddListing from "./pages/partner/AddListing";
 import AboutUs from "./pages/AboutUs";
-import FAQ from "./pages/FAQ";
-import ContactUs from "./pages/ContactUs";
-import CommunityFeed from "./pages/community/CommunityFeed";
-import CommunityPostDetail from "./pages/community/CommunityPostDetail";
-import NewCommunityPost from "./pages/community/NewCommunityPost";
-import MemberRegister from "./pages/MemberRegister";
-import MemberDashboard from "./pages/member/MemberDashboard";
-import MemberCommunitySetup from "./pages/member/MemberCommunitySetup";
-import MemberForgotPassword from "./pages/member/MemberForgotPassword";
-import TermsOfUse from "./pages/TermsOfUse";
-import CommunityGuidelines from "./pages/CommunityGuidelines";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import Plans from "./pages/Plans";
-import AuthAction from "./pages/AuthAction";
+import PreviewNotice from "./pages/PreviewNotice";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -48,57 +27,37 @@ function App() {
   return (
     <>
       <Routes>
-        {/* Admin specific flows - NO layout, standalone pages */}
-      <Route path="/admin" element={<AdminLogin />} />
-      <Route path="/admin/" element={<AdminLogin />} />
-      <Route path="/admin/dashboard" element={<AdminDashboard />} />
+        {/* Live Preview Pages */}
+        <Route path="/" element={<AppLayout><Home /></AppLayout>} />
+        <Route path="/about" element={<AppLayout><AboutUs /></AppLayout>} />
+        <Route path="/about-us" element={<AppLayout><AboutUs /></AppLayout>} />
+        <Route path="/signup" element={<AppLayout><PartnerRegister /></AppLayout>} />
+        <Route path="/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
+        <Route path="/partner/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
+        <Route path="/login" element={<AppLayout><Login /></AppLayout>} />
+        <Route path="/preview-notice" element={<AppLayout><PreviewNotice /></AppLayout>} />
 
-      {/* Partner dashboard - NO layout */}
-      <Route path="/partner/dashboard" element={<PartnerDashboard />} />
+        {/* Placeholder / Under Development Pages */}
+        <Route path="/community" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/community/*" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/member/register" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/member/setup" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/member/dashboard" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/member/login" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/faq" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/contact" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/contact-us" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/plans" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/all-categories/:category?" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/terms" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/guidelines" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/privacy" element={<AppLayout><PreviewNotice /></AppLayout>} />
+        <Route path="/listing/:type/:id" element={<AppLayout><PreviewNotice /></AppLayout>} />
 
-      {/* Pages With Layout */}
-      <Route path="/" element={<AppLayout><Home /></AppLayout>} />
-      <Route path="/listing/:type/:id" element={<AppLayout><ListingDetail /></AppLayout>} />
-      <Route path="/about-us" element={<AppLayout><AboutUs /></AppLayout>} />
-      <Route path="/about" element={<AppLayout><AboutUs /></AppLayout>} />
-      <Route path="/faq" element={<AppLayout><FAQ /></AppLayout>} />
-      <Route path="/contact" element={<AppLayout><ContactUs /></AppLayout>} />
-      <Route path="/contact-us" element={<AppLayout><ContactUs /></AppLayout>} />
-      <Route path="/plans" element={<AppLayout><Plans /></AppLayout>} />
-      <Route path="/all-categories/:category?" element={<AppLayout><AllCategories /></AppLayout>} />
-      <Route path="/terms" element={<AppLayout><TermsOfUse /></AppLayout>} />
-      <Route path="/guidelines" element={<AppLayout><CommunityGuidelines /></AppLayout>} />
-      <Route path="/privacy" element={<AppLayout><PrivacyPolicy /></AppLayout>} />
-
-      <Route path="/community" element={<AppLayout><CommunityFeed /></AppLayout>} />
-      <Route path="/community/post/:postId" element={<AppLayout><CommunityPostDetail /></AppLayout>} />
-      <Route path="/community/new" element={<AppLayout><NewCommunityPost /></AppLayout>} />
-      <Route path="/member/register" element={<AppLayout><MemberRegister /></AppLayout>} />
-      <Route path="/member/setup" element={<AppLayout><MemberCommunitySetup /></AppLayout>} />
-      <Route path="/member/dashboard" element={<AppLayout><MemberDashboard /></AppLayout>} />
-
-      {/* Auth flows */}
-      <Route path="/login" element={<AppLayout><Login /></AppLayout>} />
-      <Route path="/member/login" element={<AppLayout><MemberLogin /></AppLayout>} />
-      <Route path="/member/forgot-password" element={<AppLayout><MemberForgotPassword /></AppLayout>} />
-      <Route path="/forgot-password" element={<AppLayout><MemberForgotPassword /></AppLayout>} />
-      <Route path="/signup" element={<AppLayout><PartnerRegister /></AppLayout>} />
-      <Route path="/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
-      <Route path="/partner/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
-      <Route path="/partner/complete-profile" element={<AppLayout><CompleteProfile /></AppLayout>} />
-      <Route path="/auth/action" element={<AppLayout><AuthAction /></AppLayout>} />
-
-      {/* Partner listing pages */}
-      <Route path="/partner/add-listing/:type" element={<AppLayout><AddListing /></AppLayout>} />
-      <Route path="/partner/offerings/new" element={<AppLayout><AddListing /></AppLayout>} />
-      <Route path="/partner/jobs/new" element={<AppLayout><AddListing /></AppLayout>} />
-      <Route path="/partner/events/new" element={<AppLayout><AddListing /></AppLayout>} />
-      <Route path="/partner/consulting/new" element={<AppLayout><AddListing /></AppLayout>} />
-
-      {/* Catch-all */}
-      <Route path="*" element={<AppLayout><div className="flex-1 flex items-center justify-center text-4xl font-bold p-24">Coming Soon.</div></AppLayout>} />
-    </Routes>
-    <CookieConsentBanner />
+        {/* Catch-all */}
+        <Route path="*" element={<AppLayout><PreviewNotice /></AppLayout>} />
+      </Routes>
+      <CookieConsentBanner />
     </>
   );
 }

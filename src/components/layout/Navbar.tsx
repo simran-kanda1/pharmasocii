@@ -91,28 +91,14 @@ export default function Navbar() {
                         >
                             Home
                         </Link>
-                        <DropdownMenu>
-                            <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors text-muted-foreground outline-none">
-                                Explore <ChevronDown className="h-4 w-4" />
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="min-w-[14rem] bg-background border-foreground/10 shadow-2xl">
-                                <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/business">Business Offerings</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/consulting">Consulting</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/events">Events</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/compliance">Global Health Authority Sites</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/jobs">Jobs</Link>
-                                </DropdownMenuItem>
-                            </DropdownMenuContent>
-                        </DropdownMenu>
+                        <Link
+                            to="/about"
+                            className={`text-sm font-medium transition-colors hover:text-primary ${
+                                location.pathname.startsWith("/about") ? "text-primary font-semibold" : "text-muted-foreground"
+                            }`}
+                        >
+                            About
+                        </Link>
                         <Link
                             to="/community"
                             className={`text-sm font-medium transition-colors hover:text-primary ${
@@ -214,6 +200,16 @@ export default function Navbar() {
                                     </SheetClose>
                                     <SheetClose asChild>
                                         <Link
+                                            to="/about"
+                                            className={`text-base font-medium py-2 px-3 rounded-lg hover:bg-foreground/5 transition-colors ${
+                                                location.pathname.startsWith("/about") ? "text-primary font-semibold bg-primary/10" : "text-foreground"
+                                            }`}
+                                        >
+                                            About
+                                        </Link>
+                                    </SheetClose>
+                                    <SheetClose asChild>
+                                        <Link
                                             to="/community"
                                             className={`text-base font-medium py-2 px-3 rounded-lg hover:bg-foreground/5 transition-colors ${
                                                 location.pathname.startsWith("/community") ? "text-primary font-semibold bg-primary/10" : "text-foreground"
@@ -222,37 +218,6 @@ export default function Navbar() {
                                             Community
                                         </Link>
                                     </SheetClose>
-
-                                    <div className="pt-2 border-t border-border/60">
-                                        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-2">Explore</p>
-                                        <div className="flex flex-col space-y-1">
-                                            <SheetClose asChild>
-                                                <Link to="/all-categories/business" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
-                                                    Business Offerings
-                                                </Link>
-                                            </SheetClose>
-                                            <SheetClose asChild>
-                                                <Link to="/all-categories/consulting" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
-                                                    Consulting
-                                                </Link>
-                                            </SheetClose>
-                                            <SheetClose asChild>
-                                                <Link to="/all-categories/events" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
-                                                    Events
-                                                </Link>
-                                            </SheetClose>
-                                            <SheetClose asChild>
-                                                <Link to="/all-categories/compliance" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
-                                                    Global Health Authority Sites
-                                                </Link>
-                                            </SheetClose>
-                                            <SheetClose asChild>
-                                                <Link to="/all-categories/jobs" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
-                                                    Jobs
-                                                </Link>
-                                            </SheetClose>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
 
