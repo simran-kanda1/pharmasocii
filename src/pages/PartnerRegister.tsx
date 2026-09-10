@@ -70,6 +70,10 @@ export default function PartnerRegister() {
             return;
         }
 
+        // Preview site notice: profile setup halted
+        setError("We’re experiencing a temporary technical issue. Profile setup will be available soon.");
+        return;
+
         try {
             setIsLoading(true);
             // Create user in Auth
