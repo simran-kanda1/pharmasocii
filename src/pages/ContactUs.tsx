@@ -113,43 +113,34 @@ export default function ContactUs() {
 
     return (
         <div className="flex flex-col w-full bg-background min-h-screen">
-            {/* HERO SECTION */}
-            <section className="relative py-16 md:py-24 overflow-hidden bg-gradient-to-b from-background via-background to-muted/20">
-                <div className="container mx-auto px-4 max-w-6xl text-center space-y-6">
-                    <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-foreground leading-[1.1]">
-                        {config.headline || "Contact Us"}
-                    </h1>
-
-                    {/* Global Contact Bar (if set) */}
-                    {(config.globalPhone || config.globalAddress) && (
-                        <div className="pt-4 flex flex-wrap items-center justify-center gap-6 text-sm text-foreground/80 font-medium">
-                            {config.globalPhone && (
-                                <a 
-                                    href={`tel:${config.globalPhone.replace(/[^0-9+]/g, "")}`} 
-                                    className="flex items-center gap-2 hover:text-primary transition-colors bg-foreground/5 px-4 py-2 rounded-full border border-border"
-                                >
-                                    <Phone className="w-4 h-4 text-primary" />
-                                    <span>{config.globalPhone}</span>
-                                </a>
-                            )}
-                            {config.globalAddress && (
-                                <div className="flex items-center gap-2 bg-foreground/5 px-4 py-2 rounded-full border border-border">
-                                    <Building2 className="w-4 h-4 text-primary" />
-                                    <span>{config.globalAddress}</span>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-            </section>
-
-            {/* DEPARTMENTS GRID */}
-            <section className="py-16 md:py-24 bg-background">
+            {/* HERO & DEPARTMENTS GRID */}
+            <section className="py-16 md:py-20 bg-background">
                 <div className="container mx-auto px-4 max-w-6xl">
-                    <div className="text-center max-w-2xl mx-auto mb-12">
-                        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
-                            Got Questions? Reach Out Directly
-                        </h2>
+                    <div className="text-center max-w-3xl mx-auto space-y-4 mb-12">
+                        <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-foreground leading-[1.1]">
+                            {config.headline || "Contact Us"}
+                        </h1>
+
+                        {/* Global Contact Bar (if set) */}
+                        {(config.globalPhone || config.globalAddress) && (
+                            <div className="pt-2 flex flex-wrap items-center justify-center gap-6 text-sm text-foreground/80 font-medium">
+                                {config.globalPhone && (
+                                    <a 
+                                        href={`tel:${config.globalPhone.replace(/[^0-9+]/g, "")}`} 
+                                        className="flex items-center gap-2 hover:text-primary transition-colors bg-foreground/5 px-4 py-2 rounded-full border border-border"
+                                    >
+                                        <Phone className="w-4 h-4 text-primary" />
+                                        <span>{config.globalPhone}</span>
+                                    </a>
+                                )}
+                                {config.globalAddress && (
+                                    <div className="flex items-center gap-2 bg-foreground/5 px-4 py-2 rounded-full border border-border">
+                                        <Building2 className="w-4 h-4 text-primary" />
+                                        <span>{config.globalAddress}</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8">
