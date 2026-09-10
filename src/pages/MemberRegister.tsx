@@ -79,6 +79,10 @@ export default function MemberRegister() {
       return;
     }
 
+    // Preview site notice: profile creation halted
+    setError("Community account activation is temporarily unavailable due to a technical issue.");
+    return;
+
     const emailTrim = form.email.trim();
 
     try {
@@ -132,10 +136,10 @@ export default function MemberRegister() {
 
       try {
         const queue = await ensureVerificationPending();
-        if (queue.ok && !queue.hasLink) {
+        if (queue.ok && "hasLink" in queue && !(queue as { hasLink?: boolean }).hasLink) {
           console.warn("Verification link not ready yet", queue);
         }
-      } catch (verifyErr: unknown) {
+      } catch (verifyErr: any) {
         console.error(verifyErr);
         let hint =
           "Account created. Check your inbox for an email from Pharma SocII with a verification link (also check spam). You can use “Resend verification” after signing in, or ask an admin to generate a link from Dashboard → Overview.";
@@ -151,7 +155,7 @@ export default function MemberRegister() {
       }
 
       navigate("/member/login?verify=1", { replace: true });
-    } catch (err: unknown) {
+    } catch (err: any) {
       console.error(err);
       if (err instanceof Error && err.message === "USERNAME_TAKEN") {
         setError("That username is already taken. Try another.");
@@ -377,7 +381,11 @@ export default function MemberRegister() {
             </div>
           )}
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+          {error && (
+            <div className="p-3 bg-destructive/20 border border-destructive/50 rounded-md text-black text-sm font-medium">
+              {error}
+            </div>
+          )}
 
           <Button type="submit" className="w-full" disabled={isLoading || existingEmailHint}>
             {isLoading ? "Creating account…" : "Create account"}
