@@ -1847,9 +1847,7 @@ export default function AdminDashboard() {
       const s = (row.subcategory || "").toLowerCase();
       const ss = (row.subSubcategory || "").toLowerCase();
       const st = (row.status || "Active").toLowerCase();
-      const desc = (row.description || "").toLowerCase();
-      const meta = `${row.metaDescription || ""} ${row.metaKeywords || ""}`.toLowerCase();
-      const fullText = `${g} ${c} ${s} ${ss} ${st} ${desc} ${meta}`;
+      const fullText = `${g} ${c} ${s} ${ss} ${st}`;
       return searchTerms.every((term) => fullText.includes(term));
     });
   }, [categoryRows, categorySearch]);
