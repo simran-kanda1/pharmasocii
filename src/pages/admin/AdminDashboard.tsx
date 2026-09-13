@@ -1841,8 +1841,40 @@ export default function AdminDashboard() {
     const q = categorySearch.trim().toLowerCase();
     if (!q) return categoryRows;
     const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ");
-    const searchTerms = clean(q).split(/\s+/).filter(Boolean);
-    return categoryRows.filter((row) => {
+    const cleanQuery = clean(q);
+    const searchTerms = cleanQuery.split(/\s+/).filter(Boolean);
+
+    const getRelevanceScore = (row: (typeof categoryRows)[number]) => {
+      const cat = clean(row.category || "");
+      const sub = clean(row.subcategory || "");
+      const subSub = clean(row.subSubcategory || "");
+      const group = clean(row.group || "");
+
+      // 1. Exact match on subcategory or category name (highest priority) -> 100
+      if (sub === cleanQuery || cat === cleanQuery) return 100;
+
+      // 2. Subcategory starts with query or category starts with query -> 80
+      if (sub.startsWith(cleanQuery) || cat.startsWith(cleanQuery)) return 80;
+
+      // 3. Subcategory contains exact query or category contains exact query -> 60
+      if (sub.includes(cleanQuery) || cat.includes(cleanQuery)) return 60;
+
+      // 4. All search terms in subcategory or category -> 40
+      if (searchTerms.every((t) => sub.includes(t)) || searchTerms.every((t) => cat.includes(t))) return 40;
+
+      // 5. Sub-subcategories contain exact query -> 30
+      if (subSub.includes(cleanQuery)) return 30;
+
+      // 6. All terms in sub-subcategories -> 20
+      if (searchTerms.every((t) => subSub.includes(t))) return 20;
+
+      // 7. Group name match -> 10
+      if (group.includes(cleanQuery) || searchTerms.every((t) => group.includes(t))) return 10;
+
+      return 5;
+    };
+
+    const matched = categoryRows.filter((row) => {
       const g = clean(row.group || "");
       const c = clean(row.category || "");
       const s = clean(row.subcategory || "");
@@ -1850,6 +1882,21 @@ export default function AdminDashboard() {
       const st = clean(row.status || "Active");
       const fullText = `${g} ${c} ${s} ${ss} ${st}`;
       return searchTerms.every((term) => fullText.includes(term));
+    });
+
+    return matched.sort((a, b) => {
+      const scoreA = getRelevanceScore(a);
+      const scoreB = getRelevanceScore(b);
+      if (scoreA !== scoreB) {
+        return scoreB - scoreA; // Higher relevance score first
+      }
+      const gComp = (a.group || "").localeCompare(b.group || "", undefined, { sensitivity: "base" });
+      if (gComp !== 0) return gComp;
+      const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
+      if (cComp !== 0) return cComp;
+      const sComp = (a.subcategory || "").localeCompare(b.subcategory || "", undefined, { sensitivity: "base" });
+      if (sComp !== 0) return sComp;
+      return (a.subSubcategory || "").localeCompare(b.subSubcategory || "", undefined, { sensitivity: "base" });
     });
   }, [categoryRows, categorySearch]);
 
