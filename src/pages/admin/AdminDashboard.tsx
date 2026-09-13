@@ -1850,28 +1850,31 @@ export default function AdminDashboard() {
       const subSub = clean(row.subSubcategory || "");
       const group = clean(row.group || "");
 
-      // 1. Exact match on subcategory or category name (highest priority) -> 100
-      if (sub === cleanQuery || cat === cleanQuery) return 100;
+      // Tier 1: Exact match on subcategory or category (top priority) -> 1000
+      if (sub === cleanQuery || cat === cleanQuery) return 1000;
 
-      // 2. Subcategory starts with query or category starts with query -> 80
-      if (sub.startsWith(cleanQuery) || cat.startsWith(cleanQuery)) return 80;
+      // Tier 2: Subcategory or category starts with query -> 800
+      if (sub.startsWith(cleanQuery) || cat.startsWith(cleanQuery)) return 800;
 
-      // 3. Subcategory contains exact query or category contains exact query -> 60
-      if (sub.includes(cleanQuery) || cat.includes(cleanQuery)) return 60;
+      // Tier 3: Subcategory or category contains exact query string -> 600
+      if (sub.includes(cleanQuery) || cat.includes(cleanQuery)) return 600;
 
-      // 4. All search terms in subcategory or category -> 40
-      if (searchTerms.every((t) => sub.includes(t)) || searchTerms.every((t) => cat.includes(t))) return 40;
+      // Tier 4: Subcategory or category contains all search words -> 400
+      if (searchTerms.every((t) => sub.includes(t)) || searchTerms.every((t) => cat.includes(t))) return 400;
 
-      // 5. Sub-subcategories contain exact query -> 30
-      if (subSub.includes(cleanQuery)) return 30;
+      // Tier 5: Subcategory or category contains any search word -> 200
+      if (searchTerms.some((t) => sub.includes(t) || cat.includes(t))) return 200;
 
-      // 6. All terms in sub-subcategories -> 20
-      if (searchTerms.every((t) => subSub.includes(t))) return 20;
+      // Tier 6: Sub-subcategories contain exact query -> 100
+      if (subSub.includes(cleanQuery)) return 100;
 
-      // 7. Group name match -> 10
+      // Tier 7: Sub-subcategories contain all search words -> 50
+      if (searchTerms.every((t) => subSub.includes(t))) return 50;
+
+      // Tier 8: Group name match -> 10
       if (group.includes(cleanQuery) || searchTerms.every((t) => group.includes(t))) return 10;
 
-      return 5;
+      return 1;
     };
 
     const matched = categoryRows.filter((row) => {
