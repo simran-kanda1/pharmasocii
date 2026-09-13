@@ -381,27 +381,44 @@ export function sortCategoriesDict(source: CategoriesDict): CategoriesDict {
     return sorted;
 }
 
+export function findMatchingCategoryKey(dict: CategoriesDict, name: string): string | undefined {
+    const norm = (name || "").trim().toLowerCase();
+    if (!norm) return undefined;
+    return Object.keys(dict).find((k) => k.trim().toLowerCase() === norm);
+}
+
 export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
     business: CategoriesDict;
     consulting: CategoriesDict;
     events: CategoriesDict;
     jobs: CategoriesDict;
+    allBusiness: CategoriesDict;
+    allConsulting: CategoriesDict;
+    allEvents: CategoriesDict;
+    allJobs: CategoriesDict;
     categoryMetadataMap: Record<string, DirectoryCategoryDoc>;
 } {
-    const business = cloneCategoriesDict(DEFAULT_BUSINESS_CATEGORIES);
-    const consulting = cloneCategoriesDict(DEFAULT_CONSULTING_CATEGORIES);
-    const events = cloneCategoriesDict(DEFAULT_EVENTS_CATEGORIES);
-    const jobs = cloneCategoriesDict(DEFAULT_JOBS_CATEGORIES);
+    const activeBusiness = cloneCategoriesDict(DEFAULT_BUSINESS_CATEGORIES);
+    const activeConsulting = cloneCategoriesDict(DEFAULT_CONSULTING_CATEGORIES);
+    const activeEvents = cloneCategoriesDict(DEFAULT_EVENTS_CATEGORIES);
+    const activeJobs = cloneCategoriesDict(DEFAULT_JOBS_CATEGORIES);
 
-    const dicts = { business, consulting, events, jobs };
+    const allBusiness = cloneCategoriesDict(DEFAULT_BUSINESS_CATEGORIES);
+    const allConsulting = cloneCategoriesDict(DEFAULT_CONSULTING_CATEGORIES);
+    const allEvents = cloneCategoriesDict(DEFAULT_EVENTS_CATEGORIES);
+    const allJobs = cloneCategoriesDict(DEFAULT_JOBS_CATEGORIES);
+
+    const activeDicts = { business: activeBusiness, consulting: activeConsulting, events: activeEvents, jobs: activeJobs };
+    const allDicts = { business: allBusiness, consulting: allConsulting, events: allEvents, jobs: allJobs };
     const categoryMetadataMap: Record<string, DirectoryCategoryDoc> = {};
 
     dbDocs.forEach((doc) => {
         const groupKey = normalizeGroupKey(doc.parentCategory || doc.group);
         if (!groupKey) return;
 
-        const targetDict = dicts[groupKey];
-        if (!targetDict) return;
+        const targetActiveDict = activeDicts[groupKey];
+        const targetAllDict = allDicts[groupKey];
+        if (!targetActiveDict || !targetAllDict) return;
 
         const categoryName = (doc.categoryName || doc.category || "").trim();
         if (!categoryName) return;
@@ -441,98 +458,154 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
             });
         });
 
-        // Handle inactive items
+        const matchedActiveKey = findMatchingCategoryKey(targetActiveDict, categoryName);
+        const matchedAllKey = findMatchingCategoryKey(targetAllDict, categoryName);
+
+        // 1. Apply to Active Dicts (Used by frontend: AllCategories, AddListing, Dashboard, etc.)
         if (isInactive) {
-            if (subList.length === 0) {
-                delete targetDict[categoryName];
-                return;
-            }
-
-            if (targetDict[categoryName]) {
-                if (subSubList.length === 0) {
-                    const subSet = new Set(subList.map((s) => s.toLowerCase()));
-                    targetDict[categoryName] = targetDict[categoryName].filter(
-                        (entry) => !subSet.has(getSubLabel(entry).toLowerCase())
-                    );
+            if (matchedActiveKey) {
+                if (subList.length === 0) {
+                    delete targetActiveDict[matchedActiveKey];
                 } else {
-                    const subSubSet = new Set(subSubList.map((s) => s.toLowerCase()));
                     const subSet = new Set(subList.map((s) => s.toLowerCase()));
-                    targetDict[categoryName] = targetDict[categoryName].map((entry) => {
-                        if (typeof entry !== "string" && subSet.has(entry.label.toLowerCase())) {
-                            return {
-                                ...entry,
-                                subSubcategories: entry.subSubcategories.filter(
-                                    (ss) => !subSubSet.has(ss.toLowerCase())
-                                ),
-                            };
-                        }
-                        return entry;
-                    });
-                }
-            }
-            return;
-        }
-
-        // Ensure category exists
-        if (!targetDict[categoryName]) {
-            targetDict[categoryName] = [];
-        }
-
-        // If no subcategories specified, just ensure category exists
-        if (subList.length === 0) {
-            return;
-        }
-
-        const currentEntries = targetDict[categoryName];
-
-        if (subSubList.length === 0) {
-            // Add each subcategory as a flat subcategory if not already present
-            subList.forEach((sub) => {
-                const existingIndex = currentEntries.findIndex(
-                    (entry) => getSubLabel(entry).toLowerCase() === sub.toLowerCase()
-                );
-                if (existingIndex === -1) {
-                    currentEntries.push(sub);
-                }
-            });
-        } else {
-            // We have sub-subcategories!
-            subList.forEach((sub) => {
-                const existingIndex = currentEntries.findIndex(
-                    (entry) => getSubLabel(entry).toLowerCase() === sub.toLowerCase()
-                );
-
-                if (existingIndex === -1) {
-                    currentEntries.push({
-                        label: sub,
-                        subSubcategories: [...subSubList],
-                    });
-                } else {
-                    const existing = currentEntries[existingIndex];
-                    if (typeof existing === "string") {
-                        currentEntries[existingIndex] = {
-                            label: existing,
-                            subSubcategories: [...subSubList],
-                        };
+                    if (subSubList.length === 0) {
+                        targetActiveDict[matchedActiveKey] = targetActiveDict[matchedActiveKey].filter(
+                            (entry) => !subSet.has(getSubLabel(entry).toLowerCase())
+                        );
                     } else {
-                        const existingSet = new Set(existing.subSubcategories.map((s) => s.toLowerCase()));
-                        subSubList.forEach((ss) => {
-                            if (!existingSet.has(ss.toLowerCase())) {
-                                existing.subSubcategories.push(ss);
-                                existingSet.add(ss.toLowerCase());
-                            }
-                        });
+                        const subSubSet = new Set(subSubList.map((s) => s.toLowerCase()));
+                        targetActiveDict[matchedActiveKey] = targetActiveDict[matchedActiveKey]
+                            .map((entry) => {
+                                if (typeof entry !== "string" && subSet.has(entry.label.toLowerCase())) {
+                                    return {
+                                        ...entry,
+                                        subSubcategories: entry.subSubcategories.filter(
+                                            (ss) => !subSubSet.has(ss.toLowerCase())
+                                        ),
+                                    };
+                                }
+                                return entry;
+                            })
+                            .filter((entry) => {
+                                if (typeof entry !== "string" && subSet.has(entry.label.toLowerCase())) {
+                                    return entry.subSubcategories.length > 0;
+                                }
+                                return true;
+                            });
                     }
                 }
-            });
+            }
+        } else {
+            const actualCatKey = matchedActiveKey || categoryName;
+            if (!targetActiveDict[actualCatKey]) {
+                targetActiveDict[actualCatKey] = [];
+            }
+
+            if (subList.length > 0) {
+                const currentEntries = targetActiveDict[actualCatKey];
+
+                if (subSubList.length === 0) {
+                    subList.forEach((sub) => {
+                        const existingIndex = currentEntries.findIndex(
+                            (entry) => getSubLabel(entry).toLowerCase() === sub.toLowerCase()
+                        );
+                        if (existingIndex === -1) {
+                            currentEntries.push(sub);
+                        }
+                    });
+                } else {
+                    subList.forEach((sub) => {
+                        const existingIndex = currentEntries.findIndex(
+                            (entry) => getSubLabel(entry).toLowerCase() === sub.toLowerCase()
+                        );
+
+                        if (existingIndex === -1) {
+                            currentEntries.push({
+                                label: sub,
+                                subSubcategories: [...subSubList],
+                            });
+                        } else {
+                            const existing = currentEntries[existingIndex];
+                            if (typeof existing === "string") {
+                                currentEntries[existingIndex] = {
+                                    label: existing,
+                                    subSubcategories: [...subSubList],
+                                };
+                            } else {
+                                const existingSet = new Set(existing.subSubcategories.map((s) => s.toLowerCase()));
+                                subSubList.forEach((ss) => {
+                                    if (!existingSet.has(ss.toLowerCase())) {
+                                        existing.subSubcategories.push(ss);
+                                        existingSet.add(ss.toLowerCase());
+                                    }
+                                });
+                            }
+                        }
+                    });
+                }
+            }
+        }
+
+        // 2. Apply custom additions to All Dicts (Used by admin dashboard table)
+        const actualAllCatKey = matchedAllKey || categoryName;
+        if (!targetAllDict[actualAllCatKey]) {
+            targetAllDict[actualAllCatKey] = [];
+        }
+
+        if (subList.length > 0) {
+            const currentEntries = targetAllDict[actualAllCatKey];
+
+            if (subSubList.length === 0) {
+                subList.forEach((sub) => {
+                    const existingIndex = currentEntries.findIndex(
+                        (entry) => getSubLabel(entry).toLowerCase() === sub.toLowerCase()
+                    );
+                    if (existingIndex === -1) {
+                        currentEntries.push(sub);
+                    }
+                });
+            } else {
+                subList.forEach((sub) => {
+                    const existingIndex = currentEntries.findIndex(
+                        (entry) => getSubLabel(entry).toLowerCase() === sub.toLowerCase()
+                    );
+
+                    if (existingIndex === -1) {
+                        currentEntries.push({
+                            label: sub,
+                            subSubcategories: [...subSubList],
+                        });
+                    } else {
+                        const existing = currentEntries[existingIndex];
+                        if (typeof existing === "string") {
+                            currentEntries[existingIndex] = {
+                                label: existing,
+                                subSubcategories: [...subSubList],
+                            };
+                        } else {
+                            const existingSet = new Set(existing.subSubcategories.map((s) => s.toLowerCase()));
+                            subSubList.forEach((ss) => {
+                                if (!existingSet.has(ss.toLowerCase())) {
+                                    existing.subSubcategories.push(ss);
+                                    existingSet.add(ss.toLowerCase());
+                                }
+                            });
+                        }
+                    }
+                });
+            }
         }
     });
 
     return {
-        business: sortCategoriesDict(business),
-        consulting: sortCategoriesDict(consulting),
-        events: sortCategoriesDict(events),
-        jobs: sortCategoriesDict(jobs),
+        business: sortCategoriesDict(activeBusiness),
+        consulting: sortCategoriesDict(activeConsulting),
+        events: sortCategoriesDict(activeEvents),
+        jobs: sortCategoriesDict(activeJobs),
+        allBusiness: sortCategoriesDict(allBusiness),
+        allConsulting: sortCategoriesDict(allConsulting),
+        allEvents: sortCategoriesDict(allEvents),
+        allJobs: sortCategoriesDict(allJobs),
         categoryMetadataMap,
     };
 }

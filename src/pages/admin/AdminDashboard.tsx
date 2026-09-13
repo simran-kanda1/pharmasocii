@@ -16,6 +16,7 @@ import {
   Eye,
   FileText,
   FileSpreadsheet,
+  Globe,
   History,
   HelpCircle,
   LayoutDashboard,
@@ -111,6 +112,7 @@ import { AdminAddFeaturedPlan } from "@/components/admin/AdminAddFeaturedPlan";
 import { AdminSitePoliciesPanel } from "@/components/admin/AdminSitePoliciesPanel";
 import { AdminFaqsPanel } from "@/components/admin/AdminFaqsPanel";
 import { AdminContactPanel } from "@/components/admin/AdminContactPanel";
+import { AdminHealthAuthoritiesPanel } from "@/components/admin/AdminHealthAuthoritiesPanel";
 import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
 
 import { SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
@@ -132,6 +134,7 @@ type AdminTab =
   | "plans"
   | "featuredPlans"
   | "categories"
+  | "healthAuthorities"
   | "policies"
   | "faqs"
   | "contact"
@@ -746,6 +749,10 @@ export default function AdminDashboard() {
     consultingCategories,
     eventsCategories,
     jobsCategories,
+    allBusinessCategories,
+    allConsultingCategories,
+    allEventsCategories,
+    allJobsCategories,
     categoryMetadataMap,
   } = useDirectoryCategories();
 
@@ -1747,10 +1754,10 @@ export default function AdminDashboard() {
 
   const categoryRows = useMemo(() => {
     const sources = [
-      { group: "Business Offerings", data: businessCategories },
-      { group: "Consulting Services", data: consultingCategories },
-      { group: "Events", data: eventsCategories },
-      { group: "Jobs", data: jobsCategories },
+      { group: "Business Offerings", data: allBusinessCategories || businessCategories },
+      { group: "Consulting Services", data: allConsultingCategories || consultingCategories },
+      { group: "Events", data: allEventsCategories || eventsCategories },
+      { group: "Jobs", data: allJobsCategories || jobsCategories },
     ];
     const rows: Array<{
       id?: string;
@@ -1835,14 +1842,27 @@ export default function AdminDashboard() {
       if (sComp !== 0) return sComp;
       return (a.subSubcategory || "").localeCompare(b.subSubcategory || "", undefined, { sensitivity: "base" });
     });
-  }, [businessCategories, consultingCategories, eventsCategories, jobsCategories, categoryMetadataMap]);
+  }, [allBusinessCategories, allConsultingCategories, allEventsCategories, allJobsCategories, businessCategories, consultingCategories, eventsCategories, jobsCategories, categoryMetadataMap]);
 
   const filteredCategoryRows = useMemo(() => {
-    const q = categorySearch.trim().toLowerCase();
-    if (!q) return categoryRows;
+    const rawQuery = categorySearch.trim().toLowerCase();
+    if (!rawQuery) return categoryRows;
     const clean = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
-    const cleanQuery = clean(q);
-    const searchTerms = cleanQuery.split(" ").filter(Boolean);
+    const cleanQuery = clean(rawQuery);
+    if (!cleanQuery) return categoryRows;
+
+    const allQueryWords = cleanQuery.split(" ").filter(Boolean);
+    const metaWords = new Set(["sub", "category", "categories", "subcategory", "subcategories"]);
+    const meaningfulWords = allQueryWords.filter((w) => !metaWords.has(w));
+    const searchTerms = meaningfulWords.length > 0 ? meaningfulWords : allQueryWords;
+    const meaningfulPhrase = searchTerms.join(" ");
+
+    const groupRank: Record<string, number> = {
+      "Business Offerings": 1,
+      "Consulting Services": 2,
+      "Events": 3,
+      "Jobs": 4,
+    };
 
     const getRelevanceScore = (row: (typeof categoryRows)[number]) => {
       const cat = clean(row.category || "");
@@ -1854,53 +1874,61 @@ export default function AdminDashboard() {
         ? row.subSubcategory.split(",").map((s) => clean(s))
         : [];
 
-      // 1. Exact match on subcategory (e.g. "Patient Support") -> 100,000
-      if (sub === cleanQuery) return 100000;
+      // 1. Exact match on subcategory (e.g. "Patient Support") -> 1,000,000
+      if (sub === cleanQuery || (meaningfulPhrase && sub === meaningfulPhrase)) return 1000000;
 
-      // 2. Exact match on category (e.g. "Clinical Research") -> 90,000
-      if (cat === cleanQuery) return 90000;
+      // 2. Exact match on category (e.g. "Clinical Research") -> 900,000
+      if (cat === cleanQuery || (meaningfulPhrase && cat === meaningfulPhrase)) return 900000;
 
-      // 3. Exact match on an individual sub-subcategory (e.g. "Adventitious Agents") -> 80,000
-      if (subSubItems.includes(cleanQuery)) return 80000;
+      // 3. Exact match on an individual sub-subcategory (e.g. "Adventitious Agents") -> 800,000
+      if (subSubItems.includes(cleanQuery) || (meaningfulPhrase && subSubItems.includes(meaningfulPhrase))) return 800000;
 
-      // 4. Subcategory starts with query -> 70,000
-      if (sub.startsWith(cleanQuery)) return 70000;
+      // 4. Subcategory starts with query -> 700,000
+      if (sub.startsWith(cleanQuery) || (meaningfulPhrase && sub.startsWith(meaningfulPhrase))) return 700000;
 
-      // 5. Category starts with query -> 60,000
-      if (cat.startsWith(cleanQuery)) return 60000;
+      // 5. Category starts with query -> 600,000
+      if (cat.startsWith(cleanQuery) || (meaningfulPhrase && cat.startsWith(meaningfulPhrase))) return 600000;
 
-      // 6. Any individual sub-subcategory starts with query -> 50,000
-      if (subSubItems.some((item) => item.startsWith(cleanQuery))) return 50000;
+      // 6. Any individual sub-subcategory starts with query -> 500,000
+      if (subSubItems.some((item) => item.startsWith(cleanQuery) || (meaningfulPhrase && item.startsWith(meaningfulPhrase)))) return 500000;
 
-      // 7. Subcategory contains exact query phrase -> 40,000
-      if (sub.includes(cleanQuery)) return 40000;
+      // 7. Subcategory contains exact query phrase -> 400,000
+      if (sub.includes(cleanQuery) || (meaningfulPhrase && sub.includes(meaningfulPhrase))) return 400000;
 
-      // 8. Category contains exact query phrase -> 30,000
-      if (cat.includes(cleanQuery)) return 30000;
+      // 8. Category contains exact query phrase -> 300,000
+      if (cat.includes(cleanQuery) || (meaningfulPhrase && cat.includes(meaningfulPhrase))) return 300000;
 
-      // 9. Sub-subcategory string contains exact query phrase -> 20,000
-      if (subSub.includes(cleanQuery)) return 20000;
+      // 9. Sub-subcategory string contains exact query phrase -> 200,000
+      if (subSub.includes(cleanQuery) || (meaningfulPhrase && subSub.includes(meaningfulPhrase))) return 200000;
 
-      // 10. Subcategory contains all search terms (e.g. "Patient Recruitment & Support") -> 10,000
-      if (searchTerms.length > 1 && searchTerms.every((t) => sub.includes(t))) return 10000;
+      // 10. Subcategory contains all search terms (e.g. "Patient Recruitment & Support") -> 100,000
+      if (searchTerms.length > 1 && searchTerms.every((t) => sub.includes(t))) return 100000;
 
-      // 11. Category contains all search terms -> 8,000
-      if (searchTerms.length > 1 && searchTerms.every((t) => cat.includes(t))) return 8000;
+      // 11. Category contains all search terms -> 80,000
+      if (searchTerms.length > 1 && searchTerms.every((t) => cat.includes(t))) return 80000;
 
-      // 12. Sub-subcategory contains all search terms -> 6,000
-      if (searchTerms.length > 1 && searchTerms.every((t) => subSub.includes(t))) return 6000;
+      // 12. Sub-subcategory contains all search terms -> 60,000
+      if (searchTerms.length > 1 && searchTerms.every((t) => subSub.includes(t))) return 60000;
 
-      // 13. Subcategory contains any search term -> 3,000
-      if (searchTerms.some((t) => sub.includes(t))) return 3000;
+      // 13. Subcategory contains any search term -> 30,000
+      if (searchTerms.some((t) => sub.includes(t))) return 30000;
 
-      // 14. Category contains any search term -> 2,000
-      if (searchTerms.some((t) => cat.includes(t))) return 2000;
+      // 14. Category contains any search term -> 20,000
+      if (searchTerms.some((t) => cat.includes(t))) return 20000;
 
-      // 15. Sub-subcategory contains any search term -> 1,000
-      if (searchTerms.some((t) => subSub.includes(t))) return 1000;
+      // 15. Sub-subcategory contains any search term -> 10,000
+      if (searchTerms.some((t) => subSub.includes(t))) return 10000;
 
-      // 16. Group name match -> 500
-      if (group.includes(cleanQuery) || (searchTerms.length > 1 && searchTerms.every((t) => group.includes(t)))) return 500;
+      // 16. Metadata match (description, metaDescription, metaKeywords)
+      const desc = clean(row.description || "");
+      const mDesc = clean(row.metaDescription || "");
+      const mKw = clean(row.metaKeywords || "");
+      const metaText = `${desc} ${mDesc} ${mKw}`;
+      if (metaText.includes(cleanQuery) || (meaningfulPhrase && metaText.includes(meaningfulPhrase))) return 3000;
+      if (searchTerms.every((t) => metaText.includes(t))) return 2000;
+
+      // 17. Group name match -> 1,000
+      if (group.includes(cleanQuery) || (searchTerms.length > 1 && searchTerms.every((t) => group.includes(t)))) return 1000;
 
       return 100;
     };
@@ -1924,12 +1952,14 @@ export default function AdminDashboard() {
       if (scoreA !== scoreB) {
         return scoreB - scoreA; // Higher relevance score first
       }
+      const rankA = groupRank[a.group] || 99;
+      const rankB = groupRank[b.group] || 99;
+      if (rankA !== rankB) return rankA - rankB;
+
       const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
       if (cComp !== 0) return cComp;
       const sComp = (a.subcategory || "").localeCompare(b.subcategory || "", undefined, { sensitivity: "base" });
       if (sComp !== 0) return sComp;
-      const gComp = (a.group || "").localeCompare(b.group || "", undefined, { sensitivity: "base" });
-      if (gComp !== 0) return gComp;
       return (a.subSubcategory || "").localeCompare(b.subSubcategory || "", undefined, { sensitivity: "base" });
     });
   }, [categoryRows, categorySearch]);
@@ -2049,6 +2079,7 @@ export default function AdminDashboard() {
     plans: "Plans",
     featuredPlans: "Featured Plans",
     categories: "Categories",
+    healthAuthorities: "Health Authority Sites",
     policies: "Site Policies",
     faqs: "FAQs",
     contact: "Contact Page",
@@ -2076,8 +2107,8 @@ export default function AdminDashboard() {
 
   return (
     <div className="h-screen bg-slate-50 text-slate-900 flex overflow-hidden">
-      <aside className="w-64 border-r border-slate-200 bg-white flex flex-col shrink-0 h-full">
-        <div className="px-7 pt-7 pb-4 shrink-0 border-b border-slate-100">
+      <aside className="w-72 border-r border-slate-200 bg-white flex flex-col shrink-0 h-full">
+        <div className="px-6 pt-6 pb-4 shrink-0 border-b border-slate-100">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
               <ShieldCheck className="text-white w-5 h-5" />
@@ -2086,13 +2117,14 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-7 py-4 space-y-1.5 custom-scrollbar">
+        <nav className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-1 custom-scrollbar">
             <SidebarItem label="Overview" icon={LayoutDashboard} active={activeTab === "overview"} onClick={() => setActiveTab("overview")} />
             <SidebarItem label="Partners" icon={Users} active={activeTab === "partners"} onClick={() => setActiveTab("partners")} badge={stats.pendingApprovals > 0 ? stats.pendingApprovals : undefined} />
             <SidebarItem label="Listings" icon={FileText} active={activeTab === "listings"} onClick={() => setActiveTab("listings")} badge={stats.pendingListings > 0 ? stats.pendingListings : undefined} />
             <SidebarItem label="Plans" icon={Tags} active={activeTab === "plans"} onClick={() => setActiveTab("plans")} />
             <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
+            <SidebarItem label="Health Authority Sites" icon={Globe} active={activeTab === "healthAuthorities"} onClick={() => setActiveTab("healthAuthorities")} />
             <SidebarItem label="Site Policies" icon={ShieldCheck} active={activeTab === "policies"} onClick={() => setActiveTab("policies")} />
             <SidebarItem label="FAQs" icon={HelpCircle} active={activeTab === "faqs"} onClick={() => setActiveTab("faqs")} />
             <SidebarItem label="Contact Page" icon={Mail} active={activeTab === "contact"} onClick={() => setActiveTab("contact")} />
@@ -2108,12 +2140,12 @@ export default function AdminDashboard() {
             <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
         </nav>
 
-        <div className="shrink-0 p-5 border-t border-slate-200 space-y-2 bg-white">
+        <div className="shrink-0 p-4 border-t border-slate-200 space-y-2 bg-white">
           <Button variant="ghost" onClick={() => navigate("/")} className="w-full justify-start text-slate-600">
-            <ExternalLink className="w-4 h-4 mr-2" /> Back to site
+            <ExternalLink className="w-4 h-4 mr-2 shrink-0" /> Back to site
           </Button>
           <Button variant="ghost" onClick={handleLogout} className="w-full justify-start text-rose-600 hover:text-rose-700 hover:bg-rose-50">
-            <LogOut className="w-4 h-4 mr-2" /> Logout
+            <LogOut className="w-4 h-4 mr-2 shrink-0" /> Logout
           </Button>
         </div>
       </aside>
@@ -2316,6 +2348,7 @@ export default function AdminDashboard() {
             )
           )}
 
+          {activeTab === "healthAuthorities" && <AdminHealthAuthoritiesPanel />}
           {activeTab === "policies" && <AdminSitePoliciesPanel />}
           {activeTab === "faqs" && <AdminFaqsPanel />}
           {activeTab === "contact" && <AdminContactPanel />}
@@ -2938,17 +2971,18 @@ function SidebarItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg transition-colors ${active ? "bg-slate-900 text-white" : "text-slate-600 hover:bg-slate-100"
-        }`}
+      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-left transition-colors ${
+        active ? "bg-slate-900 text-white font-semibold" : "text-slate-600 hover:bg-slate-100 font-medium"
+      }`}
     >
-      <Icon className="w-4 h-4" />
-      <span className="font-medium">{label}</span>
+      <Icon className="w-4 h-4 shrink-0 text-current" />
+      <span className="text-sm text-left truncate flex-1 leading-snug">{label}</span>
       {badge ? (
-        <span className="ml-auto px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800">
+        <span className="ml-auto px-2 py-0.5 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 shrink-0">
           {badge}
         </span>
       ) : (
-        active && <ChevronRight className="ml-auto w-4 h-4 text-white/80" />
+        active && <ChevronRight className="ml-auto w-4 h-4 text-white/80 shrink-0" />
       )}
     </button>
   );
@@ -3388,10 +3422,10 @@ function CategoryBreakdownTable({
       return;
     }
 
-    const rowKey = row.id || `${row.group}-${row.category}-${row.subcategory}-${row.subSubcategory}`;
+    const rowKey = `${row.group}__${row.category}__${row.subcategory}__${row.subSubcategory}`;
     setDeletingKey(rowKey);
     try {
-      const docId = row.id || `${row.group}_${row.category}_${row.subcategory || "none"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const docId = row.id || `${row.group}_${row.category}_${isSub ? row.subcategory : "all"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
       await setDoc(
         doc(db, "categoriesCollection", docId),
         {
@@ -3400,7 +3434,7 @@ function CategoryBreakdownTable({
           category: row.category,
           categoryName: row.category,
           subcategory: row.subcategory === "-" ? "" : (row.subcategory || ""),
-          subSubcategory: row.subSubcategory === "-" ? "" : (row.subSubcategory || ""),
+          subSubcategory: "",
           status: "Inactive",
           updatedAt: serverTimestamp(),
         },
@@ -3467,8 +3501,8 @@ function CategoryBreakdownTable({
                 </TableRow>
               ) : (
                 rows.map((row) => {
-                  const rowKey = row.id || `${row.group}__${row.category}__${row.subcategory}__${row.subSubcategory}`;
-                  const isDeleting = deletingKey === (row.id || `${row.group}-${row.category}-${row.subcategory}-${row.subSubcategory}`);
+                  const rowKey = `${row.group}__${row.category}__${row.subcategory}__${row.subSubcategory}`;
+                  const isDeleting = deletingKey === rowKey;
                   return (
                     <TableRow key={rowKey}>
                       <TableCell className="pl-6 font-medium">{row.group}</TableCell>

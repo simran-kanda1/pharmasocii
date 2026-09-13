@@ -17,6 +17,12 @@ export function useDirectoryCategories() {
     const [consultingCategories, setConsultingCategories] = useState<CategoriesDict>(DEFAULT_CONSULTING_CATEGORIES);
     const [eventsCategories, setEventsCategories] = useState<CategoriesDict>(DEFAULT_EVENTS_CATEGORIES);
     const [jobsCategories, setJobsCategories] = useState<CategoriesDict>(DEFAULT_JOBS_CATEGORIES);
+
+    const [allBusinessCategories, setAllBusinessCategories] = useState<CategoriesDict>(DEFAULT_BUSINESS_CATEGORIES);
+    const [allConsultingCategories, setAllConsultingCategories] = useState<CategoriesDict>(DEFAULT_CONSULTING_CATEGORIES);
+    const [allEventsCategories, setAllEventsCategories] = useState<CategoriesDict>(DEFAULT_EVENTS_CATEGORIES);
+    const [allJobsCategories, setAllJobsCategories] = useState<CategoriesDict>(DEFAULT_JOBS_CATEGORIES);
+
     const [categoryMetadataMap, setCategoryMetadataMap] = useState<Record<string, DirectoryCategoryDoc>>({});
     const [rawDocs, setRawDocs] = useState<DirectoryCategoryDoc[]>([]);
     const [loading, setLoading] = useState(true);
@@ -36,6 +42,10 @@ export function useDirectoryCategories() {
                 setConsultingCategories(merged.consulting);
                 setEventsCategories(merged.events);
                 setJobsCategories(merged.jobs);
+                setAllBusinessCategories(merged.allBusiness);
+                setAllConsultingCategories(merged.allConsulting);
+                setAllEventsCategories(merged.allEvents);
+                setAllJobsCategories(merged.allJobs);
                 setCategoryMetadataMap(merged.categoryMetadataMap);
                 setLoading(false);
             },
@@ -69,6 +79,10 @@ export function useDirectoryCategories() {
         consultingCategories,
         eventsCategories,
         jobsCategories,
+        allBusinessCategories,
+        allConsultingCategories,
+        allEventsCategories,
+        allJobsCategories,
         getCategoriesForGroup,
         categoryMetadataMap,
         rawDocs,

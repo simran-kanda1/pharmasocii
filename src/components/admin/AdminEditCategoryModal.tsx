@@ -120,7 +120,7 @@ export function AdminEditCategoryModal({
 
     setDeleting(true);
     try {
-      const docId = category.id || `${formData.parentCategory}_${formData.categoryName}_${formData.subcategory || "none"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const docId = category.id || `${formData.parentCategory}_${formData.categoryName}_${isSub ? formData.subcategory : "all"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
       await setDoc(
         doc(db, "categoriesCollection", docId),
         {
@@ -128,8 +128,8 @@ export function AdminEditCategoryModal({
           parentCategory: formData.parentCategory,
           category: formData.categoryName,
           categoryName: formData.categoryName,
-          subcategory: formData.subcategory || "-",
-          subSubcategory: formData.subSubcategory || "-",
+          subcategory: formData.subcategory === "-" ? "" : (formData.subcategory || ""),
+          subSubcategory: "",
           status: "Inactive",
           updatedAt: serverTimestamp(),
         },
