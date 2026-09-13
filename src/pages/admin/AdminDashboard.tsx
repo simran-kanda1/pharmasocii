@@ -1840,41 +1840,56 @@ export default function AdminDashboard() {
   const filteredCategoryRows = useMemo(() => {
     const q = categorySearch.trim().toLowerCase();
     if (!q) return categoryRows;
-    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ");
+    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
     const cleanQuery = clean(q);
-    const searchTerms = cleanQuery.split(/\s+/).filter(Boolean);
+    const searchTerms = cleanQuery.split(" ").filter(Boolean);
 
     const getRelevanceScore = (row: (typeof categoryRows)[number]) => {
       const cat = clean(row.category || "");
-      const sub = clean(row.subcategory || "");
-      const subSub = clean(row.subSubcategory || "");
+      const sub = clean(row.subcategory === "-" ? "" : row.subcategory || "");
+      const subSub = clean(row.subSubcategory === "-" ? "" : row.subSubcategory || "");
       const group = clean(row.group || "");
 
-      // Tier 1: Exact match on subcategory or category (top priority) -> 1000
-      if (sub === cleanQuery || cat === cleanQuery) return 1000;
+      // 1. Exact match on subcategory (e.g. "Patient Support") -> 10000
+      if (sub === cleanQuery) return 10000;
 
-      // Tier 2: Subcategory or category starts with query -> 800
-      if (sub.startsWith(cleanQuery) || cat.startsWith(cleanQuery)) return 800;
+      // 2. Exact match on category (e.g. "Clinical Research") -> 9000
+      if (cat === cleanQuery) return 9000;
 
-      // Tier 3: Subcategory or category contains exact query string -> 600
-      if (sub.includes(cleanQuery) || cat.includes(cleanQuery)) return 600;
+      // 3. Subcategory starts with query -> 8000
+      if (sub.startsWith(cleanQuery)) return 8000;
 
-      // Tier 4: Subcategory or category contains all search words -> 400
-      if (searchTerms.every((t) => sub.includes(t)) || searchTerms.every((t) => cat.includes(t))) return 400;
+      // 4. Category starts with query -> 7000
+      if (cat.startsWith(cleanQuery)) return 7000;
 
-      // Tier 5: Subcategory or category contains any search word -> 200
-      if (searchTerms.some((t) => sub.includes(t) || cat.includes(t))) return 200;
+      // 5. Subcategory contains exact query phrase -> 6000
+      if (sub.includes(cleanQuery)) return 6000;
 
-      // Tier 6: Sub-subcategories contain exact query -> 100
-      if (subSub.includes(cleanQuery)) return 100;
+      // 6. Category contains exact query phrase -> 5000
+      if (cat.includes(cleanQuery)) return 5000;
 
-      // Tier 7: Sub-subcategories contain all search words -> 50
-      if (searchTerms.every((t) => subSub.includes(t))) return 50;
+      // 7. Subcategory contains all search terms (e.g. "Patient Recruitment & Support") -> 4000
+      if (searchTerms.length > 1 && searchTerms.every((t) => sub.includes(t))) return 4000;
 
-      // Tier 8: Group name match -> 10
-      if (group.includes(cleanQuery) || searchTerms.every((t) => group.includes(t))) return 10;
+      // 8. Category contains all search terms -> 3000
+      if (searchTerms.length > 1 && searchTerms.every((t) => cat.includes(t))) return 3000;
 
-      return 1;
+      // 9. Sub-subcategory contains exact query phrase -> 2000
+      if (subSub.includes(cleanQuery)) return 2000;
+
+      // 10. Sub-subcategory contains all search terms -> 1000
+      if (searchTerms.length > 1 && searchTerms.every((t) => subSub.includes(t))) return 1000;
+
+      // 11. Subcategory contains any search term -> 500
+      if (searchTerms.some((t) => sub.includes(t))) return 500;
+
+      // 12. Category contains any search term -> 300
+      if (searchTerms.some((t) => cat.includes(t))) return 300;
+
+      // 13. Group name match -> 100
+      if (group.includes(cleanQuery) || searchTerms.every((t) => group.includes(t))) return 100;
+
+      return 10;
     };
 
     const matched = categoryRows.filter((row) => {
@@ -1893,12 +1908,12 @@ export default function AdminDashboard() {
       if (scoreA !== scoreB) {
         return scoreB - scoreA; // Higher relevance score first
       }
-      const gComp = (a.group || "").localeCompare(b.group || "", undefined, { sensitivity: "base" });
-      if (gComp !== 0) return gComp;
       const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
       if (cComp !== 0) return cComp;
       const sComp = (a.subcategory || "").localeCompare(b.subcategory || "", undefined, { sensitivity: "base" });
       if (sComp !== 0) return sComp;
+      const gComp = (a.group || "").localeCompare(b.group || "", undefined, { sensitivity: "base" });
+      if (gComp !== 0) return gComp;
       return (a.subSubcategory || "").localeCompare(b.subSubcategory || "", undefined, { sensitivity: "base" });
     });
   }, [categoryRows, categorySearch]);
@@ -3435,8 +3450,8 @@ function CategoryBreakdownTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((row, index) => {
-                  const rowKey = row.id || `${row.group}-${row.category}-${row.subcategory}-${index}`;
+                rows.map((row) => {
+                  const rowKey = row.id || `${row.group}__${row.category}__${row.subcategory}__${row.subSubcategory}`;
                   const isDeleting = deletingKey === (row.id || `${row.group}-${row.category}-${row.subcategory}-${row.subSubcategory}`);
                   return (
                     <TableRow key={rowKey}>
