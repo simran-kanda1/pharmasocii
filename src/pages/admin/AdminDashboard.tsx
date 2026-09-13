@@ -1840,7 +1840,7 @@ export default function AdminDashboard() {
   const filteredCategoryRows = useMemo(() => {
     const q = categorySearch.trim().toLowerCase();
     if (!q) return categoryRows;
-    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
+    const clean = (s: string) => (s || "").toLowerCase().replace(/[^a-z0-9]/g, " ").replace(/\s+/g, " ").trim();
     const cleanQuery = clean(q);
     const searchTerms = cleanQuery.split(" ").filter(Boolean);
 
@@ -1850,46 +1850,59 @@ export default function AdminDashboard() {
       const subSub = clean(row.subSubcategory === "-" ? "" : row.subSubcategory || "");
       const group = clean(row.group || "");
 
-      // 1. Exact match on subcategory (e.g. "Patient Support") -> 10000
-      if (sub === cleanQuery) return 10000;
+      const subSubItems = (row.subSubcategory && row.subSubcategory !== "-")
+        ? row.subSubcategory.split(",").map((s) => clean(s))
+        : [];
 
-      // 2. Exact match on category (e.g. "Clinical Research") -> 9000
-      if (cat === cleanQuery) return 9000;
+      // 1. Exact match on subcategory (e.g. "Patient Support") -> 100,000
+      if (sub === cleanQuery) return 100000;
 
-      // 3. Subcategory starts with query -> 8000
-      if (sub.startsWith(cleanQuery)) return 8000;
+      // 2. Exact match on category (e.g. "Clinical Research") -> 90,000
+      if (cat === cleanQuery) return 90000;
 
-      // 4. Category starts with query -> 7000
-      if (cat.startsWith(cleanQuery)) return 7000;
+      // 3. Exact match on an individual sub-subcategory (e.g. "Adventitious Agents") -> 80,000
+      if (subSubItems.includes(cleanQuery)) return 80000;
 
-      // 5. Subcategory contains exact query phrase -> 6000
-      if (sub.includes(cleanQuery)) return 6000;
+      // 4. Subcategory starts with query -> 70,000
+      if (sub.startsWith(cleanQuery)) return 70000;
 
-      // 6. Category contains exact query phrase -> 5000
-      if (cat.includes(cleanQuery)) return 5000;
+      // 5. Category starts with query -> 60,000
+      if (cat.startsWith(cleanQuery)) return 60000;
 
-      // 7. Subcategory contains all search terms (e.g. "Patient Recruitment & Support") -> 4000
-      if (searchTerms.length > 1 && searchTerms.every((t) => sub.includes(t))) return 4000;
+      // 6. Any individual sub-subcategory starts with query -> 50,000
+      if (subSubItems.some((item) => item.startsWith(cleanQuery))) return 50000;
 
-      // 8. Category contains all search terms -> 3000
-      if (searchTerms.length > 1 && searchTerms.every((t) => cat.includes(t))) return 3000;
+      // 7. Subcategory contains exact query phrase -> 40,000
+      if (sub.includes(cleanQuery)) return 40000;
 
-      // 9. Sub-subcategory contains exact query phrase -> 2000
-      if (subSub.includes(cleanQuery)) return 2000;
+      // 8. Category contains exact query phrase -> 30,000
+      if (cat.includes(cleanQuery)) return 30000;
 
-      // 10. Sub-subcategory contains all search terms -> 1000
-      if (searchTerms.length > 1 && searchTerms.every((t) => subSub.includes(t))) return 1000;
+      // 9. Sub-subcategory string contains exact query phrase -> 20,000
+      if (subSub.includes(cleanQuery)) return 20000;
 
-      // 11. Subcategory contains any search term -> 500
-      if (searchTerms.some((t) => sub.includes(t))) return 500;
+      // 10. Subcategory contains all search terms (e.g. "Patient Recruitment & Support") -> 10,000
+      if (searchTerms.length > 1 && searchTerms.every((t) => sub.includes(t))) return 10000;
 
-      // 12. Category contains any search term -> 300
-      if (searchTerms.some((t) => cat.includes(t))) return 300;
+      // 11. Category contains all search terms -> 8,000
+      if (searchTerms.length > 1 && searchTerms.every((t) => cat.includes(t))) return 8000;
 
-      // 13. Group name match -> 100
-      if (group.includes(cleanQuery) || searchTerms.every((t) => group.includes(t))) return 100;
+      // 12. Sub-subcategory contains all search terms -> 6,000
+      if (searchTerms.length > 1 && searchTerms.every((t) => subSub.includes(t))) return 6000;
 
-      return 10;
+      // 13. Subcategory contains any search term -> 3,000
+      if (searchTerms.some((t) => sub.includes(t))) return 3000;
+
+      // 14. Category contains any search term -> 2,000
+      if (searchTerms.some((t) => cat.includes(t))) return 2000;
+
+      // 15. Sub-subcategory contains any search term -> 1,000
+      if (searchTerms.some((t) => subSub.includes(t))) return 1000;
+
+      // 16. Group name match -> 500
+      if (group.includes(cleanQuery) || (searchTerms.length > 1 && searchTerms.every((t) => group.includes(t)))) return 500;
+
+      return 100;
     };
 
     const matched = categoryRows.filter((row) => {
@@ -1898,7 +1911,10 @@ export default function AdminDashboard() {
       const s = clean(row.subcategory || "");
       const ss = clean(row.subSubcategory || "");
       const st = clean(row.status || "Active");
-      const fullText = `${g} ${c} ${s} ${ss} ${st}`;
+      const desc = clean(row.description || "");
+      const mDesc = clean(row.metaDescription || "");
+      const mKw = clean(row.metaKeywords || "");
+      const fullText = `${g} ${c} ${s} ${ss} ${st} ${desc} ${mDesc} ${mKw}`;
       return searchTerms.every((term) => fullText.includes(term));
     });
 
