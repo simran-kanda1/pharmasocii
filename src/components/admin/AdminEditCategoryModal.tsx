@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { db, storage } from "@/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
-import { doc, setDoc, deleteDoc, serverTimestamp } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -112,15 +112,29 @@ export function AdminEditCategoryModal({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm(`Are you sure you want to delete category "${formData.categoryName}"?`)) {
+    const isSub = formData.subcategory && formData.subcategory !== "-";
+    const name = isSub ? `${formData.categoryName} → ${formData.subcategory}` : formData.categoryName;
+    if (!window.confirm(`Are you sure you want to delete "${name}" from ${formData.parentCategory}?`)) {
       return;
     }
 
     setDeleting(true);
     try {
-      if (category.id) {
-        await deleteDoc(doc(db, "categoriesCollection", category.id));
-      }
+      const docId = category.id || `${formData.parentCategory}_${formData.categoryName}_${formData.subcategory || "none"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      await setDoc(
+        doc(db, "categoriesCollection", docId),
+        {
+          group: formData.parentCategory,
+          parentCategory: formData.parentCategory,
+          category: formData.categoryName,
+          categoryName: formData.categoryName,
+          subcategory: formData.subcategory || "-",
+          subSubcategory: formData.subSubcategory || "-",
+          status: "Inactive",
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
       onSaved();
     } catch (err: any) {
       console.error("Error deleting category:", err);
@@ -245,18 +259,16 @@ export function AdminEditCategoryModal({
           </div>
 
           <div className="flex items-center justify-between border-t pt-4 mt-6">
-            {category.id ? (
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleDelete}
-                disabled={deleting || loading}
-                className="bg-rose-600 hover:bg-rose-700 text-white text-sm"
-              >
-                {deleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                Delete Category
-              </Button>
-            ) : <div />}
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting || loading}
+              className="bg-rose-600 hover:bg-rose-700 text-white text-sm"
+            >
+              {deleting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+              Delete Category
+            </Button>
 
             <div className="flex gap-3">
               <Button type="button" variant="outline" onClick={onClose} disabled={loading}>

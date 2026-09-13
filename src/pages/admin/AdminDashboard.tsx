@@ -35,6 +35,7 @@ import {
   User,
   Users,
   Mail,
+  Trash2,
 } from "lucide-react";
 import { db, auth, storage } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
@@ -1837,15 +1838,20 @@ export default function AdminDashboard() {
   }, [businessCategories, consultingCategories, eventsCategories, jobsCategories, categoryMetadataMap]);
 
   const filteredCategoryRows = useMemo(() => {
-    if (!categorySearch.trim()) return categoryRows;
-    const q = categorySearch.toLowerCase();
-    return categoryRows.filter(
-      (row) =>
-        row.group.toLowerCase().includes(q) ||
-        row.category.toLowerCase().includes(q) ||
-        row.subcategory.toLowerCase().includes(q) ||
-        row.subSubcategory.toLowerCase().includes(q),
-    );
+    const q = categorySearch.trim().toLowerCase();
+    if (!q) return categoryRows;
+    const searchTerms = q.split(/\s+/).filter(Boolean);
+    return categoryRows.filter((row) => {
+      const g = (row.group || "").toLowerCase();
+      const c = (row.category || "").toLowerCase();
+      const s = (row.subcategory || "").toLowerCase();
+      const ss = (row.subSubcategory || "").toLowerCase();
+      const st = (row.status || "Active").toLowerCase();
+      const desc = (row.description || "").toLowerCase();
+      const meta = `${row.metaDescription || ""} ${row.metaKeywords || ""}`.toLowerCase();
+      const fullText = `${g} ${c} ${s} ${ss} ${st} ${desc} ${meta}`;
+      return searchTerms.every((term) => fullText.includes(term));
+    });
   }, [categoryRows, categorySearch]);
 
   const exportPartners = (format: "csv" | "excel") => {
@@ -2203,8 +2209,18 @@ export default function AdminDashboard() {
                       placeholder="Search categories, subcategories..."
                       value={categorySearch}
                       onChange={(e) => setCategorySearch(e.target.value)}
-                      className="pl-10 h-11 bg-white border-slate-200"
+                      className="pl-10 pr-10 h-11 bg-white border-slate-200"
                     />
+                    {categorySearch && (
+                      <button
+                        type="button"
+                        onClick={() => setCategorySearch("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors"
+                        aria-label="Clear category search"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
                   </div>
                   <Button onClick={() => setIsAddingCategory(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                     Add Category <Plus className="w-4 h-4 ml-2" />
@@ -3272,6 +3288,40 @@ function CategoryBreakdownTable({
   rows: Array<{ group: string; category: string; subcategory: string; subSubcategory: string; [key: string]: any }>;
 }) {
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
+  const [deletingKey, setDeletingKey] = useState<string | null>(null);
+
+  const handleDeleteCategory = async (row: any) => {
+    const isSub = row.subcategory && row.subcategory !== "-";
+    const displayName = isSub ? `${row.category} → ${row.subcategory}` : row.category;
+    if (!window.confirm(`Are you sure you want to delete "${displayName}" from ${row.group}?`)) {
+      return;
+    }
+
+    const rowKey = row.id || `${row.group}-${row.category}-${row.subcategory}-${row.subSubcategory}`;
+    setDeletingKey(rowKey);
+    try {
+      const docId = row.id || `${row.group}_${row.category}_${row.subcategory || "none"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      await setDoc(
+        doc(db, "categoriesCollection", docId),
+        {
+          group: row.group,
+          parentCategory: row.group,
+          category: row.category,
+          categoryName: row.category,
+          subcategory: row.subcategory === "-" ? "" : (row.subcategory || ""),
+          subSubcategory: row.subSubcategory === "-" ? "" : (row.subSubcategory || ""),
+          status: "Inactive",
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true },
+      );
+    } catch (err: any) {
+      console.error("Error deleting category:", err);
+      alert(err.message || "Failed to delete category.");
+    } finally {
+      setDeletingKey(null);
+    }
+  };
 
   return (
     <>
@@ -3301,34 +3351,55 @@ function CategoryBreakdownTable({
                   </TableCell>
                 </TableRow>
               ) : (
-                rows.map((row, index) => (
-                  <TableRow key={row.id || `${row.group}-${row.category}-${row.subcategory}-${index}`}>
-                    <TableCell className="pl-6 font-medium">{row.group}</TableCell>
-                    <TableCell>{row.category}</TableCell>
-                    <TableCell>{row.subcategory}</TableCell>
-                    <TableCell>{row.subSubcategory}</TableCell>
-                    <TableCell>
-                      <Badge className={row.status === "Inactive" ? "bg-slate-100 text-slate-600 border-slate-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}>
-                        {row.status || "Active"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      <div className="w-10 h-8 mx-auto bg-slate-100 rounded border border-slate-200 flex items-center justify-center overflow-hidden">
-                        <img src={row.imageUrl || "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80"} alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
-                      </div>
-                    </TableCell>
-                    <TableCell className="pr-6 text-right">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setEditingCategory(row)}
-                        className="h-8 border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
-                      >
-                        <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
+                rows.map((row, index) => {
+                  const rowKey = row.id || `${row.group}-${row.category}-${row.subcategory}-${index}`;
+                  const isDeleting = deletingKey === (row.id || `${row.group}-${row.category}-${row.subcategory}-${row.subSubcategory}`);
+                  return (
+                    <TableRow key={rowKey}>
+                      <TableCell className="pl-6 font-medium">{row.group}</TableCell>
+                      <TableCell>{row.category}</TableCell>
+                      <TableCell>{row.subcategory}</TableCell>
+                      <TableCell>{row.subSubcategory}</TableCell>
+                      <TableCell>
+                        <Badge className={row.status === "Inactive" ? "bg-slate-100 text-slate-600 border-slate-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}>
+                          {row.status || "Active"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="w-10 h-8 mx-auto bg-slate-100 rounded border border-slate-200 flex items-center justify-center overflow-hidden">
+                          <img src={row.imageUrl || "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80"} alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
+                        </div>
+                      </TableCell>
+                      <TableCell className="pr-6 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setEditingCategory(row)}
+                            className="h-8 border-slate-300 text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1.5" /> Edit
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isDeleting}
+                            onClick={() => handleDeleteCategory(row)}
+                            className="h-8 border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700"
+                          >
+                            {isDeleting ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <>
+                                <Trash2 className="w-3.5 h-3.5 mr-1.5" /> Delete
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
               )}
             </TableBody>
           </Table>
