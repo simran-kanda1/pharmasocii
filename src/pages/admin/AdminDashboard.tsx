@@ -1840,13 +1840,14 @@ export default function AdminDashboard() {
   const filteredCategoryRows = useMemo(() => {
     const q = categorySearch.trim().toLowerCase();
     if (!q) return categoryRows;
-    const searchTerms = q.split(/\s+/).filter(Boolean);
+    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, " ");
+    const searchTerms = clean(q).split(/\s+/).filter(Boolean);
     return categoryRows.filter((row) => {
-      const g = (row.group || "").toLowerCase();
-      const c = (row.category || "").toLowerCase();
-      const s = (row.subcategory || "").toLowerCase();
-      const ss = (row.subSubcategory || "").toLowerCase();
-      const st = (row.status || "Active").toLowerCase();
+      const g = clean(row.group || "");
+      const c = clean(row.category || "");
+      const s = clean(row.subcategory || "");
+      const ss = clean(row.subSubcategory || "");
+      const st = clean(row.status || "Active");
       const fullText = `${g} ${c} ${s} ${ss} ${st}`;
       return searchTerms.every((term) => fullText.includes(term));
     });
@@ -2224,7 +2225,12 @@ export default function AdminDashboard() {
                     Add Category <Plus className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
-                <CategoryBreakdownTable rows={filteredCategoryRows} />
+                <CategoryBreakdownTable
+                  rows={filteredCategoryRows}
+                  totalCount={categoryRows.length}
+                  searchQuery={categorySearch}
+                  onClearSearch={() => setCategorySearch("")}
+                />
               </div>
             )
           )}
@@ -3282,8 +3288,14 @@ function AdminSettingsTab({
 
 function CategoryBreakdownTable({
   rows,
+  totalCount,
+  searchQuery,
+  onClearSearch,
 }: {
   rows: Array<{ group: string; category: string; subcategory: string; subSubcategory: string; [key: string]: any }>;
+  totalCount?: number;
+  searchQuery?: string;
+  onClearSearch?: () => void;
 }) {
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
@@ -3325,8 +3337,21 @@ function CategoryBreakdownTable({
     <>
       <Card className="bg-white border-slate-200 shadow-sm">
         <CardHeader>
-          <CardTitle>All Categories</CardTitle>
-          <CardDescription>Categories, sub categories, and sub sub categories. Click Edit to update details.</CardDescription>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <div>
+              <CardTitle>All Categories</CardTitle>
+              <CardDescription>
+                {searchQuery?.trim()
+                  ? `Showing ${rows.length} ${rows.length === 1 ? "category" : "categories"} matching "${searchQuery}" (out of ${totalCount || rows.length} total)`
+                  : "Categories, sub categories, and sub sub categories. Click Edit to update details."}
+              </CardDescription>
+            </div>
+            {searchQuery?.trim() && onClearSearch && (
+              <Button variant="ghost" size="sm" onClick={onClearSearch} className="self-start text-xs text-slate-500 hover:text-slate-900">
+                Clear filter
+              </Button>
+            )}
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <Table>
@@ -3344,8 +3369,19 @@ function CategoryBreakdownTable({
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell className="pl-6 text-slate-500" colSpan={7}>
-                    No categories found.
+                  <TableCell className="pl-6 py-12 text-center text-slate-500" colSpan={7}>
+                    {searchQuery?.trim() ? (
+                      <div className="space-y-2">
+                        <p className="font-medium text-slate-700">No categories found matching "{searchQuery}"</p>
+                        {onClearSearch && (
+                          <Button variant="outline" size="sm" onClick={onClearSearch} className="text-emerald-700 border-emerald-200">
+                            Clear search
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      "No categories found."
+                    )}
                   </TableCell>
                 </TableRow>
               ) : (
