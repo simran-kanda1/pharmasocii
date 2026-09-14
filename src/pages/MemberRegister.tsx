@@ -79,10 +79,6 @@ export default function MemberRegister() {
       return;
     }
 
-    // Preview site notice: profile creation halted
-    setError("Community account activation is temporarily unavailable due to a technical issue.");
-    return;
-
     const emailTrim = form.email.trim();
 
     try {
