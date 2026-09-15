@@ -1017,6 +1017,126 @@ function isSpotlightCancelPending(listingData) {
     return end.getTime() > Date.now();
 }
 
+/** Firestore payload that clears standalone spotlight residue on a listing. */
+function listingSpotlightClearPatch() {
+    const fv = admin.firestore.FieldValue;
+    return {
+        selectedAddon: fv.delete(),
+        featuredPlacement: fv.delete(),
+        isFeatured: false,
+        featureSpotlightCancelPending: fv.delete(),
+        featureSpotlightAccessEnd: fv.delete(),
+        featureSpotlightPaidThrough: fv.delete(),
+        featureSpotlightBillingPeriodStart: fv.delete(),
+        lastFeaturePaymentReceivedAt: fv.delete(),
+        featureSpotlightStripeSubscriptionId: fv.delete(),
+        featureSpotlightSubscriptionItemId: fv.delete(),
+        updatedAt: fv.serverTimestamp(),
+    };
+}
+
+/**
+ * Clear leftover spotlight fields when the Stripe add-on is gone / paid window ended,
+ * so a new plan on the same listing can purchase a feature again.
+ * Keeps fields if a distinct spotlight subscription is still live.
+ */
+async function reconcileStaleSpotlightOnListing({
+    partnerId,
+    collectionName,
+    listingId,
+    listingData,
+    keepIncludedSpotlight = null,
+}) {
+    if (!partnerId || !collectionName || !listingId || !listingData) {
+        return { cleared: false, listingData };
+    }
+
+    const featureSubId = toStripeSubscriptionId(listingData.featureSpotlightStripeSubscriptionId);
+    const paidEnd =
+        toDateValue(listingData.featureSpotlightAccessEnd) ||
+        toDateValue(listingData.featureSpotlightPaidThrough);
+    const windowOver = Boolean(paidEnd && paidEnd.getTime() <= Date.now());
+
+    let featureSubLive = false;
+    if (featureSubId) {
+        try {
+            const sub = await stripe.subscriptions.retrieve(featureSubId);
+            const status = String(sub?.status || "").toLowerCase();
+            featureSubLive = ["active", "trialing", "past_due", "unpaid"].includes(status);
+        } catch (_) {
+            featureSubLive = false;
+        }
+    }
+
+    const currentAddon = String(listingData.selectedAddon || listingData.featuredPlacement || "").trim();
+    if (keepIncludedSpotlight && currentAddon === keepIncludedSpotlight && !featureSubId) {
+        return { cleared: false, listingData, reason: "included_spotlight" };
+    }
+
+    const hasResidue = Boolean(
+        currentAddon ||
+        listingData.featureSpotlightCancelPending ||
+        featureSubId ||
+        listingData.featureSpotlightSubscriptionItemId ||
+        listingData.featureSpotlightPaidThrough ||
+        listingData.lastFeaturePaymentReceivedAt,
+    );
+    if (!hasResidue) return { cleared: false, listingData, reason: "clean" };
+
+    // Still within a live paid add-on window — leave alone.
+    if (featureSubLive && !windowOver) {
+        return { cleared: false, listingData, reason: "feature_live" };
+    }
+
+    // Cancel still pending inside paid window — leave alone (UI shows scheduled to end).
+    if (isSpotlightCancelPending(listingData) && !windowOver && featureSubLive) {
+        return { cleared: false, listingData, reason: "cancel_pending_live" };
+    }
+
+    // Stale residue (ended sub, past paid window, or orphaned fields after plan repurchase).
+    if (windowOver || !featureSubLive) {
+        await applyListingPatchEverywhere(partnerId, collectionName, listingId, listingSpotlightClearPatch());
+        try {
+            const partnerRef = db.collection("partnersCollection").doc(partnerId);
+            const featSnap = await partnerRef
+                .collection("featuresCollection")
+                .where("listingId", "==", listingId)
+                .limit(20)
+                .get();
+            for (const fDoc of featSnap.docs) {
+                const fd = fDoc.data() || {};
+                if (fd.source === "included_plan") continue;
+                if (fd.active === false) continue;
+                await fDoc.ref.set(
+                    {
+                        active: false,
+                        cancelPending: admin.firestore.FieldValue.delete(),
+                        deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    },
+                    { merge: true },
+                );
+            }
+        } catch (featErr) {
+            console.warn("   ⚠ Could not deactivate stale feature docs:", featErr?.message || featErr);
+        }
+        const cleared = { ...listingData };
+        delete cleared.selectedAddon;
+        delete cleared.featuredPlacement;
+        delete cleared.featureSpotlightCancelPending;
+        delete cleared.featureSpotlightAccessEnd;
+        delete cleared.featureSpotlightPaidThrough;
+        delete cleared.featureSpotlightBillingPeriodStart;
+        delete cleared.lastFeaturePaymentReceivedAt;
+        delete cleared.featureSpotlightStripeSubscriptionId;
+        delete cleared.featureSpotlightSubscriptionItemId;
+        cleared.isFeatured = false;
+        console.log(`   ✓ Cleared stale spotlight fields on listing ${listingId}`);
+        return { cleared: true, listingData: cleared };
+    }
+
+    return { cleared: false, listingData };
+}
+
 function isFeatureDocCancelPending(featureData) {
     if (!featureData?.cancelPending) return false;
     const end = toDateValue(featureData.accessThrough);
@@ -1165,14 +1285,29 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
 
     if (distinctFeatureSubId) {
         try {
-            await stripe.subscriptions.update(distinctFeatureSubId, { cancel_at_period_end: true });
+            // Align Stripe end with the plan when possible (shortens a longer spotlight period).
+            const cancelAtUnix = Math.floor(planAccessEnd.getTime() / 1000);
+            const nowUnix = Math.floor(Date.now() / 1000);
+            if (cancelAtUnix > nowUnix + 60) {
+                await stripe.subscriptions.update(distinctFeatureSubId, {
+                    cancel_at: cancelAtUnix,
+                    cancel_at_period_end: false,
+                });
+            } else {
+                await stripe.subscriptions.update(distinctFeatureSubId, { cancel_at_period_end: true });
+            }
             if (distinctFeatureSubId !== listingData.featureSpotlightStripeSubscriptionId) {
                 await applyListingPatchEverywhere(partnerId, plan.collectionName, plan.listingId, {
                     featureSpotlightStripeSubscriptionId: distinctFeatureSubId,
                 });
             }
         } catch (stripeErr) {
-            console.warn("   ⚠ Could not set Stripe spotlight cancel_at_period_end on plan cancel:", stripeErr?.message || stripeErr);
+            console.warn("   ⚠ Could not set Stripe spotlight cancel on plan cancel:", stripeErr?.message || stripeErr);
+            try {
+                await stripe.subscriptions.update(distinctFeatureSubId, { cancel_at_period_end: true });
+            } catch (_) {
+                /* best effort */
+            }
         }
     }
 
@@ -1818,6 +1953,17 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         listingPaymentUpdate.featureSpotlightPaidThrough = spotlightPaidThrough;
                     }
                     await listingRef.update(listingPaymentUpdate);
+                    if (!includedSpotlight && listingData) {
+                        await reconcileStaleSpotlightOnListing({
+                            partnerId,
+                            collectionName: resolvedCollectionName,
+                            listingId,
+                            listingData: {
+                                ...listingData,
+                                stripeSubscriptionId: listingPaymentUpdate.stripeSubscriptionId,
+                            },
+                        });
+                    }
                     if (includedSpotlight) {
                         await upsertIncludedPlanFeature(partnerRef, {
                             featureId: includedSpotlight,
@@ -4637,10 +4783,19 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             return res.status(404).json({ error: "Listing not found for feature add-on purchase." });
         }
 
-        const listingData = listingSnap.data() || {};
-        if (listingData.status === "pending_payment" || listingData.active === false) {
+        const listingDataRaw = listingSnap.data() || {};
+        if (listingDataRaw.status === "pending_payment" || listingDataRaw.active === false) {
             return res.status(400).json({ error: "Complete listing plan payment before purchasing a feature add-on." });
         }
+
+        // Drop leftover spotlight fields from a previous plan so repurchase works.
+        const reconciled = await reconcileStaleSpotlightOnListing({
+            partnerId,
+            collectionName,
+            listingId,
+            listingData: listingDataRaw,
+        });
+        const listingData = reconciled.listingData || listingDataRaw;
 
         if (isSpotlightCancelPending(listingData)) {
             return res.status(409).json({
@@ -6668,6 +6823,16 @@ app.post("/api/verify-payment", async (req, res) => {
                     });
                     await deactivateSupersededPartnerFeatures(partnerRef, listingId, includedSpotlight);
                     updated = true;
+                } else if (listingData) {
+                    await reconcileStaleSpotlightOnListing({
+                        partnerId,
+                        collectionName: resolvedCollectionName,
+                        listingId,
+                        listingData: {
+                            ...listingData,
+                            stripeSubscriptionId: toStripeSubscriptionId(session.subscription),
+                        },
+                    });
                 }
 
                 // Check if plan record already exists

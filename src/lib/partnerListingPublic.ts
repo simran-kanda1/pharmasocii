@@ -194,12 +194,14 @@ export function resolveSpotlightPlacement(item: Record<string, unknown>): string
     return resolved || addon || planIncluded;
 }
 
-/** Spotlight stays visible until scheduled removal when user cancels mid-cycle. */
+/** Spotlight stays visible until its paid/access window ends. */
 export function spotlightDisplayActive(item: Record<string, unknown>): boolean {
     const cancelEnd =
         toDateValue(item.featureSpotlightAccessEnd) ||
         toDateValue(item.featureSpotlightPaidThrough);
-    if (item.featureSpotlightCancelPending && cancelEnd && cancelEnd.getTime() < Date.now()) {
+    // Once the paid window is over, treat as inactive so repurchase unlocks
+    // (even if cancel-pending cleanup lagged or fields were left behind).
+    if (cancelEnd && cancelEnd.getTime() < Date.now()) {
         return false;
     }
     return true;
