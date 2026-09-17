@@ -56,6 +56,7 @@ import type {
 } from "@/lib/defaultDirectoryCategories";
 import { REGION_COUNTRY_MAP, SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 import { usePlansConfig, DEFAULT_PLANS_CONFIG } from "@/hooks/usePlansConfig";
+import { useFeaturedPlansConfig } from "@/hooks/useFeaturedPlansConfig";
 
 
 
@@ -584,6 +585,23 @@ export default function Dashboard() {
     const [cancelModalError, setCancelModalError] = useState("");
 
     const { config: livePlansConfig } = usePlansConfig();
+    const { config: liveFeaturedPlansConfig } = useFeaturedPlansConfig();
+
+    const dynamicFeaturePlans = useMemo(() => {
+        const activeOptions = liveFeaturedPlansConfig?.groups?.flatMap(g => g.options.filter(o => o.status !== "Inactive")) || [];
+        if (activeOptions.length === 0) return FEATURE_PLANS;
+        return activeOptions.map(opt => {
+            const icon = opt.id === "landing_page" ? Star : opt.id === "home_page" ? Crown : Sparkles;
+            return {
+                id: opt.id,
+                label: opt.label,
+                description: opt.description || opt.specification || "Featured placement",
+                price: `$${Number(opt.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                numericPrice: opt.price || 0,
+                icon,
+            };
+        });
+    }, [liveFeaturedPlansConfig]);
 
     const dynamicPlanConfigs = useMemo(() => {
         const merged: Record<string, PlanConfig> = { ...PLAN_CONFIGS };
@@ -2058,7 +2076,7 @@ export default function Dashboard() {
                                                 ? "Move up to a higher spotlight tier. You pay only the difference in price."
                                                 : "Get extra visibility by being featured on the category page or the home page. Select a plan below:"}
                                         </p>
-                                        {FEATURE_PLANS.filter((fp) =>
+                                        {dynamicFeaturePlans.filter((fp) =>
                                             globalModalUpgradeTargets.length > 0
                                                 ? globalModalUpgradeTargets.includes(fp.id)
                                                 : globalModalPurchaseTargets.includes(fp.id),
@@ -2189,7 +2207,7 @@ export default function Dashboard() {
                     <AddFeaturePlanModal
                         plan={selectedPlanForAction}
                         listing={selectedListingForEdit}
-                        featurePlans={FEATURE_PLANS.filter((fp) =>
+                        featurePlans={dynamicFeaturePlans.filter((fp) =>
                             getFeaturePurchaseTargets(selectedPlanForAction.planId, selectedListingForEdit).includes(fp.id),
                         )}
                         onClose={() => {
@@ -2210,6 +2228,7 @@ export default function Dashboard() {
                         }
                         planId={selectedPlanForAction.planId}
                         listing={selectedListingForEdit}
+                        featurePlans={dynamicFeaturePlans}
                         onClose={() => {
                             setShowUpgradeFeatureModal(false);
                             setSelectedPlanForAction(null);
@@ -2252,7 +2271,7 @@ export default function Dashboard() {
             const spotlightCancelPending = isSpotlightCancelPendingForPlan(plan, linkedListing);
             const hasStandaloneAddon = hasStandaloneSpotlightAddon(linkedListing, plan.planId);
             const standaloneSpotlightId = getStandaloneSpotlightFeatureId(linkedListing, plan.planId);
-            const standaloneSpotlightPlan = FEATURE_PLANS.find((f) => f.id === standaloneSpotlightId);
+            const standaloneSpotlightPlan = dynamicFeaturePlans.find((f) => f.id === standaloneSpotlightId);
             // Prefer billing-period start (preserved across prorated upgrades), same as plans.
             // If an upgrade incorrectly stamped payment day as period start, align to plan period when renewal matches.
             const planPeriodStart =
@@ -2541,7 +2560,7 @@ export default function Dashboard() {
                                     <Sparkles className="w-4 h-4 text-primary" />
                                     {includedPlanFeature && !hasStandaloneAddon
                                         ? `Included: ${includedPlanFeature === "home_page" ? "Home page" : "Landing page"} spotlight`
-                                        : `Active spotlight: ${FEATURE_PLANS.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label}`}
+                                        : `Active spotlight: ${dynamicFeaturePlans.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label || (effectiveSpotlightId === "home_page" ? "Home Page Spotlight" : effectiveSpotlightId === "landing_page" ? "Landing Page Spotlight" : "Spotlight add-on")}`}
                                 </p>
                                 {spotlightCancelPending && standaloneSpotlightRenewal && (
                                     <p className="text-xs mt-1" style={{ color: '#78350f' }}>
@@ -4917,14 +4936,16 @@ interface UpgradeFeaturePlanModalProps {
     currentAddonId: string;
     planId?: string;
     listing?: any;
+    featurePlans?: any[];
     onClose: () => void;
     onPurchase: (featureId: string) => void;
     processing: boolean;
 }
 
-function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, onClose, onPurchase, processing }: UpgradeFeaturePlanModalProps) {
+function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans, onClose, onPurchase, processing }: UpgradeFeaturePlanModalProps) {
     const [selectedFeature, setSelectedFeature] = useState<string>("");
-    const targets = FEATURE_PLANS.filter((fp) =>
+    const availablePlans = featurePlans || FEATURE_PLANS;
+    const targets = availablePlans.filter((fp) =>
         getFeatureUpgradeTargets(currentAddonId, planId, listing).includes(fp.id),
     );
 

@@ -2433,11 +2433,38 @@ function isAllowedSubscriptionUpgrade({
 }
 
 // ─── Feature plan add-ons ───
-const FEATURE_PRICES = {
-    landing_page: { amount: 40000, name: "Landing Page Spotlight", interval: "month" },
-    home_page: { amount: 80000, name: "Home Page Spotlight", interval: "month" },
-    both: { amount: 100000, name: "Landing + Home Page Spotlight", interval: "month" },
+let FEATURE_PRICES = {
+    landing_page: { amount: 70000, name: "Landing Page Spotlight", interval: "month" },
+    home_page: { amount: 100000, name: "Home Page Spotlight", interval: "month" },
+    both: { amount: 150000, name: "Landing + Home Page Spotlight", interval: "month" },
 };
+
+try {
+    db.collection("config").doc("featuredPlansConfig").onSnapshot(
+        (snap) => {
+            if (snap.exists) {
+                const data = snap.data() || {};
+                const groups = data.groups || [];
+                for (const grp of groups) {
+                    for (const opt of (grp.options || [])) {
+                        if (opt && opt.id) {
+                            FEATURE_PRICES[opt.id] = {
+                                amount: Math.round(Number(opt.price || 0) * 100),
+                                name: opt.label || opt.title || FEATURE_PRICES[opt.id]?.name || "Feature Plan",
+                                interval: "month",
+                            };
+                        }
+                    }
+                }
+            }
+        },
+        (err) => {
+            console.warn("Notice: Real-time featuredPlansConfig listener error:", err.message);
+        }
+    );
+} catch (e) {
+    console.warn("Notice: Initial setup of featuredPlansConfig listener skipped:", e.message);
+}
 
 const FEATURE_SPOTLIGHT_TIER = {
     landing_page: 1,

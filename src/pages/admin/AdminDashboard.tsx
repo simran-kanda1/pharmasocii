@@ -110,6 +110,7 @@ const hasSubSub = (entry: SubcategoryEntry): entry is { label: string; subSubcat
 import { AdminAddCategory } from "@/components/admin/AdminAddCategory";
 
 import { AdminAddFeaturedPlan } from "@/components/admin/AdminAddFeaturedPlan";
+import { useFeaturedPlansConfig, type FeaturedPlanOption, type FeaturedPlansConfig } from "@/hooks/useFeaturedPlansConfig";
 import { AdminSitePoliciesPanel } from "@/components/admin/AdminSitePoliciesPanel";
 import { AdminFaqsPanel } from "@/components/admin/AdminFaqsPanel";
 import { AdminContactPanel } from "@/components/admin/AdminContactPanel";
@@ -736,17 +737,6 @@ const getStatusBadge = (status?: string) => {
 
 
 
-const FEATURED_PLAN_CATALOG = [
-  {
-    service: "Business Offerings & Consulting Services",
-    options: [
-      { id: "home_page", label: "Home Page", price: 1000, durationDays: 30, countryLimit: 1, categoryLimit: 2, specification: "Home page" },
-      { id: "landing_page", label: "Landing Page", price: 700, durationDays: 30, countryLimit: 5, categoryLimit: 5, specification: "This is feature plan" },
-      { id: "both", label: "Both Page", price: 1500, durationDays: 30, countryLimit: 5, categoryLimit: 2, specification: "Both plan" },
-    ],
-  },
-];
-
 export default function AdminDashboard() {
   const navigate = useNavigate();
   const {
@@ -760,6 +750,8 @@ export default function AdminDashboard() {
     allJobsCategories,
     categoryMetadataMap,
   } = useDirectoryCategories();
+
+  const { config: featuredPlansConfig, saveConfig: saveFeaturedPlansConfig } = useFeaturedPlansConfig();
 
   const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [partners, setPartners] = useState<PartnerRecord[]>([]);
@@ -775,6 +767,7 @@ export default function AdminDashboard() {
   const [isAddingCategory, setIsAddingCategory] = useState(false);
 
   const [isAddingFeaturedPlan, setIsAddingFeaturedPlan] = useState(false);
+  const [editingFeaturedPlan, setEditingFeaturedPlan] = useState<(FeaturedPlanOption & { groupName?: string }) | null>(null);
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [adminEmail, setAdminEmail] = useState("");
   const [adminName, setAdminName] = useState("");
@@ -2487,23 +2480,53 @@ export default function AdminDashboard() {
           {activeTab === "plans" && <PlansCMS />}
 
           {activeTab === "featuredPlans" && (
-            isAddingFeaturedPlan ? (
+            (isAddingFeaturedPlan || editingFeaturedPlan) ? (
               <AdminAddFeaturedPlan 
-                onCancel={() => setIsAddingFeaturedPlan(false)}
+                initialPlan={editingFeaturedPlan}
+                onCancel={() => {
+                  setIsAddingFeaturedPlan(false);
+                  setEditingFeaturedPlan(null);
+                }}
                 onSuccess={() => {
                   setIsAddingFeaturedPlan(false);
-                  setSaveNotice("Featured plan added successfully!");
+                  setEditingFeaturedPlan(null);
+                  setSaveNotice(editingFeaturedPlan ? "Featured plan updated successfully!" : "Featured plan added successfully!");
                   setTimeout(() => setSaveNotice(""), 5000);
                 }}
               />
             ) : (
               <div className="space-y-4">
                 <div className="flex justify-end">
-                  <Button onClick={() => setIsAddingFeaturedPlan(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  <Button onClick={() => { setEditingFeaturedPlan(null); setIsAddingFeaturedPlan(true); }} className="bg-emerald-600 hover:bg-emerald-700 text-white">
                     Add Featured Plan <Plus className="w-4 h-4 ml-2" />
                   </Button>
                 </div>
-                <FeaturedPlansTab featuredPlans={featuredPlans} partners={partners} />
+                <FeaturedPlansTab 
+                  featuredPlans={featuredPlans} 
+                  partners={partners} 
+                  featuredPlansConfig={featuredPlansConfig}
+                  onEditPlan={(plan, groupName) => setEditingFeaturedPlan({ ...plan, groupName })}
+                  onDeletePlan={async (plan, _groupName) => {
+                    if (!window.confirm(`Are you sure you want to delete the featured plan "${plan.label}"?`)) return;
+                    const newGroups = featuredPlansConfig.groups.map(g => ({
+                      ...g,
+                      options: g.options.filter(o => o.id !== plan.id)
+                    })).filter(g => g.options.length > 0);
+                    await saveFeaturedPlansConfig({ groups: newGroups });
+                    setSaveNotice("Featured plan deleted successfully!");
+                    setTimeout(() => setSaveNotice(""), 4000);
+                  }}
+                  onTogglePlanStatus={async (plan, _groupName) => {
+                    const newStatus = plan.status === "Active" ? "Inactive" : "Active";
+                    const newGroups = featuredPlansConfig.groups.map(g => ({
+                      ...g,
+                      options: g.options.map(o => o.id === plan.id ? { ...o, status: newStatus as "Active" | "Inactive" } : o)
+                    }));
+                    await saveFeaturedPlansConfig({ groups: newGroups });
+                    setSaveNotice(`Featured plan "${plan.label}" is now ${newStatus}!`);
+                    setTimeout(() => setSaveNotice(""), 4000);
+                  }}
+                />
               </div>
             )
           )}
@@ -3531,13 +3554,21 @@ function PartnerList({
 function FeaturedPlansTab({
   featuredPlans,
   partners,
+  featuredPlansConfig,
+  onEditPlan,
+  onDeletePlan,
+  onTogglePlanStatus,
 }: {
   featuredPlans: FeaturedPlanPurchase[];
   partners: PartnerRecord[];
+  featuredPlansConfig: FeaturedPlansConfig;
+  onEditPlan: (plan: FeaturedPlanOption, groupName: string) => void;
+  onDeletePlan: (plan: FeaturedPlanOption, groupName: string) => void;
+  onTogglePlanStatus: (plan: FeaturedPlanOption, groupName: string) => void;
 }) {
   const purchaseCountByFeature = useMemo(() => {
     return featuredPlans.reduce((acc, feature) => {
-      const id = feature.featureId || "unknown";
+      const id = (feature.featureId || feature.featureName || "unknown").toLowerCase();
       acc[id] = (acc[id] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
@@ -3553,6 +3584,8 @@ function FeaturedPlansTab({
     });
   }, [featuredPlans, partners]);
 
+  const groups = featuredPlansConfig?.groups || [];
+
   return (
     <div className="space-y-6">
       <Card className="bg-white border-slate-200 shadow-sm">
@@ -3561,25 +3594,94 @@ function FeaturedPlansTab({
           <CardDescription>Featured placements, information, and pricing.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {FEATURED_PLAN_CATALOG.map((group) => (
+          {groups.map((group) => (
             <div key={group.service} className="space-y-3">
-              <h4 className="font-semibold">{group.service}</h4>
+              <h4 className="font-semibold text-slate-800">{group.service}</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {group.options.map((option) => (
-                  <div key={option.id} className="rounded-xl border border-slate-200 p-4 space-y-2">
-                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>
-                    <p className="font-semibold">{option.label}</p>
-                    <p className="text-sm text-slate-600">Specification : {option.specification}</p>
-                    <p className="font-semibold">Amount In $ : ${Number(option.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-                    <p>For : {option.durationDays} days</p>
-                    <p>Number of Country : {option.countryLimit}</p>
-                    <p>Number of Category : {option.categoryLimit}</p>
-                    <p className="text-xs text-slate-500">Purchased: {purchaseCountByFeature[option.id] || 0}</p>
-                  </div>
-                ))}
+                {group.options.map((option) => {
+                  const pCount =
+                    purchaseCountByFeature[option.id.toLowerCase()] ||
+                    purchaseCountByFeature[option.label.toLowerCase()] ||
+                    0;
+                  const isActive = option.status !== "Inactive";
+
+                  return (
+                    <div
+                      key={option.id}
+                      className="rounded-xl border border-slate-200 p-4 space-y-2 bg-white relative hover:shadow-md transition-shadow"
+                    >
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => onTogglePlanStatus(option, group.service)}
+                          title="Click to toggle Active/Inactive"
+                          className="cursor-pointer"
+                        >
+                          <Badge
+                            className={
+                              isActive
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                                : "bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200"
+                            }
+                          >
+                            {isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                            onClick={() => onEditPlan(option, group.service)}
+                            title="Edit Plan"
+                          >
+                            <Pencil className="w-3.5 h-3.5 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-red-500 hover:text-red-700 hover:bg-red-50"
+                            onClick={() => onDeletePlan(option, group.service)}
+                            title="Delete Plan"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="font-semibold text-slate-900 text-base">{option.label}</p>
+                      <p className="text-sm text-slate-600">Specification : {option.specification || "—"}</p>
+                      <p className="font-semibold text-slate-900">
+                        Amount In $ : $
+                        {Number(option.price || 0).toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </p>
+                      <p className="text-sm text-slate-700">For : {option.durationDays || 30} days</p>
+                      <p className="text-sm text-slate-700">
+                        Number of Country : {option.countryLimit === -1 ? "Unlimited" : (option.countryLimit ?? 1)}
+                      </p>
+                      <p className="text-sm text-slate-700">
+                        Number of Category : {option.categoryLimit === -1 ? "Unlimited" : (option.categoryLimit ?? 1)}
+                      </p>
+                      {option.description && (
+                        <p className="text-xs text-slate-500 line-clamp-2 italic pt-1">{option.description}</p>
+                      )}
+                      <p className="text-xs text-slate-400 pt-1">Purchased: {pCount}</p>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ))}
+          {groups.length === 0 && (
+            <div className="text-center py-8 text-slate-500">
+              No featured plans configured. Click "Add Featured Plan" to create one.
+            </div>
+          )}
         </CardContent>
       </Card>
 

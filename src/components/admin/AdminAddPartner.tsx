@@ -44,6 +44,7 @@ import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
 import { uploadJobDescriptionPdf, uploadEventAgendaPdf } from "@/lib/jobDescriptionUpload";
 import { usePlansConfig } from "@/hooks/usePlansConfig";
+import { useFeaturedPlansConfig } from "@/hooks/useFeaturedPlansConfig";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 
 import {
@@ -202,6 +203,20 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   const [countrySearch, setCountrySearch] = useState("");
 
   const { config: plansConfig, getFeaturesForPlanId } = usePlansConfig();
+  const { config: featuredPlansConfig } = useFeaturedPlansConfig();
+
+  const dynamicFeatureOptions = useMemo(() => {
+    const list = [{ value: "none", label: "No Feature" }];
+    const activePlans = featuredPlansConfig?.groups?.flatMap(g => g.options.filter(o => o.status !== "Inactive")) || [];
+    if (activePlans.length === 0) return FEATURE_OPTIONS;
+    activePlans.forEach(opt => {
+      list.push({
+        value: opt.id,
+        label: `${opt.label} ($${Number(opt.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}/mo)`,
+      });
+    });
+    return list;
+  }, [featuredPlansConfig]);
 
   // Convert "Business Offerings" -> "business_offerings"
   const getGroupKey = (groupName: string) => {
@@ -1205,7 +1220,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     <SelectValue placeholder="No Feature" />
                   </SelectTrigger>
                   <SelectContent>
-                    {FEATURE_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                    {dynamicFeatureOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-slate-500 mt-2">Assign a featured spotlight plan to the partner manually.</p>
