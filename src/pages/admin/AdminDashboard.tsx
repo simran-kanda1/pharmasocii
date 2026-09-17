@@ -1950,6 +1950,13 @@ export default function AdminDashboard() {
       const groupKey = normalizeGroupKey(group) || "";
       Object.entries(data).forEach(([category, subEntries]) => {
         const catMeta = categoryMetadataMap[`${groupKey}:${category}`] || {};
+        const isCatInactive =
+          (catMeta.status || "").toLowerCase() === "inactive" ||
+          catMeta.isDeleted === true ||
+          catMeta.deleted === true;
+
+        if (isCatInactive) return;
+
         if (!Array.isArray(subEntries) || subEntries.length === 0) {
           rows.push({
             id: catMeta.id,
@@ -1969,6 +1976,13 @@ export default function AdminDashboard() {
         subEntries.forEach((sub: any) => {
           if (typeof sub === "string") {
             const subMeta = categoryMetadataMap[`${groupKey}:${category}:${sub}`] || catMeta;
+            const isSubInactive =
+              (subMeta.status || "").toLowerCase() === "inactive" ||
+              subMeta.isDeleted === true ||
+              subMeta.deleted === true;
+
+            if (isSubInactive) return;
+
             rows.push({
               id: subMeta.id || catMeta.id,
               group,
@@ -1989,6 +2003,13 @@ export default function AdminDashboard() {
               ? sub.subSubcategories.join(", ")
               : "-";
           const subMeta = categoryMetadataMap[`${groupKey}:${category}:${subLabel}`] || catMeta;
+          const isSubInactive =
+            (subMeta.status || "").toLowerCase() === "inactive" ||
+            subMeta.isDeleted === true ||
+            subMeta.deleted === true;
+
+          if (isSubInactive) return;
+
           rows.push({
             id: subMeta.id || catMeta.id,
             group,
@@ -2005,7 +2026,7 @@ export default function AdminDashboard() {
       });
     });
 
-    return rows.sort((a, b) => {
+    return rows.filter((r) => (r.status || "").toLowerCase() !== "inactive").sort((a, b) => {
       const gComp = (a.group || "").localeCompare(b.group || "", undefined, { sensitivity: "base" });
       if (gComp !== 0) return gComp;
       const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
