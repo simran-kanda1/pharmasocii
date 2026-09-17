@@ -7,6 +7,8 @@ export type AuditLogAction =
     | "PASSWORD_UPDATED"
     | "LISTING_CREATED"
     | "LISTING_UPDATED"
+    | "LISTING_DELETED"
+    | "CATEGORY_DELETED"
     | "PAYMENT_SUCCESS"
     | "PAYMENT_FAILED"
     | "FEATURE_ADDED"

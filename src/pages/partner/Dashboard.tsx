@@ -1012,6 +1012,65 @@ export default function Dashboard() {
         }
     };
 
+    const handleDeleteActiveListing = async (offering: any, plan?: any) => {
+        if (!auth.currentUser) return;
+        const name = getListingDisplayName(offering, plan) || "this listing";
+        if (!window.confirm(`Are you sure you want to permanently delete "${name}"? This action cannot be undone.`)) {
+            return;
+        }
+        try {
+            setActionProcessing(true);
+            const col = offering.__col || "businessOfferingsCollection";
+            const uid = auth.currentUser.uid;
+
+            // Delete from subcollection
+            try {
+                await deleteDoc(doc(db, "partnersCollection", uid, col, offering.id));
+            } catch (_) {}
+
+            // Delete from root collection
+            try {
+                await deleteDoc(doc(db, col, offering.id));
+            } catch (_) {}
+
+            // Additional cleanups across all collections
+            const otherCols = [
+                "businessOfferingsCollection",
+                "consultingServicesCollection",
+                "consultingCollection",
+                "eventsCollection",
+                "jobsCollection",
+            ];
+            for (const c of otherCols) {
+                try {
+                    await deleteDoc(doc(db, "partnersCollection", uid, c, offering.id));
+                } catch (_) {}
+                try {
+                    await deleteDoc(doc(db, c, offering.id));
+                } catch (_) {}
+            }
+
+            if (plan?.id) {
+                try {
+                    await deleteDoc(doc(db, "partnersCollection", uid, "planCollection", plan.id));
+                } catch (_) {}
+                try {
+                    await deleteDoc(doc(db, "partnerPlans", plan.id));
+                } catch (_) {}
+            }
+
+            setOfferings((prev) => prev.filter((o) => o.id !== offering.id));
+            if (plan?.id) {
+                setActivePlans((prev) => prev.filter((p) => p.id !== plan.id));
+            }
+        } catch (err) {
+            console.error("Error deleting listing:", err);
+            alert("Failed to delete listing.");
+        } finally {
+            setActionProcessing(false);
+        }
+    };
+
     const handleClearAllPendingListings = async (pendingList: any[]) => {
         if (!auth.currentUser || !pendingList || pendingList.length === 0) return;
         try {
@@ -2447,7 +2506,33 @@ export default function Dashboard() {
                                         Cancel
                                     </Button>
                                 )}
+                                {linkedListing && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 px-2 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                        disabled={actionProcessing}
+                                        onClick={() => handleDeleteActiveListing(linkedListing, plan)}
+                                        title="Delete listing"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                )}
                             </div>
+                            )}
+                            {isPast && linkedListing && (
+                                <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-8 px-2.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                        disabled={actionProcessing}
+                                        onClick={() => handleDeleteActiveListing(linkedListing, plan)}
+                                        title="Delete listing"
+                                    >
+                                        <Trash2 className="w-3.5 h-3.5 mr-1" /> Delete listing
+                                    </Button>
+                                </div>
                             )}
                         </div>
                         {(includedPlanFeature || hasFeature) && (
