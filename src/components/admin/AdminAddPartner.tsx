@@ -113,10 +113,9 @@ const GROUP_OPTIONS = [
 ];
 
 const TRIAL_PERIOD_OPTIONS = [
-  { value: "none", label: "No Trial (Full Duration)" },
-  { value: "7_days", label: "1 Week" },
-  { value: "30_days", label: "30 Days" },
-  { value: "3_months", label: "3 Months" },
+  { value: "7_days", label: "7 days" },
+  { value: "30_days", label: "30 days" },
+  { value: "90_days", label: "90 days" },
 ];
 
 const FEATURE_OPTIONS = [
@@ -136,7 +135,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
   // Text Form Data
   const [formData, setFormData] = useState({
-    status: "Pending Review",
+    status: "Approved",
     firstName: "",
     lastName: "",
     email: "",
@@ -152,9 +151,9 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     profileHtml: "",
     addressHtml: "",
     selectedGroup: "Business Offerings",
-    selectedPlan: "none",
+    selectedPlan: "basic_mo",
     featuredPlan: "none",
-    trialPeriod: "none",
+    trialPeriod: "30_days",
     billingEmail: "",
     businessId: "",
     businessCountry: "",
@@ -261,7 +260,9 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
   const handleSelectChange = (field: string, value: string) => {
     if (field === "selectedGroup") {
-      setFormData((prev) => ({ ...prev, selectedGroup: value, selectedPlan: "none", featuredPlan: "none", trialPeriod: "none" }));
+      const plans = getPlansForGroup(value);
+      const defaultPlan = plans[0]?.value || "";
+      setFormData((prev) => ({ ...prev, selectedGroup: value, selectedPlan: defaultPlan, featuredPlan: "none", trialPeriod: "30_days" }));
       setSelectedBSL([]); setSelectedCerts([]); setSelectedRegions([]);
       setOtherCertText(""); setShowOtherCertInput(false);
       setSelectedCountries([]); setSelectedCategories([]);
@@ -286,9 +287,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
   const getPlansForGroup = (groupName: string) => {
     const gk = getGroupKey(groupName);
-    const options: { value: string; label: string }[] = [
-      { value: 'none', label: 'No Plan (Free/Pending)' }
-    ];
+    const options: { value: string; label: string }[] = [];
 
     if (plansConfig && plansConfig.groups && plansConfig.groups.length > 0) {
       const groupId = gk === "consulting" ? "business_offerings" : gk;
@@ -316,7 +315,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     switch (gk) {
       case 'business_offerings': case 'consulting':
         return [
-          { value: 'none', label: 'No Plan (Free/Pending)' },
           { value: 'basic_mo', label: 'Basic (Monthly) - $100.00' },
           { value: 'standard_mo', label: 'Standard (Monthly) - $200.00' },
           { value: 'premium_mo', label: 'Premium (Monthly) - $400.00' },
@@ -328,7 +326,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         ];
       case 'events':
         return [
-          { value: 'none', label: 'No Plan (Free/Pending)' },
           { value: 'basic_event', label: 'Basic - $500.00' },
           { value: 'standard_event', label: 'Standard - $850.00' },
           { value: 'premium_event', label: 'Premium - $1,250.00' },
@@ -336,12 +333,11 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         ];
       case 'jobs':
         return [
-          { value: 'none', label: 'No Plan (Free/Pending)' },
           { value: 'standard_job', label: 'Standard - $400.00/mo' },
           { value: 'premium_job', label: 'Premium - $800.00/mo' },
           { value: 'premium_plus_job', label: 'Premium Plus - $1,000.00/mo' },
         ];
-      default: return [{ value: 'none', label: 'No Plan (Free/Pending)' }];
+      default: return [];
     }
   };
 
@@ -1139,16 +1135,16 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               </div>
 
               <div>
-                <Label className="text-slate-600 font-bold mb-1.5 block">Trial Period (for selected plan)</Label>
+                <Label className="text-slate-600 font-bold mb-1.5 block">Trial Period (for selected plan & feature)</Label>
                 <Select value={formData.trialPeriod} onValueChange={(val) => handleSelectChange("trialPeriod", val)}>
                   <SelectTrigger className="w-full h-11 bg-white border-slate-200">
-                    <SelectValue placeholder="No Trial" />
+                    <SelectValue placeholder="Select trial duration" />
                   </SelectTrigger>
                   <SelectContent>
                     {TRIAL_PERIOD_OPTIONS.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-slate-500 mt-2">Limits the plan duration. The profile expires when the trial ends.</p>
+                <p className="text-[11px] text-slate-500 mt-2">Sets the trial duration for both the plan and featured spotlight. The profile expires when the trial ends.</p>
               </div>
 
               <div>
@@ -1162,20 +1158,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-slate-500 mt-2">Assign a featured spotlight plan to the partner manually.</p>
-              </div>
-
-              <div>
-                <Label className="text-slate-600 font-bold mb-1.5 block">Admin Partner Status</Label>
-                <Select value={formData.status} onValueChange={(val) => handleChange("status", val)}>
-                  <SelectTrigger className="w-full h-11 bg-white border-slate-200">
-                    <SelectValue placeholder="Pending Review" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Pending Review">Pending Review</SelectItem>
-                    <SelectItem value="Approved">Approved</SelectItem>
-                    <SelectItem value="Inactive">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
               </div>
 
               {formData.selectedPlan && formData.selectedPlan !== "none" && (

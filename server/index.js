@@ -7014,6 +7014,28 @@ app.post("/api/admin/create-partner", async (req, res) => {
         }
         const listingDocId = listingRef.id;
 
+        // Calculate unified trial and billing period end date for plan & featured plan
+        const startDate = new Date();
+        const billingPeriodEnd = new Date();
+        let isTrial = false;
+
+        if (trialPeriod === "7_days") {
+            isTrial = true;
+            billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 7);
+        } else if (trialPeriod === "30_days") {
+            isTrial = true;
+            billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 30);
+        } else if (trialPeriod === "90_days" || trialPeriod === "3_months") {
+            isTrial = true;
+            billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 90);
+        } else {
+            const isYearly = selectedPlan && selectedPlan.endsWith("_yr");
+            if (isYearly) billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
+            else billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
+        }
+
+        const resolvedStatus = status || "Approved";
+
         // Build listing payload
         const listingData = {
             partnerId: uid,
@@ -7024,19 +7046,15 @@ app.post("/api/admin/create-partner", async (req, res) => {
             featuredPlacement: (featuredPlan && featuredPlan !== "none") ? featuredPlan : "",
             isFeatured: (featuredPlan && featuredPlan !== "none"),
             ...(featuredPlan && featuredPlan !== "none" ? {
-                featureSpotlightPaidThrough: (() => {
-                    const paidThrough = new Date();
-                    paidThrough.setMonth(paidThrough.getMonth() + 1);
-                    return paidThrough;
-                })(),
+                featureSpotlightPaidThrough: new Date(billingPeriodEnd.getTime()),
                 lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp()
             } : {}),
             selectedCategories: selectedCategories || [],
             selectedSubcategories: selectedSubcategories || [],
             selectedSubSubcategories: selectedSubSubcategories || [],
             companyRepresentatives: companyRepresentatives || [],
-            status: status || "Pending Review",
-            active: status !== "Inactive",
+            status: resolvedStatus,
+            active: resolvedStatus !== "Inactive",
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             displayCategory: displayCategory || "",
             displaySubcategory: displaySubcategory || "",
@@ -7112,7 +7130,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
             linkedinProfile: linkedinProfile || null,
             profileHtml: profileHtml || null,
             addressHtml: addressHtml || null,
-            status: status || "Pending Review",
+            status: resolvedStatus,
             createdAt: admin.firestore.FieldValue.serverTimestamp(),
             createdByAdmin: true,
 
@@ -7120,7 +7138,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
             primaryEmail: email,
             primaryName: `${firstName} ${lastName}`.trim(),
             phoneNumber: phone || null,
-            partnerStatus: status || "Pending Review",
+            partnerStatus: resolvedStatus,
             businessAddress: addressHtml || null,
             businessCountry: businessCountry || null,
 
@@ -7187,60 +7205,41 @@ app.post("/api/admin/create-partner", async (req, res) => {
 
         await db.collection("partnersCollection").doc(uid).set(partnerData);
 
-        // Handle Plan Selection (Free/None or Paid Grant by Admin)
-        if (selectedPlan) {
+        // Handle Plan Selection (Paid Grant by Admin with Trial Period)
+        if (selectedPlan && selectedPlan !== "none") {
             const isYearly = selectedPlan.endsWith("_yr");
-            const startDate = new Date();
-            const billingPeriodEnd = new Date();
-            let isTrial = false;
 
             const planPayload = {
                 planId: selectedPlan,
                 planName: selectedPlan.replace(/_/g, " "),
                 startDate,
+                billingPeriodEnd: new Date(billingPeriodEnd.getTime()),
+                billingInterval: isYearly ? "year" : "month",
                 active: true,
                 lastPaymentReceivedAt: startDate,
                 partnerId: uid,
                 collectionName,
                 source: "admin_granted",
-                isTrial: isTrial || false,
+                isTrial: isTrial,
+                trialPeriod: trialPeriod || null,
                 listingId: listingDocId
             };
-
-            if (selectedPlan !== "none") {
-                if (trialPeriod && trialPeriod !== "none") {
-                    isTrial = true;
-                    if (trialPeriod === "7_days") billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 7);
-                    else if (trialPeriod === "30_days") billingPeriodEnd.setDate(billingPeriodEnd.getDate() + 30);
-                    else if (trialPeriod === "3_months") billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 3);
-                } else {
-                    if (isYearly) billingPeriodEnd.setFullYear(billingPeriodEnd.getFullYear() + 1);
-                    else billingPeriodEnd.setMonth(billingPeriodEnd.getMonth() + 1);
-                }
-                planPayload.billingPeriodEnd = billingPeriodEnd;
-                planPayload.billingInterval = isYearly ? "year" : "month";
-                planPayload.isTrial = isTrial;
-            } else {
-                planPayload.billingInterval = "month";
-            }
 
             await db.collection("partnersCollection").doc(uid).collection("planCollection").add(planPayload);
         }
 
-        // Handle Featured Plan
+        // Handle Featured Plan (Synchronized trial expiration with main plan)
         if (featuredPlan && featuredPlan !== "none") {
-            const startDate = new Date();
-            const paidThrough = new Date();
-            paidThrough.setMonth(paidThrough.getMonth() + 1); // features are monthly
-
             await db.collection("partnersCollection").doc(uid).collection("featuresCollection").add({
                 featureId: featuredPlan,
                 featureName: featuredPlan.replace(/_/g, " "),
                 active: true,
                 lastPaymentReceived: startDate,
-                accessThrough: paidThrough,
+                accessThrough: new Date(billingPeriodEnd.getTime()),
                 partnerId: uid,
-                source: "admin_granted"
+                source: "admin_granted",
+                isTrial: isTrial,
+                trialPeriod: trialPeriod || null
             });
         }
 
