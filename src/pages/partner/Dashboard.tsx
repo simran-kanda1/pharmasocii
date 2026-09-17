@@ -3585,16 +3585,26 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
     const [expandedCategories, setExpandedCategories] = useState<string[]>(listing.selectedCategories || []);
     const [expandedSubcategories, setExpandedSubcategories] = useState<string[]>(listing.selectedSubcategories || []);
     const existingCertifications = Array.isArray(listing.certifications) ? listing.certifications : [];
-    const parsedOtherCert = (existingCertifications.find((cert: string) => cert.toLowerCase().startsWith("other:")) || "").replace(/^other:\s*/i, "");
+    const customExisting = existingCertifications
+        .flatMap((cert: string) => cert.replace(/^other:\s*/i, "").split(","))
+        .map((cert: string) => cert.trim())
+        .filter((cert: string) => cert && !CERTIFICATIONS.includes(cert) && cert !== OTHER_CERT_OPTION);
+    const parsedOtherCert = customExisting.join(", ");
     const [countries, setCountries] = useState<string[]>(() => normalizeServiceCountriesToArray(listing.serviceCountries));
     const [regions, setRegions] = useState<string[]>(listing.serviceRegions || []);
     const [bslLevels, setBslLevels] = useState<string[]>(listing.bioSafetyLevel || []);
     const [certifications, setCertifications] = useState<string[]>([
-        ...existingCertifications.filter((cert: string) => !cert.toLowerCase().startsWith("other:") && cert !== OTHER_CERT_OPTION),
-        ...(parsedOtherCert ? [parsedOtherCert] : []),
+        ...Array.from<string>(
+            new Set(
+                existingCertifications
+                    .flatMap((cert: string) => cert.replace(/^other:\s*/i, "").split(","))
+                    .map((cert: string) => cert.trim().replace(/^other:\s*/i, ""))
+                    .filter((cert: string) => cert && cert !== OTHER_CERT_OPTION)
+            )
+        ),
     ]);
     const [otherCertText, setOtherCertText] = useState(parsedOtherCert);
-    const [showOtherCertInput, setShowOtherCertInput] = useState(Boolean(parsedOtherCert || existingCertifications.includes(OTHER_CERT_OPTION)));
+    const [showOtherCertInput, setShowOtherCertInput] = useState(Boolean(customExisting.length > 0 || existingCertifications.includes(OTHER_CERT_OPTION)));
     const [representatives, setRepresentatives] = useState<Array<{ firstName: string; lastName: string; email: string }>>(
         Array.isArray(listing.companyRepresentatives) && listing.companyRepresentatives.length > 0
             ? listing.companyRepresentatives.map((rep: any) => ({
@@ -3717,11 +3727,13 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
     };
 
     const dismissOtherCertInput = () => {
-        const customValues = (otherCertText || "").split(',').map((s: string) => s.trim()).filter(Boolean);
+        const customValues = (otherCertText || "").split(',').map((s: string) => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
         setShowOtherCertInput(false);
         setOtherCertText("");
         if (customValues.length > 0) {
-            setCertifications(prev => prev.filter(c => !customValues.includes(c) && c !== OTHER_CERT_OPTION));
+            setCertifications(prev => prev.filter((c: string) => !customValues.some((cv: string) => cv.toLowerCase() === c.toLowerCase()) && c !== OTHER_CERT_OPTION && !c.toLowerCase().startsWith("other:")));
+        } else {
+            setCertifications(prev => prev.filter((c: string) => c !== OTHER_CERT_OPTION && !c.toLowerCase().startsWith("other:")));
         }
     };
 
@@ -3734,29 +3746,36 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
             }
             return;
         }
-        if (certifications.includes(cert)) {
-            const next = certifications.filter(c => c !== cert);
-            const currentOtherList = (otherCertText || "").split(',').map((s: string) => s.trim()).filter(Boolean);
-            if (currentOtherList.includes(cert)) {
-                const remainingOthers = currentOtherList.filter((s: string) => s !== cert);
-                setOtherCertText(remainingOthers.join(", "));
-                if (remainingOthers.length === 0) {
-                    setShowOtherCertInput(false);
+        const cleanCert = cert.trim().replace(/^other:\s*/i, "");
+        setCertifications(prev => {
+            if (prev.some((c: string) => c.toLowerCase() === cleanCert.toLowerCase())) {
+                const next = prev.filter((c: string) => c.toLowerCase() !== cleanCert.toLowerCase());
+                const currentOtherList = (otherCertText || "").split(',').map((s: string) => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
+                const matchIdx = currentOtherList.findIndex((s: string) => s.toLowerCase() === cleanCert.toLowerCase());
+                if (matchIdx !== -1) {
+                    const remainingOthers = currentOtherList.filter((_: string, i: number) => i !== matchIdx);
+                    setOtherCertText(remainingOthers.join(", "));
+                    if (remainingOthers.length === 0) {
+                        setShowOtherCertInput(false);
+                    }
                 }
+                return next;
             }
-            setCertifications(next);
-        } else {
-            setCertifications([...certifications, cert]);
-        }
+            return [...prev, cleanCert];
+        });
     };
     const handleOtherCertTextChange = (value: string) => {
-        const previousCustomValues = (otherCertText || "").split(',').map((s: string) => s.trim()).filter(Boolean);
-        const nextCustomValues = value.split(',').map((s: string) => s.trim()).filter(Boolean);
+        const previousCustomValues = (otherCertText || "").split(',').map((s: string) => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
+        const nextCustomValues = value.split(',').map((s: string) => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
         setOtherCertText(value);
         setCertifications(prev => {
-            const withoutPreviousCustom = prev.filter(cert => !previousCustomValues.includes(cert) && cert !== OTHER_CERT_OPTION);
+            const withoutPreviousCustom = prev.filter((cert: string) =>
+                !previousCustomValues.some((pc: string) => pc.toLowerCase() === cert.toLowerCase()) &&
+                cert !== OTHER_CERT_OPTION &&
+                !cert.toLowerCase().startsWith("other:")
+            );
             if (nextCustomValues.length === 0) return withoutPreviousCustom;
-            return Array.from(new Set([...withoutPreviousCustom, ...nextCustomValues]));
+            return Array.from<string>(new Set([...withoutPreviousCustom, ...nextCustomValues]));
         });
     };
     function renderCategoryTree() {
@@ -4362,6 +4381,15 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     </button>
                                 </div>
                             )}
+                            {certifications.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {[...certifications].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })).map(v => (
+                                        <span key={v} onClick={() => toggleCert(v)} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full cursor-pointer hover:bg-primary/20 transition-colors">
+                                            {v} <X className="w-3 h-3" />
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -4508,10 +4536,10 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 certifications: Array.from(
                                     new Set(
                                         certifications
-                                            .map((cert) => cert.trim())
-                                            .filter((cert) => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"))
+                                            .map((cert) => cert.trim().replace(/^other:\s*/i, ""))
+                                            .filter((cert) => cert && cert !== OTHER_CERT_OPTION)
                                     )
-                                ),
+                                ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })),
                                 companyRepresentatives: representatives
                                     .map((rep) => ({
                                         firstName: rep.firstName.trim(),

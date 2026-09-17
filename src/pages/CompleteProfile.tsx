@@ -300,11 +300,13 @@ export default function CompleteProfile() {
     // ─── Multi-select toggle handlers ───
     const toggleBSL = (val: string) => setSelectedBSL(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
     const dismissOtherCertInput = () => {
-        const customValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+        const customValues = otherCertText.split(',').map(s => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
         setShowOtherCertInput(false);
         setOtherCertText("");
         if (customValues.length > 0) {
-            setSelectedCerts(prev => prev.filter(cert => !customValues.includes(cert) && cert !== OTHER_CERT_OPTION));
+            setSelectedCerts(prev => prev.filter(cert => !customValues.some(cv => cv.toLowerCase() === cert.toLowerCase()) && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:")));
+        } else {
+            setSelectedCerts(prev => prev.filter(cert => cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:")));
         }
     };
     const toggleCert = (val: string) => {
@@ -317,12 +319,14 @@ export default function CompleteProfile() {
             }
             return;
         }
+        const cleanCert = val.trim().replace(/^other:\s*/i, "");
         setSelectedCerts(prev => {
-            if (prev.includes(val)) {
-                const next = prev.filter(v => v !== val);
-                const currentOtherList = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
-                if (currentOtherList.includes(val)) {
-                    const remainingOthers = currentOtherList.filter(s => s !== val);
+            if (prev.some(c => c.toLowerCase() === cleanCert.toLowerCase())) {
+                const next = prev.filter(v => v.toLowerCase() !== cleanCert.toLowerCase());
+                const currentOtherList = otherCertText.split(',').map(s => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
+                const matchIdx = currentOtherList.findIndex(s => s.toLowerCase() === cleanCert.toLowerCase());
+                if (matchIdx !== -1) {
+                    const remainingOthers = currentOtherList.filter((_, i) => i !== matchIdx);
                     setOtherCertText(remainingOthers.join(", "));
                     if (remainingOthers.length === 0) {
                         setShowOtherCertInput(false);
@@ -330,15 +334,19 @@ export default function CompleteProfile() {
                 }
                 return next;
             }
-            return [...prev, val];
+            return [...prev, cleanCert];
         });
     };
     const handleOtherCertTextChange = (value: string) => {
-        const previousCustomValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
-        const nextCustomValues = value.split(',').map(s => s.trim()).filter(Boolean);
+        const previousCustomValues = otherCertText.split(',').map(s => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
+        const nextCustomValues = value.split(',').map(s => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
         setOtherCertText(value);
         setSelectedCerts(prev => {
-            const withoutPreviousCustom = prev.filter(cert => !previousCustomValues.includes(cert) && cert !== OTHER_CERT_OPTION);
+            const withoutPreviousCustom = prev.filter(cert =>
+                !previousCustomValues.some(pc => pc.toLowerCase() === cert.toLowerCase()) &&
+                cert !== OTHER_CERT_OPTION &&
+                !cert.toLowerCase().startsWith("other:")
+            );
             if (nextCustomValues.length === 0) return withoutPreviousCustom;
             return Array.from(new Set([...withoutPreviousCustom, ...nextCustomValues]));
         });
@@ -620,10 +628,10 @@ export default function CompleteProfile() {
             const normalizedCertifications = Array.from(
                 new Set(
                     selectedCerts
-                        .map(cert => cert.trim())
-                        .filter(cert => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"))
+                        .map(cert => cert.trim().replace(/^other:\s*/i, ""))
+                        .filter(cert => cert && cert !== OTHER_CERT_OPTION)
                 )
-            );
+            ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true }));
             const sanitizedSelections = sanitizeLowestLevelSelections(
                 getCategoriesForGroup(formData.group) as any,
                 selectedCategories,

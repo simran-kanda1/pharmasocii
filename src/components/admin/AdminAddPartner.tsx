@@ -390,11 +390,11 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   };
 
   const dismissOtherCertInput = () => {
-    const customValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
+    const customValues = otherCertText.split(',').map(s => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
     setShowOtherCertInput(false);
     setOtherCertText("");
     if (customValues.length > 0) {
-      setSelectedCerts(prev => prev.filter(c => !customValues.includes(c) && c !== OTHER_CERT_OPTION && !c.toLowerCase().startsWith("other:")));
+      setSelectedCerts(prev => prev.filter(c => !customValues.some(cv => cv.toLowerCase() === c.toLowerCase()) && c !== OTHER_CERT_OPTION && !c.toLowerCase().startsWith("other:")));
     } else {
       setSelectedCerts(prev => prev.filter(c => c !== OTHER_CERT_OPTION && !c.toLowerCase().startsWith("other:")));
     }
@@ -410,15 +410,35 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       }
       return;
     }
-    setSelectedCerts(prev => prev.includes(cert) ? prev.filter(c => c !== cert) : [...prev, cert]);
+    const cleanCert = cert.trim().replace(/^other:\s*/i, "");
+    setSelectedCerts(prev => {
+      if (prev.some(c => c.toLowerCase() === cleanCert.toLowerCase())) {
+        const next = prev.filter(c => c.toLowerCase() !== cleanCert.toLowerCase());
+        const currentOtherList = otherCertText.split(',').map(s => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
+        const matchIdx = currentOtherList.findIndex(s => s.toLowerCase() === cleanCert.toLowerCase());
+        if (matchIdx !== -1) {
+          const remainingOthers = currentOtherList.filter((_, i) => i !== matchIdx);
+          setOtherCertText(remainingOthers.join(", "));
+          if (remainingOthers.length === 0) {
+            setShowOtherCertInput(false);
+          }
+        }
+        return next;
+      }
+      return [...prev, cleanCert];
+    });
   };
 
   const handleOtherCertTextChange = (text: string) => {
-    const previousCustomValues = otherCertText.split(',').map(s => s.trim()).filter(Boolean);
-    const nextCustomValues = text.split(',').map(s => s.trim()).filter(Boolean);
+    const previousCustomValues = otherCertText.split(',').map(s => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
+    const nextCustomValues = text.split(',').map(s => s.trim().replace(/^other:\s*/i, "")).filter(Boolean);
     setOtherCertText(text);
     setSelectedCerts(prev => {
-      const withoutPreviousCustom = prev.filter(cert => !previousCustomValues.includes(cert) && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:"));
+      const withoutPreviousCustom = prev.filter(cert =>
+        !previousCustomValues.some(pc => pc.toLowerCase() === cert.toLowerCase()) &&
+        cert !== OTHER_CERT_OPTION &&
+        !cert.toLowerCase().startsWith("other:")
+      );
       if (nextCustomValues.length === 0) return withoutPreviousCustom;
       return Array.from(new Set([...withoutPreviousCustom, ...nextCustomValues]));
     });
@@ -644,7 +664,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           {selected.length === 0 ? (
             <span className="text-slate-400">Choose {label.toUpperCase() === 'BSL' ? 'BSL' : label.toLowerCase()} (multi-select){label.toLowerCase() === 'service regions' ? ' - Premium plus plans only' : ''}</span>
           ) : (
-            selected.map(s => (
+            [...selected].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })).map(s => (
               <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 text-slate-800 text-xs rounded border border-slate-200">
                 <X className="w-3 h-3 cursor-pointer hover:text-red-500" onClick={(e) => { e.stopPropagation(); onToggle(s); }} />
                 {label.toUpperCase() === 'BSL' && !s.startsWith('BSL') ? `BSL-${s}` : s}
@@ -804,9 +824,13 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
         // Business Offerings / Consulting metadata
         bioSafetyLevel: selectedBSL,
-        certifications: selectedCerts
-          .map(cert => cert.trim())
-          .filter(cert => cert && cert !== OTHER_CERT_OPTION && !cert.toLowerCase().startsWith("other:")),
+        certifications: Array.from(
+          new Set(
+            selectedCerts
+              .map(cert => cert.trim().replace(/^other:\s*/i, ""))
+              .filter(cert => cert && cert !== OTHER_CERT_OPTION)
+          )
+        ).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })),
         serviceRegions: selectedRegions,
         serviceCountries: selectedCountries,
 

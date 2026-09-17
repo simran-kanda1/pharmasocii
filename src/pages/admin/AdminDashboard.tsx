@@ -261,7 +261,7 @@ function MultiSelectDropdown({
           {selected.length === 0 ? (
             <span className="text-slate-400">{placeholder || `Select ${label.toLowerCase()}...`}</span>
           ) : (
-            selected.map((item) => (
+            [...selected].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })).map((item) => (
               <span
                 key={item}
                 className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded border border-blue-100"
@@ -1150,7 +1150,13 @@ export default function AdminDashboard() {
         selectedSubSubcategories: partnerEditor.selectedSubSubcategories || [],
         serviceCountries: partnerEditor.serviceCountries || [],
         serviceRegions: partnerEditor.serviceRegions || [],
-        certifications: partnerEditor.certifications || [],
+        certifications: Array.from<string>(
+          new Set(
+            (partnerEditor.certifications || [])
+              .map((c: string) => c.trim().replace(/^other:\s*/i, ""))
+              .filter((c: string) => c && c !== "Others")
+          )
+        ).sort((a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })),
         bioSafetyLevel: partnerEditor.bioSafetyLevel || [],
       };
 
@@ -1689,7 +1695,13 @@ export default function AdminDashboard() {
         businessAddress: listingEditor.businessAddress || "",
         businessCountry: listingEditor.businessCountry || "",
         bioSafetyLevel: splitCsv(listingEditor.bioSafetyLevelCsv || ""),
-        certifications: splitCsv(listingEditor.certificationsCsv || ""),
+        certifications: Array.from(
+          new Set(
+            splitCsv(listingEditor.certificationsCsv || "")
+              .map((c: string) => c.trim().replace(/^other:\s*/i, ""))
+              .filter((c: string) => c && c !== "Others")
+          )
+        ).sort((a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })),
         companyRepresentatives: (() => {
           try { return listingEditor.companyRepresentativesJson ? JSON.parse(listingEditor.companyRepresentativesJson) : []; }
           catch { return []; }
