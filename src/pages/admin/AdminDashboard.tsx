@@ -198,6 +198,10 @@ type FeaturedPlanPurchase = {
   featureId?: string;
   featureName?: string;
   active?: boolean;
+  accessThrough?: any;
+  lastPaymentReceived?: any;
+  isTrial?: boolean;
+  trialPeriod?: string | null;
   createdAt?: { seconds?: number };
 };
 
@@ -1246,7 +1250,21 @@ export default function AdminDashboard() {
         active: true
       });
 
-      // Sync status to the associated listing if present
+      // Synchronize featuresCollection if partner has an active feature spotlight
+      try {
+        const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
+        for (const fDoc of featSnap.docs) {
+          await updateDoc(fDoc.ref, {
+            accessThrough: newEnd,
+            active: true,
+            isTrial: true
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to synchronize featuresCollection on trial extend:", e);
+      }
+
+      // Sync status and feature spotlight to the associated listing if present
       const listingId = (latestPlan as any).listingId;
       const collectionName = (latestPlan as any).collectionName;
       if (listingId && collectionName) {
@@ -1257,7 +1275,10 @@ export default function AdminDashboard() {
           listingRef = doc(db, collectionName, listingId);
         }
         try {
-          await updateDoc(listingRef, { status: "Extended" });
+          await updateDoc(listingRef, { 
+            status: "Extended",
+            ...(selectedPartner.selectedAddon || selectedPartner.isFeatured ? { featureSpotlightPaidThrough: newEnd } : {})
+          });
         } catch (e) {
           console.warn("Failed to sync listing status to Extended:", e);
         }
@@ -1275,6 +1296,78 @@ export default function AdminDashboard() {
     } catch (err: any) {
       console.error("Error extending trial:", err);
       alert("Failed to extend trial: " + err.message);
+    }
+  };
+
+  const extendFeature = async (days: number) => {
+    if (!selectedPartner) return;
+    try {
+      const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
+      if (featSnap.empty) {
+        alert("No feature spotlight document found for this partner to extend.");
+        return;
+      }
+
+      let currentEndMs = Date.now();
+      featSnap.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        const end = data.accessThrough || data.billingPeriodEnd;
+        if (end) {
+          const ms = typeof end.toMillis === "function" ? end.toMillis() : (end.seconds ? end.seconds * 1000 : new Date(end).getTime());
+          if (ms > currentEndMs) currentEndMs = ms;
+        }
+      });
+
+      const baseMs = currentEndMs < Date.now() ? Date.now() : currentEndMs;
+      const extensionMs = days * 24 * 60 * 60 * 1000;
+      const newEnd = new Date(baseMs + extensionMs);
+
+      for (const fDoc of featSnap.docs) {
+        await updateDoc(fDoc.ref, {
+          accessThrough: newEnd,
+          active: true,
+          isTrial: true
+        });
+      }
+
+      // Sync listing's featureSpotlightPaidThrough
+      const partnerListing = listings.find((l) => l.partnerId === selectedPartner.id);
+      if (partnerListing) {
+        let listingRef;
+        const col = partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
+          partnerListing.selectedGroup === "events" ? "eventsCollection" : (
+            partnerListing.selectedGroup === "jobs" ? "jobsCollection" : "consultingServicesCollection"
+          )
+        );
+        if (partnerListing.selectedGroup === "business_offerings") {
+          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", partnerListing.id);
+        } else {
+          listingRef = doc(db, col, partnerListing.id);
+        }
+        try {
+          await updateDoc(listingRef, {
+            isFeatured: true,
+            featureSpotlightPaidThrough: newEnd
+          });
+        } catch (e) {
+          console.warn("Failed to sync listing featureSpotlightPaidThrough:", e);
+        }
+      }
+
+      await logActivity({
+        partnerId: selectedPartner.id,
+        partnerName: selectedPartner.businessName || "Unnamed Business",
+        action: "ACCOUNT_UPDATED",
+        details: `Feature spotlight extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`,
+        category: "admin",
+        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd }
+      });
+
+      setSaveNotice(`Feature spotlight extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()})`);
+      alert(`Feature spotlight successfully extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()})`);
+    } catch (err: any) {
+      console.error("Error extending feature:", err);
+      alert("Failed to extend feature: " + err.message);
     }
   };
 
@@ -2571,6 +2664,62 @@ export default function AdminDashboard() {
                     >
                       Cancel Trial
                     </Button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {selectedPartner && (() => {
+              const partnerFeature = featuredPlans.find((f) => f.partnerId === selectedPartner.id);
+              if (!partnerFeature && !selectedPartner.selectedAddon) return null;
+              const accessDate = partnerFeature?.accessThrough ? new Date(typeof (partnerFeature.accessThrough as any).toDate === 'function' ? (partnerFeature.accessThrough as any).toDate() : partnerFeature.accessThrough) : null;
+              const isExpired = accessDate ? accessDate.getTime() < Date.now() : false;
+              const featureName = (partnerFeature?.featureName || partnerFeature?.featureId || selectedPartner.selectedAddon || "").replace(/_/g, ' ');
+              return (
+                <div className="bg-amber-50/50 p-4 rounded-lg border border-amber-200 space-y-3 mt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold tracking-wider text-amber-800 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      Feature Spotlight Status
+                    </span>
+                    {isExpired ? (
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">Expired</Badge>
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-300">Active Spotlight</Badge>
+                    )}
+                  </div>
+                  <div className="text-sm text-slate-700 space-y-1">
+                    <p><strong>Feature:</strong> {featureName}</p>
+                    {accessDate && <p><strong>Expiration:</strong> {accessDate.toLocaleDateString()}</p>}
+                  </div>
+                  <div className="space-y-1.5 pt-1">
+                    <p className="text-xs font-medium text-amber-900">Extend Feature Spotlight Period:</p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
+                        onClick={() => extendFeature(7)}
+                      >
+                        +7 Days
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
+                        onClick={() => extendFeature(30)}
+                      >
+                        +30 Days
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
+                        onClick={() => extendFeature(90)}
+                      >
+                        +90 Days
+                      </Button>
+                    </div>
                   </div>
                 </div>
               );

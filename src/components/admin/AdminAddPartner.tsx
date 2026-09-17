@@ -44,6 +44,7 @@ import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
 import { uploadJobDescriptionPdf, uploadEventAgendaPdf } from "@/lib/jobDescriptionUpload";
 import { usePlansConfig } from "@/hooks/usePlansConfig";
+import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 
 import {
   useDirectoryCategories,
@@ -247,6 +248,10 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
   const isCategoryLimitReached = currentLimits.maxCategories !== -1 && categoryCount >= currentLimits.maxCategories;
   const isCountryLimitReached = currentLimits.maxCountries !== -1 && selectedCountries.length >= currentLimits.maxCountries;
+
+  const passwordChecks = getPasswordPolicyChecks(formData.password);
+  const isPasswordValid = isPasswordPolicyValid(formData.password);
+  const passwordsMismatch = formData.confirmPassword.length > 0 && formData.password !== formData.confirmPassword;
 
   // Sync Event End Date on Single Day Plans
   useEffect(() => {
@@ -688,8 +693,12 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   const validateStep = () => {
     setError("");
     if (activeStep === 1) {
-      if (!formData.firstName || !formData.lastName || !formData.email || !formData.phone || !formData.password || !formData.confirmPassword) {
+      if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim() || !formData.phone.trim() || !formData.password || !formData.confirmPassword) {
         setError("Please fill out all required fields.");
+        return false;
+      }
+      if (!isPasswordValid) {
+        setError(PASSWORD_POLICY_ERROR_MESSAGE);
         return false;
       }
       if (formData.password !== formData.confirmPassword) {
@@ -697,7 +706,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         return false;
       }
     } else if (activeStep === 2) {
-      if (!formData.companyName || !formData.companyWebsite || !formData.businessPhone || !formData.businessCountry || !formData.addressHtml) {
+      if (!formData.companyName.trim() || !formData.companyWebsite.trim() || !formData.businessPhone.trim() || !formData.businessCountry.trim() || !formData.addressHtml.trim() || !formData.profileHtml.trim()) {
         setError("Please fill out all required company fields.");
         return false;
       }
@@ -733,19 +742,24 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     // Validation for final step (Step 4)
     if (groupKey === "business_offerings" || groupKey === "consulting") {
       if (selectedCountries.length === 0) {
-        setError("Please select at least one country.");
+        setError("Please select at least one service country.");
         return;
       }
     } else if (groupKey === "events") {
-      if (!eventData.eventName || !eventData.eventLink || !eventData.startDate || !eventData.endDate || !eventData.eventCountry || !eventData.location) {
-        setError("Please complete all required event details.");
+      if (!eventData.eventName.trim() || !eventData.eventLink.trim() || !eventData.startDate || !eventData.endDate || !eventData.eventCountry || !eventData.location.trim() || !eventData.agendaHighlights.trim()) {
+        setError("Please complete all required event details (including event name, link, dates, country, venue location, and agenda highlights).");
         return;
       }
     } else if (groupKey === "jobs") {
-      if (!jobData.jobTitle || !jobData.positionType || !jobData.jobCountry || !jobData.location || !jobData.jobSummary) {
-        setError("Please complete all required job details.");
+      if (!jobData.jobTitle.trim() || !jobData.positionType || !jobData.jobCountry || !jobData.location.trim() || !jobData.jobSummary.trim()) {
+        setError("Please complete all required job details (including position title, type, country, venue location, and job summary).");
         return;
       }
+    }
+
+    if (categoryCount === 0) {
+      setError("Please select at least one category / specialization.");
+      return;
     }
 
     setLoading(true);
@@ -947,19 +961,32 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
             <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100">
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><ShieldCheck className="w-5 h-5 text-blue-500" /> Password Credentials</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="relative">
-                  <Label className="text-slate-600 font-medium">Password <span className="text-red-500">*</span></Label>
-                  <Input type={showPassword ? "text" : "password"} value={formData.password} onChange={(e) => handleChange("password", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500 pr-10" />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600">
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+                <div>
+                  <div className="relative">
+                    <Label className="text-slate-600 font-medium">Password <span className="text-red-500">*</span></Label>
+                    <Input type={showPassword ? "text" : "password"} value={formData.password} onChange={(e) => handleChange("password", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500 pr-10" />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600">
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  <ul className="mt-2 space-y-1 text-xs text-slate-500">
+                    <li className={passwordChecks.minLength ? "text-green-600 font-medium" : ""}>• At least 8 characters</li>
+                    <li className={passwordChecks.uppercase ? "text-green-600 font-medium" : ""}>• At least 1 uppercase letter</li>
+                    <li className={passwordChecks.lowercase ? "text-green-600 font-medium" : ""}>• At least 1 lowercase letter</li>
+                    <li className={passwordChecks.special ? "text-green-600 font-medium" : ""}>• At least 1 special character</li>
+                  </ul>
                 </div>
-                <div className="relative">
-                  <Label className="text-slate-600 font-medium">Confirm password <span className="text-red-500">*</span></Label>
-                  <Input type={showConfirmPassword ? "text" : "password"} value={formData.confirmPassword} onChange={(e) => handleChange("confirmPassword", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500 pr-10" />
-                  <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600">
-                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
+                <div>
+                  <div className="relative">
+                    <Label className="text-slate-600 font-medium">Confirm password <span className="text-red-500">*</span></Label>
+                    <Input type={showConfirmPassword ? "text" : "password"} value={formData.confirmPassword} onChange={(e) => handleChange("confirmPassword", e.target.value)} className={`mt-1.5 bg-white focus:border-blue-500 pr-10 ${passwordsMismatch ? "border-red-400" : "border-slate-200"}`} />
+                    <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600">
+                      {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                  {passwordsMismatch && (
+                    <p className="text-xs text-red-500 mt-2 font-medium">Passwords do not match.</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -1501,7 +1528,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
             <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 space-y-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-3 border-slate-100 gap-2">
                 <div>
-                  <Label className="text-lg font-bold text-slate-800">Categories & Specializations *</Label>
+                  <Label className="text-lg font-bold text-slate-800">Categories & Specializations <span className="text-red-500">*</span></Label>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Selected {categoryCount} of {currentLimits.maxCategories === -1 ? "Unlimited" : currentLimits.maxCategories} categories
                   </p>
