@@ -221,7 +221,6 @@ export default function ListingDetail() {
     const jobCatsArray = type === "jobs" 
         ? (Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0 ? item.selectedCategoriesDisplay : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0 ? item.selectedCategories : Array.isArray(item.categories) && item.categories.length > 0 ? item.categories : []) 
         : [];
-    const jobCatsString = jobCatsArray.join(", ");
     const jobTypeLabel = type === "jobs" ? (item.jobtype || item.positionType || "") : "";
     const jobDeadlineFormatted = type === "jobs" && item.applicationDeadline ? formatDate(item.applicationDeadline) : null;
 
@@ -545,15 +544,31 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {jobCatsString && (
-                                            <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
-                                                <LayoutList className="w-5 h-5 text-primary shrink-0 mt-0.5" />
-                                                <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
-                                                    <p className="text-sm font-semibold text-foreground line-clamp-2">{jobCatsString}</p>
+                                        {jobCatsArray.length > 0 && (() => {
+                                            const initialLimit = 3;
+                                            const hasMore = jobCatsArray.length > initialLimit;
+
+                                            return (
+                                                <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10 h-full">
+                                                    <LayoutList className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Categories</p>
+                                                        <div className="text-sm font-semibold text-foreground">
+                                                            {showAllCategories ? jobCatsArray.join(", ") : jobCatsArray.slice(0, initialLimit).join(", ") + (hasMore ? "..." : "")}
+                                                            {hasMore && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setShowAllCategories(!showAllCategories)}
+                                                                    className="ml-2 text-[10px] text-primary hover:underline font-bold tracking-tighter"
+                                                                >
+                                                                    {showAllCategories ? "Show less" : `+${jobCatsArray.length - initialLimit} more`}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            );
+                                        })()}
                                     </div>
                                 )}
 
@@ -745,6 +760,31 @@ export default function ListingDetail() {
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
                                 <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
                                     <Globe className="w-5 h-5 text-primary" /> Event Specializations
+                                </h3>
+                            </div>
+                            <div className="p-8 flex flex-wrap gap-2">
+                                {item.selectedSubcategories.map((sub: string, idx: number) => (
+                                    <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-primary/5 text-primary border-primary/10 font-medium">
+                                        {sub.split(" > ").pop()}
+                                    </Badge>
+                                ))}
+                                {Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.map((ss: string, idx: number) => (
+                                    <Badge key={`ss-${idx}`} variant="outline" className="text-sm py-1.5 px-4 rounded-xl font-medium">
+                                        {ss.split(" > ").pop()}
+                                    </Badge>
+                                ))}
+                            </div>
+                        </Card>
+                    </div>
+                )}
+
+                {/* Subcategories detail for jobs */}
+                {type === "jobs" && (Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0) && (
+                    <div className="mb-12">
+                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
+                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
+                                <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
+                                    <Briefcase className="w-5 h-5 text-primary" /> Job Specializations
                                 </h3>
                             </div>
                             <div className="p-8 flex flex-wrap gap-2">
