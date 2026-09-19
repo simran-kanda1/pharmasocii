@@ -224,9 +224,6 @@ const splitCsv = (value: string) =>
     .map((v) => v.trim())
     .filter(Boolean);
 
-const BSL_LEVELS = ["1", "2", "3", "4"];
-const CERTIFICATIONS = ["CE", "GMP", "ISO 9001", "ISO 13485", "Others"];
-
 function MultiSelectDropdown({
   label,
   items,
@@ -2908,73 +2905,7 @@ export default function AdminDashboard() {
             <Field label="Alternate Contact Name" value={partnerEditor.altContactName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, altContactName: v }))} />
             <Field label="Alternate Contact Email" value={partnerEditor.altEmail || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, altEmail: v }))} />
 
-            {/* Section 5: Taxonomy & Scope */}
-            <div className="border-b pb-2 pt-4 mb-2">
-              <h3 className="font-semibold text-slate-900 text-sm">Scope & Taxonomy</h3>
-            </div>
-            
-            <MultiSelectDropdown
-              label="Service Countries"
-              items={SERVICE_COUNTRIES}
-              selected={partnerEditor.serviceCountries || []}
-              onToggle={(v) => {
-                const current = partnerEditor.serviceCountries || [];
-                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
-                setPartnerEditor((prev) => ({ ...prev, serviceCountries: updated }));
-              }}
-              placeholder="Select countries..."
-            />
-
-            <MultiSelectDropdown
-              label="Service Regions"
-              items={SERVICE_REGIONS}
-              selected={partnerEditor.serviceRegions || []}
-              onToggle={(v) => {
-                const current = partnerEditor.serviceRegions || [];
-                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
-                setPartnerEditor((prev) => ({ ...prev, serviceRegions: updated }));
-              }}
-              placeholder="Select regions..."
-            />
-
-            <CategoryTreeDropdown
-              selectedGroup={partnerEditor.selectedGroup || "business_offerings"}
-              selectedCategories={partnerEditor.selectedCategories || []}
-              selectedSubcategories={partnerEditor.selectedSubcategories || []}
-              selectedSubSubcategories={partnerEditor.selectedSubSubcategories || []}
-              onChange={(updates) => {
-                setPartnerEditor((prev) => ({
-                  ...prev,
-                  ...updates,
-                }));
-              }}
-            />
-
-            <MultiSelectDropdown
-              label="Certifications"
-              items={CERTIFICATIONS}
-              selected={partnerEditor.certifications || []}
-              onToggle={(v) => {
-                const current = partnerEditor.certifications || [];
-                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
-                setPartnerEditor((prev) => ({ ...prev, certifications: updated }));
-              }}
-              placeholder="Select certifications..."
-            />
-
-            <MultiSelectDropdown
-              label="Biosafety Levels"
-              items={BSL_LEVELS}
-              selected={partnerEditor.bioSafetyLevel || []}
-              onToggle={(v) => {
-                const current = partnerEditor.bioSafetyLevel || [];
-                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
-                setPartnerEditor((prev) => ({ ...prev, bioSafetyLevel: updated }));
-              }}
-              placeholder="Select biosafety levels..."
-            />
-
-            {/* Section 6: Event Specific Details */}
+            {/* Section 5: Event Specific Details */}
             {partnerEditor.selectedGroup === "events" && (
               <>
                 <div className="border-b pb-2 pt-4 mb-2">
