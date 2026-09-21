@@ -28,7 +28,7 @@ import {
     Building, Mail, Phone, MapPin,
     PlusCircle, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
-    CreditCard, Star, Sparkles, Crown, Check, X,
+    CreditCard, Star, Sparkles, Crown, Check, X, Calendar,
     Edit3, Globe, Tag, Search, Trash2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -160,9 +160,9 @@ function getAvailablePlanUpgradeIds(
 }
 
 const FEATURE_PLANS = [
-    { id: "landing_page", label: "Landing Page Spotlight", description: "Featured on the category landing page for increased visibility", price: "$400.00", icon: Star },
-    { id: "home_page", label: "Home Page Spotlight", description: "Featured on the home page for maximum brand visibility", price: "$800.00", icon: Crown },
-    { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,000.00", icon: Sparkles },
+    { id: "landing_page", label: "Landing Page Spotlight", description: "Featured on the category landing page for increased visibility", price: "$700.00", numericPrice: 700, durationDays: 30, countryLimit: 5, categoryLimit: 5, icon: Star },
+    { id: "home_page", label: "Home Page Spotlight", description: "Featured on the home page for maximum brand visibility", price: "$1,000.00", numericPrice: 1000, durationDays: 30, countryLimit: 1, categoryLimit: 2, icon: Crown },
+    { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,500.00", numericPrice: 1500, durationDays: 30, countryLimit: 5, categoryLimit: 2, icon: Sparkles },
 ];
 
 
@@ -596,6 +596,10 @@ export default function Dashboard() {
                 id: opt.id,
                 label: opt.label,
                 description: opt.description || opt.specification || "Featured placement",
+                specification: opt.specification,
+                durationDays: opt.durationDays || 30,
+                countryLimit: opt.countryLimit,
+                categoryLimit: opt.categoryLimit,
                 price: `$${Number(opt.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                 numericPrice: opt.price || 0,
                 icon,
@@ -2023,6 +2027,7 @@ export default function Dashboard() {
                                                 : globalModalPurchaseTargets.includes(fp.id),
                                         ).map(fp => {
                                             const isSelected = selectedFeaturePlan === fp.id;
+                                            const IconComponent = (fp as any).icon || Star;
                                             const alreadyHasExact =
                                                 getEffectiveSpotlightTier(listingForGlobalFeatureModal, liveListingPlanForFeatures?.planId) >=
                                                 (FEATURE_SPOTLIGHT_TIER[fp.id] || 0) &&
@@ -2036,15 +2041,41 @@ export default function Dashboard() {
                                             return (
                                                 <button key={fp.id} type="button" disabled={disabled} onClick={() => setSelectedFeaturePlan(fp.id)}
                                                     className={`w-full text-left p-4 rounded-xl border-2 transition-all ${disabled ? "border-foreground/10 opacity-50 cursor-not-allowed" : isSelected ? "border-primary bg-primary/5" : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"}`}>
-                                                    <div className="flex items-center justify-between gap-3">
-                                                        <div className="flex-1">
-                                                            <p className="font-semibold text-foreground flex items-center gap-2">
-                                                                {fp.label}
-                                                                {alreadyHasExact && <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/30 text-[10px]">Active</Badge>}
-                                                                {isValidUpgradeChoice && globalModalAddonTier && (
-                                                                    <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">Upgrade</Badge>
+                                                    <div className="flex items-center justify-between gap-4">
+                                                        <div className="flex items-start gap-3">
+                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
+                                                                <IconComponent className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-semibold text-foreground flex items-center gap-2">
+                                                                    {fp.label}
+                                                                    {alreadyHasExact && <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/30 text-[10px]">Active</Badge>}
+                                                                    {isValidUpgradeChoice && globalModalAddonTier && (
+                                                                        <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">Upgrade</Badge>
+                                                                    )}
+                                                                </p>
+                                                                {(fp as any).description && (
+                                                                    <p className="text-xs text-muted-foreground mt-0.5">{(fp as any).description}</p>
                                                                 )}
-                                                            </p>
+                                                                <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                                                    {(fp as any).durationDays && (
+                                                                        <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
+                                                                            <Calendar className="w-3.5 h-3.5 text-primary" />
+                                                                            Duration: {(fp as any).durationDays} days
+                                                                        </span>
+                                                                    )}
+                                                                    {(fp as any).countryLimit !== undefined && (fp as any).countryLimit > 0 && (
+                                                                        <span>
+                                                                            Countries: {(fp as any).countryLimit === -1 ? "Unlimited" : (fp as any).countryLimit}
+                                                                        </span>
+                                                                    )}
+                                                                    {(fp as any).categoryLimit !== undefined && (fp as any).categoryLimit > 0 && (
+                                                                        <span>
+                                                                            Categories: {(fp as any).categoryLimit === -1 ? "Unlimited" : (fp as any).categoryLimit}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </div>
                                                         <div className="text-right shrink-0">
                                                             {inUpgradeMode && isValidUpgradeChoice && globalModalAddonTier ? (
@@ -4868,9 +4899,12 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground">
-                        Upgrade Spotlight
-                    </h2>
+                    <div className="flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-primary" />
+                        <h2 className="text-xl font-bold text-foreground">
+                            Upgrade Spotlight
+                        </h2>
+                    </div>
                     <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
                     </button>
@@ -4893,6 +4927,7 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans
                         <div className="space-y-3">
                             {targets.map((fp) => {
                                 const isSelected = selectedFeature === fp.id;
+                                const IconComponent = fp.icon || Star;
                                 return (
                                     <button
                                         key={fp.id}
@@ -4903,13 +4938,39 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans
                                             : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
                                             }`}
                                     >
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div>
-                                                <p className="font-semibold text-foreground">{fp.label}</p>
+                                        <div className="flex items-center justify-between gap-4">
+                                            <div className="flex items-start gap-3">
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
+                                                    <IconComponent className="w-5 h-5" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-foreground text-base">{fp.label}</p>
+                                                    {fp.description && (
+                                                        <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                                    )}
+                                                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                                        {fp.durationDays && (
+                                                            <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
+                                                                <Calendar className="w-3.5 h-3.5 text-primary" />
+                                                                Duration: {fp.durationDays} days
+                                                            </span>
+                                                        )}
+                                                        {fp.countryLimit !== undefined && fp.countryLimit > 0 && (
+                                                            <span>
+                                                                Countries: {fp.countryLimit === -1 ? "Unlimited" : fp.countryLimit}
+                                                            </span>
+                                                        )}
+                                                        {fp.categoryLimit !== undefined && fp.categoryLimit > 0 && (
+                                                            <span>
+                                                                Categories: {fp.categoryLimit === -1 ? "Unlimited" : fp.categoryLimit}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                             <div className="text-right shrink-0">
                                                 <p className="text-lg font-bold text-foreground">
-                                                    {fp.price}<span className="text-sm font-normal text-muted-foreground">/month</span>
+                                                    {fp.price}<span className="text-xs font-normal text-muted-foreground">/month</span>
                                                 </p>
                                                 <p className="text-xs text-muted-foreground mt-1">
                                                     Prorated charge at checkout
@@ -4949,9 +5010,12 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                    <h2 className="text-xl font-bold text-foreground">
-                        Add Feature Plan
-                    </h2>
+                    <div className="flex items-center gap-2">
+                        <Sparkles className="w-5 h-5 text-primary" />
+                        <h2 className="text-xl font-bold text-foreground">
+                            Add Feature Plan
+                        </h2>
+                    </div>
                     <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
                         <X className="w-5 h-5" />
                     </button>
@@ -4963,6 +5027,7 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
                     <div className="space-y-3">
                         {featurePlans.map(fp => {
                             const isSelected = selectedFeature === fp.id;
+                            const IconComponent = fp.icon || Star;
                             return (
                                 <button
                                     key={fp.id}
@@ -4972,13 +5037,39 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
                                         : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"
                                         }`}
                                 >
-                                    <div className="flex items-center justify-between gap-3">
-                                        <div>
-                                            <p className="font-semibold text-foreground">{fp.label}</p>
+                                    <div className="flex items-center justify-between gap-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
+                                                <IconComponent className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-foreground text-base">{fp.label}</p>
+                                                {fp.description && (
+                                                    <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                                )}
+                                                <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                                    {fp.durationDays && (
+                                                        <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
+                                                            <Calendar className="w-3.5 h-3.5 text-primary" />
+                                                            Duration: {fp.durationDays} days
+                                                        </span>
+                                                    )}
+                                                    {fp.countryLimit !== undefined && fp.countryLimit > 0 && (
+                                                        <span>
+                                                            Countries: {fp.countryLimit === -1 ? "Unlimited" : fp.countryLimit}
+                                                        </span>
+                                                    )}
+                                                    {fp.categoryLimit !== undefined && fp.categoryLimit > 0 && (
+                                                        <span>
+                                                            Categories: {fp.categoryLimit === -1 ? "Unlimited" : fp.categoryLimit}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
                                         </div>
                                         <div className="text-right shrink-0">
                                             <p className="text-lg font-bold text-foreground">
-                                                {fp.price}<span className="text-sm font-normal text-muted-foreground">/month</span>
+                                                {fp.price}<span className="text-xs font-normal text-muted-foreground">/month</span>
                                             </p>
                                         </div>
                                     </div>
