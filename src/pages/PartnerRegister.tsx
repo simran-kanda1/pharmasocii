@@ -70,6 +70,10 @@ export default function PartnerRegister() {
             return;
         }
 
+        // Preview dummy restriction: block creation on submit with red error
+        setError("Currently unavailable due to technical issues.");
+        return;
+
         try {
             setIsLoading(true);
             // Create user in Auth
