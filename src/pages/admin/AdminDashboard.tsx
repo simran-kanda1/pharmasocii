@@ -46,7 +46,6 @@ import {
   collection,
   collectionGroup,
   doc,
-  deleteDoc,
   getDoc,
   getDocs,
   limit,
@@ -1585,84 +1584,6 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleDeleteListing = async (listing: ListingRecord) => {
-    const displayName = listing.businessName || listing.eventName || listing.jobTitle || listing.id || "this listing";
-    if (!window.confirm(`Are you sure you want to permanently delete the listing "${displayName}"? This will remove it from the directory and cannot be undone.`)) {
-      return;
-    }
-
-    try {
-      // 1. Delete at exact doc path if present
-      if (listing.__path) {
-        try {
-          await deleteDoc(doc(db, listing.__path));
-        } catch (e) {
-          console.warn("Error deleting doc at listing.__path:", e);
-        }
-      }
-
-      // 2. Extract partner ID
-      let partnerId = "";
-      if (listing.__path && listing.__path.includes("/")) {
-        const parts = listing.__path.split("/");
-        if (parts[0] === "partnersCollection" && parts[1]) {
-          partnerId = parts[1];
-        }
-      }
-      if (!partnerId && (listing.partnerId || listing.userId || listing.ownerId)) {
-        partnerId = (listing.partnerId || listing.userId || listing.ownerId) as string;
-      }
-
-      // 3. Delete from possible collection names in root and nested
-      const colNames = [
-        listing.__col,
-        "businessOfferingsCollection",
-        "consultingServicesCollection",
-        "consultingCollection",
-        "eventsCollection",
-        "jobsCollection",
-      ].filter(Boolean) as string[];
-
-      const uniqueCols = Array.from(new Set(colNames));
-
-      for (const col of uniqueCols) {
-        try {
-          await deleteDoc(doc(db, col, listing.id));
-        } catch (_) {}
-
-        if (partnerId) {
-          try {
-            await deleteDoc(doc(db, "partnersCollection", partnerId, col, listing.id));
-          } catch (_) {}
-        }
-      }
-
-      // 4. Update local state
-      setListings((prev) => prev.filter((l) => l.id !== listing.id && l.__path !== listing.__path));
-
-      if (selectedListing?.id === listing.id || selectedListing?.__path === listing.__path) {
-        setListingEditorOpen(false);
-        setSelectedListing(null);
-      }
-
-      // 5. Audit log
-      await logActivity({
-        partnerId: partnerId || "unknown",
-        partnerName: listing.businessName || "Unnamed Business",
-        action: "LISTING_DELETED",
-        details: `Listing "${displayName}" (ID: ${listing.id}) was permanently deleted by admin: ${adminEmail}`,
-        category: "admin",
-        metadata: { adminEmail, listingId: listing.id, collection: listing.__col },
-      });
-
-      setSaveNotice(`Listing "${displayName}" deleted successfully.`);
-      setTimeout(() => setSaveNotice(""), 5000);
-    } catch (err: any) {
-      console.error("Error deleting listing:", err);
-      alert(err.message || "Failed to delete listing.");
-    }
-  };
-
   const saveListingEdits = async () => {
     if (!selectedListing) return;
     try {
@@ -2467,7 +2388,6 @@ export default function AdminDashboard() {
                 listingInsights={listingInsights}
                 onView={openListingEditor}
                 onSetStatus={setListingStatus}
-                onDelete={handleDeleteListing}
               />
             </div>
           )}
@@ -3165,15 +3085,6 @@ export default function AdminDashboard() {
 
             <div className="flex items-center gap-3 mt-2">
               <Button onClick={saveListingEdits} className="flex-1">Save Listing Changes</Button>
-              {selectedListing && (
-                <Button
-                  variant="outline"
-                  onClick={() => handleDeleteListing(selectedListing)}
-                  className="border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 hover:text-rose-700"
-                >
-                  <Trash2 className="w-4 h-4 mr-1.5" /> Delete Listing
-                </Button>
-              )}
             </div>
           </div>
         </SheetContent>
@@ -3904,13 +3815,11 @@ function ListingsList({
   listingInsights,
   onView,
   onSetStatus,
-  onDelete,
 }: {
   listings: ListingRecord[];
   listingInsights: Record<string, any>;
   onView: (listing: ListingRecord) => void;
   onSetStatus: (listing: ListingRecord, status: string, active: boolean) => void;
-  onDelete: (listing: ListingRecord) => void;
 }) {
   if (listings.length === 0) {
     return (
@@ -4001,13 +3910,6 @@ function ListingsList({
                           <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Reactivate listing
                         </DropdownMenuItem>
                       ) : null}
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => onDelete(listing)}
-                        className="text-rose-600 focus:text-rose-700 focus:bg-rose-50 cursor-pointer"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" /> Delete listing
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </TableCell>
