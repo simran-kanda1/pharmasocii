@@ -21,6 +21,7 @@ export interface AuditLogData {
     action: AuditLogAction;
     details: string;
     category: "account" | "billing" | "listing" | "admin" | "community";
+    performedBy?: "admin" | "partner" | "system";
     metadata?: any;
 }
 

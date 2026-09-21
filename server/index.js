@@ -1206,7 +1206,7 @@ function partnerIdFromPartnersPlanRef(ref) {
 /**
  * Log action to auditLogs collection
  */
-async function logAudit({ partnerId, action, details, category, metadata = {} }) {
+async function logAudit({ partnerId, action, details, category, performedBy = "system", metadata = {} }) {
     try {
         let partnerName = "Unknown Partner";
         if (partnerId) {
@@ -1222,10 +1222,11 @@ async function logAudit({ partnerId, action, details, category, metadata = {} })
             action,
             details,
             category,
-            metadata,
+            performedBy,
+            metadata: { performedBy, ...metadata },
             timestamp: admin.firestore.FieldValue.serverTimestamp()
         });
-        console.log(`[Audit] ${action} logged for ${partnerName}`);
+        console.log(`[Audit] ${action} logged for ${partnerName} by ${performedBy}`);
     } catch (err) {
         console.error("Error logging audit:", err.message);
     }

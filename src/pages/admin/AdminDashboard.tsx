@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertCircle,
+  AlertTriangle,
   BadgeCheck,
   Ban,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   ChevronDown,
   Check,
   X,
+  XCircle,
   Clock,
   Download,
   ExternalLink,
@@ -24,6 +27,7 @@ import {
   LogOut,
   MessageSquare,
   MoreVertical,
+  MoveHorizontal,
   Pencil,
   Plus,
   Receipt,
@@ -37,6 +41,7 @@ import {
   Users,
   Mail,
   Trash2,
+  Info,
 } from "lucide-react";
 import { db, auth, storage } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
@@ -148,7 +153,7 @@ type AdminTab =
   | "settings"
   | "transactions"
   | "audit";
-type ListingFilter = "all" | "pending" | "approved" | "disabled";
+type ListingFilter = "all" | "active" | "approved" | "cancelled" | "expired" | "incomplete_payment" | "payment_error" | "disabled" | "pending";
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
 type PartnerRecord = {
@@ -217,24 +222,20 @@ type AdminSettingsRecord = {
   logoUrl?: string;
 };
 
-const splitCsv = (value: string) =>
-  value
-    .split(",")
-    .map((v) => v.trim())
-    .filter(Boolean);
-
 function MultiSelectDropdown({
   label,
   items,
   selected,
   onToggle,
   placeholder,
+  disabled,
 }: {
   label: string;
   items: string[];
   selected: string[];
   onToggle: (v: string) => void;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -247,12 +248,16 @@ function MultiSelectDropdown({
 
   return (
     <div className="space-y-1 relative">
-      <p className="text-sm font-medium text-slate-700">{label}</p>
+      <p className={`text-sm font-medium ${disabled ? "text-slate-500" : "text-slate-700"}`}>{label}</p>
       
       {/* Selector Box */}
       <div
-        onClick={() => setOpen(!open)}
-        className="flex min-h-[40px] w-full items-center justify-between gap-2 flex-wrap rounded-md border border-slate-200 bg-white px-3 py-2 text-sm cursor-pointer hover:border-slate-300 transition-colors"
+        onClick={() => {
+          if (!disabled) setOpen(!open);
+        }}
+        className={`flex min-h-[40px] w-full items-center justify-between gap-2 flex-wrap rounded-md border border-slate-200 px-3 py-2 text-sm transition-colors ${
+          disabled ? "bg-slate-50 cursor-not-allowed text-slate-500" : "bg-white cursor-pointer hover:border-slate-300"
+        }`}
       >
         <div className="flex flex-wrap gap-1 items-center">
           {selected.length === 0 ? (
@@ -264,21 +269,23 @@ function MultiSelectDropdown({
                 className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-medium rounded border border-blue-100"
               >
                 {item}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onToggle(item);
-                  }}
-                  className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                </button>
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggle(item);
+                    }}
+                    className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
               </span>
             ))
           )}
         </div>
-        <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        {!disabled && <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />}
       </div>
 
       {/* Dropdown Menu */}
@@ -333,6 +340,7 @@ function CategoryTreeDropdown({
   selectedSubcategories = [],
   selectedSubSubcategories = [],
   onChange,
+  disabled,
 }: {
   selectedGroup: string;
   selectedCategories?: string[];
@@ -343,6 +351,7 @@ function CategoryTreeDropdown({
     selectedSubcategories: string[];
     selectedSubSubcategories: string[];
   }) => void;
+  disabled?: boolean;
 }) {
   const { getCategoriesForGroup } = useDirectoryCategories();
   const [open, setOpen] = useState(false);
@@ -456,8 +465,12 @@ function CategoryTreeDropdown({
 
       {/* Selector Box */}
       <div
-        onClick={() => setOpen(!open)}
-        className="flex min-h-[40px] w-full items-center justify-between gap-2 flex-wrap rounded-md border border-slate-200 bg-white px-3 py-2 text-sm cursor-pointer hover:border-slate-300 transition-colors"
+        onClick={() => {
+          if (!disabled) setOpen(!open);
+        }}
+        className={`flex min-h-[40px] w-full items-center justify-between gap-2 flex-wrap rounded-md border border-slate-200 px-3 py-2 text-sm transition-colors ${
+          disabled ? "bg-slate-50 cursor-not-allowed text-slate-500" : "bg-white cursor-pointer hover:border-slate-300"
+        }`}
       >
         <div className="flex flex-wrap gap-1 items-center">
           {!hasAnySelection ? (
@@ -470,16 +483,18 @@ function CategoryTreeDropdown({
                   className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded border border-blue-100 animate-fadeIn"
                 >
                   {c}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleCategorySelection(c, false);
-                    }}
-                    className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleCategorySelection(c, false);
+                      }}
+                      className="hover:bg-blue-100 rounded-full p-0.5 transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </span>
               ))}
               {selectedSubcategories.map((s) => {
@@ -491,17 +506,19 @@ function CategoryTreeDropdown({
                     className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-green-50 text-green-700 text-xs font-semibold rounded border border-green-100 animate-fadeIn"
                   >
                     {leaf}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (parts.length >= 2) toggleSubcategorySelection(parts[0], parts[1], false);
-                        else toggleSubcategorySelection("", s, false);
-                      }}
-                      className="hover:bg-green-100 rounded-full p-0.5 transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {!disabled && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (parts.length >= 2) toggleSubcategorySelection(parts[0], parts[1], false);
+                          else toggleSubcategorySelection("", s, false);
+                        }}
+                        className="hover:bg-green-100 rounded-full p-0.5 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </span>
                 );
               })}
@@ -514,24 +531,26 @@ function CategoryTreeDropdown({
                     className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-purple-50 text-purple-700 text-xs font-semibold rounded border border-purple-100 animate-fadeIn"
                   >
                     {leaf}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (parts.length >= 3) toggleSubSubcategorySelection(parts[0], parts[1], parts[2]);
-                        else toggleSubSubcategorySelection("", "", ss);
-                      }}
-                      className="hover:bg-purple-100 rounded-full p-0.5 transition-colors"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
+                    {!disabled && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (parts.length >= 3) toggleSubSubcategorySelection(parts[0], parts[1], parts[2]);
+                          else toggleSubSubcategorySelection("", "", ss);
+                        }}
+                        className="hover:bg-purple-100 rounded-full p-0.5 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
                   </span>
                 );
               })}
             </>
           )}
         </div>
-        <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+        {!disabled && <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />}
       </div>
 
       {/* Dropdown Menu */}
@@ -714,24 +733,291 @@ const formatAdminDate = (val: any) => {
   return `${day}-${month}-${year}`;
 };
 
+function parseTimestampMs(val: any): number | null {
+  if (!val) return null;
+  if (typeof val.toMillis === "function") return val.toMillis();
+  if (typeof val.toDate === "function") return val.toDate().getTime();
+  if (val.seconds != null) return val.seconds * 1000;
+  if (val instanceof Date) return isNaN(val.getTime()) ? null : val.getTime();
+  if (typeof val === "number") return val > 1e12 ? val : val * 1000;
+  if (typeof val === "string") {
+    const t = new Date(val).getTime();
+    return isNaN(t) ? null : t;
+  }
+  return null;
+}
+
+function getEffectiveListingStatus(listing: ListingRecord, insight?: any): string {
+  const plan = insight?.plan;
+
+  // 1. Incomplete Payment / Payment Error
+  const stripeStatus = String(plan?.stripeSubscriptionStatus || listing.stripeSubscriptionStatus || "").toLowerCase();
+  const isPaymentFailed = 
+    ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(stripeStatus) ||
+    listing.paymentStatus === "failed" ||
+    listing.paymentStatus === "past_due" ||
+    listing.status === "Incomplete Payment" ||
+    listing.status === "incomplete_payment" ||
+    listing.status === "Payment Error" ||
+    listing.status === "payment_error" ||
+    listing.status === "past_due" ||
+    Boolean(plan?.paymentError) ||
+    Boolean(plan?.paymentFailed) ||
+    String(plan?.status || "").toLowerCase() === "incomplete payment" ||
+    String(plan?.status || "").toLowerCase() === "incomplete_payment" ||
+    String(plan?.status || "").toLowerCase() === "payment_error" ||
+    String(plan?.status || "").toLowerCase() === "past_due" ||
+    Boolean(plan?.lastPaymentError);
+
+  if (isPaymentFailed) {
+    return "Incomplete Payment";
+  }
+
+  // 2. Cancelled
+  const isCancelled =
+    listing.status === "Cancelled" ||
+    listing.status === "Canceled" ||
+    stripeStatus === "canceled" ||
+    stripeStatus === "cancelled" ||
+    String(plan?.status || "").toLowerCase() === "cancelled" ||
+    String(plan?.status || "").toLowerCase() === "canceled" ||
+    Boolean(plan?.cancelAtPeriodEnd) ||
+    insight?.cancelledOn != null ||
+    plan?.cancelAt != null ||
+    plan?.canceledAt != null;
+
+  if (isCancelled) {
+    return "Cancelled";
+  }
+
+  // 3. Expired
+  const isExplicitExpired = 
+    listing.status === "Expired" || 
+    String(plan?.status || "").toLowerCase() === "expired";
+
+  const expiryMs = parseTimestampMs(insight?.expiryDate || plan?.billingPeriodEnd || listing.expiryDate);
+  const isDateExpired = expiryMs != null && expiryMs < Date.now();
+
+  if (isExplicitExpired || (isDateExpired && stripeStatus !== "active" && stripeStatus !== "trialing")) {
+    return "Expired";
+  }
+
+  // 4. Disabled / Inactive by admin
+  if (listing.status === "Disabled" || listing.active === false) {
+    return "Disabled";
+  }
+
+  // 5. Pending Review
+  if (listing.status === "Pending Review" || listing.status === "Pending") {
+    return "Pending Review";
+  }
+
+  // 6. Extended
+  if (listing.status === "Extended") {
+    return "Active";
+  }
+
+  // 7. Approved / Active
+  if (listing.status === "Approved" || listing.status === "Active" || listing.active === true) {
+    return "Active";
+  }
+
+  return listing.status || "Active";
+}
+
+function getEffectiveFeatureStatus(feature?: any, listing?: any): string {
+  const explicitStatus = listing?.featureStatus || feature?.status;
+
+  const hasFeature = Boolean(
+    feature ||
+    listing?.isFeatured ||
+    listing?.featureSpotlightPaidThrough ||
+    listing?.selectedAddon ||
+    listing?.featuredPlan ||
+    (listing?.featureStatus && listing.featureStatus !== "-")
+  );
+
+  if (!hasFeature) {
+    return "-";
+  }
+
+  // Check explicit admin or document status override first
+  if (explicitStatus) {
+    const norm = String(explicitStatus).trim().toLowerCase();
+    if (norm === "disabled") return "Disabled";
+    if (norm === "cancelled" || norm === "canceled") return "Cancelled";
+    if (norm === "expired") return "Expired";
+    if (norm === "incomplete payment" || norm === "incomplete_payment" || norm === "payment error" || norm === "payment_error") return "Incomplete Payment";
+    if (norm === "active" || norm === "approved") return "Active";
+  }
+
+  // 1. Incomplete Payment / Payment Error
+  const stripeStatus = String(feature?.stripeSubscriptionStatus || listing?.stripeSubscriptionStatus || "").toLowerCase();
+  const isPaymentFailed =
+    ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(stripeStatus) ||
+    feature?.paymentStatus === "failed" ||
+    feature?.paymentStatus === "past_due" ||
+    feature?.status === "Incomplete Payment" ||
+    feature?.status === "incomplete_payment" ||
+    feature?.status === "Payment Error" ||
+    feature?.status === "payment_error" ||
+    feature?.status === "past_due" ||
+    Boolean(feature?.paymentError) ||
+    Boolean(feature?.paymentFailed) ||
+    String(feature?.status || "").toLowerCase() === "incomplete payment" ||
+    String(feature?.status || "").toLowerCase() === "incomplete_payment" ||
+    String(feature?.status || "").toLowerCase() === "payment_error" ||
+    String(feature?.status || "").toLowerCase() === "past_due" ||
+    Boolean(feature?.lastPaymentError);
+
+  if (isPaymentFailed) {
+    return "Incomplete Payment";
+  }
+
+  // 2. Cancelled
+  const isCancelled =
+    feature?.status === "Cancelled" ||
+    feature?.status === "Canceled" ||
+    stripeStatus === "canceled" ||
+    stripeStatus === "cancelled" ||
+    String(feature?.status || "").toLowerCase() === "cancelled" ||
+    String(feature?.status || "").toLowerCase() === "canceled" ||
+    Boolean(feature?.cancelAtPeriodEnd) ||
+    feature?.cancelAt != null ||
+    feature?.canceledAt != null;
+
+  if (isCancelled) {
+    return "Cancelled";
+  }
+
+  // 3. Expired
+  const isExplicitExpired =
+    feature?.status === "Expired" ||
+    String(feature?.status || "").toLowerCase() === "expired";
+
+  const expiryMs = parseTimestampMs(feature?.accessThrough || feature?.billingPeriodEnd || listing?.featureSpotlightPaidThrough || feature?.expiryDate);
+  const isDateExpired = expiryMs != null && expiryMs < Date.now();
+
+  if (isExplicitExpired || (isDateExpired && stripeStatus !== "active" && stripeStatus !== "trialing")) {
+    return "Expired";
+  }
+
+  // 4. Disabled
+  if (feature?.status === "Disabled" || feature?.active === false || listing?.isFeatured === false) {
+    return "Disabled";
+  }
+
+  // 5. Active
+  if (feature?.active === true || feature?.status === "Active" || feature?.status === "active" || feature?.status === "succeeded" || listing?.isFeatured === true || (expiryMs != null && expiryMs > Date.now())) {
+    return "Active";
+  }
+
+  return feature?.status || "Active";
+}
+
 const getStatusBadge = (status?: string) => {
-  switch (status) {
-    case "Approved":
-      return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Approved</Badge>;
-    case "Pending Review":
+  const norm = String(status || "").trim().toLowerCase();
+  switch (norm) {
+    case "approved":
+    case "active":
+      return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Active</Badge>;
+    case "pending review":
+    case "pending":
       return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Pending Review</Badge>;
-    case "Disabled":
+    case "disabled":
       return <Badge className="bg-slate-200 text-slate-700 border-slate-300">Disabled</Badge>;
-    case "Cancelled":
+    case "cancelled":
+    case "canceled":
       return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Cancelled</Badge>;
-    case "Extended":
-      return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Extended</Badge>;
+    case "expired":
+      return <Badge className="bg-orange-50 text-orange-700 border-orange-200">Expired</Badge>;
+    case "incomplete payment":
+    case "incomplete_payment":
+    case "payment error":
+    case "payment_error":
+    case "past due":
+    case "past_due":
+    case "unpaid":
+      return <Badge className="bg-red-50 text-red-700 border-red-200">Incomplete Payment</Badge>;
+    case "extended":
+      return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Active</Badge>;
     default:
       return <Badge variant="outline">{status || "Unknown"}</Badge>;
   }
 };
 
+function formatUserPlan(planRaw?: string, planRecord?: any): string {
+  const candidate = (
+    planRaw ||
+    planRecord?.planName ||
+    planRecord?.planId ||
+    planRecord?.name ||
+    ""
+  ).trim();
 
+  if (!candidate || candidate === "-" || candidate.toLowerCase() === "none") {
+    return "-";
+  }
+
+  const lower = candidate.toLowerCase().replace(/_/g, " ");
+
+  // Determine interval / duration
+  let duration = "";
+  if (
+    lower.includes("yr") ||
+    lower.includes("year") ||
+    lower.includes("annual") ||
+    lower.includes("annually") ||
+    planRecord?.billingInterval === "year" ||
+    planRecord?.billingInterval === "yr" ||
+    planRecord?.interval === "year" ||
+    planRecord?.interval === "yr"
+  ) {
+    duration = "yr";
+  } else if (
+    lower.includes("mo") ||
+    lower.includes("month") ||
+    lower.includes("monthly") ||
+    lower.includes("job") ||
+    lower.includes("event") ||
+    planRecord?.billingInterval === "month" ||
+    planRecord?.billingInterval === "mo" ||
+    planRecord?.interval === "month" ||
+    planRecord?.interval === "mo"
+  ) {
+    duration = "mo";
+  } else {
+    // Default fallback interval for listings/plans if not specified
+    duration = "mo";
+  }
+
+  // Determine tier
+  let tier = "";
+  if (lower.includes("premium plus") || lower.includes("premiumplus")) {
+    tier = "premium plus";
+  } else if (lower.includes("premium") || lower.includes("prem")) {
+    tier = "premium";
+  } else if (lower.includes("standard") || lower.includes("std")) {
+    tier = "standard";
+  } else if (lower.includes("basic")) {
+    tier = "basic";
+  } else if (lower.includes("free")) {
+    return "free";
+  } else {
+    // Clean out known extraneous words (job, event, offering, dollar signs, amounts, parentheses, etc.)
+    const cleaned = lower
+      .replace(/\b(job|jobs|event|events|offering|offerings|consulting|service|services|business|listing|listings)\b/gi, "")
+      .replace(/\b(mo|month|monthly|yr|year|yearly|annual|annually)\b/gi, "")
+      .replace(/[\$\(\)\-\,\d\.\/]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+
+    tier = cleaned;
+  }
+
+  if (!tier) return duration || "-";
+  return `${tier} ${duration}`.trim();
+}
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -756,6 +1042,7 @@ export default function AdminDashboard() {
   const [partnerPlans, setPartnerPlans] = useState<PartnerPlanRecord[]>([]);
   const [featuredPlans, setFeaturedPlans] = useState<FeaturedPlanPurchase[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [partnerAdminFilter, setPartnerAdminFilter] = useState<"all" | "admin" | "non-admin">("all");
   const [listingSearchTerm, setListingSearchTerm] = useState("");
   const [listingFilter, setListingFilter] = useState<ListingFilter>("all");
   const [listingTypeFilter, setListingTypeFilter] = useState<string>("all");
@@ -770,6 +1057,7 @@ export default function AdminDashboard() {
   const [saveNotice, setSaveNotice] = useState("");
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditSearchTerm, setAuditSearchTerm] = useState("");
+  const [auditCategoryFilter, setAuditCategoryFilter] = useState<"all" | "partner" | "listing">("all");
   const [settingsData, setSettingsData] = useState<AdminSettingsRecord>({
     email: "",
     phone: "",
@@ -1093,94 +1381,112 @@ export default function AdminDashboard() {
 
   const savePartnerEdits = async () => {
     if (!selectedPartner) return;
+    const isPartnerAdminCreated = Boolean((selectedPartner as any)?.createdByAdmin);
     const pPrimaryName = (partnerEditor.primaryName || `${partnerEditor.firstName || ""} ${partnerEditor.lastName || ""}`).trim();
     const pPrimaryEmail = (partnerEditor.primaryEmail || "").trim();
     const pBusinessName = (partnerEditor.businessName || "").trim();
 
-    if (!pPrimaryName || !pPrimaryEmail || !pBusinessName) {
-      setSaveNotice("Required partner fields (Name, Primary Email, Business Name) cannot be empty.");
+    if (!pPrimaryName || !pBusinessName) {
+      setSaveNotice("Company Name and Contact Name cannot be empty.");
+      return;
+    }
+
+    if (isPartnerAdminCreated && !pPrimaryEmail) {
+      setSaveNotice("Primary Email cannot be empty.");
       return;
     }
 
     try {
-      const payload: Record<string, any> = {
-        // Primary Info
-        firstName: partnerEditor.firstName || "",
-        lastName: partnerEditor.lastName || "",
-        primaryName: pPrimaryName,
-        primaryEmail: pPrimaryEmail,
-        phoneNumber: partnerEditor.phoneNumber || "",
-        
-        // Company Info
-        businessName: partnerEditor.businessName || "",
-        companyName: partnerEditor.businessName || "", // sync companyName just in case
-        companyWebsite: partnerEditor.companyWebsite || "",
-        businessPhone: partnerEditor.businessPhone || "",
-        linkedinProfile: partnerEditor.linkedinProfile || "",
-        businessAddress: partnerEditor.businessAddress || "",
-        addressHtml: partnerEditor.businessAddress || "", // sync addressHtml
-        businessCountry: partnerEditor.businessCountry || "",
-        companyProfileText: partnerEditor.companyProfileText || "",
-        profileHtml: partnerEditor.companyProfileText || "", // sync profileHtml
-        
-        // Billing & Admin
-        partnerStatus: partnerEditor.partnerStatus || "Pending",
-        status: partnerEditor.partnerStatus || "Pending", // sync status
-        billingEmailAddress: partnerEditor.billingEmailAddress || "",
-        VAT_ABN_EIN_businessId: partnerEditor.VAT_ABN_EIN_businessId || "",
-        altContactName: partnerEditor.altContactName || "",
-        altEmail: partnerEditor.altEmail || "",
-        selectedGroup: partnerEditor.selectedGroup || "business_offerings",
-        selectedPlan: partnerEditor.selectedPlan || "none",
-        
-        // Taxonomy arrays
-        selectedCategories: partnerEditor.selectedCategories || [],
-        selectedSubcategories: partnerEditor.selectedSubcategories || [],
-        selectedSubSubcategories: partnerEditor.selectedSubSubcategories || [],
-        serviceCountries: partnerEditor.serviceCountries || [],
-        serviceRegions: partnerEditor.serviceRegions || [],
-        certifications: Array.from<string>(
-          new Set(
-            (partnerEditor.certifications || [])
-              .map((c: string) => c.trim().replace(/^other:\s*/i, ""))
-              .filter((c: string) => c && c !== "Others")
-          )
-        ).sort((a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })),
-        bioSafetyLevel: partnerEditor.bioSafetyLevel || [],
-      };
+      let payload: Record<string, any>;
 
-      // Conditionally add Event fields
-      if (partnerEditor.selectedGroup === "events") {
-        Object.assign(payload, {
-          eventName: partnerEditor.eventName || "",
-          eventLink: partnerEditor.eventLink || "",
-          startDate: partnerEditor.startDate || "",
-          endDate: partnerEditor.endDate || "",
-          eventCountry: partnerEditor.eventCountry || "",
-          stateRegion: partnerEditor.stateRegion || "",
-          city: partnerEditor.city || "",
-          location: partnerEditor.location || "",
-          eventProfile: partnerEditor.eventProfile || "",
-          agendaHighlights: partnerEditor.agendaHighlights || "",
-          agendaPdfUrl: partnerEditor.agendaPdfUrl || "",
-        });
-      }
+      if (!isPartnerAdminCreated) {
+        payload = {
+          businessName: pBusinessName,
+          companyName: pBusinessName,
+          primaryName: pPrimaryName,
+          ...(partnerEditor.firstName !== undefined ? { firstName: partnerEditor.firstName } : {}),
+          ...(partnerEditor.lastName !== undefined ? { lastName: partnerEditor.lastName } : {}),
+        };
+      } else {
+        payload = {
+          // Primary Info
+          firstName: partnerEditor.firstName || "",
+          lastName: partnerEditor.lastName || "",
+          primaryName: pPrimaryName,
+          primaryEmail: pPrimaryEmail,
+          phoneNumber: partnerEditor.phoneNumber || "",
+          
+          // Company Info
+          businessName: pBusinessName,
+          companyName: pBusinessName,
+          companyWebsite: partnerEditor.companyWebsite || "",
+          businessPhone: partnerEditor.businessPhone || "",
+          linkedinProfile: partnerEditor.linkedinProfile || "",
+          businessAddress: partnerEditor.businessAddress || "",
+          addressHtml: partnerEditor.businessAddress || "",
+          businessCountry: partnerEditor.businessCountry || "",
+          companyProfileText: partnerEditor.companyProfileText || "",
+          profileHtml: partnerEditor.companyProfileText || "",
+          
+          // Billing & Admin
+          partnerStatus: partnerEditor.partnerStatus || "Pending",
+          status: partnerEditor.partnerStatus || "Pending",
+          billingEmailAddress: partnerEditor.billingEmailAddress || "",
+          VAT_ABN_EIN_businessId: partnerEditor.VAT_ABN_EIN_businessId || "",
+          altContactName: partnerEditor.altContactName || "",
+          altEmail: partnerEditor.altEmail || "",
+          selectedGroup: partnerEditor.selectedGroup || "business_offerings",
+          selectedPlan: partnerEditor.selectedPlan || "none",
+          
+          // Taxonomy arrays
+          selectedCategories: partnerEditor.selectedCategories || [],
+          selectedSubcategories: partnerEditor.selectedSubcategories || [],
+          selectedSubSubcategories: partnerEditor.selectedSubSubcategories || [],
+          serviceCountries: partnerEditor.serviceCountries || [],
+          serviceRegions: partnerEditor.serviceRegions || [],
+          certifications: Array.from<string>(
+            new Set(
+              (partnerEditor.certifications || [])
+                .map((c: string) => c.trim().replace(/^other:\s*/i, ""))
+                .filter((c: string) => c && c !== "Others")
+            )
+          ).sort((a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })),
+          bioSafetyLevel: partnerEditor.bioSafetyLevel || [],
+        };
 
-      // Conditionally add Job fields
-      if (partnerEditor.selectedGroup === "jobs") {
-        Object.assign(payload, {
-          jobTitle: partnerEditor.jobTitle || "",
-          industry: partnerEditor.industry || "",
-          positionType: partnerEditor.positionType || "",
-          experienceLevel: partnerEditor.experienceLevel || "",
-          positionLink: partnerEditor.positionLink || "",
-          jobCountry: partnerEditor.jobCountry || "",
-          jobSummary: partnerEditor.jobSummary || "",
-          education: partnerEditor.education || "",
-          workModel: partnerEditor.workModel || "",
-          applicationDeadline: partnerEditor.applicationDeadline || "",
-          jobDescriptionPdfUrl: partnerEditor.jobDescriptionPdfUrl || "",
-        });
+        // Conditionally add Event fields
+        if (partnerEditor.selectedGroup === "events") {
+          Object.assign(payload, {
+            eventName: partnerEditor.eventName || "",
+            eventLink: partnerEditor.eventLink || "",
+            startDate: partnerEditor.startDate || "",
+            endDate: partnerEditor.endDate || "",
+            eventCountry: partnerEditor.eventCountry || "",
+            stateRegion: partnerEditor.stateRegion || "",
+            city: partnerEditor.city || "",
+            location: partnerEditor.location || "",
+            eventProfile: partnerEditor.eventProfile || "",
+            agendaHighlights: partnerEditor.agendaHighlights || "",
+            agendaPdfUrl: partnerEditor.agendaPdfUrl || "",
+          });
+        }
+
+        // Conditionally add Job fields
+        if (partnerEditor.selectedGroup === "jobs") {
+          Object.assign(payload, {
+            jobTitle: partnerEditor.jobTitle || "",
+            industry: partnerEditor.industry || "",
+            positionType: partnerEditor.positionType || "",
+            experienceLevel: partnerEditor.experienceLevel || "",
+            positionLink: partnerEditor.positionLink || "",
+            jobCountry: partnerEditor.jobCountry || "",
+            jobSummary: partnerEditor.jobSummary || "",
+            education: partnerEditor.education || "",
+            workModel: partnerEditor.workModel || "",
+            applicationDeadline: partnerEditor.applicationDeadline || "",
+            jobDescriptionPdfUrl: partnerEditor.jobDescriptionPdfUrl || "",
+          });
+        }
       }
 
       await updateDoc(doc(db, "partnersCollection", selectedPartner.id), payload);
@@ -1191,11 +1497,12 @@ export default function AdminDashboard() {
       // Log to Audit Trail
       await logActivity({
         partnerId: selectedPartner.id,
-        partnerName: payload.businessName || "Unnamed Business",
+        partnerName: payload.businessName || selectedPartner.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
-        details: `Profile updated by admin: ${payload.businessName} (Contact: ${payload.primaryName}). Admin: ${adminEmail}`,
+        details: `Profile updated by admin: ${payload.businessName || selectedPartner.businessName} (Contact: ${payload.primaryName || selectedPartner.primaryName}). Admin: ${adminEmail}`,
         category: "admin",
-        metadata: { adminEmail, updatedFields: payload }
+        performedBy: "admin",
+        metadata: { adminEmail, updatedFields: payload, performedBy: "admin" }
       });
 
       setSaveNotice("Partner profile updated.");
@@ -1207,7 +1514,7 @@ export default function AdminDashboard() {
   };
 
   const extendTrial = async (days: number) => {
-    if (!selectedPartner) return;
+    if (!selectedPartner || !(selectedPartner as any).createdByAdmin) return;
     try {
       const latestPlan = partnerPlans
         .filter((plan) => plan.partnerId === selectedPartner.id)
@@ -1286,7 +1593,8 @@ export default function AdminDashboard() {
         action: "ACCOUNT_UPDATED",
         details: `Trial extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`,
         category: "admin",
-        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd }
+        performedBy: "admin",
+        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd, performedBy: "admin" }
       });
 
     } catch (err: any) {
@@ -1296,7 +1604,7 @@ export default function AdminDashboard() {
   };
 
   const extendFeature = async (days: number) => {
-    if (!selectedPartner) return;
+    if (!selectedPartner || !(selectedPartner as any).createdByAdmin) return;
     try {
       const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
       if (featSnap.empty) {
@@ -1356,7 +1664,8 @@ export default function AdminDashboard() {
         action: "ACCOUNT_UPDATED",
         details: `Feature spotlight extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`,
         category: "admin",
-        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd }
+        performedBy: "admin",
+        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd, performedBy: "admin" }
       });
 
       setSaveNotice(`Feature spotlight extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()})`);
@@ -1368,7 +1677,7 @@ export default function AdminDashboard() {
   };
 
   const undoExtension = async () => {
-    if (!selectedPartner || lastTrialEndMs === null) return;
+    if (!selectedPartner || !(selectedPartner as any).createdByAdmin || lastTrialEndMs === null) return;
     try {
       const latestPlan = partnerPlans
         .filter((plan) => plan.partnerId === selectedPartner.id)
@@ -1407,7 +1716,8 @@ export default function AdminDashboard() {
         action: "ACCOUNT_UPDATED",
         details: `Trial extension undone. Expiry reverted to ${previousEnd.toLocaleDateString()}. Admin: ${adminEmail}`,
         category: "admin",
-        metadata: { adminEmail, revertedTo: previousEnd }
+        performedBy: "admin",
+        metadata: { adminEmail, revertedTo: previousEnd, performedBy: "admin" }
       });
 
       setLastTrialEndMs(null);
@@ -1418,7 +1728,7 @@ export default function AdminDashboard() {
   };
 
   const cancelTrial = async () => {
-    if (!selectedPartner) return;
+    if (!selectedPartner || !(selectedPartner as any).createdByAdmin) return;
     if (!window.confirm("Are you sure you want to cancel this partner's trial? Their plan will be deactivated immediately.")) return;
     try {
       const latestPlan = partnerPlans
@@ -1463,7 +1773,8 @@ export default function AdminDashboard() {
         action: "ACCOUNT_UPDATED",
         details: `Trial cancelled immediately by admin: ${adminEmail}`,
         category: "admin",
-        metadata: { adminEmail, cancelledAt: new Date() }
+        performedBy: "admin",
+        metadata: { adminEmail, cancelledAt: new Date(), performedBy: "admin" }
       });
 
       alert("Trial cancelled successfully.");
@@ -1488,7 +1799,8 @@ export default function AdminDashboard() {
         action: "ACCOUNT_UPDATED",
         details: `Partner status changed to "${status}" (Business: ${partner.businessName}). Updated by admin: ${adminEmail}`,
         category: "admin",
-        metadata: { adminEmail, newStatus: status }
+        performedBy: "admin",
+        metadata: { adminEmail, newStatus: status, performedBy: "admin" }
       });
 
       setSaveNotice(`Partner status set to ${status}.`);
@@ -1500,14 +1812,28 @@ export default function AdminDashboard() {
 
   const openListingEditor = (listing: ListingRecord) => {
     setSelectedListing(listing);
+
+    // Normalize status to one of: "Active", "Expired", "Cancelled", "Incomplete Payment"
+    const effective = getEffectiveListingStatus(listing, listingInsights[listing.id]);
+    let initialStatus = "Active";
+    if (effective === "Expired" || listing.status === "Expired") {
+      initialStatus = "Expired";
+    } else if (effective === "Cancelled" || listing.status === "Cancelled" || listing.status === "Canceled") {
+      initialStatus = "Cancelled";
+    } else if (effective === "Incomplete Payment" || effective === "Payment Error" || listing.status === "Incomplete Payment" || listing.status === "Payment Error" || listing.status === "past_due") {
+      initialStatus = "Incomplete Payment";
+    } else {
+      initialStatus = "Active";
+    }
+
     setListingEditor({
       // Core
       businessName: listing.businessName || "",
       companyWebsite: listing.companyWebsite || "",
       selectedPlan: listing.selectedPlan || "",
       selectedGroup: listing.selectedGroup || "",
-      status: listing.status || "Pending Review",
-      active: `${listing.active ?? true}`,
+      status: initialStatus,
+      active: `${initialStatus === "Active"}`,
       // Taxonomy
       selectedCategories: listing.selectedCategories || [],
       selectedSubcategories: listing.selectedSubcategories || [],
@@ -1565,16 +1891,16 @@ export default function AdminDashboard() {
       }
 
       // Log to Audit Trail
-      // Extract partnerId from path: partnersCollection/{partnerId}/{collectionName}/{listingId}
       const partnerId = listing.__path.split('/')[1];
 
       await logActivity({
         partnerId,
         partnerName: listing.businessName || "Unnamed Business",
         action: "LISTING_UPDATED",
-        details: `Listing status for "${listing.businessName}" set to "${status}" (Active: ${active}). Updated by admin: ${adminEmail}`,
-        category: "admin",
-        metadata: { adminEmail, status, active, listingId: listing.id }
+        details: `Listing status for "${listing.businessName || 'Listing'}" set to "${status}". Updated by admin: ${adminEmail}`,
+        category: "listing",
+        performedBy: "admin",
+        metadata: { adminEmail, status, active, listingId: listing.id, performedBy: "admin" }
       });
 
       setSaveNotice(`Listing updated: ${status}.`);
@@ -1584,65 +1910,55 @@ export default function AdminDashboard() {
     }
   };
 
+  const setFeatureStatus = async (listing: ListingRecord, status: string, active: boolean) => {
+    try {
+      const insight = listingInsights[listing.id];
+      const feature = insight?.feature;
+
+      if (feature && feature.partnerId) {
+        const featDocRef = doc(db, "partnersCollection", feature.partnerId, "featuresCollection", feature.id);
+        await updateDoc(featDocRef, { status, active });
+        setFeaturedPlans((prev) =>
+          prev.map((f) => (f.id === feature.id ? { ...f, status, active } : f))
+        );
+      }
+
+      if (listing.__path) {
+        await updateDoc(doc(db, listing.__path), {
+          isFeatured: active,
+          featureStatus: status,
+        });
+        setListings((prev) =>
+          prev.map((l) => (l.__path === listing.__path ? { ...l, isFeatured: active, featureStatus: status } : l))
+        );
+      }
+
+      const partnerId = listing.__path?.split("/")[1] || feature?.partnerId || "";
+      await logActivity({
+        partnerId,
+        partnerName: listing.businessName || "Unnamed Business",
+        action: "LISTING_UPDATED",
+        details: `Feature status for "${listing.businessName || 'Listing'}" set to "${status}". Updated by admin: ${adminEmail}`,
+        category: "listing",
+        performedBy: "admin",
+        metadata: { adminEmail, featureStatus: status, active, listingId: listing.id, performedBy: "admin" }
+      });
+
+      setSaveNotice(`Feature status updated: ${status}.`);
+    } catch (error) {
+      console.error(error);
+      setSaveNotice("Could not update feature status.");
+    }
+  };
+
   const saveListingEdits = async () => {
     if (!selectedListing) return;
     try {
-      const payload: Record<string, any> = {
-        // Core
-        businessName: listingEditor.businessName || "",
-        companyWebsite: listingEditor.companyWebsite || "",
-        selectedPlan: listingEditor.selectedPlan || "",
-        selectedGroup: listingEditor.selectedGroup || "",
-        status: listingEditor.status || "Pending Review",
-        active: listingEditor.active === "true",
-        // Taxonomy
-        selectedCategories: listingEditor.selectedCategories || [],
-        selectedSubcategories: listingEditor.selectedSubcategories || [],
-        selectedSubSubcategories: listingEditor.selectedSubSubcategories || [],
-        serviceCountries: listingEditor.serviceCountries || [],
-        serviceRegions: listingEditor.serviceRegions || [],
-        // Business/Consulting
-        companyProfileText: (listingEditor.companyProfileText || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
-        businessAddress: listingEditor.businessAddress || "",
-        businessCountry: listingEditor.businessCountry || "",
-        bioSafetyLevel: splitCsv(listingEditor.bioSafetyLevelCsv || ""),
-        certifications: Array.from(
-          new Set(
-            splitCsv(listingEditor.certificationsCsv || "")
-              .map((c: string) => c.trim().replace(/^other:\s*/i, ""))
-              .filter((c: string) => c && c !== "Others")
-          )
-        ).sort((a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: 'base', numeric: true })),
-        companyRepresentatives: (() => {
-          try { return listingEditor.companyRepresentativesJson ? JSON.parse(listingEditor.companyRepresentativesJson) : []; }
-          catch { return []; }
-        })(),
-        // Event fields
-        eventName: listingEditor.eventName || "",
-        eventLink: listingEditor.eventLink || "",
-        startDate: listingEditor.startDate || "",
-        endDate: listingEditor.endDate || "",
-        eventCountry: listingEditor.eventCountry || "",
-        stateRegion: listingEditor.stateRegion || listingEditor.jobStateRegion || "",
-        city: listingEditor.city || listingEditor.jobCity || "",
-        location: listingEditor.location || listingEditor.jobLocation || "",
-        eventProfile: listingEditor.eventProfile || "",
-        agendaHighlights: listingEditor.agendaHighlights || "",
-        agendaPdfUrl: listingEditor.agendaPdfUrl || "",
-        // Job fields
-        jobTitle: listingEditor.jobTitle || "",
-        industry: listingEditor.industry || "",
-        positionType: listingEditor.positionType || "",
-        experienceLevel: listingEditor.experienceLevel || "",
-        positionLink: listingEditor.positionLink || "",
-        jobCountry: listingEditor.jobCountry || "",
-        jobSummary: listingEditor.jobSummary || "",
-        education: listingEditor.education || "",
-        workModel: listingEditor.workModel || "",
-        applicationDeadline: listingEditor.applicationDeadline || "",
-        jobDescriptionPdfUrl: listingEditor.jobDescriptionPdfUrl || "",
-        companyWebsiteLink: listingEditor.companyWebsiteLink || "",
-        linkedInJob: listingEditor.linkedInJob || "",
+      const newStatus = listingEditor.status || "Active";
+      const newActive = newStatus === "Active";
+      const payload = {
+        status: newStatus,
+        active: newActive,
       };
 
       await updateDoc(doc(db, selectedListing.__path), payload);
@@ -1655,28 +1971,43 @@ export default function AdminDashboard() {
       const partnerId = selectedListing.__path.split('/')[1];
       await logActivity({
         partnerId,
-        partnerName: payload.businessName || "Unnamed Business",
+        partnerName: selectedListing.businessName || "Unnamed Business",
         action: "LISTING_UPDATED",
-        details: `Listing details for "${payload.businessName}" updated by admin (${adminEmail}).`,
-        category: "admin",
-        metadata: { adminEmail, listingId: selectedListing.id, updatedFields: payload }
+        details: `Listing status for "${selectedListing.businessName || 'Listing'}" updated to "${newStatus}" by admin (${adminEmail}).`,
+        category: "listing",
+        performedBy: "admin",
+        metadata: { adminEmail, listingId: selectedListing.id, status: newStatus, active: newActive, performedBy: "admin" }
       });
 
-      setSaveNotice("Listing updated.");
+      setSaveNotice(`Listing status updated to ${newStatus}.`);
+      setListingEditorOpen(false);
     } catch (error) {
       console.error(error);
-      setSaveNotice("Could not save listing changes.");
+      setSaveNotice("Could not save listing status.");
     }
   };
 
+  const adminPartnerCount = useMemo(() => partners.filter((p) => Boolean((p as any).createdByAdmin)).length, [partners]);
+  const nonAdminPartnerCount = useMemo(() => partners.filter((p) => !Boolean((p as any).createdByAdmin)).length, [partners]);
+
   const filteredPartners = useMemo(
     () =>
-      partners.filter(
-        (p) =>
-          p.businessName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          p.primaryEmail?.toLowerCase().includes(searchTerm.toLowerCase()),
-      ),
-    [partners, searchTerm],
+      partners.filter((p) => {
+        const q = searchTerm.toLowerCase().trim();
+        const matchesSearch =
+          !q ||
+          p.businessName?.toLowerCase().includes(q) ||
+          p.primaryEmail?.toLowerCase().includes(q) ||
+          p.primaryName?.toLowerCase().includes(q);
+
+        if (!matchesSearch) return false;
+
+        const isAdmin = Boolean((p as any).createdByAdmin);
+        if (partnerAdminFilter === "admin") return isAdmin;
+        if (partnerAdminFilter === "non-admin") return !isAdmin;
+        return true;
+      }),
+    [partners, searchTerm, partnerAdminFilter],
   );
 
   const typeFilteredListings = useMemo(() => {
@@ -1691,8 +2022,6 @@ export default function AdminDashboard() {
   }, [listings, listingTypeFilter]);
 
   const pendingListings = typeFilteredListings.filter((l) => l.status === "Pending Review");
-  const approvedListings = typeFilteredListings.filter((l) => l.status === "Approved");
-  const disabledListings = typeFilteredListings.filter((l) => l.status === "Disabled");
 
   const partnerInsights = useMemo(() => {
     const latestPlansByPartner = new Map<string, PartnerPlanRecord>();
@@ -1751,8 +2080,10 @@ export default function AdminDashboard() {
         }
       }
 
+      const rawPlan = latestPlan?.planName || latestPlan?.planId || (partner as any).selectedPlan || "-";
+
       acc[partner.id] = {
-        latestPlan: latestPlan?.planName || latestPlan?.planId || "-",
+        latestPlan: formatUserPlan(rawPlan, latestPlan),
         listingCount: listingCountByPartner.get(partner.id) || 0,
         featuredCount: featuredCountByPartner.get(partner.id) || 0,
         trialInfo,
@@ -1831,17 +2162,20 @@ export default function AdminDashboard() {
 
       const plan = plansByListing.get(listing.id) || (partnerId ? plansByPartner.get(partnerId) : undefined);
       const feature = featuresByListing.get(listing.id) || (partnerId ? featuresByPartner.get(partnerId) : undefined);
+      const featureStatus = getEffectiveFeatureStatus(feature, listing);
 
       acc[listing.id] = {
+        plan,
         subscribedOn: (plan as any)?.startDate || plan?.createdAt || null,
         upgradedOn: (plan as any)?.upgradedAt || null,
         cancelledOn: (plan as any)?.cancelAt || (plan as any)?.canceledAt || null,
         expiryDate: (plan as any)?.billingPeriodEnd || null,
-        isFeatured: listing.isFeatured || feature?.active || !!feature,
-        featurePlan: (feature as any)?.featureName || feature?.featureId || "-",
+        feature,
+        featureStatus,
+        isFeatured: featureStatus === "Active" || listing.isFeatured || feature?.active || false,
+        featurePlan: (feature as any)?.featureName || feature?.featureId || (listing as any)?.featuredPlan || (listing as any)?.selectedAddon || "-",
         featureDate: feature?.createdAt || listing.lastFeaturePaymentReceivedAt || (feature as any)?.lastPaymentReceived || null,
-        featureCancelDate: (feature as any)?.accessThrough || (feature as any)?.cancelAt || null,
-        resubmitted: "-",
+        featureCancelDate: (feature as any)?.accessThrough || (feature as any)?.cancelAt || listing.featureSpotlightPaidThrough || null,
       };
       return acc;
     }, {} as Record<string, any>);
@@ -2087,7 +2421,10 @@ export default function AdminDashboard() {
       "Email",
       "Phone",
       "Website",
-      "Address",
+      "Head Office Country",
+      "Profile Created Date",
+      "Profile Created Time",
+      "Created By Admin",
       "Status",
       "Latest Plan",
       "Listings",
@@ -2096,13 +2433,18 @@ export default function AdminDashboard() {
 
     const rows = filteredPartners.map((partner) => {
       const insight = partnerInsights[partner.id];
+      const created = formatPartnerCreatedAt(partner.createdAt || partner.created || partner.registeredAt);
+      const country = partner.businessCountry || partner.headOfficeCountry || partner.headquartersCountry || partner.country || "";
       return [
         partner.businessName || "",
         partner.primaryName || "",
         partner.primaryEmail || "",
         partner.phoneNumber || "",
         partner.companyWebsite || "",
-        partner.businessAddress || "",
+        country,
+        created.date !== "-" ? created.date : "",
+        created.time || "",
+        (partner as any).createdByAdmin ? "Yes" : "No",
         partner.partnerStatus || "",
         insight?.latestPlan || "-",
         `${insight?.listingCount || 0}`,
@@ -2163,11 +2505,40 @@ export default function AdminDashboard() {
     }
   };
 
+  const listingStatusCounts = useMemo(() => {
+    const counts = {
+      all: typeFilteredListings.length,
+      active: 0,
+      cancelled: 0,
+      expired: 0,
+      incomplete_payment: 0,
+      disabled: 0,
+      pending: 0,
+    };
+    typeFilteredListings.forEach((l) => {
+      const status = getEffectiveListingStatus(l, listingInsights[l.id]);
+      if (status === "Active" || status === "Approved") counts.active++;
+      else if (status === "Cancelled") counts.cancelled++;
+      else if (status === "Expired") counts.expired++;
+      else if (status === "Incomplete Payment" || status === "Payment Error") counts.incomplete_payment++;
+      else if (status === "Disabled") counts.disabled++;
+      else if (status === "Pending Review" || status === "Pending") counts.pending++;
+      else counts.active++;
+    });
+    return counts;
+  }, [typeFilteredListings, listingInsights]);
+
   const filteredListings = useMemo(() => {
     return typeFilteredListings.filter((l) => {
-      if (listingFilter === "pending" && l.status !== "Pending Review") return false;
-      if (listingFilter === "approved" && l.status !== "Approved") return false;
-      if (listingFilter === "disabled" && l.status !== "Disabled") return false;
+      const status = getEffectiveListingStatus(l, listingInsights[l.id]);
+      if (listingFilter === "pending" && status !== "Pending Review") return false;
+      if (listingFilter === "active" && status !== "Active") return false;
+      if (listingFilter === "approved" && status !== "Active") return false;
+      if (listingFilter === "disabled" && status !== "Disabled") return false;
+      if (listingFilter === "cancelled" && status !== "Cancelled") return false;
+      if (listingFilter === "expired" && status !== "Expired") return false;
+      if (listingFilter === "incomplete_payment" && status !== "Incomplete Payment") return false;
+      if (listingFilter === "payment_error" && status !== "Incomplete Payment") return false;
 
       if (!listingSearchTerm) return true;
 
@@ -2175,17 +2546,18 @@ export default function AdminDashboard() {
       return (
         l.businessName?.toLowerCase().includes(q) ||
         l.selectedCategories?.some((c) => c.toLowerCase().includes(q)) ||
-        l.selectedPlan?.toLowerCase().includes(q)
+        l.selectedPlan?.toLowerCase().includes(q) ||
+        status.toLowerCase().includes(q)
       );
     });
-  }, [listingFilter, listingSearchTerm, typeFilteredListings]);
+  }, [listingFilter, listingSearchTerm, typeFilteredListings, listingInsights]);
 
   const stats = {
     totalRevenue: transactions.reduce((acc, t) => acc + (t.amount || 0), 0),
     totalPartners: partners.length,
     pendingApprovals: partners.filter((p) => p.partnerStatus === "Pending").length,
-    pendingListings: pendingListings.length,
-    activeListings: approvedListings.length,
+    pendingListings: listingStatusCounts.pending,
+    activeListings: listingStatusCounts.active,
   };
 
   const activeTabLabelMap: Record<AdminTab, string> = {
@@ -2293,7 +2665,7 @@ export default function AdminDashboard() {
                 stats={stats}
                 transactions={transactions}
                 pendingListings={pendingListings}
-                onApproveListing={(listing: ListingRecord) => setListingStatus(listing, "Approved", true)}
+                onApproveListing={(listing: ListingRecord) => setListingStatus(listing, "Active", true)}
                 onViewListing={openListingEditor}
               />
               <VerificationMirrorsPanel />
@@ -2313,14 +2685,25 @@ export default function AdminDashboard() {
             ) : (
               <div className="space-y-4">
                 <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
-                  <div className="relative w-full md:w-96">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
-                      placeholder="Search partners by business or email..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                      className="pl-10 h-11 bg-white border-slate-200"
-                    />
+                  <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                    <div className="relative w-full md:w-80">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Input
+                        placeholder="Search partners by business or email..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10 h-11 bg-white border-slate-200"
+                      />
+                    </div>
+                    <select
+                      value={partnerAdminFilter}
+                      onChange={(e) => setPartnerAdminFilter(e.target.value as any)}
+                      className="flex h-11 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-w-[190px] text-slate-700 font-medium"
+                    >
+                      <option value="all">All Accounts ({partners.length})</option>
+                      <option value="admin">Created by Admin ({adminPartnerCount})</option>
+                      <option value="non-admin">Self-Registered / User ({nonAdminPartnerCount})</option>
+                    </select>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={() => exportPartners("csv")}>
@@ -2370,16 +2753,32 @@ export default function AdminDashboard() {
                   </select>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Button variant={listingFilter === "all" ? "default" : "outline"} onClick={() => setListingFilter("all")}>
-                    All ({typeFilteredListings.length})
+                    All ({listingStatusCounts.all})
                   </Button>
-                  <Button variant={listingFilter === "approved" ? "default" : "outline"} onClick={() => setListingFilter("approved")}>
-                    <CheckCircle2 className="w-4 h-4 mr-2" /> Approved ({approvedListings.length})
+                  <Button variant={listingFilter === "active" || listingFilter === "approved" ? "default" : "outline"} onClick={() => setListingFilter("active")}>
+                    <CheckCircle2 className="w-4 h-4 mr-2" /> Active ({listingStatusCounts.active})
                   </Button>
-                  <Button variant={listingFilter === "disabled" ? "default" : "outline"} onClick={() => setListingFilter("disabled")}>
-                    <Ban className="w-4 h-4 mr-2" /> Disabled ({disabledListings.length})
+                  <Button variant={listingFilter === "expired" ? "default" : "outline"} onClick={() => setListingFilter("expired")}>
+                    <Clock className="w-4 h-4 mr-2" /> Expired ({listingStatusCounts.expired})
                   </Button>
+                  <Button variant={listingFilter === "cancelled" ? "default" : "outline"} onClick={() => setListingFilter("cancelled")}>
+                    <XCircle className="w-4 h-4 mr-2" /> Cancelled ({listingStatusCounts.cancelled})
+                  </Button>
+                  <Button variant={listingFilter === "incomplete_payment" || listingFilter === "payment_error" ? "default" : "outline"} onClick={() => setListingFilter("incomplete_payment")}>
+                    <AlertTriangle className="w-4 h-4 mr-2" /> Incomplete Payment ({listingStatusCounts.incomplete_payment})
+                  </Button>
+                  {listingStatusCounts.disabled > 0 && (
+                    <Button variant={listingFilter === "disabled" ? "default" : "outline"} onClick={() => setListingFilter("disabled")}>
+                      <Ban className="w-4 h-4 mr-2" /> Disabled ({listingStatusCounts.disabled})
+                    </Button>
+                  )}
+                  {listingStatusCounts.pending > 0 && (
+                    <Button variant={listingFilter === "pending" ? "default" : "outline"} onClick={() => setListingFilter("pending")}>
+                      <Clock className="w-4 h-4 mr-2" /> Pending ({listingStatusCounts.pending})
+                    </Button>
+                  )}
                 </div>
               </div>
 
@@ -2388,6 +2787,7 @@ export default function AdminDashboard() {
                 listingInsights={listingInsights}
                 onView={openListingEditor}
                 onSetStatus={setListingStatus}
+                onSetFeatureStatus={setFeatureStatus}
               />
             </div>
           )}
@@ -2596,17 +2996,60 @@ export default function AdminDashboard() {
 
           {activeTab === "audit" && (
             <div className="space-y-4">
-              <div className="relative w-full md:w-96">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <Input
-                  placeholder="Search audit logs by company name..."
-                  value={auditSearchTerm}
-                  onChange={(e) => setAuditSearchTerm(e.target.value)}
-                  className="pl-10 h-11 bg-white border-slate-200"
-                />
+              <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
+                <div className="relative w-full md:w-96">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Input
+                    placeholder="Search audit logs by company name or ID..."
+                    value={auditSearchTerm}
+                    onChange={(e) => setAuditSearchTerm(e.target.value)}
+                    className="pl-10 h-11 bg-white border-slate-200"
+                  />
+                </div>
+                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                  <button
+                    type="button"
+                    onClick={() => setAuditCategoryFilter("all")}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      auditCategoryFilter === "all"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    All Logs
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuditCategoryFilter("partner")}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      auditCategoryFilter === "partner"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Partner Accounts
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuditCategoryFilter("listing")}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      auditCategoryFilter === "listing"
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Listings & Payments
+                  </button>
+                </div>
               </div>
               <AuditLogList
                 logs={auditLogs.filter(log => {
+                  if (auditCategoryFilter === "partner" && !isPartnerAccountLog(log)) {
+                    return false;
+                  }
+                  if (auditCategoryFilter === "listing" && !isListingOrBillingLog(log)) {
+                    return false;
+                  }
                   if (!auditSearchTerm) return true;
                   const q = auditSearchTerm.toLowerCase();
                   return (
@@ -2635,6 +3078,7 @@ export default function AdminDashboard() {
               className="flex items-center gap-2"
               onClick={() => {
                 setActiveTab("audit");
+                setAuditCategoryFilter("partner");
                 setAuditSearchTerm(selectedPartner?.id || "");
                 setPartnerEditorOpen(false);
               }}
@@ -2644,15 +3088,35 @@ export default function AdminDashboard() {
             </Button>
           </SheetHeader>
           <div className="mt-6 space-y-6">
+            {selectedPartner && !Boolean((selectedPartner as any).createdByAdmin) && (
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2">
+                <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-semibold">Self-Registered Partner Account</span>
+                  <p className="text-amber-700 mt-0.5">Only the Company Name and Primary Contact Name are editable by admins. Other profile fields are managed directly by the user.</p>
+                </div>
+              </div>
+            )}
+
             {/* Section 1: Account Status & Plan */}
             <div className="border-b pb-2 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Account Status & Plan</h3>
             </div>
 
-            <Field label="Selected Group (business_offerings, consulting, events, jobs)" value={partnerEditor.selectedGroup || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, selectedGroup: v }))} />
-            <Field label="Selected Plan" value={partnerEditor.selectedPlan || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, selectedPlan: v }))} />
+            <Field 
+              label="Selected Group (business_offerings, consulting, events, jobs)" 
+              value={partnerEditor.selectedGroup || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, selectedGroup: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
+            <Field 
+              label="Selected Plan" 
+              value={partnerEditor.selectedPlan || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, selectedPlan: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
 
-            {selectedPartner && partnerInsights[selectedPartner.id]?.trialInfo && (() => {
+            {selectedPartner && Boolean((selectedPartner as any).createdByAdmin) && partnerInsights[selectedPartner.id]?.trialInfo && (() => {
               // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
               const trial = partnerInsights[selectedPartner.id].trialInfo!;
               return (
@@ -2722,7 +3186,7 @@ export default function AdminDashboard() {
               );
             })()}
 
-            {selectedPartner && (() => {
+            {selectedPartner && Boolean((selectedPartner as any).createdByAdmin) && (() => {
               const partnerFeature = featuredPlans.find((f) => f.partnerId === selectedPartner.id);
               if (!partnerFeature && !selectedPartner.selectedAddon) return null;
               const accessDate = partnerFeature?.accessThrough ? new Date(typeof (partnerFeature.accessThrough as any).toDate === 'function' ? (partnerFeature.accessThrough as any).toDate() : partnerFeature.accessThrough) : null;
@@ -2787,32 +3251,64 @@ export default function AdminDashboard() {
               <Field label="Last Name" value={partnerEditor.lastName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, lastName: v }))} />
             </div>
             <Field label="Primary Contact Name" value={partnerEditor.primaryName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryName: v }))} />
-            <Field label="Primary Email" value={partnerEditor.primaryEmail || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryEmail: v }))} />
-            <Field label="Phone Number" value={partnerEditor.phoneNumber || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, phoneNumber: v }))} />
+            <Field 
+              label="Primary Email" 
+              value={partnerEditor.primaryEmail || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryEmail: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
+            <Field 
+              label="Phone Number" 
+              value={partnerEditor.phoneNumber || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, phoneNumber: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
 
             {/* Section 3: Company Details */}
             <div className="border-b pb-2 pt-4 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Company Details</h3>
             </div>
-            <Field label="Business Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} />
-            <Field label="Company Website" value={partnerEditor.companyWebsite || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, companyWebsite: v }))} />
-            <Field label="Business Phone" value={partnerEditor.businessPhone || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessPhone: v }))} />
-            <Field label="LinkedIn Profile" value={partnerEditor.linkedinProfile || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, linkedinProfile: v }))} />
-            <Field label="Business Country" value={partnerEditor.businessCountry || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessCountry: v }))} />
+            <Field label="Business / Company Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} />
+            <Field 
+              label="Company Website" 
+              value={partnerEditor.companyWebsite || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, companyWebsite: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
+            <Field 
+              label="Business Phone" 
+              value={partnerEditor.businessPhone || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessPhone: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
+            <Field 
+              label="LinkedIn Profile" 
+              value={partnerEditor.linkedinProfile || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, linkedinProfile: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
+            <Field 
+              label="Business Country" 
+              value={partnerEditor.businessCountry || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessCountry: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
             <div className="space-y-1">
-              <p className="text-sm font-medium">Business Address</p>
+              <p className={`text-sm font-medium ${!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "text-slate-500" : "text-slate-700"}`}>Business Address</p>
               <Textarea
                 value={partnerEditor.businessAddress || ""}
                 onChange={(e) => setPartnerEditor((prev) => ({ ...prev, businessAddress: e.target.value }))}
-                className="min-h-20"
+                disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                className={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : "min-h-20"}
               />
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium">Company Profile Description</p>
+              <p className={`text-sm font-medium ${!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "text-slate-500" : "text-slate-700"}`}>Company Profile Description</p>
               <Textarea
                 value={partnerEditor.companyProfileText || ""}
                 onChange={(e) => setPartnerEditor((prev) => ({ ...prev, companyProfileText: e.target.value }))}
-                className="min-h-20"
+                disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                className={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : "min-h-20"}
               />
             </div>
 
@@ -2820,10 +3316,30 @@ export default function AdminDashboard() {
             <div className="border-b pb-2 pt-4 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Billing & Registration</h3>
             </div>
-            <Field label="Billing Email Address" value={partnerEditor.billingEmailAddress || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, billingEmailAddress: v }))} />
-            <Field label="VAT / ABN / EIN / Business ID" value={partnerEditor.VAT_ABN_EIN_businessId || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, VAT_ABN_EIN_businessId: v }))} />
-            <Field label="Alternate Contact Name" value={partnerEditor.altContactName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, altContactName: v }))} />
-            <Field label="Alternate Contact Email" value={partnerEditor.altEmail || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, altEmail: v }))} />
+            <Field 
+              label="Billing Email Address" 
+              value={partnerEditor.billingEmailAddress || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, billingEmailAddress: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
+            <Field 
+              label="VAT / ABN / EIN / Business ID" 
+              value={partnerEditor.VAT_ABN_EIN_businessId || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, VAT_ABN_EIN_businessId: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
+            <Field 
+              label="Alternate Contact Name" 
+              value={partnerEditor.altContactName || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, altContactName: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
+            <Field 
+              label="Alternate Contact Email" 
+              value={partnerEditor.altEmail || ""} 
+              onChange={(v) => setPartnerEditor((prev) => ({ ...prev, altEmail: v }))} 
+              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+            />
 
             {/* Section 5: Event Specific Details */}
             {partnerEditor.selectedGroup === "events" && (
@@ -2831,33 +3347,80 @@ export default function AdminDashboard() {
                 <div className="border-b pb-2 pt-4 mb-2">
                   <h3 className="font-semibold text-slate-900 text-sm">Event Details</h3>
                 </div>
-                <Field label="Event Name" value={partnerEditor.eventName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, eventName: v }))} />
-                <Field label="Event Link" value={partnerEditor.eventLink || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, eventLink: v }))} />
+                <Field 
+                  label="Event Name" 
+                  value={partnerEditor.eventName || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, eventName: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Event Link" 
+                  value={partnerEditor.eventLink || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, eventLink: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
                 <div className="grid grid-cols-2 gap-4">
-                  <Field label="Start Date" value={partnerEditor.startDate || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, startDate: v }))} />
-                  <Field label="End Date" value={partnerEditor.endDate || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, endDate: v }))} />
+                  <Field 
+                    label="Start Date" 
+                    value={partnerEditor.startDate || ""} 
+                    onChange={(v) => setPartnerEditor((prev) => ({ ...prev, startDate: v }))} 
+                    disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                  />
+                  <Field 
+                    label="End Date" 
+                    value={partnerEditor.endDate || ""} 
+                    onChange={(v) => setPartnerEditor((prev) => ({ ...prev, endDate: v }))} 
+                    disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                  />
                 </div>
-                <Field label="Event Country" value={partnerEditor.eventCountry || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, eventCountry: v }))} />
-                <Field label="State / Region" value={partnerEditor.stateRegion || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, stateRegion: v }))} />
-                <Field label="City" value={partnerEditor.city || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, city: v }))} />
-                <Field label="Location" value={partnerEditor.location || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, location: v }))} />
+                <Field 
+                  label="Event Country" 
+                  value={partnerEditor.eventCountry || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, eventCountry: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="State / Region" 
+                  value={partnerEditor.stateRegion || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, stateRegion: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="City" 
+                  value={partnerEditor.city || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, city: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Location" 
+                  value={partnerEditor.location || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, location: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">Event Profile</p>
+                  <p className={`text-sm font-medium ${!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "text-slate-500" : "text-slate-700"}`}>Event Profile</p>
                   <Textarea
                     value={partnerEditor.eventProfile || ""}
                     onChange={(e) => setPartnerEditor((prev) => ({ ...prev, eventProfile: e.target.value }))}
-                    className="min-h-20"
+                    disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                    className={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : "min-h-20"}
                   />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">Agenda Highlights</p>
+                  <p className={`text-sm font-medium ${!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "text-slate-500" : "text-slate-700"}`}>Agenda Highlights</p>
                   <Textarea
                     value={partnerEditor.agendaHighlights || ""}
                     onChange={(e) => setPartnerEditor((prev) => ({ ...prev, agendaHighlights: e.target.value }))}
-                    className="min-h-20"
+                    disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                    className={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : "min-h-20"}
                   />
                 </div>
-                <Field label="Agenda PDF URL" value={partnerEditor.agendaPdfUrl || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, agendaPdfUrl: v }))} />
+                <Field 
+                  label="Agenda PDF URL" 
+                  value={partnerEditor.agendaPdfUrl || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, agendaPdfUrl: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
               </>
             )}
 
@@ -2867,33 +3430,99 @@ export default function AdminDashboard() {
                 <div className="border-b pb-2 pt-4 mb-2">
                   <h3 className="font-semibold text-slate-900 text-sm">Job Details</h3>
                 </div>
-                <Field label="Job Title" value={partnerEditor.jobTitle || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobTitle: v }))} />
-                <Field label="Industry" value={partnerEditor.industry || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, industry: v }))} />
-                <Field label="Position Type" value={partnerEditor.positionType || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, positionType: v }))} />
-                <Field label="Experience Level" value={partnerEditor.experienceLevel || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, experienceLevel: v }))} />
-                <Field label="Position Link" value={partnerEditor.positionLink || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, positionLink: v }))} />
-                <Field label="Job Country" value={partnerEditor.jobCountry || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobCountry: v }))} />
-                <Field label="State / Region" value={partnerEditor.stateRegion || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, stateRegion: v }))} />
-                <Field label="City" value={partnerEditor.city || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, city: v }))} />
-                <Field label="Location" value={partnerEditor.location || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, location: v }))} />
+                <Field 
+                  label="Job Title" 
+                  value={partnerEditor.jobTitle || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobTitle: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Industry" 
+                  value={partnerEditor.industry || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, industry: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Position Type" 
+                  value={partnerEditor.positionType || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, positionType: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Experience Level" 
+                  value={partnerEditor.experienceLevel || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, experienceLevel: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Position Link" 
+                  value={partnerEditor.positionLink || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, positionLink: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Job Country" 
+                  value={partnerEditor.jobCountry || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobCountry: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="State / Region" 
+                  value={partnerEditor.stateRegion || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, stateRegion: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="City" 
+                  value={partnerEditor.city || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, city: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Location" 
+                  value={partnerEditor.location || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, location: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
                 <div className="space-y-1">
-                  <p className="text-sm font-medium">Job Summary</p>
+                  <p className={`text-sm font-medium ${!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "text-slate-500" : "text-slate-700"}`}>Job Summary</p>
                   <Textarea
                     value={partnerEditor.jobSummary || ""}
                     onChange={(e) => setPartnerEditor((prev) => ({ ...prev, jobSummary: e.target.value }))}
-                    className="min-h-20"
+                    disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                    className={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : "min-h-20"}
                   />
                 </div>
-                <Field label="Education Required" value={partnerEditor.education || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, education: v }))} />
-                <Field label="Work Model" value={partnerEditor.workModel || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, workModel: v }))} />
-                <Field label="Application Deadline" value={partnerEditor.applicationDeadline || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, applicationDeadline: v }))} />
-                <Field label="Job Description PDF URL" value={partnerEditor.jobDescriptionPdfUrl || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobDescriptionPdfUrl: v }))} />
+                <Field 
+                  label="Education Required" 
+                  value={partnerEditor.education || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, education: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Work Model" 
+                  value={partnerEditor.workModel || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, workModel: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Application Deadline" 
+                  value={partnerEditor.applicationDeadline || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, applicationDeadline: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
+                <Field 
+                  label="Job Description PDF URL" 
+                  value={partnerEditor.jobDescriptionPdfUrl || ""} 
+                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobDescriptionPdfUrl: v }))} 
+                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                />
               </>
             )}
 
             <Button 
               onClick={savePartnerEdits} 
-              disabled={!((partnerEditor.primaryName?.trim() || (partnerEditor.firstName?.trim() && partnerEditor.lastName?.trim())) && partnerEditor.primaryEmail?.trim() && partnerEditor.businessName?.trim())} 
+              disabled={!((partnerEditor.primaryName?.trim() || (partnerEditor.firstName?.trim() && partnerEditor.lastName?.trim())) && partnerEditor.businessName?.trim())} 
               className="w-full"
             >
               Save Partner Changes
@@ -2915,176 +3544,237 @@ export default function AdminDashboard() {
               className="flex items-center gap-2"
               onClick={() => {
                 if (selectedListing) {
-                  const pId = selectedListing.__path.split('/')[1];
+                  const pId = selectedListing.__path?.split('/')[1] || selectedListing.partnerId || "";
                   setActiveTab("audit");
-                  setAuditSearchTerm(pId);
+                  setAuditCategoryFilter("listing");
+                  setAuditSearchTerm(pId || selectedListing.businessName || "");
                   setListingEditorOpen(false);
                 }
               }}
             >
               <History className="w-4 h-4" />
-              View Profile History
+              View Listing History
             </Button>
           </SheetHeader>
           <div className="mt-6 space-y-6 pb-6">
+            {(() => {
+              const col = selectedListing?.__col || "";
+              const grp = (listingEditor.selectedGroup || selectedListing?.selectedGroup || "").toLowerCase();
+              const isEvent = col === "eventsCollection" || grp === "events" || grp === "event";
+              const isJob = col === "jobsCollection" || grp === "jobs" || grp === "job";
+              const isConsulting = col === "consultingServicesCollection" || col === "consultingCollection" || grp === "consulting" || grp === "consulting_services";
+              const isBusinessOffering = col === "businessOfferingsCollection" || grp === "business_offerings" || (!isEvent && !isJob && !isConsulting);
+              const isBusinessOrConsulting = isBusinessOffering || isConsulting;
 
-            {/* Section 1: Listing Status & Plan */}
-            <div className="border-b pb-2 mb-2">
-              <h3 className="font-semibold text-slate-900 text-sm">Listing Status & Plan</h3>
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-slate-700">Status</p>
-              <select
-                value={listingEditor.status || ""}
-                onChange={(e) => setListingEditor((prev) => ({ ...prev, status: e.target.value }))}
-                className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="Approved">Approved</option>
-                <option value="Cancelled">Cancelled</option>
-                <option value="Extended">Extended</option>
-                <option value="Disabled">Disabled</option>
-              </select>
-            </div>
-            <Field label="Active (true or false)" value={listingEditor.active || "true"} onChange={(v) => setListingEditor((prev) => ({ ...prev, active: v }))} />
-            <Field label="Plan" value={listingEditor.selectedPlan || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedPlan: v }))} />
-            <Field label="Selected Group (business_offerings, consulting, events, jobs)" value={listingEditor.selectedGroup || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, selectedGroup: v }))} />
+              const categoryGroup = isEvent ? "events" : isJob ? "jobs" : isConsulting ? "consulting" : "business_offerings";
+              const typeLabel = isEvent ? "Event" : isJob ? "Job" : isConsulting ? "Consulting Service" : "Business Offering";
 
-            {/* Section 2: Core Info */}
-            <div className="border-b pb-2 pt-2 mb-2">
-              <h3 className="font-semibold text-slate-900 text-sm">Core Information</h3>
-            </div>
-            <Field label="Business Name" value={listingEditor.businessName || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, businessName: v }))} />
-            <Field label="Company Website" value={listingEditor.companyWebsite || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, companyWebsite: v }))} />
-            <Field label="Business Country" value={listingEditor.businessCountry || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, businessCountry: v }))} />
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Business Address</p>
-              <Textarea value={listingEditor.businessAddress || ""} onChange={(e) => setListingEditor((prev) => ({ ...prev, businessAddress: e.target.value }))} className="min-h-16" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Company Profile</p>
-              <Textarea
-                value={listingEditor.companyProfileText || ""}
-                onChange={(e) => setListingEditor((prev) => ({ ...prev, companyProfileText: e.target.value }))}
-                maxLength={COMPANY_PROFILE_MAX_LENGTH}
-                className="min-h-24"
-              />
-              <p className={`text-xs text-right ${(listingEditor.companyProfileText || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-slate-500'}`}>{(listingEditor.companyProfileText || "").length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
-            </div>
+              return (
+                <>
+                  {/* Section 1: Listing Status & Plan */}
+                  <div className="border-b pb-2 mb-2">
+                    <h3 className="font-semibold text-slate-900 text-sm">Listing Status & Plan</h3>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-medium text-slate-700">Status</p>
+                    <select
+                      value={listingEditor.status || "Active"}
+                      onChange={(e) => {
+                        const newStatus = e.target.value;
+                        setListingEditor((prev) => ({ 
+                          ...prev, 
+                          status: newStatus,
+                          active: `${newStatus === "Active"}` 
+                        }));
+                      }}
+                      className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
+                    >
+                      <option value="Active">Active</option>
+                      <option value="Expired">Expired</option>
+                      <option value="Cancelled">Cancelled</option>
+                      <option value="Incomplete Payment">Incomplete Payment</option>
+                    </select>
+                  </div>
+                  <Field label="Active (true or false)" value={listingEditor.active || "true"} onChange={() => {}} disabled={true} />
+                  <Field label="Plan" value={listingEditor.selectedPlan || ""} onChange={() => {}} disabled={true} />
+                  <Field label="Listing Type" value={typeLabel} onChange={() => {}} disabled={true} />
+                  <Field 
+                    label="Feature Status" 
+                    value={selectedListing ? (listingInsights[selectedListing.id]?.featureStatus || "None") : "None"} 
+                    onChange={() => {}} 
+                    disabled={true} 
+                  />
+                  <Field 
+                    label="Feature Plan" 
+                    value={selectedListing ? (listingInsights[selectedListing.id]?.featurePlan || "-") : "-"} 
+                    onChange={() => {}} 
+                    disabled={true} 
+                  />
 
-            {/* Section 3: Categories & Geography */}
-            <div className="border-b pb-2 pt-2 mb-2">
-              <h3 className="font-semibold text-slate-900 text-sm">Categories & Geography</h3>
-            </div>
-            <CategoryTreeDropdown
-              selectedGroup={listingEditor.selectedGroup || "business_offerings"}
-              selectedCategories={listingEditor.selectedCategories || []}
-              selectedSubcategories={listingEditor.selectedSubcategories || []}
-              selectedSubSubcategories={listingEditor.selectedSubSubcategories || []}
-              onChange={(updates) => {
-                setListingEditor((prev) => ({
-                  ...prev,
-                  ...updates,
-                }));
-              }}
-            />
-            <MultiSelectDropdown
-              label="Service Countries"
-              items={SERVICE_COUNTRIES}
-              selected={listingEditor.serviceCountries || []}
-              onToggle={(v) => {
-                const current = listingEditor.serviceCountries || [];
-                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
-                setListingEditor((prev) => ({ ...prev, serviceCountries: updated }));
-              }}
-              placeholder="Select countries..."
-            />
-            <MultiSelectDropdown
-              label="Service Regions"
-              items={SERVICE_REGIONS}
-              selected={listingEditor.serviceRegions || []}
-              onToggle={(v) => {
-                const current = listingEditor.serviceRegions || [];
-                const updated = current.includes(v) ? current.filter((x: string) => x !== v) : [...current, v];
-                setListingEditor((prev) => ({ ...prev, serviceRegions: updated }));
-              }}
-              placeholder="Select regions..."
-            />
+                  {/* Section 2: Core Info */}
+                  <div className="border-b pb-2 pt-2 mb-2">
+                    <h3 className="font-semibold text-slate-900 text-sm">Core Information</h3>
+                  </div>
+                  <Field 
+                    label={isJob ? "Company / Employer Name" : isEvent ? "Organizer / Business Name" : "Business Name"} 
+                    value={listingEditor.businessName || ""} 
+                    onChange={() => {}} 
+                    disabled={true} 
+                  />
+                  <Field label="Company Website" value={listingEditor.companyWebsite || ""} onChange={() => {}} disabled={true} />
+                  
+                  {isBusinessOrConsulting && (
+                    <>
+                      <Field label="Business Country" value={listingEditor.businessCountry || ""} onChange={() => {}} disabled={true} />
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-slate-500">Business Address</p>
+                        <Textarea value={listingEditor.businessAddress || ""} disabled={true} className="min-h-16 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-slate-500">Company Profile</p>
+                        <Textarea
+                          value={listingEditor.companyProfileText || ""}
+                          disabled={true}
+                          className="min-h-24 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed"
+                        />
+                        <p className="text-xs text-right text-slate-400">{(listingEditor.companyProfileText || "").length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
+                      </div>
+                    </>
+                  )}
 
-            {/* Section 4: Business Offering / Consulting specific */}
-            <div className="border-b pb-2 pt-2 mb-2">
-              <h3 className="font-semibold text-slate-900 text-sm">Business Offering / Consulting</h3>
-            </div>
-            <Field label="Bio Safety Level (BSL) (comma separated, e.g. 1,2,3)" value={listingEditor.bioSafetyLevelCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, bioSafetyLevelCsv: v }))} />
-            <Field label="Certifications (comma separated, e.g. GMP,ISO 9001)" value={listingEditor.certificationsCsv || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, certificationsCsv: v }))} />
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Company Representatives (JSON)</p>
-              <Textarea
-                value={listingEditor.companyRepresentativesJson || ""}
-                onChange={(e) => setListingEditor((prev) => ({ ...prev, companyRepresentativesJson: e.target.value }))}
-                className="min-h-24 font-mono text-xs"
-                placeholder='[{"firstName":"","lastName":"","email":""}]'
-              />
-            </div>
+                  {/* Section 3: Categories & Geography */}
+                  <div className="border-b pb-2 pt-2 mb-2">
+                    <h3 className="font-semibold text-slate-900 text-sm">Categories & Geography</h3>
+                  </div>
+                  <CategoryTreeDropdown
+                    selectedGroup={categoryGroup}
+                    selectedCategories={listingEditor.selectedCategories || []}
+                    selectedSubcategories={listingEditor.selectedSubcategories || []}
+                    selectedSubSubcategories={listingEditor.selectedSubSubcategories || []}
+                    onChange={() => {}}
+                    disabled={true}
+                  />
+                  {isBusinessOrConsulting && (
+                    <>
+                      <MultiSelectDropdown
+                        label="Service Countries"
+                        items={SERVICE_COUNTRIES}
+                        selected={listingEditor.serviceCountries || []}
+                        onToggle={() => {}}
+                        placeholder="Select countries..."
+                        disabled={true}
+                      />
+                      <MultiSelectDropdown
+                        label="Service Regions"
+                        items={SERVICE_REGIONS}
+                        selected={listingEditor.serviceRegions || []}
+                        onToggle={() => {}}
+                        placeholder="Select regions..."
+                        disabled={true}
+                      />
+                    </>
+                  )}
 
-            {/* Section 5: Event Fields */}
-            <div className="border-b pb-2 pt-2 mb-2">
-              <h3 className="font-semibold text-slate-900 text-sm">Event Fields</h3>
-            </div>
-            <Field label="Event Name" value={listingEditor.eventName || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, eventName: v }))} />
-            <Field label="Event Link / Sign-up URL" value={listingEditor.eventLink || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, eventLink: v }))} />
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Start Date" value={listingEditor.startDate || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, startDate: v }))} />
-              <Field label="End Date" value={listingEditor.endDate || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, endDate: v }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Event Country" value={listingEditor.eventCountry || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, eventCountry: v }))} />
-              <Field label="State / Region" value={listingEditor.stateRegion || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, stateRegion: v }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="City" value={listingEditor.city || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, city: v }))} />
-              <Field label="Location / Venue" value={listingEditor.location || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, location: v }))} />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Event Profile</p>
-              <Textarea value={listingEditor.eventProfile || ""} onChange={(e) => setListingEditor((prev) => ({ ...prev, eventProfile: e.target.value }))} className="min-h-20" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Agenda Highlights</p>
-              <Textarea value={listingEditor.agendaHighlights || ""} onChange={(e) => setListingEditor((prev) => ({ ...prev, agendaHighlights: e.target.value }))} className="min-h-16" />
-            </div>
-            <Field label="Agenda PDF URL" value={listingEditor.agendaPdfUrl || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, agendaPdfUrl: v }))} />
+                  {/* Section 4: Business Offering / Consulting specific */}
+                  {isBusinessOrConsulting && (
+                    <>
+                      <div className="border-b pb-2 pt-2 mb-2">
+                        <h3 className="font-semibold text-slate-900 text-sm">{isConsulting ? "Consulting Service Details" : "Business Offering Details"}</h3>
+                      </div>
+                      <Field label="Bio Safety Level (BSL) (comma separated, e.g. 1,2,3)" value={listingEditor.bioSafetyLevelCsv || ""} onChange={() => {}} disabled={true} />
+                      <Field label="Certifications (comma separated, e.g. GMP,ISO 9001)" value={listingEditor.certificationsCsv || ""} onChange={() => {}} disabled={true} />
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-slate-500">Company Representatives (JSON)</p>
+                        <Textarea
+                          value={listingEditor.companyRepresentativesJson || ""}
+                          disabled={true}
+                          className="min-h-24 font-mono text-xs bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed"
+                          placeholder='[{"firstName":"","lastName":"","email":""}]'
+                        />
+                      </div>
+                    </>
+                  )}
 
-            {/* Section 6: Job Fields */}
-            <div className="border-b pb-2 pt-2 mb-2">
-              <h3 className="font-semibold text-slate-900 text-sm">Job Fields</h3>
-            </div>
-            <Field label="Job Title" value={listingEditor.jobTitle || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, jobTitle: v }))} />
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Industry" value={listingEditor.industry || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, industry: v }))} />
-              <Field label="Position Type" value={listingEditor.positionType || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, positionType: v }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Experience Level" value={listingEditor.experienceLevel || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, experienceLevel: v }))} />
-              <Field label="Work Model" value={listingEditor.workModel || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, workModel: v }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Job Country" value={listingEditor.jobCountry || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, jobCountry: v }))} />
-              <Field label="Education" value={listingEditor.education || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, education: v }))} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Field label="Application Deadline" value={listingEditor.applicationDeadline || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, applicationDeadline: v }))} />
-              <Field label="Apply Link" value={listingEditor.positionLink || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, positionLink: v }))} />
-            </div>
-            <Field label="Company Website Link (Job)" value={listingEditor.companyWebsiteLink || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, companyWebsiteLink: v }))} />
-            <Field label="LinkedIn Job URL" value={listingEditor.linkedInJob || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, linkedInJob: v }))} />
-            <Field label="Job Description PDF URL" value={listingEditor.jobDescriptionPdfUrl || ""} onChange={(v) => setListingEditor((prev) => ({ ...prev, jobDescriptionPdfUrl: v }))} />
-            <div className="space-y-1">
-              <p className="text-sm font-medium">Job Summary</p>
-              <Textarea value={listingEditor.jobSummary || ""} onChange={(e) => setListingEditor((prev) => ({ ...prev, jobSummary: e.target.value }))} className="min-h-20" />
-            </div>
+                  {/* Section 5: Event Fields */}
+                  {isEvent && (
+                    <>
+                      <div className="border-b pb-2 pt-2 mb-2">
+                        <h3 className="font-semibold text-slate-900 text-sm">Event Details</h3>
+                      </div>
+                      <Field label="Event Name" value={listingEditor.eventName || ""} onChange={() => {}} disabled={true} />
+                      <Field label="Event Link / Sign-up URL" value={listingEditor.eventLink || ""} onChange={() => {}} disabled={true} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Start Date" value={listingEditor.startDate || ""} onChange={() => {}} disabled={true} />
+                        <Field label="End Date" value={listingEditor.endDate || ""} onChange={() => {}} disabled={true} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Event Country" value={listingEditor.eventCountry || ""} onChange={() => {}} disabled={true} />
+                        <Field label="State / Region" value={listingEditor.stateRegion || ""} onChange={() => {}} disabled={true} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="City" value={listingEditor.city || ""} onChange={() => {}} disabled={true} />
+                        <Field label="Location / Venue" value={listingEditor.location || ""} onChange={() => {}} disabled={true} />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-slate-500">Event Profile</p>
+                        <Textarea value={listingEditor.eventProfile || ""} disabled={true} className="min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" />
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-slate-500">Agenda Highlights</p>
+                        <Textarea value={listingEditor.agendaHighlights || ""} disabled={true} className="min-h-16 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" />
+                      </div>
+                      <Field label="Agenda PDF URL" value={listingEditor.agendaPdfUrl || ""} onChange={() => {}} disabled={true} />
+                    </>
+                  )}
+
+                  {/* Section 6: Job Fields */}
+                  {isJob && (
+                    <>
+                      <div className="border-b pb-2 pt-2 mb-2">
+                        <h3 className="font-semibold text-slate-900 text-sm">Job Details</h3>
+                      </div>
+                      <Field label="Job Title" value={listingEditor.jobTitle || ""} onChange={() => {}} disabled={true} />
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Industry" value={listingEditor.industry || ""} onChange={() => {}} disabled={true} />
+                        <Field label="Position Type" value={listingEditor.positionType || ""} onChange={() => {}} disabled={true} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Experience Level" value={listingEditor.experienceLevel || ""} onChange={() => {}} disabled={true} />
+                        <Field label="Work Model" value={listingEditor.workModel || ""} onChange={() => {}} disabled={true} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Job Country" value={listingEditor.jobCountry || ""} onChange={() => {}} disabled={true} />
+                        <Field label="Education" value={listingEditor.education || ""} onChange={() => {}} disabled={true} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <Field label="Application Deadline" value={listingEditor.applicationDeadline || ""} onChange={() => {}} disabled={true} />
+                        <Field label="Apply Link" value={listingEditor.positionLink || ""} onChange={() => {}} disabled={true} />
+                      </div>
+                      <Field label="Company Website Link (Job)" value={listingEditor.companyWebsiteLink || ""} onChange={() => {}} disabled={true} />
+                      <Field label="LinkedIn Job URL" value={listingEditor.linkedInJob || ""} onChange={() => {}} disabled={true} />
+                      <Field label="Job Description PDF URL" value={listingEditor.jobDescriptionPdfUrl || ""} onChange={() => {}} disabled={true} />
+                      <div className="space-y-1">
+                        <p className="text-sm font-medium text-slate-500">Job Summary</p>
+                        <Textarea value={listingEditor.jobSummary || ""} disabled={true} className="min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" />
+                      </div>
+                      {listingEditor.companyRepresentativesJson && (
+                        <div className="space-y-1">
+                          <p className="text-sm font-medium text-slate-500">Company Representatives (JSON)</p>
+                          <Textarea
+                            value={listingEditor.companyRepresentativesJson}
+                            disabled={true}
+                            className="min-h-24 font-mono text-xs bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed"
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
 
             <div className="flex items-center gap-3 mt-2">
-              <Button onClick={saveListingEdits} className="flex-1">Save Listing Changes</Button>
+              <Button onClick={saveListingEdits} className="w-full">Save Status Change</Button>
             </div>
           </div>
         </SheetContent>
@@ -3238,6 +3928,40 @@ function OverviewTab({
   );
 }
 
+function formatPartnerCreatedAt(raw: any) {
+  if (!raw) return { date: "-", time: "" };
+  let dateObj: Date | null = null;
+  if (typeof raw.toDate === "function") {
+    dateObj = raw.toDate();
+  } else if (raw.seconds != null) {
+    dateObj = new Date(raw.seconds * 1000);
+  } else if (raw instanceof Date) {
+    dateObj = raw;
+  } else if (typeof raw === "string" || typeof raw === "number") {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) {
+      dateObj = d;
+    }
+  }
+
+  if (!dateObj || isNaN(dateObj.getTime())) {
+    return { date: "-", time: "" };
+  }
+
+  const dateStr = dateObj.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
+  const timeStr = dateObj.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
+
+  return { date: dateStr, time: timeStr };
+}
+
 function PartnerList({
   partners,
   partnerInsights,
@@ -3282,7 +4006,7 @@ function PartnerList({
                 <TableHead className="pl-4 pr-2 py-3 text-xs">Business</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Email</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Phone</TableHead>
-
+                <TableHead className="px-2 py-3 text-xs">Profile Created</TableHead>
                 <TableHead className="px-2 py-3 text-xs">User Plan</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Listings</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Featured</TableHead>
@@ -3295,6 +4019,7 @@ function PartnerList({
               {partners.map((partner) => {
                 const insight = partnerInsights[partner.id];
                 const trial = insight?.trialInfo;
+                const created = formatPartnerCreatedAt(partner.createdAt || partner.created || partner.registeredAt);
 
                 let trialBadge = null;
                 if (trial) {
@@ -3336,6 +4061,16 @@ function PartnerList({
                     <TableCell className="px-2 py-2 text-sm max-w-[110px] truncate" title={partner.phoneNumber || ""}>
                       {partner.phoneNumber || "-"}
                     </TableCell>
+                    <TableCell className="px-2 py-2 whitespace-nowrap">
+                      {created.date !== "-" ? (
+                        <div>
+                          <p className="text-xs font-medium text-slate-800">{created.date}</p>
+                          <p className="text-[11px] text-slate-500">{created.time}</p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">-</span>
+                      )}
+                    </TableCell>
 
                     <TableCell className="px-2 py-2">
                       <div className="flex flex-col gap-1">
@@ -3348,11 +4083,11 @@ function PartnerList({
                     <TableCell className="px-2 py-2 text-sm text-center">{insight?.listingCount || 0}</TableCell>
                     <TableCell className="px-2 py-2 text-sm text-center">{insight?.featuredCount || 0}</TableCell>
                     <TableCell className="px-2 py-2">
-                      <p className="text-sm max-w-[110px] truncate" title={partner.primaryName || ""}>
+                      <p className="text-sm max-w-[110px] truncate font-medium text-slate-800" title={partner.primaryName || ""}>
                         {partner.primaryName || "-"}
                       </p>
-                      <p className="text-xs text-slate-500 max-w-[130px] truncate" title={partner.businessAddress || ""}>
-                        {partner.businessAddress || "-"}
+                      <p className="text-xs text-slate-500 max-w-[130px] truncate" title={partner.businessCountry || partner.headOfficeCountry || partner.headquartersCountry || partner.country || ""}>
+                        {partner.businessCountry || partner.headOfficeCountry || partner.headquartersCountry || partner.country || "-"}
                       </p>
                     </TableCell>
                     <TableCell className="px-2 py-2 text-sm text-center">
@@ -3554,9 +4289,7 @@ function FeaturedPlansTab({
                     <TableCell className="pl-6">{purchase.partnerName}</TableCell>
                     <TableCell>{purchase.featureName || purchase.featureId || "-"}</TableCell>
                     <TableCell>
-                      <Badge className={purchase.active === false ? "bg-slate-200 text-slate-700 border-slate-300" : "bg-emerald-50 text-emerald-700 border-emerald-200"}>
-                        {purchase.active === false ? "Inactive" : "Active"}
-                      </Badge>
+                      {getStatusBadge(getEffectiveFeatureStatus(purchase))}
                     </TableCell>
                     <TableCell className="pr-6 text-slate-500">
                       {purchase.createdAt?.seconds
@@ -3815,12 +4548,79 @@ function ListingsList({
   listingInsights,
   onView,
   onSetStatus,
+  onSetFeatureStatus,
 }: {
   listings: ListingRecord[];
   listingInsights: Record<string, any>;
   onView: (listing: ListingRecord) => void;
   onSetStatus: (listing: ListingRecord, status: string, active: boolean) => void;
+  onSetFeatureStatus?: (listing: ListingRecord, status: string, active: boolean) => void;
 }) {
+  const topScrollRef = useRef<HTMLDivElement>(null);
+  const tableScrollRef = useRef<HTMLDivElement>(null);
+  const [contentWidth, setContentWidth] = useState<number>(0);
+  const [canScroll, setCanScroll] = useState<boolean>(false);
+  const [scrollLeft, setScrollLeft] = useState<number>(0);
+  const [maxScrollLeft, setMaxScrollLeft] = useState<number>(0);
+  const isSyncingTop = useRef<boolean>(false);
+  const isSyncingBottom = useRef<boolean>(false);
+
+  const updateScrollDimensions = useCallback(() => {
+    if (tableScrollRef.current) {
+      const sw = tableScrollRef.current.scrollWidth;
+      const cw = tableScrollRef.current.clientWidth;
+      setContentWidth(sw);
+      setCanScroll(sw > cw + 5);
+      setMaxScrollLeft(Math.max(0, sw - cw));
+      setScrollLeft(tableScrollRef.current.scrollLeft);
+    }
+  }, []);
+
+  useEffect(() => {
+    updateScrollDimensions();
+    const el = tableScrollRef.current;
+    if (!el) return;
+
+    const ro = new ResizeObserver(() => {
+      updateScrollDimensions();
+    });
+    ro.observe(el);
+
+    window.addEventListener("resize", updateScrollDimensions);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateScrollDimensions);
+    };
+  }, [updateScrollDimensions, listings]);
+
+  const handleTopScroll = () => {
+    if (topScrollRef.current && tableScrollRef.current && !isSyncingBottom.current) {
+      isSyncingTop.current = true;
+      tableScrollRef.current.scrollLeft = topScrollRef.current.scrollLeft;
+      setScrollLeft(topScrollRef.current.scrollLeft);
+      requestAnimationFrame(() => {
+        isSyncingTop.current = false;
+      });
+    }
+  };
+
+  const handleTableScroll = () => {
+    if (topScrollRef.current && tableScrollRef.current && !isSyncingTop.current) {
+      isSyncingBottom.current = true;
+      topScrollRef.current.scrollLeft = tableScrollRef.current.scrollLeft;
+      setScrollLeft(tableScrollRef.current.scrollLeft);
+      requestAnimationFrame(() => {
+        isSyncingBottom.current = false;
+      });
+    }
+  };
+
+  const scrollTable = (offset: number) => {
+    if (tableScrollRef.current) {
+      tableScrollRef.current.scrollBy({ left: offset, behavior: "smooth" });
+    }
+  };
+
   if (listings.length === 0) {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
@@ -3832,9 +4632,62 @@ function ListingsList({
   }
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
+    <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+      {/* Top Horizontal Scroll Bar & Navigation */}
+      {canScroll && (
+        <div className="bg-slate-50 border-b border-slate-200 px-4 py-2.5 flex flex-col gap-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-700">
+              <span className="inline-flex items-center justify-center p-1 rounded bg-slate-200 text-slate-700">
+                <MoveHorizontal className="w-3.5 h-3.5" />
+              </span>
+              <span className="font-semibold">Table Scroll (14 columns)</span>
+              <span className="text-slate-400 font-normal">|</span>
+              <span className="text-slate-500 font-normal hidden sm:inline">
+                Drag the top scrollbar or use the buttons to navigate columns
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => scrollTable(-350)}
+                disabled={scrollLeft <= 5}
+                className="h-7 px-2.5 text-xs bg-white hover:bg-slate-100 text-slate-700 font-medium"
+              >
+                <ChevronLeft className="w-3.5 h-3.5 mr-1" /> Scroll Left
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => scrollTable(350)}
+                disabled={scrollLeft >= maxScrollLeft - 5}
+                className="h-7 px-2.5 text-xs bg-white hover:bg-slate-100 text-slate-700 font-medium"
+              >
+                Scroll Right <ChevronRight className="w-3.5 h-3.5 ml-1" />
+              </Button>
+            </div>
+          </div>
+          {/* Synchronized top scrollbar track */}
+          <div
+            ref={topScrollRef}
+            onScroll={handleTopScroll}
+            className="overflow-x-auto overflow-y-hidden h-3 w-full rounded bg-slate-200/70 custom-top-scrollbar"
+            title="Scroll horizontally to view all columns"
+          >
+            <div style={{ width: `${contentWidth}px`, height: "1px" }} />
+          </div>
+        </div>
+      )}
+
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
+        <div
+          ref={tableScrollRef}
+          onScroll={handleTableScroll}
+          className="overflow-x-auto admin-table-scrollbar"
+        >
           <Table className="min-w-max">
             <TableHeader>
               <TableRow>
@@ -3847,74 +4700,99 @@ function ListingsList({
                 <TableHead>Upgraded On</TableHead>
                 <TableHead>Expiry Date</TableHead>
                 <TableHead>Cancelled On</TableHead>
-                <TableHead>Is Featured</TableHead>
+                <TableHead>Feature Status</TableHead>
                 <TableHead>Feature Plan</TableHead>
                 <TableHead>Feature Date</TableHead>
                 <TableHead>Feature Cancel Date</TableHead>
-                <TableHead>Resubmitted</TableHead>
                 <TableHead className="text-right pr-6 sticky right-0 bg-white shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">Actions</TableHead>
               </TableRow>
             </TableHeader>
           <TableBody>
-            {listings.map((listing) => (
-              <TableRow key={listing.__path}>
-                <TableCell className="pl-6">
-                  <p className="font-medium">{listing.businessName || "Unnamed"}</p>
-                  <p className="text-xs text-slate-500">{listing.companyWebsite || "-"}</p>
-                </TableCell>
-                <TableCell>
-                  <Badge variant="outline">{getCollectionLabel(listing.__col)}</Badge>
-                </TableCell>
-                <TableCell>{listing.selectedPlan?.replace(/_/g, " ") || "-"}</TableCell>
-                <TableCell>{getStatusBadge(listing.status)}</TableCell>
-                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listing.createdAt)}</TableCell>
-                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.subscribedOn)}</TableCell>
-                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.upgradedOn)}</TableCell>
-                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.expiryDate)}</TableCell>
-                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.cancelledOn)}</TableCell>
-                <TableCell className="text-slate-500 text-sm">
-                  {listingInsights[listing.id]?.isFeatured ? (
-                    <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Yes</Badge>
-                  ) : (
-                    <Badge className="bg-slate-50 text-slate-500 border-slate-200">No</Badge>
-                  )}
-                </TableCell>
-                <TableCell className="text-slate-500 text-sm">{listingInsights[listing.id]?.featurePlan || "-"}</TableCell>
-                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.featureDate)}</TableCell>
-                <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.featureCancelDate)}</TableCell>
-                <TableCell className="text-slate-500 text-sm">{listingInsights[listing.id]?.resubmitted || "-"}</TableCell>
-                <TableCell className="text-right pr-6 sticky right-0 bg-white shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="min-w-[210px]">
-                      <DropdownMenuLabel>Listing Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => onView(listing)}>
-                        <Eye className="w-4 h-4 mr-2" /> View / Edit listing
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => onSetStatus(listing, "Approved", true)}>
-                        <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Approve listing
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onSetStatus(listing, "Pending Review", false)}>
-                        <Clock className="w-4 h-4 mr-2 text-amber-600" /> Unapprove (pending review)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => onSetStatus(listing, "Disabled", false)}>
-                        <Ban className="w-4 h-4 mr-2 text-rose-600" /> Deactivate listing
-                      </DropdownMenuItem>
-                      {listing.status === "Disabled" || listing.active === false ? (
-                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Approved", true)}>
-                          <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Reactivate listing
+            {listings.map((listing) => {
+              const effectiveStatus = getEffectiveListingStatus(listing, listingInsights[listing.id]);
+              return (
+                <TableRow key={listing.__path}>
+                  <TableCell className="pl-6">
+                    <p className="font-medium">{listing.businessName || "Unnamed"}</p>
+                    <p className="text-xs text-slate-500">{listing.companyWebsite || "-"}</p>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline">{getCollectionLabel(listing.__col)}</Badge>
+                  </TableCell>
+                  <TableCell>{formatUserPlan(listing.selectedPlan, listingInsights[listing.id]?.plan)}</TableCell>
+                  <TableCell>{getStatusBadge(effectiveStatus)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listing.createdAt)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.subscribedOn)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.upgradedOn)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.expiryDate)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.cancelledOn)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm whitespace-nowrap">
+                    {listingInsights[listing.id]?.featureStatus && listingInsights[listing.id]?.featureStatus !== "-" ? (
+                      getStatusBadge(listingInsights[listing.id]?.featureStatus)
+                    ) : (
+                      <span className="text-slate-400 text-xs font-mono">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-slate-500 text-sm">{listingInsights[listing.id]?.featurePlan || "-"}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.featureDate)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.featureCancelDate)}</TableCell>
+                  <TableCell className="text-right pr-6 sticky right-0 bg-white shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="min-w-[220px]">
+                        <DropdownMenuLabel>Listing Actions</DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => onView(listing)}>
+                          <Eye className="w-4 h-4 mr-2" /> View Listing
                         </DropdownMenuItem>
-                      ) : null}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </TableCell>
-              </TableRow>
-            ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuLabel className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold py-1">
+                          Listing Status
+                        </DropdownMenuLabel>
+                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Active", true)}>
+                          <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Set to Active
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Expired", false)}>
+                          <Clock className="w-4 h-4 mr-2 text-orange-600" /> Set to Expired
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Cancelled", false)}>
+                          <XCircle className="w-4 h-4 mr-2 text-rose-600" /> Set to Cancelled
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Incomplete Payment", false)}>
+                          <AlertTriangle className="w-4 h-4 mr-2 text-red-600" /> Set to Incomplete Payment
+                        </DropdownMenuItem>
+                        {onSetFeatureStatus && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuLabel className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold py-1">
+                              Feature Status
+                            </DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Active", true)}>
+                              <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Set Feature: Active
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Expired", false)}>
+                              <Clock className="w-4 h-4 mr-2 text-orange-600" /> Set Feature: Expired
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Cancelled", false)}>
+                              <XCircle className="w-4 h-4 mr-2 text-rose-600" /> Set Feature: Cancelled
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Incomplete Payment", false)}>
+                              <AlertTriangle className="w-4 h-4 mr-2 text-red-600" /> Set Feature: Incomplete Payment
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Disabled", false)}>
+                              <Ban className="w-4 h-4 mr-2 text-slate-600" /> Set Feature: Disabled
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
         </div>
@@ -4024,7 +4902,7 @@ function TransactionList({ transactions }: { transactions: any[] }) {
       ) : (
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardContent className="p-0">
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto admin-table-scrollbar">
               <Table className="min-w-max">
                 <TableHeader>
                   <TableRow>
@@ -4093,17 +4971,121 @@ function Field({
   label,
   value,
   onChange,
+  disabled,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="space-y-1">
-      <p className="text-sm font-medium">{label}</p>
-      <Input value={value} onChange={(e) => onChange(e.target.value)} />
+      <p className={`text-sm font-medium ${disabled ? "text-slate-500" : "text-slate-700"}`}>{label}</p>
+      <Input 
+        value={value} 
+        onChange={(e) => onChange(e.target.value)} 
+        disabled={disabled}
+        className={disabled ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : ""}
+      />
     </div>
   );
+}
+
+function isPartnerAccountLog(log: any): boolean {
+  const action = (log.action || "").toUpperCase();
+  const category = (log.category || "").toLowerCase();
+
+  // Explicit exclusions: payment, billing, subscription, or listing actions
+  if (
+    action.startsWith("PAYMENT_") ||
+    action.startsWith("SUBSCRIPTION_") ||
+    action.startsWith("LISTING_") ||
+    action === "FEATURE_ADDED" ||
+    action === "CATEGORY_DELETED" ||
+    category === "billing" ||
+    category === "listing"
+  ) {
+    return false;
+  }
+
+  // Explicit inclusions: account actions or category
+  if (
+    action === "ACCOUNT_CREATED" ||
+    action === "ACCOUNT_UPDATED" ||
+    action === "PASSWORD_UPDATED" ||
+    category === "account"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isListingOrBillingLog(log: any): boolean {
+  const action = (log.action || "").toUpperCase();
+  const category = (log.category || "").toLowerCase();
+
+  if (
+    action.startsWith("PAYMENT_") ||
+    action.startsWith("SUBSCRIPTION_") ||
+    action.startsWith("LISTING_") ||
+    action === "FEATURE_ADDED" ||
+    action === "CATEGORY_DELETED" ||
+    category === "billing" ||
+    category === "listing"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function getAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badgeClass: string } {
+  const perf = (log.performedBy || log.metadata?.performedBy || "").toLowerCase();
+  if (perf === "admin") {
+    return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
+  }
+  if (perf === "system" || perf === "stripe") {
+    return { label: "System", badgeClass: "bg-slate-100 text-slate-700 border-slate-200" };
+  }
+  if (perf === "partner" || perf === "user") {
+    return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
+  }
+
+  const category = (log.category || "").toLowerCase();
+  const details = (log.details || "").toLowerCase();
+  const action = (log.action || "").toUpperCase();
+  const hasAdminEmail = Boolean(log.metadata?.adminEmail || log.adminEmail);
+
+  // 1. Admin actions
+  if (
+    category === "admin" ||
+    hasAdminEmail ||
+    details.includes("admin:") ||
+    details.includes("by admin") ||
+    details.includes("admin (") ||
+    action === "ADMIN_ACTION"
+  ) {
+    return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
+  }
+
+  // 2. Automatic transactions & billing/subscription events (Stripe, webhooks, renewals, auto-cancellations)
+  if (
+    action.startsWith("PAYMENT_") ||
+    action.startsWith("SUBSCRIPTION_") ||
+    category === "billing" ||
+    details.includes("recurring invoice") ||
+    details.includes("cancellation processed") ||
+    details.includes("invoice in_") ||
+    details.includes("subscription invoice") ||
+    details.includes("auto-cancelled") ||
+    details.includes("stripe")
+  ) {
+    return { label: "System", badgeClass: "bg-slate-100 text-slate-700 border-slate-200" };
+  }
+
+  // 3. Otherwise, partner / user performed action
+  return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
 }
 
 function AuditLogList({ logs }: { logs: any[] }) {
@@ -4123,12 +5105,20 @@ function AuditLogList({ logs }: { logs: any[] }) {
         return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Account Created</Badge>;
       case "ACCOUNT_UPDATED":
         return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Account Updated</Badge>;
+      case "PASSWORD_UPDATED":
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Password Updated</Badge>;
       case "PAYMENT_SUCCESS":
         return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Payment Success</Badge>;
       case "PAYMENT_FAILED":
         return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Payment Failed</Badge>;
+      case "SUBSCRIPTION_CANCELLED":
+        return <Badge className="bg-red-50 text-red-700 border-red-200">Subscription Cancelled</Badge>;
+      case "LISTING_CREATED":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Listing Created</Badge>;
       case "LISTING_UPDATED":
         return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Listing Updated</Badge>;
+      case "LISTING_DELETED":
+        return <Badge className="bg-slate-100 text-slate-700 border-slate-300">Listing Deleted</Badge>;
       case "FEATURE_ADDED":
         return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Added</Badge>;
       default:
@@ -4145,26 +5135,35 @@ function AuditLogList({ logs }: { logs: any[] }) {
               <TableHead className="pl-6">Timestamp</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Action</TableHead>
+              <TableHead>Updated By</TableHead>
               <TableHead>Details</TableHead>
               <TableHead className="text-right pr-6">Partner ID</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {logs.map((log) => (
-              <TableRow key={log.id}>
-                <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
-                  {log.timestamp?.seconds
-                    ? new Date(log.timestamp.seconds * 1000).toLocaleString()
-                    : "Recently"}
-                </TableCell>
-                <TableCell className="font-medium whitespace-nowrap">{log.partnerName || "Unknown"}</TableCell>
-                <TableCell>{getActionBadge(log.action)}</TableCell>
-                <TableCell className="text-sm text-slate-600 max-w-md">{log.details}</TableCell>
-                <TableCell className="text-right pr-6 font-mono text-[10px] text-slate-400">
-                  {log.partnerId || "-"}
-                </TableCell>
-              </TableRow>
-            ))}
+            {logs.map((log) => {
+              const actor = getAuditActor(log);
+              return (
+                <TableRow key={log.id}>
+                  <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
+                    {log.timestamp?.seconds
+                      ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+                      : "Recently"}
+                  </TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">{log.partnerName || "Unknown"}</TableCell>
+                  <TableCell>{getActionBadge(log.action)}</TableCell>
+                  <TableCell>
+                    <Badge className={`${actor.badgeClass} font-medium text-xs`}>
+                      {actor.label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-600 max-w-md">{log.details}</TableCell>
+                  <TableCell className="text-right pr-6 font-mono text-[10px] text-slate-400">
+                    {log.partnerId || "-"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </CardContent>

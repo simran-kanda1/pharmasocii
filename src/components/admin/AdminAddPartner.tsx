@@ -728,8 +728,21 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   const validateStep = () => {
     setError("");
     if (activeStep === 1) {
-      if (!formData.firstName.trim() || !formData.lastName.trim() || !formData.email.trim() || !formData.phone.trim() || !formData.password || !formData.confirmPassword) {
-        setError("Please fill out all required fields.");
+      if (
+        !formData.firstName.trim() ||
+        !formData.lastName.trim() ||
+        !formData.email.trim() ||
+        !formData.phone.trim() ||
+        !formData.altContactName.trim() ||
+        !formData.altEmail.trim() ||
+        !formData.password ||
+        !formData.confirmPassword
+      ) {
+        setError("Please fill out all required fields (including Alternate / Emergency Contact).");
+        return false;
+      }
+      if (!formData.altEmail.includes("@") || !formData.altEmail.includes(".")) {
+        setError("Please enter a valid alternate email address.");
         return false;
       }
       if (!isPasswordValid) {
@@ -987,11 +1000,11 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Receipt className="w-5 h-5 text-blue-500" /> Alternate / Emergency Contact</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-slate-600 font-medium">Alternate contact first & last name</Label>
+                  <Label className="text-slate-600 font-medium">Alternate contact first & last name <span className="text-red-500">*</span></Label>
                   <Input value={formData.altContactName} onChange={(e) => handleChange("altContactName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Alternate email address</Label>
+                  <Label className="text-slate-600 font-medium">Alternate email address <span className="text-red-500">*</span></Label>
                   <Input type="email" value={formData.altEmail} onChange={(e) => handleChange("altEmail", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
               </div>
