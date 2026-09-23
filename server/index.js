@@ -2837,6 +2837,15 @@ async function syncSpotlightCancelFromStripeSubscription(subscription) {
             { merge: true },
         );
         if (!partnerId || !fd.listingId || !fd.collectionName) continue;
+        const listingRef = await resolveListingDocRef(partnerId, fd.collectionName, fd.listingId);
+        const listingSnap = listingRef ? await listingRef.get() : null;
+        const currentFeatureSubId = toStripeSubscriptionId(
+            listingSnap?.exists ? listingSnap.data()?.featureSpotlightStripeSubscriptionId : null,
+        );
+        if (currentFeatureSubId && currentFeatureSubId !== subscription.id) {
+            // This cancelled add-on was replaced. Do not write its tier or dates back onto the listing.
+            continue;
+        }
         await applyListingPatchEverywhere(partnerId, fd.collectionName, fd.listingId, {
             featureSpotlightCancelPending: true,
             featureSpotlightCancelScope: cancelScope,
@@ -3157,6 +3166,8 @@ async function finalizeSpotlightAddonPurchaseWrites({
         subscriptionItemId: subscriptionItemId || null,
         accessThrough: paidThrough,
         billingPeriodStart: periodStart,
+        cancelPending: false,
+        cancelScope: admin.firestore.FieldValue.delete(),
     };
     if (existingFeature.empty) {
         await partnerRef.collection("featuresCollection").add(featPayload);
@@ -3165,25 +3176,24 @@ async function finalizeSpotlightAddonPurchaseWrites({
     }
 
     if (listingId && resolvedCollectionName) {
-        const listingRef = await resolveListingDocRef(partnerId, resolvedCollectionName, listingId);
-        if (listingRef) {
-            await listingRef.set({
-                selectedAddon: featureId,
-                featuredPlacement: featureId,
-                isFeatured: true,
-                active: true,
-                status: "Approved",
-                lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                featureSpotlightBillingPeriodStart: periodStart,
-                featureSpotlightPaidThrough: paidThrough,
-                featureSpotlightStripeSubscriptionId: subId || null,
-                featureSpotlightSubscriptionItemId: subscriptionItemId || null,
-                featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
-                featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
-            }, { merge: true });
-            await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
-        }
+        await applyListingPatchEverywhere(partnerId, resolvedCollectionName, listingId, {
+            selectedAddon: featureId,
+            featuredPlacement: featureId,
+            isFeatured: true,
+            active: true,
+            status: "Approved",
+            lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+            featureSpotlightBillingPeriodStart: periodStart,
+            featureSpotlightPaidThrough: paidThrough,
+            featureSpotlightStripeSubscriptionId: subId || null,
+            featureSpotlightSubscriptionItemId: subscriptionItemId || null,
+            featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
+            featureSpotlightCancelScope: admin.firestore.FieldValue.delete(),
+            featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
+        });
+        await retireReplacedSpotlightAddonDocs(partnerRef, listingId, subId);
+        await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
     }
 
     await partnerRef.set({
@@ -3372,6 +3382,7 @@ async function finalizeFeatureUpgradeAfterPayment({
             await listingRef.set(listingPatch, { merge: true });
         }
         if (partnerRef) {
+            await retireReplacedSpotlightAddonDocs(partnerRef, listingId, subId);
             await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
         }
     }
@@ -3398,6 +3409,8 @@ async function finalizeFeatureUpgradeAfterPayment({
             accessThrough: paidThrough,
             billingPeriodStart: periodStart,
             sessionId: session?.id || "",
+            cancelPending: false,
+            cancelScope: admin.firestore.FieldValue.delete(),
         };
         if (fcDoc) {
             // Preserve an earlier billingPeriodStart if already stored on the feature doc.
@@ -3420,6 +3433,29 @@ async function finalizeFeatureUpgradeAfterPayment({
             lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
             ...(custId ? { stripeCustomerId: custId } : {}),
         }, { merge: true });
+    }
+}
+
+/** A replacement spotlight must not leave the cancelled add-on active, or the dashboard and webhooks put it back. */
+async function retireReplacedSpotlightAddonDocs(partnerRef, listingId, keepSubscriptionId) {
+    if (!partnerRef || !listingId) return;
+    const snap = await partnerRef.collection("featuresCollection").where("listingId", "==", listingId).get();
+    const keepSubId = toStripeSubscriptionId(keepSubscriptionId);
+    for (const doc of snap.docs) {
+        const data = doc.data() || {};
+        if (data.source === "included_plan") continue;
+        if (data.source !== "spotlight_addon" && !data.stripeSubscriptionId) continue;
+        const docSubId = toStripeSubscriptionId(data.stripeSubscriptionId);
+        if (keepSubId && docSubId === keepSubId) continue;
+        if (data.active === false && !data.cancelPending) continue;
+        await doc.ref.set(
+            {
+                active: false,
+                cancelPending: false,
+                supersededAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+        );
     }
 }
 
@@ -3655,9 +3691,30 @@ async function tryProcessSpotlightAddonInvoicePaid({
         const fd = fDoc.data() || {};
         const partnerId = partnerIdFromPartnersPlanRef(fDoc.ref);
         if (!partnerId) continue;
-        partnerIds.add(partnerId);
 
         const resolvedFeatureId = canonicalFeatureId || normalizeSpotlightFeatureId(fd.featureId) || fd.featureId || null;
+
+        if (fd.listingId && fd.collectionName) {
+            const listingRef = await resolveListingDocRef(partnerId, fd.collectionName, fd.listingId);
+            const listingSnap = listingRef ? await listingRef.get() : null;
+            const currentFeatureSubId = toStripeSubscriptionId(
+                listingSnap?.exists ? listingSnap.data()?.featureSpotlightStripeSubscriptionId : null,
+            );
+            if (currentFeatureSubId && currentFeatureSubId !== subscriptionId) {
+                await fDoc.ref.set(
+                    {
+                        active: false,
+                        cancelPending: false,
+                        supersededAt: admin.firestore.FieldValue.serverTimestamp(),
+                    },
+                    { merge: true },
+                );
+                console.log(`   ℹ Skipping spotlight invoice ${subscriptionId}; listing is on ${currentFeatureSubId}.`);
+                continue;
+            }
+        }
+
+        partnerIds.add(partnerId);
 
         await fDoc.ref.set({
             lastPaymentReceived: new Date(),
@@ -4755,6 +4812,13 @@ async function applyListingAfterSpotlightAddonSubscriptionDeleted(partnerId, lis
     const partnerRef = db.collection("partnersCollection").doc(partnerId);
     const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
     if (!listingRef) return;
+    const listingSnap = await listingRef.get();
+    const currentFeatureSubId = toStripeSubscriptionId(
+        listingSnap.exists ? listingSnap.data()?.featureSpotlightStripeSubscriptionId : null,
+    );
+    if (currentFeatureSubId && currentFeatureSubId !== deletedSubscriptionId) {
+        return;
+    }
 
     const planSnap = await partnerRef
         .collection("planCollection")

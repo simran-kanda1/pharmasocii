@@ -235,6 +235,28 @@ const mergeSpotlightListingFields = (preferred: any, other: any) => {
     if (!preferred) return other;
     if (!other) return preferred;
     const merged = { ...preferred };
+    const preferredSub = String(preferred.featureSpotlightStripeSubscriptionId || "").trim();
+    const otherSub = String(other.featureSpotlightStripeSubscriptionId || "").trim();
+    if (preferredSub && otherSub && preferredSub !== otherSub) {
+        const preferredEnd =
+            toDateValue(preferred.featureSpotlightPaidThrough) ||
+            toDateValue(preferred.featureSpotlightAccessEnd);
+        const otherEnd =
+            toDateValue(other.featureSpotlightPaidThrough) ||
+            toDateValue(other.featureSpotlightAccessEnd);
+        const source = otherEnd && (!preferredEnd || otherEnd.getTime() > preferredEnd.getTime()) ? other : preferred;
+        merged.featureSpotlightCancelPending = Boolean(source.featureSpotlightCancelPending);
+        merged.featureSpotlightCancelScope = source.featureSpotlightCancelScope;
+        merged.featureSpotlightAccessEnd = source.featureSpotlightAccessEnd;
+        merged.featureSpotlightPaidThrough = source.featureSpotlightPaidThrough;
+        merged.featureSpotlightBillingPeriodStart = source.featureSpotlightBillingPeriodStart;
+        merged.featureSpotlightStripeSubscriptionId = source.featureSpotlightStripeSubscriptionId;
+        merged.featureSpotlightSubscriptionItemId = source.featureSpotlightSubscriptionItemId;
+        merged.lastFeaturePaymentReceivedAt = source.lastFeaturePaymentReceivedAt;
+        if (source.selectedAddon) merged.selectedAddon = source.selectedAddon;
+        if (source.featuredPlacement) merged.featuredPlacement = source.featuredPlacement;
+        return merged;
+    }
     if (other.featureSpotlightCancelPending) merged.featureSpotlightCancelPending = true;
     // When cancel is pending, prefer the earlier end so a plan-cancel shorten
     // is not overwritten by a stale longer copy of the listing.
@@ -633,7 +655,7 @@ export default function Dashboard() {
         return merged;
     }, [livePlansConfig]);
 
-    const getStandaloneFeatureRecordForPlan = (plan: any) => {
+    const getStandaloneFeatureRecordForPlan = (plan: any, listing?: any) => {
         if (!plan?.listingId) return null;
         const matches = partnerFeatures.filter((feature) => {
             if (feature.listingId !== plan.listingId) return false;
@@ -644,28 +666,40 @@ export default function Dashboard() {
             }
             return feature.source === "spotlight_addon" || Boolean(feature.stripeSubscriptionId);
         });
-        return matches.find((feature) => feature.cancelPending)
-            || matches.find((feature) => feature.source === "spotlight_addon")
+        const currentSub = String(listing?.featureSpotlightStripeSubscriptionId || "").trim();
+        if (currentSub) {
+            const current = matches.find((feature) => String(feature.stripeSubscriptionId || "").trim() === currentSub);
+            if (current) return current;
+        }
+        return matches.find((feature) => feature.source === "spotlight_addon" && !feature.cancelPending)
+            || matches.find((feature) => !feature.cancelPending)
+            || matches.find((feature) => feature.cancelPending)
             || matches[0]
             || null;
     };
 
     const enrichListingSpotlightFromFeatures = (listing: any, plan: any) => {
         if (!listing || !plan) return listing;
-        const featureRecord = getStandaloneFeatureRecordForPlan(plan);
+        const featureRecord = getStandaloneFeatureRecordForPlan(plan, listing);
+        const listingSub = String(listing.featureSpotlightStripeSubscriptionId || "").trim();
+        const recordSub = String(featureRecord?.stripeSubscriptionId || "").trim();
+        const recordMatchesListing = !listingSub || !recordSub || recordSub === listingSub;
         const planEndsFeature = Boolean(plan.cancelAtPeriodEnd);
         const hasSpotlight = Boolean(
             getSpotlightAddonTierId(listing) ||
             (plan.planId && PLAN_CONFIGS[plan.planId]?.featurePlan) ||
             featureRecord,
         );
-        if (!featureRecord?.cancelPending && !listing.featureSpotlightCancelPending && !(planEndsFeature && hasSpotlight)) {
+        if (
+            !recordMatchesListing ||
+            (!featureRecord?.cancelPending && !listing.featureSpotlightCancelPending && !(planEndsFeature && hasSpotlight))
+        ) {
             return listing;
         }
         const listingEnd =
             toDateValue(listing.featureSpotlightAccessEnd) ||
             toDateValue(listing.featureSpotlightPaidThrough);
-        const featureEnd = toDateValue(featureRecord?.accessThrough);
+        const featureEnd = recordMatchesListing ? toDateValue(featureRecord?.accessThrough) : null;
         const planEnd = getPlanPeriodEndDate(plan);
         // Prefer the earlier scheduled end so a later feature date cannot outlast a plan cancel.
         let accessEnd = listing.featureSpotlightAccessEnd || featureRecord?.accessThrough || null;
@@ -1788,7 +1822,7 @@ export default function Dashboard() {
             if (auth.currentUser && selectedPlanForAction) {
                 if (cancelScope === "feature") {
                     const linked = getLinkedListingForPlan(selectedPlanForAction);
-                    const featureRecord = getStandaloneFeatureRecordForPlan(selectedPlanForAction);
+                    const featureRecord = getStandaloneFeatureRecordForPlan(selectedPlanForAction, linked);
                     if (
                         isSpotlightCancelPending(linked) ||
                         featureRecord?.cancelPending ||
