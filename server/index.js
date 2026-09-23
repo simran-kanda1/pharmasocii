@@ -1189,10 +1189,17 @@ async function resolveSpotlightAddonAccessEndDate(listingData, plan) {
     return end;
 }
 
+function earlierDate(a, b) {
+    if (!a) return b || null;
+    if (!b) return a;
+    return a.getTime() <= b.getTime() ? a : b;
+}
+
 /**
- * When a plan is cancelled at period end, schedule any linked spotlight (standalone or included)
- * to end on the same date — even if the spotlight was paid through a later date.
- * Visibility stays until that date.
+ * When a plan is cancelled, stop a linked spotlight from renewing.
+ * The feature end date is the earlier of its own renewal and the plan end.
+ * A later plan date must not extend the feature (annual plans would keep billing it).
+ * An earlier plan date shortens the feature to the plan end without rewriting its duration.
  */
 async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, planAccessEnd) {
     if (!partnerId || !plan?.listingId || !plan?.collectionName || !planAccessEnd) {
@@ -1209,14 +1216,15 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
     const existingAccessEnd =
         toDateValue(listingData.featureSpotlightAccessEnd) ||
         toDateValue(listingData.featureSpotlightPaidThrough);
-    // Already aligned to the plan end. A feature-only cancel with a later date must still be shortened.
+    const featureNaturalEnd = await resolveSpotlightAddonAccessEndDate(listingData, plan);
+    // Never move the feature past its own renewal. Only an earlier plan end can shorten it.
+    const featureStop = earlierDate(featureNaturalEnd, planAccessEnd) || planAccessEnd;
     const alreadyAligned =
         listingData.featureSpotlightCancelPending &&
-        listingData.featureSpotlightCancelScope === "plan" &&
         existingAccessEnd &&
-        Math.abs(existingAccessEnd.getTime() - planAccessEnd.getTime()) < 60 * 1000;
+        Math.abs(existingAccessEnd.getTime() - featureStop.getTime()) < 60 * 1000;
     if (alreadyAligned) {
-        return { cancelledFeature: false, alreadyScheduled: true };
+        return { cancelledFeature: false, alreadyScheduled: true, featureStop };
     }
 
     const includedSpotlight = PLANS_WITH_INCLUDED_SPOTLIGHT[plan.planId] || null;
@@ -1226,8 +1234,7 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
         const listingPatch = {
             featureSpotlightCancelPending: true,
             featureSpotlightCancelScope: "plan",
-            featureSpotlightAccessEnd: planAccessEnd,
-            featureSpotlightPaidThrough: planAccessEnd,
+            featureSpotlightAccessEnd: featureStop,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         };
         await applyListingPatchEverywhere(partnerId, plan.collectionName, plan.listingId, listingPatch);
@@ -1245,13 +1252,13 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
             await fDoc.ref.set(
                 {
                     cancelPending: true,
-                    accessThrough: planAccessEnd,
+                    accessThrough: featureStop,
                     cancelScope: "plan",
                 },
                 { merge: true },
             );
         }
-        return { cancelledFeature: true, included: true };
+        return { cancelledFeature: true, included: true, featureStop };
     }
 
     const spotlightCtx = await resolveStandaloneSpotlightForCancel(
@@ -1266,11 +1273,10 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
             await applyListingPatchEverywhere(partnerId, plan.collectionName, plan.listingId, {
                 featureSpotlightCancelPending: true,
                 featureSpotlightCancelScope: "plan",
-                featureSpotlightAccessEnd: planAccessEnd,
-                featureSpotlightPaidThrough: planAccessEnd,
+                featureSpotlightAccessEnd: featureStop,
                 updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             });
-            return { cancelledFeature: true, shortenedOnly: true };
+            return { cancelledFeature: true, shortenedOnly: true, featureStop };
         }
         return { cancelledFeature: false };
     }
@@ -1289,14 +1295,35 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
 
     if (distinctFeatureSubId) {
         try {
-            // Align Stripe end with the plan when possible (shortens a longer spotlight period).
-            const cancelAtUnix = Math.floor(planAccessEnd.getTime() / 1000);
-            const nowUnix = Math.floor(Date.now() / 1000);
-            if (cancelAtUnix > nowUnix + 60) {
-                await stripe.subscriptions.update(distinctFeatureSubId, {
-                    cancel_at: cancelAtUnix,
-                    cancel_at_period_end: false,
-                });
+            const featurePeriodEnd = featureNaturalEnd;
+            const planEndsFirst = Boolean(
+                featurePeriodEnd && planAccessEnd.getTime() + 60 * 1000 < featurePeriodEnd.getTime(),
+            );
+            if (planEndsFirst) {
+                // Feature renewal is after the plan. Stop it on the plan date. Do not open a new period.
+                const cancelAtUnix = Math.floor(planAccessEnd.getTime() / 1000);
+                const nowUnix = Math.floor(Date.now() / 1000);
+                if (cancelAtUnix > nowUnix + 60) {
+                    await stripe.subscriptions.update(distinctFeatureSubId, {
+                        cancel_at: cancelAtUnix,
+                        cancel_at_period_end: false,
+                    });
+                } else {
+                    await stripe.subscriptions.update(distinctFeatureSubId, { cancel_at_period_end: true });
+                }
+            } else if (featurePeriodEnd) {
+                // Feature renewal is on or before the plan. Pin cancel_at to that date so a
+                // previously later cancel_at (the plan end) cannot keep the feature billing.
+                const naturalUnix = Math.floor(featurePeriodEnd.getTime() / 1000);
+                const nowUnix = Math.floor(Date.now() / 1000);
+                if (naturalUnix > nowUnix + 60) {
+                    await stripe.subscriptions.update(distinctFeatureSubId, {
+                        cancel_at: naturalUnix,
+                        cancel_at_period_end: false,
+                    });
+                } else {
+                    await stripe.subscriptions.update(distinctFeatureSubId, { cancel_at_period_end: true });
+                }
             } else {
                 await stripe.subscriptions.update(distinctFeatureSubId, { cancel_at_period_end: true });
             }
@@ -1318,24 +1345,33 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
     const listingPatch = {
         featureSpotlightCancelPending: true,
         featureSpotlightCancelScope: "plan",
-        featureSpotlightAccessEnd: planAccessEnd,
-        featureSpotlightPaidThrough: planAccessEnd,
+        featureSpotlightAccessEnd: featureStop,
         updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
+    const storedPaidThrough = toDateValue(listingData.featureSpotlightPaidThrough);
+    if (storedPaidThrough && featureStop.getTime() + 60 * 1000 < storedPaidThrough.getTime()) {
+        // A previous cancel wrote the plan date onto a feature that renews sooner. Put the paid window back.
+        listingPatch.featureSpotlightPaidThrough = featureNaturalEnd && featureNaturalEnd.getTime() <= storedPaidThrough.getTime()
+            ? featureNaturalEnd
+            : featureStop;
+    }
     await applyListingPatchEverywhere(partnerId, plan.collectionName, plan.listingId, listingPatch);
 
     for (const fDoc of spotlightCtx.featureDocs) {
+        const fd = fDoc.data() || {};
+        const docEnd = toDateValue(fd.accessThrough);
+        const nextThrough = docEnd && docEnd.getTime() + 60 * 1000 < featureStop.getTime() ? docEnd : featureStop;
         await fDoc.ref.set(
             {
                 cancelPending: true,
-                accessThrough: planAccessEnd,
+                accessThrough: nextThrough,
                 cancelScope: "plan",
             },
             { merge: true },
         );
     }
 
-    return { cancelledFeature: true, linkedFeatureId: spotlightCtx.linkedFeatureId };
+    return { cancelledFeature: true, linkedFeatureId: spotlightCtx.linkedFeatureId, featureStop };
 }
 
 function partnerIdFromPartnersPlanRef(ref) {
@@ -2805,7 +2841,6 @@ async function syncSpotlightCancelFromStripeSubscription(subscription) {
             featureSpotlightCancelPending: true,
             featureSpotlightCancelScope: cancelScope,
             featureSpotlightAccessEnd: nextEnd,
-            featureSpotlightPaidThrough: nextEnd,
             featureSpotlightStripeSubscriptionId: subscription.id,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -3818,20 +3853,31 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
             stripeSubscriptionStatus: status,
             ...(customerId ? { stripeCustomerId: customerId } : {}),
         };
+        const existingPeriodEnd = toDateValue(planData.billingPeriodEnd);
+        const cancelling = Boolean(
+            subscription.cancel_at_period_end || subscription.cancel_at || planData.cancelAtPeriodEnd,
+        );
+        const stripeEndIsLater = Boolean(
+            cancelling &&
+            existingPeriodEnd &&
+            billingPeriodEnd &&
+            billingPeriodEnd.getTime() > existingPeriodEnd.getTime() + 60 * 1000,
+        );
 
         if (isLive) {
             planUpdate.active = true;
             planUpdate.expiredAt = admin.firestore.FieldValue.delete();
             if (billingPeriodStart) planUpdate.billingPeriodStart = billingPeriodStart;
-            if (billingPeriodEnd) planUpdate.billingPeriodEnd = billingPeriodEnd;
+            if (billingPeriodEnd && !stripeEndIsLater) planUpdate.billingPeriodEnd = billingPeriodEnd;
             planUpdate.lastPaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
-            if (subscription.cancel_at_period_end) {
+            if (subscription.cancel_at_period_end || subscription.cancel_at) {
                 planUpdate.cancelAtPeriodEnd = true;
-                if (subscription.cancel_at) {
-                    planUpdate.cancelAt = new Date(subscription.cancel_at * 1000);
-                } else if (billingPeriodEnd) {
-                    planUpdate.cancelAt = billingPeriodEnd;
-                }
+                const stripeCancelEnd = subscription.cancel_at
+                    ? new Date(subscription.cancel_at * 1000)
+                    : billingPeriodEnd;
+                planUpdate.cancelAt = earlierDate(existingPeriodEnd, stripeCancelEnd)
+                    || existingPeriodEnd
+                    || stripeCancelEnd;
             } else {
                 planUpdate.cancelAtPeriodEnd = false;
                 planUpdate.cancelAt = admin.firestore.FieldValue.delete();
@@ -3859,7 +3905,7 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
             ...(customerId ? { stripeCustomerId: customerId } : {}),
         };
         if (includedSpotlight) {
-            const spotlightEnd = billingPeriodEnd
+            const spotlightEnd = (stripeEndIsLater ? existingPeriodEnd : billingPeriodEnd)
                 || toDateValue(planData.billingPeriodEnd)
                 || addBillingPeriodFallback(new Date(), planData.planId);
             listingUpdate.selectedAddon = includedSpotlight;
@@ -3879,7 +3925,7 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
         updatedListings += 1;
 
         if (includedSpotlight) {
-            const spotlightEnd = billingPeriodEnd
+            const spotlightEnd = (stripeEndIsLater ? existingPeriodEnd : billingPeriodEnd)
                 || toDateValue(planData.billingPeriodEnd)
                 || addBillingPeriodFallback(new Date(), planData.planId);
             const partnerRef = db.collection("partnersCollection").doc(partnerId);
@@ -3895,9 +3941,11 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
 
         const planIsCancelling = Boolean(subscription.cancel_at_period_end || subscription.cancel_at);
         if (planIsCancelling) {
-            const planAccessEnd = subscription.cancel_at
+            const storedPlanEnd = toDateValue(planData.billingPeriodEnd);
+            const stripeCancelEnd = subscription.cancel_at
                 ? new Date(subscription.cancel_at * 1000)
-                : billingPeriodEnd || toDateValue(planData.billingPeriodEnd);
+                : billingPeriodEnd;
+            const planAccessEnd = earlierDate(storedPlanEnd, stripeCancelEnd) || stripeCancelEnd || storedPlanEnd;
             if (planAccessEnd) {
                 try {
                     const cascade = await scheduleSpotlightEndWithPlanCancel(
@@ -6486,23 +6534,24 @@ app.post("/api/cancel-plan", async (req, res) => {
                 }
             }
 
+            const existingPlanEnd = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
+            const stripeEnd = stripeCancelAt ? new Date(stripeCancelAt * 1000) : null;
+            // Cancelling must not move the plan end later. Keep the date already on the plan.
+            const planAccessEnd = earlierDate(existingPlanEnd, stripeEnd)
+                || existingPlanEnd
+                || stripeEnd
+                || await resolveAccessEndDate();
+
             await planRef.set({
                 cancelAtPeriodEnd: true,
                 cancelledAt: new Date(),
+                cancelAt: planAccessEnd,
                 ...(stripeCancelAt
-                    ? {
-                        billingPeriodEnd: new Date(stripeCancelAt * 1000),
-                        cancelAt: new Date(stripeCancelAt * 1000),
-                    }
+                    ? {}
                     : {
                         active: false,
-                        cancelAt: new Date(),
                     }),
             }, { merge: true });
-
-            const planAccessEnd = stripeCancelAt
-                ? new Date(stripeCancelAt * 1000)
-                : await resolveAccessEndDate();
 
             const spotlightCascade = await scheduleSpotlightEndWithPlanCancel(
                 partnerRef,
