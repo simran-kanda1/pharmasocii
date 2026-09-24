@@ -236,16 +236,43 @@ const mergeSpotlightListingFields = (preferred: any, other: any) => {
     if (!preferred) return other;
     if (!other) return preferred;
     const merged = { ...preferred };
+    const preferredSub = String(preferred.featureSpotlightStripeSubscriptionId || "").trim();
+    const otherSub = String(other.featureSpotlightStripeSubscriptionId || "").trim();
+    if (preferredSub && otherSub && preferredSub !== otherSub) {
+        const preferredEnd =
+            toDateValue(preferred.featureSpotlightPaidThrough) ||
+            toDateValue(preferred.featureSpotlightAccessEnd);
+        const otherEnd =
+            toDateValue(other.featureSpotlightPaidThrough) ||
+            toDateValue(other.featureSpotlightAccessEnd);
+        const source = otherEnd && (!preferredEnd || otherEnd.getTime() > preferredEnd.getTime()) ? other : preferred;
+        merged.featureSpotlightCancelPending = Boolean(source.featureSpotlightCancelPending);
+        merged.featureSpotlightCancelScope = source.featureSpotlightCancelScope;
+        merged.featureSpotlightAccessEnd = source.featureSpotlightAccessEnd;
+        merged.featureSpotlightPaidThrough = source.featureSpotlightPaidThrough;
+        merged.featureSpotlightBillingPeriodStart = source.featureSpotlightBillingPeriodStart;
+        merged.featureSpotlightStripeSubscriptionId = source.featureSpotlightStripeSubscriptionId;
+        merged.featureSpotlightSubscriptionItemId = source.featureSpotlightSubscriptionItemId;
+        merged.lastFeaturePaymentReceivedAt = source.lastFeaturePaymentReceivedAt;
+        if (source.selectedAddon) merged.selectedAddon = source.selectedAddon;
+        if (source.featuredPlacement) merged.featuredPlacement = source.featuredPlacement;
+        return merged;
+    }
     if (other.featureSpotlightCancelPending) merged.featureSpotlightCancelPending = true;
-    const pickLatestDate = (a: any, b: any) => {
+    // When cancel is pending, prefer the earlier end so a plan-cancel shorten
+    // is not overwritten by a stale longer copy of the listing.
+    const pickEndDate = (a: any, b: any) => {
         const da = toDateValue(a);
         const db = toDateValue(b);
         if (!da) return b ?? a;
         if (!db) return a;
+        if (merged.featureSpotlightCancelPending) {
+            return db.getTime() < da.getTime() ? b : a;
+        }
         return db.getTime() > da.getTime() ? b : a;
     };
-    merged.featureSpotlightAccessEnd = pickLatestDate(preferred.featureSpotlightAccessEnd, other.featureSpotlightAccessEnd);
-    merged.featureSpotlightPaidThrough = pickLatestDate(preferred.featureSpotlightPaidThrough, other.featureSpotlightPaidThrough);
+    merged.featureSpotlightAccessEnd = pickEndDate(preferred.featureSpotlightAccessEnd, other.featureSpotlightAccessEnd);
+    merged.featureSpotlightPaidThrough = pickEndDate(preferred.featureSpotlightPaidThrough, other.featureSpotlightPaidThrough);
     if (!merged.featureSpotlightStripeSubscriptionId && other.featureSpotlightStripeSubscriptionId) {
         merged.featureSpotlightStripeSubscriptionId = other.featureSpotlightStripeSubscriptionId;
     }
@@ -355,6 +382,9 @@ const formatPlanDuration = (periodStart: Date | null, periodEnd: Date | null): s
 
 /** Renewal charges on period_end (start of the next cycle). */
 const getRenewalDate = (periodEnd: Date | null): Date | null => periodEnd;
+
+const sameCalendarDay = (a: Date | null, b: Date | null): boolean =>
+    Boolean(a && b && a.toDateString() === b.toDateString());
 
 /** Paid access still in effect (not lapsed / not deactivated). */
 const isPlanBillingLive = (plan: any): boolean => {
@@ -647,28 +677,76 @@ export default function Dashboard() {
         return merged;
     }, [livePlansConfig]);
 
-    const getStandaloneFeatureRecordForPlan = (plan: any) => {
+    const getStandaloneFeatureRecordForPlan = (plan: any, listing?: any) => {
         if (!plan?.listingId) return null;
         const matches = partnerFeatures.filter((feature) => {
             if (feature.listingId !== plan.listingId) return false;
             if (feature.source === "included_plan") return false;
+            if (feature.active === false && !feature.cancelPending) return false;
             if (plan.collectionName && feature.collectionName && feature.collectionName !== plan.collectionName) {
                 return false;
             }
             return feature.source === "spotlight_addon" || Boolean(feature.stripeSubscriptionId);
         });
-        return matches.find((feature) => feature.source === "spotlight_addon") || matches[0] || null;
+        const currentSub = String(listing?.featureSpotlightStripeSubscriptionId || "").trim();
+        if (currentSub) {
+            const current = matches.find((feature) => String(feature.stripeSubscriptionId || "").trim() === currentSub);
+            if (current) return current;
+        }
+        return matches.find((feature) => feature.source === "spotlight_addon" && !feature.cancelPending)
+            || matches.find((feature) => !feature.cancelPending)
+            || matches.find((feature) => feature.cancelPending)
+            || matches[0]
+            || null;
     };
 
     const enrichListingSpotlightFromFeatures = (listing: any, plan: any) => {
         if (!listing || !plan) return listing;
-        const featureRecord = getStandaloneFeatureRecordForPlan(plan);
-        if (!featureRecord?.cancelPending) return listing;
+        const featureRecord = getStandaloneFeatureRecordForPlan(plan, listing);
+        const listingSub = String(listing.featureSpotlightStripeSubscriptionId || "").trim();
+        const recordSub = String(featureRecord?.stripeSubscriptionId || "").trim();
+        const recordMatchesListing = !listingSub || !recordSub || recordSub === listingSub;
+        const planEndsFeature = Boolean(plan.cancelAtPeriodEnd);
+        const hasSpotlight = Boolean(
+            getSpotlightAddonTierId(listing) ||
+            (plan.planId && PLAN_CONFIGS[plan.planId]?.featurePlan) ||
+            featureRecord,
+        );
+        if (
+            !recordMatchesListing ||
+            (!featureRecord?.cancelPending && !listing.featureSpotlightCancelPending && !(planEndsFeature && hasSpotlight))
+        ) {
+            return listing;
+        }
+        const listingEnd =
+            toDateValue(listing.featureSpotlightAccessEnd) ||
+            toDateValue(listing.featureSpotlightPaidThrough);
+        const featureEnd = recordMatchesListing ? toDateValue(featureRecord?.accessThrough) : null;
+        const planEnd = getPlanPeriodEndDate(plan);
+        // Prefer the earlier scheduled end so a later feature date cannot outlast a plan cancel.
+        let accessEnd = listing.featureSpotlightAccessEnd || featureRecord?.accessThrough || null;
+        if (listingEnd && featureEnd) {
+            accessEnd = featureEnd.getTime() < listingEnd.getTime()
+                ? featureRecord.accessThrough
+                : (listing.featureSpotlightAccessEnd || listing.featureSpotlightPaidThrough);
+        } else if (featureEnd && !listingEnd) {
+            accessEnd = featureRecord.accessThrough;
+        }
+        if (planEndsFeature && planEnd) {
+            const currentEnd = toDateValue(accessEnd);
+            // A later plan date must not extend the feature. Only shorten when the plan ends first.
+            if (!currentEnd || planEnd.getTime() + 60 * 1000 < currentEnd.getTime()) {
+                accessEnd = planEnd;
+            }
+        }
+        const cancelScope = planEndsFeature
+            ? "plan"
+            : (listing.featureSpotlightCancelScope || featureRecord?.cancelScope || "feature");
         return {
             ...listing,
             featureSpotlightCancelPending: true,
-            featureSpotlightAccessEnd: featureRecord.accessThrough || listing.featureSpotlightAccessEnd,
-            featureSpotlightPaidThrough: listing.featureSpotlightPaidThrough || featureRecord.accessThrough,
+            featureSpotlightCancelScope: cancelScope,
+            featureSpotlightAccessEnd: accessEnd,
         };
     };
 
@@ -1764,6 +1842,32 @@ export default function Dashboard() {
         setCancelModalError("");
         try {
             if (auth.currentUser && selectedPlanForAction) {
+                if (cancelScope === "feature") {
+                    const linked = getLinkedListingForPlan(selectedPlanForAction);
+                    const featureRecord = getStandaloneFeatureRecordForPlan(selectedPlanForAction, linked);
+                    if (
+                        isSpotlightCancelPending(linked) ||
+                        featureRecord?.cancelPending ||
+                        selectedPlanForAction.cancelAtPeriodEnd
+                    ) {
+                        setShowCancelModal(false);
+                        setSelectedPlanForAction(null);
+                        alert(
+                            selectedPlanForAction.cancelAtPeriodEnd
+                                ? "This spotlight ends with the plan. It is already scheduled to end."
+                                : "This spotlight add-on is already scheduled to end.",
+                        );
+                        window.location.reload();
+                        return;
+                    }
+                }
+                if (cancelScope !== "feature" && selectedPlanForAction.cancelAtPeriodEnd) {
+                    setShowCancelModal(false);
+                    setSelectedPlanForAction(null);
+                    alert("This plan is already scheduled to end.");
+                    window.location.reload();
+                    return;
+                }
                 const response = await fetch(`${API_BASE_URL}/api/cancel-plan`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -2236,7 +2340,8 @@ export default function Dashboard() {
             const isYearly = plan.billingInterval === "year" || plan.planId?.includes("_yr");
             const billingCycleLabel = isYearly ? "Annual" : "Monthly";
             const linkedListing = getLinkedListingForPlan(plan);
-            const hasFeature = linkedListing?.selectedAddon && linkedListing?.selectedAddon !== "" && linkedListing?.selectedAddon !== "none";
+            const spotlightAccessEnded = isSpotlightAccessEnded(linkedListing);
+            const hasFeature = !spotlightAccessEnded && linkedListing?.selectedAddon && linkedListing?.selectedAddon !== "" && linkedListing?.selectedAddon !== "none";
             const includedPlanFeature = planConfig?.featurePlan;
             const effectiveSpotlightId = getEffectiveSpotlightFeatureId(linkedListing, plan.planId);
             const effectiveSpotlightTier = getEffectiveSpotlightTier(linkedListing, plan.planId);
@@ -2252,18 +2357,20 @@ export default function Dashboard() {
             const storedFeatureStart = toDateValue(linkedListing?.featureSpotlightBillingPeriodStart);
             const lastFeaturePay = toDateValue(linkedListing?.lastFeaturePaymentReceivedAt);
             let standaloneSpotlightStart = storedFeatureStart || lastFeaturePay || null;
-            const standaloneSpotlightRenewal =
-                toDateValue(linkedListing?.featureSpotlightPaidThrough) ||
-                toDateValue(linkedListing?.featureSpotlightAccessEnd);
+            const featurePaidThrough = toDateValue(linkedListing?.featureSpotlightPaidThrough);
+            const featureAccessEnd = toDateValue(linkedListing?.featureSpotlightAccessEnd);
+            // Duration stays on the paid window. Ends On uses the stop date, which can be earlier.
+            const featurePeriodEnd = featurePaidThrough || featureAccessEnd;
             if (
                 planPeriodStart &&
                 standaloneSpotlightStart &&
                 lastFeaturePay &&
+                !spotlightCancelPending &&
                 Math.abs(standaloneSpotlightStart.getTime() - lastFeaturePay.getTime()) < 36e5 &&
                 standaloneSpotlightStart.getTime() > planPeriodStart.getTime() &&
-                standaloneSpotlightRenewal &&
+                featurePeriodEnd &&
                 toDateValue(plan.billingPeriodEnd) &&
-                Math.abs(standaloneSpotlightRenewal.getTime() - toDateValue(plan.billingPeriodEnd)!.getTime()) < 86400000 * 2
+                Math.abs(featurePeriodEnd.getTime() - toDateValue(plan.billingPeriodEnd)!.getTime()) < 86400000 * 2
             ) {
                 standaloneSpotlightStart = planPeriodStart;
             }
@@ -2280,6 +2387,31 @@ export default function Dashboard() {
                 effectiveSpotlightTier > 0 &&
                 !spotlightCancelPending;
             const isEnding = Boolean(plan.cancelAtPeriodEnd) && !isPast;
+            const hadLinkedFeature = Boolean(
+                plan.spotlightEndsWithPlan ||
+                includedPlanFeature ||
+                hasFeature ||
+                hasStandaloneAddon ||
+                spotlightCancelPending ||
+                (linkedListing?.selectedAddon && linkedListing.selectedAddon !== "none"),
+            );
+            // Stop date is the feature's own end, shortened only when the plan ends sooner.
+            let featureStop = (spotlightCancelPending || isPast)
+                ? (featureAccessEnd || featurePaidThrough)
+                : featurePeriodEnd;
+            if (
+                renewalDate &&
+                featureStop &&
+                featureStop.getTime() > renewalDate.getTime() &&
+                (isEnding || isPast || plan.cancelAtPeriodEnd)
+            ) {
+                featureStop = renewalDate;
+            }
+            const displayFeatureDurationEnd = featurePeriodEnd || featureStop;
+            const displayFeatureEndsOn = featureStop;
+            const featureEndsWithPlan = Boolean(
+                hadLinkedFeature && sameCalendarDay(displayFeatureEndsOn, renewalDate) && (isEnding || isPast),
+            );
             const planActionsLocked = isPast || arePlanActionsLocked(plan, linkedListing);
             const featureActionsLocked = isPast || areFeatureActionsLocked(plan, linkedListing);
             const canListingPlanUpgradeAction =
@@ -2309,6 +2441,11 @@ export default function Dashboard() {
                                             <Badge variant="outline" className="bg-foreground/10 text-muted-foreground border-foreground/20">{pastStatusLabel}</Badge>
                                             <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
                                         </>
+                                    ) : isEnding ? (
+                                        <>
+                                            <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>Scheduled to end</Badge>
+                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
+                                        </>
                                     ) : (
                                         <>
                                             <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>Active</Badge>
@@ -2321,7 +2458,18 @@ export default function Dashboard() {
                                 )}
                                 {isEnding && !isPast && (
                                     <p className="text-xs mt-1 mb-1" style={{ color: '#78350f' }}>
-                                        Plan scheduled to end on {renewalDate ? renewalDate.toLocaleDateString() : "the end of your billing period"}. It will not renew.
+                                        {featureEndsWithPlan
+                                            ? `Plan and feature end on ${renewalDate ? renewalDate.toLocaleDateString() : "the plan end date"}.`
+                                            : `Plan scheduled to end on ${renewalDate ? renewalDate.toLocaleDateString() : "the end of your billing period"}. It will not renew.`}
+                                    </p>
+                                )}
+                                {isPast && hadLinkedFeature && (
+                                    <p className="text-sm text-muted-foreground mt-2">
+                                        Spotlight ended on {(
+                                            displayFeatureEndsOn && renewalDate && displayFeatureEndsOn.getTime() < renewalDate.getTime()
+                                                ? displayFeatureEndsOn
+                                                : renewalDate
+                                        )?.toLocaleDateString() || "the plan end date"}.
                                     </p>
                                 )}
                                 <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
@@ -2354,13 +2502,17 @@ export default function Dashboard() {
                                         <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
                                     </div>
                                 </div>
-                                {hasStandaloneAddon && (
+                                {!isPast && hasStandaloneAddon && (
                                     <div className="mt-4 pt-4 border-t border-foreground/10">
                                         <div className="flex items-center gap-3 mb-1 flex-wrap">
                                             <h5 className="text-lg font-bold text-foreground">
                                                 {standaloneSpotlightPlan?.label || "Spotlight add-on"}
                                             </h5>
-                                            {spotlightCancelPending ? (
+                                            {featureEndsWithPlan ? (
+                                                <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>
+                                                    Ends with plan
+                                                </Badge>
+                                            ) : spotlightCancelPending ? (
                                                 <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>
                                                     Scheduled to end
                                                 </Badge>
@@ -2374,16 +2526,16 @@ export default function Dashboard() {
                                         <p className="text-sm text-muted-foreground mb-1">
                                             Spotlight Add-on Subscription
                                         </p>
-                                        {spotlightCancelPending && (
+                                        {spotlightCancelPending && !featureEndsWithPlan && (
                                             <p className="text-xs mt-1 mb-2" style={{ color: '#78350f' }}>
-                                                Spotlight add-on scheduled to end on {standaloneSpotlightRenewal?.toLocaleDateString() || "the end of your paid period"}. It will not renew.
+                                                Spotlight add-on scheduled to end on {displayFeatureEndsOn?.toLocaleDateString() || "the end of your paid period"}. It will not renew.
                                             </p>
                                         )}
                                         <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
                                             <div className="min-w-[180px]">
                                                 <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Plan Duration</p>
                                                 <p className="text-sm text-foreground font-medium">
-                                                    {formatPlanDuration(standaloneSpotlightStart, standaloneSpotlightRenewal)}
+                                                    {formatPlanDuration(standaloneSpotlightStart, displayFeatureDurationEnd)}
                                                 </p>
                                             </div>
                                             <div className="min-w-[140px]">
@@ -2391,7 +2543,7 @@ export default function Dashboard() {
                                                     {spotlightCancelPending ? "Ends On" : "Renewal Date"}
                                                 </p>
                                                 <p className="text-sm text-foreground font-medium">
-                                                    {standaloneSpotlightRenewal ? standaloneSpotlightRenewal.toLocaleDateString() : "N/A"}
+                                                    {displayFeatureEndsOn ? displayFeatureEndsOn.toLocaleDateString() : "N/A"}
                                                 </p>
                                             </div>
                                             <div className="min-w-[120px]">
@@ -2481,36 +2633,44 @@ export default function Dashboard() {
                                         Upgrade spotlight
                                     </Button>
                                 )}
-                                {((hasStandaloneAddon && !spotlightCancelPending) || (!isEnding && !plan.cancelAtPeriodEnd)) && (
+                                {(() => {
+                                    const canCancelPlan = !isEnding && !plan.cancelAtPeriodEnd;
+                                    const canCancelFeature = hasStandaloneAddon && !spotlightCancelPending && !isEnding;
+                                    const cancelDisabled = !canCancelPlan && !canCancelFeature;
+                                    return (
                                     <Button
                                         variant="ghost"
                                         size="sm"
-                                        className="h-8 px-2.5 text-xs text-foreground/80 hover:text-foreground hover:bg-foreground/10"
+                                        disabled={cancelDisabled}
+                                        title={cancelDisabled ? "Already scheduled to end." : undefined}
+                                        className={`h-8 px-2.5 text-xs ${cancelDisabled ? "text-muted-foreground opacity-40 cursor-not-allowed hover:bg-transparent" : "text-foreground/80 hover:text-foreground hover:bg-foreground/10"}`}
                                         onClick={() => {
+                                            if (cancelDisabled) return;
                                             setSelectedPlanForAction(plan);
                                             setPendingUpgradePlanId(null);
-                                            setCancelModalScope((!isEnding && !plan.cancelAtPeriodEnd) ? "plan" : "feature");
+                                            setCancelModalScope(canCancelPlan ? "plan" : "feature");
                                             setCancelModalError("");
                                             setShowCancelModal(true);
                                         }}
                                     >
                                         Cancel
                                     </Button>
-                                )}
+                                    );
+                                })()}
                             </div>
                             )}
                         </div>
-                        {(includedPlanFeature || hasFeature) && (
+                        {!isPast && (includedPlanFeature || hasFeature) && (
                             <div className="pt-3 border-t border-foreground/10">
                                 <p className="text-sm text-foreground flex items-center gap-2">
                                     <Sparkles className="w-4 h-4 text-primary" />
                                     {includedPlanFeature && !hasStandaloneAddon
                                         ? `Included: ${includedPlanFeature === "home_page" ? "Home page" : "Landing page"} spotlight`
-                                        : `Active spotlight: ${dynamicFeaturePlans.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label || (effectiveSpotlightId === "home_page" ? "Home Page Spotlight" : effectiveSpotlightId === "landing_page" ? "Landing Page Spotlight" : "Spotlight add-on")}`}
+                                        : `${featureEndsWithPlan || spotlightCancelPending ? "Spotlight" : "Active spotlight"}: ${dynamicFeaturePlans.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label || (effectiveSpotlightId === "home_page" ? "Home Page Spotlight" : effectiveSpotlightId === "landing_page" ? "Landing Page Spotlight" : "Spotlight add-on")}`}
                                 </p>
-                                {spotlightCancelPending && standaloneSpotlightRenewal && (
+                                {spotlightCancelPending && !featureEndsWithPlan && displayFeatureEndsOn && (
                                     <p className="text-xs mt-1" style={{ color: '#78350f' }}>
-                                        Spotlight add-on scheduled to end on {standaloneSpotlightRenewal.toLocaleDateString()}.
+                                        Spotlight add-on scheduled to end on {displayFeatureEndsOn.toLocaleDateString()}.
                                         It will not renew; you can purchase again after that date.
                                     </p>
                                 )}
@@ -4734,20 +4894,35 @@ function CancelPlanModal({
     onCancel,
     processing,
 }: CancelPlanModalProps) {
-    const hasBoth = hasStandaloneSpotlightAddon(linkedListing, plan?.planId);
+    const featureAlreadyScheduled = isSpotlightCancelPending(linkedListing);
+    const hasCancellableFeature =
+        hasStandaloneSpotlightAddon(linkedListing, plan?.planId) && !featureAlreadyScheduled;
+    const canCancelPlan = !Boolean(plan?.cancelAtPeriodEnd);
+    // Only offer the dual choice when both plan and feature can still be cancelled.
+    const hasBoth = hasCancellableFeature && canCancelPlan;
     const [selectedScope, setSelectedScope] = useState<CancelScope>(
         cancelScope === "feature" ? "feature" : "plan"
     );
 
-    const isFeatureCancel = (hasBoth ? selectedScope : cancelScope) === "feature";
+    const resolvedScope: CancelScope = hasBoth ? selectedScope : (canCancelPlan ? "plan" : cancelScope);
+    const isFeatureCancel = resolvedScope === "feature" && hasCancellableFeature;
+    const actionUnavailable =
+        (resolvedScope === "feature" && !hasCancellableFeature) ||
+        (resolvedScope !== "feature" && !canCancelPlan);
     const billingEnd =
         plan.billingPeriodEnd?.seconds
             ? new Date(plan.billingPeriodEnd.seconds * 1000)
             : getPlanPeriodEndDate(plan);
-    const spotlightEnd =
-        toDateValue(linkedListing?.featureSpotlightAccessEnd) ||
+    const featureNaturalEnd =
         toDateValue(linkedListing?.featureSpotlightPaidThrough) ||
-        billingEnd;
+        toDateValue(linkedListing?.featureSpotlightAccessEnd);
+    const spotlightEnd = featureNaturalEnd || billingEnd;
+    const featureEndsBeforePlan = Boolean(
+        featureNaturalEnd &&
+        billingEnd &&
+        featureNaturalEnd.getTime() + 60 * 1000 < billingEnd.getTime() &&
+        !sameCalendarDay(featureNaturalEnd, billingEnd),
+    );
     const spotlightLabel =
         FEATURE_PLANS.find(
             (f) =>
@@ -4810,7 +4985,7 @@ function CancelPlanModal({
                                         Cancel Plan
                                     </p>
                                     <p className="text-xs text-muted-foreground mt-0.5">
-                                        Also cancels your spotlight add-on on the plan end date — even if the spotlight was paid through a later date.
+                                        Also stops the spotlight. If it renews after the plan, it ends on the plan date. If it renews sooner, it keeps its own end date and does not renew.
                                     </p>
                                 </button>
                             </div>
@@ -4819,7 +4994,7 @@ function CancelPlanModal({
                         <p className="text-base text-foreground">
                             Cancel your <span className="font-semibold">{isFeatureCancel ? spotlightLabel : (planConfig?.label || "listing")}</span> {isFeatureCancel ? "spotlight add-on" : "plan subscription"}?
                             {!isFeatureCancel ? (
-                                <> Cancelling the plan also ends any linked spotlight on the plan end date, even if the spotlight was paid through a later date.</>
+                                <> Cancelling the plan also stops any linked spotlight. A spotlight that renews later ends on the plan date. A spotlight that renews sooner keeps that earlier date and does not renew.</>
                             ) : null}
                         </p>
                     )}
@@ -4834,24 +5009,35 @@ function CancelPlanModal({
                                     </span>
                                     , then won&apos;t renew. You&apos;ll see a &quot;Scheduled to end&quot; tag until that date.
                                 </>
+                            ) : featureEndsBeforePlan ? (
+                                <>
+                                    Your plan stays active until{" "}
+                                    <span className="font-semibold">
+                                        {billingEnd?.toLocaleDateString() || "the end of your billing period"}
+                                    </span>
+                                    . The spotlight ends on{" "}
+                                    <span className="font-semibold">
+                                        {featureNaturalEnd?.toLocaleDateString()}
+                                    </span>{" "}
+                                    and will not renew. The plan stays listed until its own end date.
+                                </>
                             ) : (
                                 <>
                                     Your plan stays active until{" "}
                                     <span className="font-semibold">
                                         {billingEnd?.toLocaleDateString() || "the end of your billing period"}
                                     </span>
-                                    . Any linked spotlight add-on will also end on that same date
-                                    {spotlightEnd &&
-                                    billingEnd &&
-                                    spotlightEnd.getTime() > billingEnd.getTime()
-                                        ? ` (even though your spotlight is currently paid through ${spotlightEnd.toLocaleDateString()})`
-                                        : ""}
-                                    . After that, access tied to this plan ends unless you purchase again.
-                                    You&apos;ll see a &quot;Scheduled to end&quot; tag until that date.
+                                    . Plan and feature end on that date. After that, access tied to this plan ends unless you purchase again.
                                 </>
                             )}
                         </p>
                     </div>
+
+                    {actionUnavailable && (
+                        <p className="text-sm text-muted-foreground">
+                            This is already scheduled to end. There is nothing further to cancel.
+                        </p>
+                    )}
 
                     {cancelError && (
                         <p className="text-sm text-destructive">{cancelError}</p>
@@ -4863,8 +5049,8 @@ function CancelPlanModal({
                     </Button>
                     <Button
                         variant="destructive"
-                        onClick={() => onCancel(hasBoth ? selectedScope : cancelScope)}
-                        disabled={processing}
+                        onClick={() => onCancel(isFeatureCancel ? "feature" : "plan")}
+                        disabled={processing || actionUnavailable}
                     >
                         {processing
                             ? "Cancelling..."

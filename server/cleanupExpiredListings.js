@@ -88,6 +88,17 @@ export async function cleanupExpiredListings(options = {}) {
     const listingUpdateOnEnd = {
         active: false,
         status: "Cancelled",
+        selectedAddon: fv.delete(),
+        featuredPlacement: fv.delete(),
+        isFeatured: false,
+        featureSpotlightCancelPending: fv.delete(),
+        featureSpotlightCancelScope: fv.delete(),
+        featureSpotlightAccessEnd: fv.delete(),
+        featureSpotlightPaidThrough: fv.delete(),
+        featureSpotlightBillingPeriodStart: fv.delete(),
+        lastFeaturePaymentReceivedAt: fv.delete(),
+        featureSpotlightStripeSubscriptionId: fv.delete(),
+        featureSpotlightSubscriptionItemId: fv.delete(),
         updatedAt: fv.serverTimestamp(),
     };
 
@@ -128,32 +139,56 @@ export async function cleanupExpiredListings(options = {}) {
         if (!listingSnap.exists) continue;
 
         const listingData = listingSnap.data() || {};
-        if (listingData.active === false && String(listingData.status || "").toLowerCase() === "cancelled") {
-            continue;
-        }
-
-        // Keep listing live if a standalone spotlight add-on is still paid through.
-        const featurePaidThrough =
-            toDateValue(listingData.featureSpotlightPaidThrough) ||
-            toDateValue(listingData.featureSpotlightAccessEnd);
-        const hasFeatureDisplay = Boolean(
-            String(listingData.selectedAddon || listingData.featuredPlacement || "").trim(),
-        );
         const featureSubId = listingData.featureSpotlightStripeSubscriptionId
             ? String(listingData.featureSpotlightStripeSubscriptionId)
-            : null;
-        let keepForFeature = Boolean(
-            hasFeatureDisplay && featurePaidThrough && featurePaidThrough.getTime() > Date.now(),
-        );
-        if (!keepForFeature && featureSubId && stripe) {
-            keepForFeature = await stripeSubscriptionStillLive(stripe, featureSubId);
-        }
-        if (keepForFeature) {
-            continue;
+            : "";
+        const planSubId = plan.stripeSubscriptionId ? String(plan.stripeSubscriptionId) : "";
+        // Plan end always ends the spotlight, even if the add-on subscription is still live in Stripe.
+        if (stripe && featureSubId && featureSubId !== planSubId) {
+            try {
+                const featureSub = await stripe.subscriptions.retrieve(featureSubId);
+                const featureStatus = String(featureSub?.status || "").toLowerCase();
+                if (["active", "trialing", "past_due", "unpaid"].includes(featureStatus)) {
+                    await stripe.subscriptions.cancel(featureSubId);
+                }
+            } catch (featureCancelErr) {
+                console.warn(
+                    "cleanupExpiredListings: could not cancel spotlight subscription",
+                    featureSubId,
+                    featureCancelErr?.message || featureCancelErr,
+                );
+            }
         }
 
-        await listingRef.set(listingUpdateOnEnd, { merge: true });
-        updatedListings += 1;
+        const alreadyCleared =
+            listingData.active === false &&
+            String(listingData.status || "").toLowerCase() === "cancelled" &&
+            !listingData.selectedAddon &&
+            !listingData.featuredPlacement &&
+            !listingData.isFeatured;
+        if (!alreadyCleared) {
+            await listingRef.set(listingUpdateOnEnd, { merge: true });
+            updatedListings += 1;
+        }
+
+        const featSnap = await db.collection("partnersCollection")
+            .doc(partnerId)
+            .collection("featuresCollection")
+            .where("listingId", "==", listingId)
+            .get();
+        for (const fDoc of featSnap.docs) {
+            const fd = fDoc.data() || {};
+            if (fd.collectionName && fd.collectionName !== collectionName) continue;
+            if (fd.active === false) continue;
+            await fDoc.ref.set(
+                {
+                    active: false,
+                    cancelPending: false,
+                    deactivatedAt: fv.serverTimestamp(),
+                },
+                { merge: true },
+            );
+        }
     }
 
     return { updatedListings, updatedPlans };

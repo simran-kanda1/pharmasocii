@@ -655,7 +655,7 @@ export default function CompleteProfile() {
                 companyProfileText: (formData.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
                 businessAddress: formData.businessAddress.trim(),
                 businessCountry: formData.businessCountry || "",
-                companyLogoUrl: logoUrlResolved || undefined,
+                companyLogoUrl: logoUrlResolved || "",
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,
                 // Feature add-ons can only be purchased after base plan payment.
@@ -684,7 +684,7 @@ export default function CompleteProfile() {
             const listingData: Record<string, any> = {
                 partnerId: auth.currentUser.uid,
                 businessName: formData.companyName,
-                companyLogoUrl: logoUrlResolved || undefined,
+                companyLogoUrl: logoUrlResolved || "",
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,
                 // Feature add-ons can only be purchased after base plan payment.

@@ -133,39 +133,15 @@ export function isListingStatusPublic(data: Record<string, unknown>): boolean {
 }
 
 /**
- * A listing is public only when its status fields allow it and a billing-live plan backs it.
- * Listings without partner linkage keep the legacy `active !== false` behavior.
+ * A listing is public when its status fields allow it (active !== false and not inactive status).
  */
 export function isPartnerListingPublic(
     listing: Record<string, unknown> & { id?: string; partnerId?: string },
-    collectionName: string,
-    liveKeys: Set<string>,
+    _collectionName?: string,
+    _liveKeys?: Set<string>,
 ): boolean {
     if (HIDE_DIRECTORY_DATA_PREVIEW) return false;
-    if (!isListingStatusPublic(listing)) return false;
-
-    const partnerId = listing.partnerId;
-    const listingId = listing.id;
-    if (!partnerId || !listingId) {
-        return listing.active !== false;
-    }
-
-    if (hasLiveListingKey(liveKeys, partnerId, collectionName, listingId)) return true;
-
-    // Allow partners on the "none" (free/pending) plan to be publicly visible if approved
-    if (String(listing.selectedPlan || "").trim().toLowerCase() === "none") {
-        return true;
-    }
-
-    // Plans could not be loaded (e.g. rules not deployed yet) — fall back to listing fields.
-    if (liveKeys.size === 0) {
-        const status = String(listing.status || "").trim().toLowerCase();
-        const approved =
-            !status || status === "approved" || status === "active" || status === "published";
-        return listing.active !== false && approved;
-    }
-
-    return false;
+    return isListingStatusPublic(listing);
 }
 
 /** Plan IDs that include a spotlight tier (events/jobs). */
@@ -226,12 +202,19 @@ export function resolveSpotlightPlacement(item: Record<string, unknown>): string
     return resolved || addon || planIncluded;
 }
 
-/** Spotlight stays visible until scheduled removal when user cancels mid-cycle. */
+/** Spotlight stays visible until its paid/access window ends. */
 export function spotlightDisplayActive(item: Record<string, unknown>): boolean {
+    if (item.active === false) return false;
+    const status = String(item.status || "").trim().toLowerCase();
+    if (status === "cancelled" || status === "canceled" || status === "expired" || status === "inactive") {
+        return false;
+    }
     const cancelEnd =
         toDateValue(item.featureSpotlightAccessEnd) ||
         toDateValue(item.featureSpotlightPaidThrough);
-    if (item.featureSpotlightCancelPending && cancelEnd && cancelEnd.getTime() < Date.now()) {
+    // Once the paid window is over, treat as inactive so repurchase unlocks
+    // (even if cancel-pending cleanup lagged or fields were left behind).
+    if (cancelEnd && cancelEnd.getTime() < Date.now()) {
         return false;
     }
     return true;
