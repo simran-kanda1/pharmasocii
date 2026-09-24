@@ -3,20 +3,31 @@ import Navbar from "./components/layout/Navbar";
 import { Footer } from "./components/layout/Footer";
 import { CookieConsentBanner } from "./components/layout/CookieConsentBanner";
 import Home from "./pages/Home";
+import AllCategories from "./pages/AllCategories";
 import Login from "./pages/Login";
 import MemberLogin from "./pages/MemberLogin";
 import PartnerRegister from "./pages/PartnerRegister";
+import CompleteProfile from "./pages/CompleteProfile";
 import AdminLogin from "./pages/admin/AdminLogin";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import PartnerDashboard from "./pages/partner/Dashboard";
+import ListingDetail from "./pages/ListingDetail";
+import AddListing from "./pages/partner/AddListing";
 import AboutUs from "./pages/AboutUs";
+import FAQ from "./pages/FAQ";
 import ContactUs from "./pages/ContactUs";
+import CommunityFeed from "./pages/community/CommunityFeed";
+import CommunityPostDetail from "./pages/community/CommunityPostDetail";
+import NewCommunityPost from "./pages/community/NewCommunityPost";
 import MemberRegister from "./pages/MemberRegister";
+import MemberDashboard from "./pages/member/MemberDashboard";
+import MemberCommunitySetup from "./pages/member/MemberCommunitySetup";
 import MemberForgotPassword from "./pages/member/MemberForgotPassword";
 import TermsOfUse from "./pages/TermsOfUse";
+import CommunityGuidelines from "./pages/CommunityGuidelines";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import Plans from "./pages/Plans";
 import AuthAction from "./pages/AuthAction";
-import UnavailableNotice from "./pages/UnavailableNotice";
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -37,22 +48,36 @@ function App() {
   return (
     <>
       <Routes>
-        {/* Admin & Partner management - Standalone */}
+        {/* Admin specific flows - NO layout, standalone pages */}
         <Route path="/admin" element={<AdminLogin />} />
         <Route path="/admin/" element={<AdminLogin />} />
         <Route path="/admin/dashboard" element={<AdminDashboard />} />
+
+        {/* Partner dashboard - NO layout */}
         <Route path="/partner/dashboard" element={<PartnerDashboard />} />
 
-        {/* Kept Pages with Layout */}
+        {/* Pages With Layout */}
         <Route path="/" element={<AppLayout><Home /></AppLayout>} />
-        <Route path="/about" element={<AppLayout><AboutUs /></AppLayout>} />
+        <Route path="/listing/:type/:id" element={<AppLayout><ListingDetail /></AppLayout>} />
         <Route path="/about-us" element={<AppLayout><AboutUs /></AppLayout>} />
+        <Route path="/about" element={<AppLayout><AboutUs /></AppLayout>} />
+        <Route path="/faq" element={<AppLayout><FAQ /></AppLayout>} />
         <Route path="/contact" element={<AppLayout><ContactUs /></AppLayout>} />
         <Route path="/contact-us" element={<AppLayout><ContactUs /></AppLayout>} />
-        <Route path="/privacy" element={<AppLayout><PrivacyPolicy /></AppLayout>} />
+        <Route path="/plans" element={<AppLayout><Plans /></AppLayout>} />
+        <Route path="/all-categories/:category?" element={<AppLayout><AllCategories /></AppLayout>} />
         <Route path="/terms" element={<AppLayout><TermsOfUse /></AppLayout>} />
+        <Route path="/guidelines" element={<AppLayout><CommunityGuidelines /></AppLayout>} />
+        <Route path="/privacy" element={<AppLayout><PrivacyPolicy /></AppLayout>} />
 
-        {/* Kept Auth & Registration Flows */}
+        <Route path="/community" element={<AppLayout><CommunityFeed /></AppLayout>} />
+        <Route path="/community/post/:postId" element={<AppLayout><CommunityPostDetail /></AppLayout>} />
+        <Route path="/community/new" element={<AppLayout><NewCommunityPost /></AppLayout>} />
+        <Route path="/member/register" element={<AppLayout><MemberRegister /></AppLayout>} />
+        <Route path="/member/setup" element={<AppLayout><MemberCommunitySetup /></AppLayout>} />
+        <Route path="/member/dashboard" element={<AppLayout><MemberDashboard /></AppLayout>} />
+
+        {/* Auth flows */}
         <Route path="/login" element={<AppLayout><Login /></AppLayout>} />
         <Route path="/member/login" element={<AppLayout><MemberLogin /></AppLayout>} />
         <Route path="/member/forgot-password" element={<AppLayout><MemberForgotPassword /></AppLayout>} />
@@ -60,29 +85,18 @@ function App() {
         <Route path="/signup" element={<AppLayout><PartnerRegister /></AppLayout>} />
         <Route path="/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
         <Route path="/partner/register" element={<AppLayout><PartnerRegister /></AppLayout>} />
-        <Route path="/member/register" element={<AppLayout><MemberRegister /></AppLayout>} />
+        <Route path="/partner/complete-profile" element={<AppLayout><CompleteProfile /></AppLayout>} />
         <Route path="/auth/action" element={<AppLayout><AuthAction /></AppLayout>} />
 
-        {/* All other pages routed to 'Currently unavailable due to technical issues.' */}
-        <Route path="/all-categories/:category?" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/listing/:type/:id" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/plans" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/faq" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/community" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/community/post/:postId" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/community/new" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/member/setup" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/member/dashboard" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/guidelines" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/partner/complete-profile" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/partner/add-listing/:type" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/partner/offerings/new" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/partner/jobs/new" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/partner/events/new" element={<AppLayout><UnavailableNotice /></AppLayout>} />
-        <Route path="/partner/consulting/new" element={<AppLayout><UnavailableNotice /></AppLayout>} />
+        {/* Partner listing pages */}
+        <Route path="/partner/add-listing/:type" element={<AppLayout><AddListing /></AppLayout>} />
+        <Route path="/partner/offerings/new" element={<AppLayout><AddListing /></AppLayout>} />
+        <Route path="/partner/jobs/new" element={<AppLayout><AddListing /></AppLayout>} />
+        <Route path="/partner/events/new" element={<AppLayout><AddListing /></AppLayout>} />
+        <Route path="/partner/consulting/new" element={<AppLayout><AddListing /></AppLayout>} />
 
         {/* Catch-all */}
-        <Route path="*" element={<AppLayout><UnavailableNotice /></AppLayout>} />
+        <Route path="*" element={<AppLayout><div className="flex-1 flex items-center justify-center text-4xl font-bold p-24">Coming Soon.</div></AppLayout>} />
       </Routes>
       <CookieConsentBanner />
     </>

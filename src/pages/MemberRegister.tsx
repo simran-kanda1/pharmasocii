@@ -79,10 +79,6 @@ export default function MemberRegister() {
       return;
     }
 
-    // Preview dummy restriction: block creation on submit with red error
-    setError("Currently unavailable due to technical issues.");
-    return;
-
     const emailTrim = form.email.trim();
 
     try {
