@@ -535,65 +535,15 @@ export default function AllCategories() {
             return true;
         })
         .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a));
-    // ── Sidebar: uses selectedCategories array everywhere ──
+    // ── Sidebar: uses selectedCategories array everywhere with full 3-level support ──
     const renderSidebarCategories = () => {
-        if (currentTab !== "business") {
-            return Object.entries(currentCategoriesDict as Record<string, string[]>).map(([cat, subs]) => {
-                const isExpanded = expandedCategories.includes(cat);
-                // FIX: check array, not single string
-                const isSelectedCategory = selectedCategories.includes(cat);
-                return (
-                    <div key={cat} className="flex flex-col gap-2">
-                        <div className="flex items-start gap-2">
-                            {subs.length > 0 ? (
-                                <button onClick={() => toggleExpandCategory(cat)} className="mt-1 flex-shrink-0">
-                                    {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
-                                </button>
-                            ) : (
-                                <span className="w-4 h-4 flex-shrink-0" />
-                            )}
-                            <div className="flex items-center gap-2">
-                                <Checkbox
-                                    id={cat}
-                                    checked={isSelectedCategory}
-                                    // FIX: use toggleCategory, not setSelectedCategory
-                                    onCheckedChange={() => toggleCategory(cat)}
-                                />
-                                <label htmlFor={cat} className="text-sm font-medium leading-none cursor-pointer">{cat}</label>
-                            </div>
-                        </div>
-                        {isExpanded && subs.length > 0 && (
-                            <div className="pl-10 space-y-2 mb-2">
-                                {subs.map(sub => {
-                                    const compositeKey = `${cat} > ${sub}`;
-                                    const isChecked = selectedSubcategories.includes(compositeKey) || selectedSubcategories.includes(sub);
-                                    return (
-                                        <div key={sub} className="flex items-center space-x-2">
-                                            <Checkbox
-                                                id={`${cat}-${sub}`}
-                                                checked={isChecked}
-                                                onCheckedChange={() => toggleSubcategory(cat, sub)}
-                                            />
-                                            <label htmlFor={`${cat}-${sub}`} className="text-sm font-light leading-none cursor-pointer text-muted-foreground">{sub}</label>
-                                        </div>
-                                    );
-                                })}
-                            </div>
-                        )}
-                    </div>
-                );
-            });
-        }
-
-        // Business tab — 3-level sidebar
         return Object.entries(currentCategoriesDict as CategoriesDict).map(([cat, subs]) => {
             const isExpanded = expandedCategories.includes(cat);
-            // FIX: check array, not single string
             const isSelectedCategory = selectedCategories.includes(cat);
             return (
                 <div key={cat} className="flex flex-col gap-2">
                     <div className="flex items-start gap-2">
-                        {subs.length > 0 ? (
+                        {subs && subs.length > 0 ? (
                             <button onClick={() => toggleExpandCategory(cat)} className="mt-1 flex-shrink-0">
                                 {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
                             </button>
@@ -604,14 +554,13 @@ export default function AllCategories() {
                             <Checkbox
                                 id={cat}
                                 checked={isSelectedCategory}
-                                // FIX: use toggleCategory, not setSelectedCategory
                                 onCheckedChange={() => toggleCategory(cat)}
                             />
                             <label htmlFor={cat} className="text-sm font-medium leading-none cursor-pointer">{cat}</label>
                         </div>
                     </div>
 
-                    {isExpanded && subs.length > 0 && (
+                    {isExpanded && subs && subs.length > 0 && (
                         <div className="pl-10 space-y-2 mb-2">
                             {subs.map((entry) => {
                                 const subLabel = getSubLabel(entry);
