@@ -84,6 +84,29 @@ const BSL_FILTER_OPTIONS = ["1", "2", "3", "4"];
 
 const WORK_MODELS = ["Hybrid", "Remote", "On-site"];
 
+function toMillis(value: any): number {
+    if (!value) return 0;
+    if (typeof value?.toDate === "function") {
+        const d = value.toDate();
+        return d instanceof Date ? d.getTime() : 0;
+    }
+    if (typeof value?.seconds === "number") return value.seconds * 1000;
+    if (typeof value === "number") return value > 1e12 ? value : value * 1000;
+    if (typeof value === "string") {
+        const ms = new Date(value).getTime();
+        return Number.isNaN(ms) ? 0 : ms;
+    }
+    return 0;
+}
+
+function featuredRecencyMs(item: Record<string, any>): number {
+    return Math.max(
+        toMillis(item.lastFeaturePaymentReceivedAt),
+        toMillis(item.lastPaymentReceivedAt),
+        toMillis(item.updatedAt),
+        toMillis(item.createdAt)
+    );
+}
 
 export default function AllCategories() {
     const { businessCategories, consultingCategories, eventsCategories, jobsCategories } = useDirectoryCategories();
@@ -499,17 +522,19 @@ export default function AllCategories() {
         currentPage * itemsPerPage
     );
 
-    const featuredBusinesses = data.filter(item => {
-        if (!spotlightDisplayActive(item)) return false;
-        const addon = resolveSpotlightPlacement(item);
-        // Premium Plus (events/jobs) is home-only — never land in the module Featured strip.
-        if (addon === "home_page") return false;
-        const isLandingSpotlight = addon === "landing_page" || addon === "both" || addon === "spotlight_addon";
-        // Legacy isFeatured only when placement is unknown and this is not a home-only plan.
-        const hasLegacyFeatureFlag = Boolean(item.isFeatured) && !addon;
-        if (!isLandingSpotlight && !hasLegacyFeatureFlag) return false;
-        return true;
-    });
+    const featuredBusinesses = data
+        .filter(item => {
+            if (!spotlightDisplayActive(item)) return false;
+            const addon = resolveSpotlightPlacement(item);
+            // Premium Plus (events/jobs) is home-only — never land in the module Featured strip.
+            if (addon === "home_page") return false;
+            const isLandingSpotlight = addon === "landing_page" || addon === "both" || addon === "spotlight_addon";
+            // Legacy isFeatured only when placement is unknown and this is not a home-only plan.
+            const hasLegacyFeatureFlag = Boolean(item.isFeatured) && !addon;
+            if (!isLandingSpotlight && !hasLegacyFeatureFlag) return false;
+            return true;
+        })
+        .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a));
     // ── Sidebar: uses selectedCategories array everywhere ──
     const renderSidebarCategories = () => {
         if (currentTab !== "business") {

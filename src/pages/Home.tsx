@@ -53,6 +53,7 @@ function featuredRecencyMs(item: Record<string, any>): number {
     return Math.max(
         toMillis(item.lastFeaturePaymentReceivedAt),
         toMillis(item.lastPaymentReceivedAt),
+        toMillis(item.updatedAt),
         toMillis(item.createdAt)
     );
 }
