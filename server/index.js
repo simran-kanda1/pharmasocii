@@ -72,6 +72,29 @@ function addBillingPeriodFallback(startDate, planId) {
     return fallback;
 }
 
+function stripeResourceMissing(err) {
+    const message = String(err?.message || err || "");
+    return err?.code === "resource_missing" || /No such (billingclock|customer|test_clock)/i.test(message);
+}
+
+async function testClockExists(testClockId) {
+    if (!testClockId) return false;
+    try {
+        await stripe.testHelpers.testClocks.retrieve(testClockId);
+        return true;
+    } catch (err) {
+        if (stripeResourceMissing(err)) return false;
+        throw err;
+    }
+}
+
+async function clearStoredTestClock(partnerRef) {
+    await partnerRef.set(
+        { stripeTestClockId: admin.firestore.FieldValue.delete() },
+        { merge: true },
+    );
+}
+
 async function getOrCreatePartnerStripeTestCustomer(partnerId, partnerEmail) {
     const partnerRef = db.collection("partnersCollection").doc(partnerId);
     const snap = await partnerRef.get();
@@ -80,23 +103,37 @@ async function getOrCreatePartnerStripeTestCustomer(partnerId, partnerEmail) {
     let testClockId = data.stripeTestClockId || null;
     let customerId = toStripeCustomerId(data.stripeCustomerId);
 
+    if (testClockId && !(await testClockExists(testClockId))) {
+        console.warn(`   ⚠ Stored test clock ${testClockId} is gone for ${partnerId}; creating a new one.`);
+        testClockId = null;
+        await clearStoredTestClock(partnerRef);
+    }
+
     if (customerId) {
         try {
             const customer = await stripe.customers.retrieve(customerId);
             if (customer.deleted) {
                 customerId = null;
             } else if (customer.test_clock) {
-                testClockId =
+                const customerClock =
                     typeof customer.test_clock === "string"
                         ? customer.test_clock
-                        : customer.test_clock?.id || testClockId;
-                return { customerId, testClockId };
+                        : customer.test_clock?.id || null;
+                if (customerClock && !(await testClockExists(customerClock))) {
+                    // A customer cannot leave a deleted test clock. Start a new customer for future checkouts.
+                    customerId = null;
+                    testClockId = null;
+                } else {
+                    testClockId = customerClock || testClockId;
+                    return { customerId, testClockId };
+                }
             } else if (!STRIPE_TEST_CLOCKS_ENABLED) {
                 return { customerId, testClockId: null };
             } else {
                 customerId = null;
             }
-        } catch {
+        } catch (err) {
+            if (!stripeResourceMissing(err)) throw err;
             customerId = null;
         }
     }
@@ -228,7 +265,14 @@ async function advancePartnerTestClock(partnerId, advanceDays = STRIPE_TEST_BILL
     // Catch up to wall clock only — do not add an extra billing period (that made renewal end dates look a day late).
     const catchUpTarget = nowSeconds;
 
-    let clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+    let clock;
+    try {
+        clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+    } catch (err) {
+        if (!stripeResourceMissing(err)) throw err;
+        await clearStoredTestClock(db.collection("partnersCollection").doc(partnerId));
+        return { error: `Stripe test clock ${testClockId} no longer exists. It was cleared; start a new checkout to create another.` };
+    }
     let currentFrozen = Number(clock.frozen_time || Math.floor(Date.now() / 1000));
     const previousFrozenTime = new Date(currentFrozen * 1000).toISOString();
     let steps = 0;
@@ -313,7 +357,16 @@ async function runAdvanceAllStaleTestClocks(options = {}) {
         const testClockId = await resolvePartnerTestClockIdFromData(data);
         if (!testClockId) continue;
         try {
-            const clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+            let clock;
+            try {
+                clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+            } catch (err) {
+                if (!stripeResourceMissing(err)) throw err;
+                await clearStoredTestClock(partnerDoc.ref);
+                errors += 1;
+                results.push({ partnerId: partnerDoc.id, error: `Cleared missing test clock ${testClockId}` });
+                continue;
+            }
             const currentFrozen = Number(clock.frozen_time || 0);
             const nowSeconds = Math.floor(Date.now() / 1000);
             // Only catch up clocks that are behind (or about to leave plans as "Past").
@@ -369,7 +422,14 @@ async function ensurePartnerTestClockReady(partnerId) {
     if (!STRIPE_IS_TEST) return { ready: true, skipped: true };
     const testClockId = await resolvePartnerTestClockId(partnerId);
     if (!testClockId) return { ready: true, skipped: true };
-    const clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+    let clock;
+    try {
+        clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+    } catch (err) {
+        if (!stripeResourceMissing(err)) throw err;
+        await clearStoredTestClock(db.collection("partnersCollection").doc(partnerId));
+        return { ready: true, skipped: true, missingClock: testClockId };
+    }
     if (clock.status === "advancing") {
         const readyClock = await waitForTestClockReady(testClockId);
         return { ready: true, testClockId, status: readyClock.status, waited: true };
@@ -3198,7 +3258,8 @@ async function finalizeSpotlightAddonPurchaseWrites({
         cancelScope: admin.firestore.FieldValue.delete(),
     };
     if (existingFeature.empty) {
-        await partnerRef.collection("featuresCollection").add(featPayload);
+        const { cancelScope: _omitCancelScope, ...createPayload } = featPayload;
+        await partnerRef.collection("featuresCollection").add(createPayload);
     } else {
         await existingFeature.docs[0].ref.set(featPayload, { merge: true });
     }
@@ -3222,6 +3283,9 @@ async function finalizeSpotlightAddonPurchaseWrites({
         });
         await retireReplacedSpotlightAddonDocs(partnerRef, listingId, subId);
         await deactivateSupersededPartnerFeatures(partnerRef, listingId, featureId);
+        if (subId && custId) {
+            await cancelSupersededSpotlightSubscriptions(custId, listingId, subId);
+        }
     }
 
     await partnerRef.set({
@@ -3451,7 +3515,8 @@ async function finalizeFeatureUpgradeAfterPayment({
             }
             await fcDoc.ref.set(featPatch, { merge: true });
         } else {
-            await partnerRef.collection("featuresCollection").add(featPatch);
+            const { cancelScope: _omitCancelScope, ...createPayload } = featPatch;
+            await partnerRef.collection("featuresCollection").add(createPayload);
         }
     }
 
@@ -4208,12 +4273,162 @@ async function healPartnerPlanCatalogFamilies(partnerId) {
     return { healed };
 }
 
+async function ensureCheckoutTransaction(session, partnerId) {
+    const existing = await db.collection("transactionsCollection")
+        .where("sessionId", "==", session.id)
+        .limit(1)
+        .get();
+    if (!existing.empty) return false;
+    const meta = session.metadata || {};
+    await db.collection("transactionsCollection").add({
+        partnerId,
+        amount: (session.amount_total || 0) / 100,
+        currency: session.currency || "usd",
+        status: "succeeded",
+        type: meta.featureId ? "feature" : "listing",
+        planId: meta.planId || null,
+        featureId: meta.featureId || null,
+        previousFeatureId: meta.previousFeatureId || null,
+        isUpgrade: meta.featureUpgrade === "true",
+        group: meta.group || null,
+        listingId: meta.listingId || null,
+        collectionName: meta.collectionName || null,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        sessionId: session.id,
+        customerEmail: session.customer_details?.email || "",
+    });
+    return true;
+}
+
+async function cancelSupersededSpotlightSubscriptions(customerId, listingId, keepSubId) {
+    const cust = toStripeCustomerId(customerId);
+    if (!cust || !listingId || !keepSubId) return;
+    let subs;
+    try {
+        subs = await stripe.subscriptions.list({ customer: cust, status: "active", limit: 30 });
+    } catch (err) {
+        if (stripeResourceMissing(err)) return;
+        throw err;
+    }
+    const keep = (subs.data || []).find((sub) => sub.id === keepSubId);
+    const keepCreated = Number(keep?.created || 0);
+    for (const sub of subs.data || []) {
+        if (sub.id === keepSubId) continue;
+        // An older checkout must not cancel a newer spotlight that was already paid.
+        if (keepCreated && Number(sub.created || 0) > keepCreated) continue;
+        const meta = sub.metadata || {};
+        const isSpotlight = meta.purchaseType === "spotlight_addon" || (meta.featureId && !meta.planId);
+        if (!isSpotlight || String(meta.listingId || "") !== String(listingId)) continue;
+        try {
+            await stripe.subscriptions.cancel(sub.id);
+            console.log(`   ✓ Cancelled superseded spotlight subscription ${sub.id}`);
+        } catch (err) {
+            console.warn("cancelSupersededSpotlightSubscriptions:", err?.message || err);
+        }
+    }
+}
+
+/** Paid Checkout that never reached Firestore (missed webhook) is written on the next dashboard sync. */
+async function backfillUnappliedPaidCheckouts(partnerId) {
+    const partnerRef = db.collection("partnersCollection").doc(partnerId);
+    const partnerSnap = await partnerRef.get();
+    const customerId = toStripeCustomerId(partnerSnap.exists ? partnerSnap.data()?.stripeCustomerId : null);
+    if (!customerId) return { repaired: 0, transactions: 0 };
+    let listed;
+    try {
+        listed = await stripe.checkout.sessions.list({ customer: customerId, limit: 20 });
+    } catch (err) {
+        if (stripeResourceMissing(err)) return { repaired: 0, transactions: 0, skipped: "missing_customer" };
+        throw err;
+    }
+    const paid = (listed.data || [])
+        .filter((session) => session.status === "complete" && ["paid", "no_payment_required"].includes(session.payment_status))
+        .sort((a, b) => a.created - b.created);
+    let repaired = 0;
+    let transactions = 0;
+    for (const summary of paid) {
+        const session = await stripe.checkout.sessions.retrieve(summary.id, { expand: ["subscription"] });
+        const meta = session.metadata || {};
+        const featureId = meta.featureId || "";
+        const planId = meta.planId || "";
+        const listingId = meta.listingId || "";
+        const collectionName = meta.collectionName || "";
+        if (featureId && listingId && collectionName) {
+            const existingFeature = await partnerRef.collection("featuresCollection")
+                .where("sessionId", "==", session.id)
+                .limit(1)
+                .get();
+            if (existingFeature.empty) {
+                await finalizeSpotlightAddonPurchaseWrites({
+                    session,
+                    partnerId,
+                    partnerRef,
+                    featureId,
+                    listingId,
+                    resolvedCollectionName: collectionName,
+                    group: meta.group || null,
+                });
+                repaired += 1;
+            }
+            if (await ensureCheckoutTransaction(session, partnerId)) transactions += 1;
+            continue;
+        }
+        if (!planId || !listingId || !collectionName || featureId) continue;
+        const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
+        const listingSnap = listingRef ? await listingRef.get() : null;
+        const listing = listingSnap?.exists ? listingSnap.data() || {} : null;
+        if (listing && listing.status === "pending_payment") {
+            const startDate = new Date((session.created || Math.floor(Date.now() / 1000)) * 1000);
+            const billingPeriodEnd = await resolvePlanBillingPeriodEndFromCheckout(session, planId, startDate);
+            const subId = toStripeSubscriptionId(session.subscription);
+            await applyListingPatchEverywhere(partnerId, collectionName, listingId, {
+                status: "Approved",
+                active: true,
+                selectedPlan: planId,
+                lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                ...(subId ? { stripeSubscriptionId: subId } : {}),
+                stripeCustomerId: toStripeCustomerId(session.customer),
+            });
+            const existingPlan = await partnerRef.collection("planCollection")
+                .where("sessionId", "==", session.id)
+                .limit(1)
+                .get();
+            if (existingPlan.empty) {
+                const isYearly = String(planId).includes("_yr");
+                await partnerRef.collection("planCollection").add({
+                    planId,
+                    planName: String(planId).replace(/_/g, " "),
+                    startDate,
+                    billingPeriodStart: startDate,
+                    billingPeriodEnd,
+                    billingInterval: isYearly ? "year" : "month",
+                    active: true,
+                    lastPaymentReceivedAt: startDate,
+                    listingId,
+                    collectionName,
+                    stripeSubscriptionId: subId,
+                    stripeCustomerId: toStripeCustomerId(session.customer),
+                    sessionId: session.id,
+                });
+            }
+            repaired += 1;
+        }
+        if (listing && await ensureCheckoutTransaction(session, partnerId)) transactions += 1;
+    }
+    return { repaired, transactions };
+}
+
 async function syncPartnerPlansFromStripe(partnerId, options = {}) {
     if (!partnerId) return { ok: false, error: "partnerId is required", synced: 0 };
 
     let clockState = null;
     if (options.waitForClock !== false) {
-        clockState = await ensurePartnerTestClockReady(partnerId);
+        try {
+            clockState = await ensurePartnerTestClockReady(partnerId);
+        } catch (err) {
+            console.warn("ensurePartnerTestClockReady:", err?.message || err);
+            clockState = { ready: false, error: err?.message || String(err) };
+        }
     }
 
     let healResult = { healed: 0 };
@@ -4253,7 +4468,15 @@ async function syncPartnerPlansFromStripe(partnerId, options = {}) {
 
     const warnings = await collectPartnerSubscriptionIntervalWarnings(partnerId);
 
-    return { ok: true, synced, subscriptions: results, clockState, invoiceSync, warnings, healResult };
+    let checkoutRepair = { repaired: 0, transactions: 0 };
+    try {
+        checkoutRepair = await backfillUnappliedPaidCheckouts(partnerId);
+    } catch (err) {
+        console.warn("backfillUnappliedPaidCheckouts:", err?.message || err);
+        checkoutRepair = { repaired: 0, transactions: 0, error: err?.message || String(err) };
+    }
+
+    return { ok: true, synced, subscriptions: results, clockState, invoiceSync, warnings, healResult, checkoutRepair };
 }
 
 async function syncAllPlansFromStripe() {
@@ -5142,6 +5365,31 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             return res.status(400).json({
                 error: "This listing already has a monthly spotlight subscription. Use upgrade to change tier, or cancel the add-on in Stripe before subscribing again.",
             });
+        }
+
+        const checkoutCustomerId =
+            toStripeCustomerId(listingData.stripeCustomerId) ||
+            toStripeCustomerId((await partnerRef.get()).data()?.stripeCustomerId);
+        if (checkoutCustomerId && !pricing.isUpgrade) {
+            try {
+                const liveSubs = await stripe.subscriptions.list({
+                    customer: checkoutCustomerId,
+                    status: "active",
+                    limit: 30,
+                });
+                const alreadyPaid = (liveSubs.data || []).find((sub) => {
+                    const meta = sub.metadata || {};
+                    const isSpotlight = meta.purchaseType === "spotlight_addon" || (meta.featureId && !meta.planId);
+                    return isSpotlight && String(meta.listingId || "") === String(listingId);
+                });
+                if (alreadyPaid) {
+                    return res.status(409).json({
+                        error: "A spotlight purchase for this listing is already paid. Refresh the dashboard to see it instead of buying again.",
+                    });
+                }
+            } catch (subListErr) {
+                if (!stripeResourceMissing(subListErr)) throw subListErr;
+            }
         }
 
         const productName = pricing.isUpgrade
@@ -7397,7 +7645,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
             // Event fields
             eventName,
             eventLink,
-            startDate,
+            startDate: eventStartDate,
             endDate,
             eventCountry,
             stateRegion,
@@ -7542,7 +7790,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
             Object.assign(listingData, {
                 eventName: eventName || "",
                 eventLink: eventLink || "",
-                startDate: startDate || "",
+                startDate: eventStartDate || "",
                 endDate: endDate || "",
                 eventCountry: eventCountry || "",
                 stateRegion: stateRegion || "",
@@ -7633,7 +7881,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
             Object.assign(partnerData, {
                 eventName: eventName || "",
                 eventLink: eventLink || "",
-                startDate: startDate || "",
+                startDate: eventStartDate || "",
                 endDate: endDate || "",
                 eventCountry: eventCountry || "",
                 stateRegion: stateRegion || "",
@@ -7770,6 +8018,17 @@ async function runBillingCli() {
         console.log(JSON.stringify(result, null, 2));
         if (result.error || result.errors > 0) process.exit(1);
         return;
+    }
+
+    if (cliCommand === "repair-paid-checkouts") {
+        const partnerId = String(process.argv[3] || "").trim();
+        if (!partnerId) {
+            console.error("Usage: node index.js repair-paid-checkouts <partnerId>");
+            process.exit(1);
+        }
+        const result = await backfillUnappliedPaidCheckouts(partnerId);
+        console.log(JSON.stringify(result, null, 2));
+        process.exit(0);
     }
 
     if (cliCommand === "sync-partner-billing") {

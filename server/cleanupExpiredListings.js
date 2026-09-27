@@ -169,6 +169,15 @@ export async function cleanupExpiredListings(options = {}) {
         if (!alreadyCleared) {
             await listingRef.set(listingUpdateOnEnd, { merge: true });
             updatedListings += 1;
+            if (collectionName !== "businessOfferingsCollection") {
+                const legacyRef = db.collection("partnersCollection").doc(partnerId).collection(collectionName).doc(listingId);
+                if (legacyRef.path !== listingRef.path) {
+                    const legacySnap = await legacyRef.get();
+                    if (legacySnap.exists) {
+                        await legacyRef.set(listingUpdateOnEnd, { merge: true });
+                    }
+                }
+            }
         }
 
         const featSnap = await db.collection("partnersCollection")

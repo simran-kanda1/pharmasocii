@@ -137,11 +137,15 @@ export function isListingStatusPublic(data: Record<string, unknown>): boolean {
  */
 export function isPartnerListingPublic(
     listing: Record<string, unknown> & { id?: string; partnerId?: string },
-    _collectionName?: string,
-    _liveKeys?: Set<string>,
+    collectionName?: string,
+    liveKeys?: Set<string>,
 ): boolean {
     if (HIDE_DIRECTORY_DATA_PREVIEW) return false;
-    return isListingStatusPublic(listing);
+    if (!isListingStatusPublic(listing)) return false;
+    if (!liveKeys || !collectionName || !listing?.id) return true;
+    const partnerId = typeof listing.partnerId === "string" ? listing.partnerId : "";
+    if (!partnerId) return false;
+    return hasLiveListingKey(liveKeys, partnerId, collectionName, listing.id);
 }
 
 /** Plan IDs that include a spotlight tier (events/jobs). */

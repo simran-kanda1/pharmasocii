@@ -840,17 +840,30 @@ export default function Dashboard() {
         }
 
         const featureStatus = params.get("feature");
-        if (featureStatus === "success") {
-            window.history.replaceState({}, document.title, window.location.pathname);
-
-            // if we have session_id for feature we can verify it similarly
-            if (sessionId && !sessionStorage.getItem(processedKey)) {
-                sessionStorage.setItem(processedKey, "true");
-                // Use our central API verification endpoint
-                fetch(`${API_BASE_URL}/api/verify-payment`, {
-                    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId })
-                }).catch(err => console.error("Feature verification failed:", err));
-            }
+        if (featureStatus === "success" && sessionId && !sessionStorage.getItem(processedKey)) {
+            sessionStorage.setItem(processedKey, "true");
+            fetch(`${API_BASE_URL}/api/verify-payment`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sessionId }),
+            })
+                .then(async (res) => {
+                    const data = await res.json().catch(() => null);
+                    if (!res.ok || data?.success === false) {
+                        sessionStorage.removeItem(processedKey);
+                        window.alert(data?.error || data?.message || "The spotlight payment could not be saved. Refresh and try again before buying another.");
+                        return;
+                    }
+                    window.history.replaceState({}, document.title, "/partner/dashboard");
+                    window.location.reload();
+                })
+                .catch((err) => {
+                    console.error("Feature verification failed:", err);
+                    sessionStorage.removeItem(processedKey);
+                    window.alert("The spotlight payment could not be saved. Refresh and try again before buying another.");
+                });
+        } else if (featureStatus === "success") {
+            window.history.replaceState({}, document.title, "/partner/dashboard");
         }
     }, []);
 
