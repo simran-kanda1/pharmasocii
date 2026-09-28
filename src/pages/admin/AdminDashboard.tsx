@@ -2218,87 +2218,6 @@ export default function AdminDashboard() {
 
   const pendingListings = typeFilteredListings.filter((l) => l.status === "Pending Review");
 
-  const partnerInsights = useMemo(() => {
-    const latestPlansByPartner = new Map<string, PartnerPlanRecord>();
-    const listingCountByPartner = new Map<string, number>();
-    const featuredCountByPartner = new Map<string, number>();
-
-    listings.forEach((listing) => {
-      const partnerId = listing.__path.split("/")[1] || "";
-      if (!partnerId) return;
-      listingCountByPartner.set(partnerId, (listingCountByPartner.get(partnerId) || 0) + 1);
-    });
-
-    featuredPlans.forEach((feature) => {
-      if (!feature.partnerId) return;
-      featuredCountByPartner.set(feature.partnerId, (featuredCountByPartner.get(feature.partnerId) || 0) + 1);
-    });
-
-    partnerPlans.forEach((plan) => {
-      if (!plan.partnerId) return;
-      const existing = latestPlansByPartner.get(plan.partnerId);
-      const existingTs = (existing as any)?.startDate?.seconds || existing?.createdAt?.seconds || 0;
-      const currentTs = (plan as any)?.startDate?.seconds || plan?.createdAt?.seconds || 0;
-      if (!existing || currentTs >= existingTs) {
-        latestPlansByPartner.set(plan.partnerId, plan);
-      }
-    });
-
-    return partners.reduce((acc, partner) => {
-      const latestPlan = latestPlansByPartner.get(partner.id);
-      
-      let trialInfo = null;
-      if (partner.createdByAdmin && latestPlan && latestPlan.isTrial) {
-        const startDate = latestPlan.startDate;
-        const billingPeriodEnd = latestPlan.billingPeriodEnd;
-        if (startDate && billingPeriodEnd) {
-          const startMs = typeof startDate.toMillis === 'function' 
-            ? startDate.toMillis() 
-            : (startDate.seconds ? startDate.seconds * 1000 : new Date(startDate).getTime());
-          const endMs = typeof billingPeriodEnd.toMillis === 'function' 
-            ? billingPeriodEnd.toMillis() 
-            : (billingPeriodEnd.seconds ? billingPeriodEnd.seconds * 1000 : new Date(billingPeriodEnd).getTime());
-          const nowMs = Date.now();
-          
-          const durationDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
-          const elapsedDays = Math.floor((nowMs - startMs) / (1000 * 60 * 60 * 24));
-          const currentDay = Math.max(1, elapsedDays + 1);
-          
-          trialInfo = {
-            durationDays,
-            currentDay: Math.min(currentDay, durationDays),
-            isExpired: nowMs > endMs,
-            daysLeft: Math.max(0, Math.round((endMs - nowMs) / (1000 * 60 * 60 * 24))),
-            startDate: startMs,
-            billingPeriodEnd: endMs,
-          };
-        }
-      }
-
-      const rawPlan = latestPlan?.planName || latestPlan?.planId || (partner as any).selectedPlan || "-";
-
-      acc[partner.id] = {
-        latestPlan: formatUserPlan(rawPlan, latestPlan),
-        listingCount: listingCountByPartner.get(partner.id) || 0,
-        featuredCount: featuredCountByPartner.get(partner.id) || 0,
-        trialInfo,
-      };
-      return acc;
-    }, {} as Record<string, { 
-      latestPlan: string; 
-      listingCount: number; 
-      featuredCount: number; 
-      trialInfo?: { 
-        durationDays: number; 
-        currentDay: number; 
-        isExpired: boolean; 
-        daysLeft: number; 
-        startDate: number;
-        billingPeriodEnd: number;
-      } | null;
-    }>);
-  }, [partners, partnerPlans, listings, featuredPlans]);
-
   const listingInsights = useMemo(() => {
     const plansByListing = new Map<string, PartnerPlanRecord>();
     const plansByPartner = new Map<string, PartnerPlanRecord>();
@@ -2375,6 +2294,104 @@ export default function AdminDashboard() {
       return acc;
     }, {} as Record<string, any>);
   }, [listings, partnerPlans, featuredPlans]);
+
+  const partnerInsights = useMemo(() => {
+    const latestPlansByPartner = new Map<string, PartnerPlanRecord>();
+    const partnerListingsMap = new Map<string, ListingRecord[]>();
+
+    listings.forEach((listing) => {
+      let partnerId = listing.partnerId;
+      if (!partnerId) {
+        if (listing.__col === "businessOfferingsCollection" || listing.__path?.includes("partnersCollection")) {
+          partnerId = listing.__path.split("/")[1];
+        }
+      }
+      if (!partnerId) return;
+      const arr = partnerListingsMap.get(partnerId) || [];
+      arr.push(listing);
+      partnerListingsMap.set(partnerId, arr);
+    });
+
+    partnerPlans.forEach((plan) => {
+      if (!plan.partnerId) return;
+      const existing = latestPlansByPartner.get(plan.partnerId);
+      const existingTs = (existing as any)?.startDate?.seconds || existing?.createdAt?.seconds || 0;
+      const currentTs = (plan as any)?.startDate?.seconds || plan?.createdAt?.seconds || 0;
+      if (!existing || currentTs >= existingTs) {
+        latestPlansByPartner.set(plan.partnerId, plan);
+      }
+    });
+
+    return partners.reduce((acc, partner) => {
+      const latestPlan = latestPlansByPartner.get(partner.id);
+      
+      let trialInfo = null;
+      if (partner.createdByAdmin && latestPlan && latestPlan.isTrial) {
+        const startDate = latestPlan.startDate;
+        const billingPeriodEnd = latestPlan.billingPeriodEnd;
+        if (startDate && billingPeriodEnd) {
+          const startMs = typeof startDate.toMillis === 'function' 
+            ? startDate.toMillis() 
+            : (startDate.seconds ? startDate.seconds * 1000 : new Date(startDate).getTime());
+          const endMs = typeof billingPeriodEnd.toMillis === 'function' 
+            ? billingPeriodEnd.toMillis() 
+            : (billingPeriodEnd.seconds ? billingPeriodEnd.seconds * 1000 : new Date(billingPeriodEnd).getTime());
+          const nowMs = Date.now();
+          
+          const durationDays = Math.round((endMs - startMs) / (1000 * 60 * 60 * 24));
+          const elapsedDays = Math.floor((nowMs - startMs) / (1000 * 60 * 60 * 24));
+          const currentDay = Math.max(1, elapsedDays + 1);
+          
+          trialInfo = {
+            durationDays,
+            currentDay: Math.min(currentDay, durationDays),
+            isExpired: nowMs > endMs,
+            daysLeft: Math.max(0, Math.round((endMs - nowMs) / (1000 * 60 * 60 * 24))),
+            startDate: startMs,
+            billingPeriodEnd: endMs,
+          };
+        }
+      }
+
+      const rawPlan = latestPlan?.planName || latestPlan?.planId || (partner as any).selectedPlan || "-";
+
+      const pListings = partnerListingsMap.get(partner.id) || [];
+      const activeListings = pListings.filter((listing) => {
+        const insight = listingInsights[listing.id];
+        const status = getEffectiveListingStatus(listing, insight);
+        return status === "Active" || status === "Approved" || status === "Extended";
+      });
+
+      let activeFeaturedCount = 0;
+      activeListings.forEach((listing) => {
+        const insight = listingInsights[listing.id];
+        const featStatus = insight?.featureStatus || getEffectiveFeatureStatus(insight?.feature, listing);
+        if (featStatus === "Active") {
+          activeFeaturedCount += 1;
+        }
+      });
+
+      acc[partner.id] = {
+        latestPlan: formatUserPlan(rawPlan, latestPlan),
+        listingCount: activeListings.length,
+        featuredCount: activeFeaturedCount,
+        trialInfo,
+      };
+      return acc;
+    }, {} as Record<string, { 
+      latestPlan: string; 
+      listingCount: number; 
+      featuredCount: number; 
+      trialInfo?: { 
+        durationDays: number; 
+        currentDay: number; 
+        isExpired: boolean; 
+        daysLeft: number; 
+        startDate: number;
+        billingPeriodEnd: number;
+      } | null;
+    }>);
+  }, [partners, partnerPlans, listings, featuredPlans, listingInsights]);
 
   const categoryRows = useMemo(() => {
     const sources = [
@@ -2622,8 +2639,8 @@ export default function AdminDashboard() {
       "Created By Admin",
       "Status",
       "Latest Plan",
-      "Listings",
-      "Featured",
+      "Total Active Listings",
+      "Total Active F",
     ];
 
     const rows = filteredPartners.map((partner) => {
@@ -4178,10 +4195,10 @@ function PartnerList({
                 <TableHead className="px-2 py-3 text-xs">Phone</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Profile Created</TableHead>
                 <TableHead className="px-2 py-3 text-xs">User Plan</TableHead>
-                <TableHead className="px-2 py-3 text-xs">Listings</TableHead>
-                <TableHead className="px-2 py-3 text-xs">Featured</TableHead>
+                <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Listings</TableHead>
+                <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active F</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Contact</TableHead>
-                <TableHead className="px-2 py-3 text-xs">By Admin</TableHead>
+                <TableHead className="px-2 py-3 text-xs text-center">By Admin</TableHead>
                 <TableHead className="pl-2 pr-4 py-3 text-xs text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
