@@ -34,6 +34,7 @@ import {
   Calendar,
   Briefcase,
   ShieldCheck,
+  FileText,
 } from "lucide-react";
 import { uploadCompanyLogo } from "@/lib/companyLogoUpload";
 import { API_BASE_URL } from "@/apiConfig";
@@ -42,7 +43,7 @@ import { toPhoneInputValue } from "@/lib/phone";
 import 'react-phone-number-input/style.css';
 import { isValidBusinessAddress } from "@/lib/addressValidation";
 import { buildDisplayCategoryFields, sanitizeLowestLevelSelections } from "@/lib/categorySelection";
-import { uploadJobDescriptionPdf, uploadEventAgendaPdf } from "@/lib/jobDescriptionUpload";
+import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 import { usePlansConfig } from "@/hooks/usePlansConfig";
 import { useFeaturedPlansConfig } from "@/hooks/useFeaturedPlansConfig";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
@@ -100,6 +101,54 @@ const BSL_LEVELS = ["1", "2", "3", "4"];
 const CERTIFICATIONS = ["GMP", "CE", "ISO 13485", "ISO 9001", "Others"];
 const OTHER_CERT_OPTION = "Others";
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
+const AGENDA_HIGHLIGHTS_MAX = 500;
+const EVENT_PROFILE_MAX = 500;
+const JOB_SUMMARY_MAX = 500;
+
+const INDUSTRY_OPTIONS = [
+  "Biotechnology",
+  "Pharmaceutical",
+  "Medical Devices",
+  "Clinical Research",
+  "Diagnostics",
+  "Digital Health",
+  "Life Sciences",
+  "Healthcare",
+  "Other",
+];
+
+const POSITION_TYPE_OPTIONS = [
+  "Full-time",
+  "Part-time",
+  "Contract",
+  "Freelance",
+  "Internship",
+  "Temporary",
+];
+
+const EXPERIENCE_LEVEL_OPTIONS = [
+  "Entry level",
+  "Associate level",
+  "Mid-level",
+  "Lead/Principal",
+  "Director",
+  "VP/executive",
+];
+
+const WORK_MODEL_OPTIONS = [
+  "Hybrid",
+  "Remote",
+  "On-site",
+];
+
+const EDUCATION_OPTIONS = [
+  "High school or equivalent",
+  "Associate degree",
+  "Bachelors degree",
+  "Masters degree",
+  "Doctorate/PhD/MD",
+  "Other",
+];
 
 const getSubLabel = (entry: SubcategoryEntry): string =>
   typeof entry === "string" ? entry : entry.label;
@@ -142,7 +191,8 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     lastName: "",
     email: "",
     phone: "",
-    altContactName: "",
+    altFirstName: "",
+    altLastName: "",
     altEmail: "",
     password: "",
     confirmPassword: "",
@@ -733,12 +783,13 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         !formData.lastName.trim() ||
         !formData.email.trim() ||
         !formData.phone.trim() ||
-        !formData.altContactName.trim() ||
+        !formData.altFirstName.trim() ||
+        !formData.altLastName.trim() ||
         !formData.altEmail.trim() ||
         !formData.password ||
         !formData.confirmPassword
       ) {
-        setError("Please fill out all required fields (including Alternate / Emergency Contact).");
+        setError("Please fill in all required fields.");
         return false;
       }
       if (!formData.altEmail.includes("@") || !formData.altEmail.includes(".")) {
@@ -754,7 +805,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         return false;
       }
     } else if (activeStep === 2) {
-      if (!formData.companyName.trim() || !formData.companyWebsite.trim() || !formData.businessPhone.trim() || !formData.businessCountry.trim() || !formData.addressHtml.trim() || !formData.profileHtml.trim()) {
+      if (!formData.companyName.trim() || !formData.companyWebsite.trim() || !formData.businessPhone.trim() || !formData.businessCountry.trim() || !formData.addressHtml.trim()) {
         setError("Please fill out all required company fields.");
         return false;
       }
@@ -790,18 +841,103 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     // Validation for final step (Step 4)
     if (groupKey === "business_offerings" || groupKey === "consulting") {
       if (selectedCountries.length === 0) {
-        setError("Please select at least one service country.");
+        setError("Select at least one service country.");
+        return;
+      }
+      if (currentLimits.maxCountries !== -1 && selectedCountries.length > currentLimits.maxCountries) {
+        setError(`Your plan allows at most ${currentLimits.maxCountries} service countr${currentLimits.maxCountries === 1 ? "y" : "ies"}.`);
+        return;
+      }
+      if (currentLimits.maxCategories !== -1 && categoryCount > currentLimits.maxCategories) {
+        setError(`Your plan allows at most ${currentLimits.maxCategories} categor${currentLimits.maxCategories === 1 ? "y" : "ies"}.`);
+        return;
+      }
+      if (!formData.profileHtml.trim()) {
+        setError("Please enter your company profile.");
         return;
       }
     } else if (groupKey === "events") {
-      if (!eventData.eventName.trim() || !eventData.eventLink.trim() || !eventData.startDate || !eventData.endDate || !eventData.eventCountry || !eventData.location.trim() || !eventData.agendaHighlights.trim()) {
-        setError("Please complete all required event details (including event name, link, dates, country, venue location, and agenda highlights).");
+      const ev = eventData;
+      const highlights = ev.agendaHighlights.trim();
+      const hasAgendaPdf = !!eventAgendaPdfFile;
+      if (
+        !ev.eventName.trim() ||
+        !ev.eventLink.trim() ||
+        !ev.startDate ||
+        !ev.endDate ||
+        !ev.eventCountry ||
+        !ev.stateRegion.trim() ||
+        !ev.city.trim() ||
+        !ev.location.trim() ||
+        !ev.eventProfile.trim() ||
+        !highlights ||
+        !hasAgendaPdf
+      ) {
+        setError("Please complete all required event fields (highlights, agenda PDF, categories).");
         return;
       }
-    } else if (groupKey === "jobs") {
-      if (!jobData.jobTitle.trim() || !jobData.positionType || !jobData.jobCountry || !jobData.location.trim() || !jobData.jobSummary.trim()) {
-        setError("Please complete all required job details (including position title, type, country, venue location, and job summary).");
+      if (highlights.length > AGENDA_HIGHLIGHTS_MAX) {
+        setError(`Agenda highlights must be ${AGENDA_HIGHLIGHTS_MAX} characters or fewer.`);
         return;
+      }
+      if (ev.eventProfile.trim().length > EVENT_PROFILE_MAX) {
+        setError(`Event profile must be ${EVENT_PROFILE_MAX} characters or fewer.`);
+        return;
+      }
+      if (categoryCount === 0) {
+        setError("Select at least one event category.");
+        return;
+      }
+      if (ev.endDate < ev.startDate) {
+        setError("End date cannot be before the start date.");
+        return;
+      }
+      if (formData.selectedPlan === "basic_event" && ev.endDate !== ev.startDate) {
+        setError("Basic events are single-day: end date must match the start date.");
+        return;
+      }
+      if (eventAgendaPdfFile) {
+        const pdfErr = validateJobDescriptionPdf(eventAgendaPdfFile);
+        if (pdfErr) {
+          setError(pdfErr);
+          return;
+        }
+      }
+    } else if (groupKey === "jobs") {
+      const j = jobData;
+      const hasPdf = !!jobPdfFile;
+      if (
+        !j.jobTitle.trim() ||
+        !j.jobSummary.trim() ||
+        !hasPdf ||
+        !j.positionType.trim() ||
+        !j.industry.trim() ||
+        !j.experienceLevel.trim() ||
+        !j.education.trim() ||
+        !j.jobCountry.trim() ||
+        !j.stateRegion?.trim() ||
+        !j.city?.trim() ||
+        !j.location.trim() ||
+        !j.workModel.trim() ||
+        !j.positionLink.trim()
+      ) {
+        setError("Please complete all required job fields (including industry, experience, education, categories, job PDF).");
+        return;
+      }
+      if (j.jobSummary.trim().length > JOB_SUMMARY_MAX) {
+        setError(`Job summary must be ${JOB_SUMMARY_MAX} characters or fewer.`);
+        return;
+      }
+      if (categoryCount === 0) {
+        setError("Select at least one job category.");
+        return;
+      }
+      if (jobPdfFile) {
+        const pdfErr = validateJobDescriptionPdf(jobPdfFile);
+        if (pdfErr) {
+          setError(pdfErr);
+          return;
+        }
       }
     }
 
@@ -841,8 +977,13 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       );
 
       // Prepare complete payload
+      const altFirst = formData.altFirstName.trim();
+      const altLast = formData.altLastName.trim();
+      const altCombined = `${altFirst} ${altLast}`.trim();
+
       const payload = {
         ...formData,
+        altContactName: altCombined,
         billingEmail: formData.billingEmail || formData.email,
         selectedCategories: sanitizedSelections.selectedCategories,
         selectedSubcategories: sanitizedSelections.selectedSubcategories,
@@ -892,11 +1033,11 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       if (logoFile && uid) {
         logoUrl = await uploadCompanyLogo(uid, logoFile);
 
-        await updateDoc(doc(db, "partnersCollection", uid), { logoUrl });
+        await updateDoc(doc(db, "partnersCollection", uid), { logoUrl, companyLogoUrl: logoUrl });
         const listingDocRef = collectionName === "businessOfferingsCollection"
           ? doc(db, "partnersCollection", uid, "businessOfferingsCollection", listingId)
           : doc(db, collectionName, listingId);
-        await updateDoc(listingDocRef, { logoUrl });
+        await updateDoc(listingDocRef, { logoUrl, companyLogoUrl: logoUrl });
       }
 
       // Handle file uploads (Event Agenda PDF)
@@ -909,8 +1050,8 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       // Handle file uploads (Job Description PDF)
       if (jobPdfFile && uid && listingId) {
         const jobDescriptionPdfUrl = await uploadJobDescriptionPdf(uid, jobPdfFile, listingId);
-        await updateDoc(doc(db, "partnersCollection", uid), { jobDescriptionPdfUrl });
-        await updateDoc(doc(db, "jobsCollection", listingId), { jobDescriptionPdfUrl });
+        await updateDoc(doc(db, "partnersCollection", uid), { jobDescriptionPdfUrl, jobtype: jobData.positionType });
+        await updateDoc(doc(db, "jobsCollection", listingId), { jobDescriptionPdfUrl, jobtype: jobData.positionType });
       }
 
       onSuccess();
@@ -1000,11 +1141,15 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Receipt className="w-5 h-5 text-blue-500" /> Alternate / Emergency Contact</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-slate-600 font-medium">Alternate contact first & last name <span className="text-red-500">*</span></Label>
-                  <Input value={formData.altContactName} onChange={(e) => handleChange("altContactName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
+                  <Label className="text-slate-600 font-medium">First Name <span className="text-red-500">*</span></Label>
+                  <Input value={formData.altFirstName} onChange={(e) => handleChange("altFirstName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Alternate email address <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Last Name <span className="text-red-500">*</span></Label>
+                  <Input value={formData.altLastName} onChange={(e) => handleChange("altLastName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
+                </div>
+                <div className="md:col-span-2">
+                  <Label className="text-slate-600 font-medium">Email <span className="text-red-500">*</span></Label>
                   <Input type="email" value={formData.altEmail} onChange={(e) => handleChange("altEmail", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
               </div>
@@ -1413,10 +1558,10 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Event Country <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Country <span className="text-red-500">*</span></Label>
                     <Select value={eventData.eventCountry} onValueChange={val => setEventData(prev => ({ ...prev, eventCountry: val }))}>
                       <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
-                        <SelectValue placeholder="Choose country" />
+                        <SelectValue placeholder="Select country" />
                       </SelectTrigger>
                       <SelectContent className="max-h-60">
                         {SERVICE_COUNTRIES.map(country => (
@@ -1426,11 +1571,11 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">State / Region</Label>
+                    <Label className="text-slate-600 font-semibold">State / Province / Region <span className="text-red-500">*</span></Label>
                     <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">City</Label>
+                    <Label className="text-slate-600 font-semibold">City / Town <span className="text-red-500">*</span></Label>
                     <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div>
@@ -1438,26 +1583,70 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     <Input value={eventData.location} onChange={e => setEventData(prev => ({ ...prev, location: e.target.value }))} className="mt-1.5 bg-white border-slate-200" placeholder="e.g. Moscone Center, Hall A" />
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Event Description / Profile</Label>
-                    <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value }))} className="mt-1.5 bg-white border-slate-200 resize-none h-[120px] text-sm" placeholder="Provide full description of the event, attendees, scope..." />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-1.5">
+                        <Label className="text-slate-600 font-semibold">Agenda Highlights <span className="text-red-500">*</span></Label>
+                        <Textarea
+                          value={eventData.agendaHighlights}
+                          onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX) }))}
+                          className="min-h-[120px] bg-white border-slate-200 resize-none text-sm"
+                          placeholder="Short summary of sessions, themes, and speakers…"
+                        />
+                        <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-slate-400'}`}>
+                          {eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}
+                        </p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-slate-600 font-semibold">Full Agenda (PDF) <span className="text-red-500">*</span></Label>
+                        {!eventAgendaPdfFile ? (
+                          <Input
+                            type="file"
+                            accept=".pdf,application/pdf"
+                            className="bg-white border-slate-200 cursor-pointer text-sm h-10 pt-1.5"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0] || null;
+                              if (f) {
+                                const err = validateJobDescriptionPdf(f);
+                                if (err) {
+                                  setError(err);
+                                  e.target.value = '';
+                                  return;
+                                }
+                                setError("");
+                                setEventAgendaPdfFile(f);
+                              }
+                            }}
+                          />
+                        ) : (
+                          <div className="flex items-center gap-2 mt-2 bg-slate-100 p-2.5 rounded-lg border border-slate-200 w-fit">
+                            <span className="text-xs text-slate-800 flex items-center gap-1.5 font-medium">
+                              <FileText className="w-4 h-4 text-blue-600" /> {eventAgendaPdfFile.name}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setEventAgendaPdfFile(null)}
+                              className="text-slate-400 hover:text-red-500 transition-colors ml-2"
+                              title="Remove file"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
+                        <p className="text-[11px] text-slate-400 mt-1">Accepts PDF format (Max size: 10MB)</p>
+                      </div>
+                    </div>
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Agenda Highlights (Max 500 characters) *</Label>
-                    <Textarea value={eventData.agendaHighlights} onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, 500) }))} className="mt-1.5 bg-white border-slate-200 resize-none h-[100px] text-sm" placeholder="List key speakers, workshops, topics..." />
-                    <p className={`text-[10px] mt-1 ${eventData.agendaHighlights.length >= 500 ? 'text-red-500 font-bold' : 'text-slate-400'}`}>{eventData.agendaHighlights.length}/500 characters</p>
-                  </div>
-                  <div>
-                    <Label className="text-slate-600 font-semibold block mb-2">Upload Event Agenda PDF</Label>
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center justify-center px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-200 transition-colors">
-                        <UploadCloud className="w-5 h-5 mr-2 text-slate-600" />
-                        <span className="text-sm font-semibold text-slate-700">Choose PDF</span>
-                        <input type="file" accept=".pdf" className="hidden" onChange={e => e.target.files && setEventAgendaPdfFile(e.target.files[0])} />
-                      </label>
-                      <span className="text-sm text-slate-500">
-                        {eventAgendaPdfFile ? eventAgendaPdfFile.name : "No PDF chosen"}
-                      </span>
-                    </div>
+                    <Label className="text-slate-600 font-semibold">Event Profile <span className="text-red-500">*</span></Label>
+                    <Textarea
+                      value={eventData.eventProfile}
+                      onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value.slice(0, EVENT_PROFILE_MAX) }))}
+                      className="min-h-[140px] bg-white border-slate-200 resize-none text-sm"
+                      placeholder="Describe the event and audience…"
+                    />
+                    <p className={`text-xs text-right mt-1 ${eventData.eventProfile.length >= EVENT_PROFILE_MAX ? 'text-red-500 font-bold' : 'text-slate-400'}`}>
+                      {eventData.eventProfile.length}/{EVENT_PROFILE_MAX}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1468,52 +1657,139 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 space-y-6">
                 <h3 className="text-lg font-bold text-slate-800 border-b pb-3 border-slate-100 flex items-center gap-2"><Briefcase className="w-5 h-5 text-blue-500" /> Job Opportunity Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <Label className="text-slate-600 font-semibold">Position / Job Title <span className="text-red-500">*</span></Label>
+                  <div className="md:col-span-2">
+                    <Label className="text-slate-600 font-semibold">Job Title <span className="text-red-500">*</span></Label>
                     <Input value={jobData.jobTitle} onChange={e => setJobData(prev => ({ ...prev, jobTitle: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                     <p className="text-xs text-slate-400 mt-1">Original capitalization preserved.</p>
                   </div>
-                  <div>
-                    <Label className="text-slate-600 font-semibold">Industry / Area</Label>
-                    <Input value={jobData.industry} onChange={e => setJobData(prev => ({ ...prev, industry: e.target.value }))} className="mt-1.5 bg-white border-slate-200" placeholder="e.g. Biotechnology, Manufacturing" />
-                  </div>
-                  <div>
-                    <Label className="text-slate-600 font-semibold">Position Type <span className="text-red-500">*</span></Label>
-                    <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
-                      <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
-                        <SelectValue placeholder="Select type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Full-Time">Full-Time</SelectItem>
-                        <SelectItem value="Part-Time">Part-Time</SelectItem>
-                        <SelectItem value="Contract">Contract</SelectItem>
-                        <SelectItem value="Internship">Internship</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-slate-600 font-semibold">Experience Level</Label>
-                    <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
-                      <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
-                        <SelectValue placeholder="Select level" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Entry-level">Entry-level</SelectItem>
-                        <SelectItem value="Mid-level">Mid-level</SelectItem>
-                        <SelectItem value="Senior-level">Senior-level</SelectItem>
-                        <SelectItem value="Executive">Executive</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="md:col-span-2">
+                    <Label className="text-slate-600 font-semibold">Job Summary <span className="text-red-500">*</span></Label>
+                    <Textarea
+                      value={jobData.jobSummary}
+                      onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, JOB_SUMMARY_MAX) }))}
+                      className="min-h-[120px] bg-white border-slate-200 resize-none text-sm"
+                      placeholder="Provide a summary of key duties, expectations..."
+                    />
+                    <p className={`text-xs text-right mt-1 ${jobData.jobSummary.length >= JOB_SUMMARY_MAX ? 'text-red-500 font-bold' : 'text-slate-400'}`}>
+                      {jobData.jobSummary.length}/{JOB_SUMMARY_MAX}
+                    </p>
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Application / Information Link</Label>
+                    <Label className="text-slate-600 font-semibold">Full Job Description (PDF) <span className="text-red-500">*</span></Label>
+                    {!jobPdfFile ? (
+                      <Input
+                        type="file"
+                        accept=".pdf,application/pdf"
+                        className="bg-white border-slate-200 cursor-pointer text-sm h-10 pt-1.5 mt-1.5"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] || null;
+                          if (f) {
+                            const err = validateJobDescriptionPdf(f);
+                            if (err) {
+                              setError(err);
+                              e.target.value = '';
+                              return;
+                            }
+                            setError("");
+                            setJobPdfFile(f);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <div className="flex items-center gap-2 mt-2 bg-slate-100 p-2.5 rounded-lg border border-slate-200 w-fit">
+                        <span className="text-xs text-slate-800 flex items-center gap-1.5 font-medium">
+                          <FileText className="w-4 h-4 text-blue-600" /> {jobPdfFile.name}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setJobPdfFile(null)}
+                          className="text-slate-400 hover:text-red-500 transition-colors ml-2"
+                          title="Remove file"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                    <p className="text-[11px] text-slate-400 mt-1">Accepts PDF format (Max size: 10MB)</p>
+                  </div>
+                  <div>
+                    <Label className="text-slate-600 font-semibold">Industry <span className="text-red-500">*</span></Label>
+                    <Select value={jobData.industry} onValueChange={val => setJobData(prev => ({ ...prev, industry: val }))}>
+                      <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
+                        <SelectValue placeholder="Select industry" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-60">
+                        {INDUSTRY_OPTIONS.map(i => (
+                          <SelectItem key={i} value={i}>{i}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-slate-600 font-semibold">Job Type <span className="text-red-500">*</span></Label>
+                    <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
+                      <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
+                        <SelectValue placeholder="Select job type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {POSITION_TYPE_OPTIONS.map(t => (
+                          <SelectItem key={t} value={t}>{t}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-slate-600 font-semibold">Experience Level <span className="text-red-500">*</span></Label>
+                    <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
+                      <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
+                        <SelectValue placeholder="Select experience level" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EXPERIENCE_LEVEL_OPTIONS.map(l => (
+                          <SelectItem key={l} value={l}>{l}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-slate-600 font-semibold">Work Model <span className="text-red-500">*</span></Label>
+                    <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
+                      <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
+                        <SelectValue placeholder="Select work model" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WORK_MODEL_OPTIONS.map(m => (
+                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-slate-600 font-semibold">Education <span className="text-red-500">*</span></Label>
+                    <Select value={jobData.education} onValueChange={val => setJobData(prev => ({ ...prev, education: val }))}>
+                      <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
+                        <SelectValue placeholder="Select education" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {EDUCATION_OPTIONS.map(e => (
+                          <SelectItem key={e} value={e}>{e}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-slate-600 font-semibold">Application Deadline</Label>
+                    <Input type="date" value={jobData.applicationDeadline} onChange={e => setJobData(prev => ({ ...prev, applicationDeadline: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-slate-600 font-semibold">Position Link (Apply) <span className="text-red-500">*</span></Label>
                     <Input type="url" placeholder="https://" value={jobData.positionLink} onChange={e => setJobData(prev => ({ ...prev, positionLink: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Job Location Country <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Country <span className="text-red-500">*</span></Label>
                     <Select value={jobData.jobCountry} onValueChange={val => setJobData(prev => ({ ...prev, jobCountry: val }))}>
                       <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
-                        <SelectValue placeholder="Choose country" />
+                        <SelectValue placeholder="Select country" />
                       </SelectTrigger>
                       <SelectContent className="max-h-60">
                         {SERVICE_COUNTRIES.map(country => (
@@ -1523,54 +1799,16 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">State / Region</Label>
+                    <Label className="text-slate-600 font-semibold">State / Province / Region <span className="text-red-500">*</span></Label>
                     <Input value={jobData.stateRegion} onChange={e => setJobData(prev => ({ ...prev, stateRegion: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">City</Label>
+                    <Label className="text-slate-600 font-semibold">City / Town <span className="text-red-500">*</span></Label>
                     <Input value={jobData.city} onChange={e => setJobData(prev => ({ ...prev, city: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div>
                     <Label className="text-slate-600 font-semibold">Office Venue / Location <span className="text-red-500">*</span></Label>
                     <Input value={jobData.location} onChange={e => setJobData(prev => ({ ...prev, location: e.target.value }))} className="mt-1.5 bg-white border-slate-200" placeholder="e.g. Headquarters, Bldg B" />
-                  </div>
-                  <div>
-                    <Label className="text-slate-600 font-semibold">Work Model</Label>
-                    <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
-                      <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
-                        <SelectValue placeholder="Select model" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="On-site">On-site</SelectItem>
-                        <SelectItem value="Hybrid">Hybrid</SelectItem>
-                        <SelectItem value="Remote">Remote</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label className="text-slate-600 font-semibold">Application Deadline</Label>
-                    <Input type="date" value={jobData.applicationDeadline} onChange={e => setJobData(prev => ({ ...prev, applicationDeadline: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Education Requirement</Label>
-                    <Input value={jobData.education} onChange={e => setJobData(prev => ({ ...prev, education: e.target.value }))} className="mt-1.5 bg-white border-slate-200" placeholder="e.g. Ph.D. in Biological Sciences, BS in Chemistry" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Job Summary / Brief Role Description *</Label>
-                    <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value }))} className="mt-1.5 bg-white border-slate-200 resize-none h-[120px] text-sm" placeholder="Provide a summary of key duties, expectations..." />
-                  </div>
-                  <div>
-                    <Label className="text-slate-600 font-semibold block mb-2">Upload Job Description PDF</Label>
-                    <div className="flex items-center gap-4">
-                      <label className="flex items-center justify-center px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-200 transition-colors">
-                        <UploadCloud className="w-5 h-5 mr-2 text-slate-600" />
-                        <span className="text-sm font-semibold text-slate-700">Choose PDF</span>
-                        <input type="file" accept=".pdf" className="hidden" onChange={e => e.target.files && setJobPdfFile(e.target.files[0])} />
-                      </label>
-                      <span className="text-sm text-slate-500">
-                        {jobPdfFile ? jobPdfFile.name : "No PDF chosen"}
-                      </span>
-                    </div>
                   </div>
                 </div>
               </div>
