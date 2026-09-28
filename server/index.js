@@ -7965,6 +7965,37 @@ app.post("/api/admin/create-partner", async (req, res) => {
             });
         }
 
+        // Log to Audit Trail
+        const adminEmail = decodedToken.email || adminDoc.data()?.email || "Admin";
+        await logAudit({
+            partnerId: uid,
+            partnerName: companyName,
+            action: "ACCOUNT_CREATED",
+            details: `Partner account created by admin (${adminEmail}).`,
+            category: "account",
+            performedBy: "admin",
+            metadata: { adminEmail, createdByAdmin: true, plan: selectedPlan || "none", performedBy: "admin" }
+        });
+
+        const listingItemName = eventName || jobTitle || companyName;
+        await logAudit({
+            partnerId: uid,
+            partnerName: companyName,
+            action: "LISTING_CREATED",
+            details: `New ${groupKey.replace(/_/g, ' ')} listing created: "${listingItemName}". Created by admin (${adminEmail}).`,
+            category: "listing",
+            performedBy: "admin",
+            metadata: {
+                adminEmail,
+                listingId: listingDocId,
+                type: groupKey,
+                collectionName,
+                plan: selectedPlan || "none",
+                isFeatured: Boolean(featuredPlan && featuredPlan !== "none"),
+                performedBy: "admin"
+            }
+        });
+
         return res.json({ success: true, uid, listingId: listingDocId, collectionName });
     } catch (err) {
         console.error("❌ Add partner error:", err.message);

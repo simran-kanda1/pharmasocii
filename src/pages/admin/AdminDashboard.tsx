@@ -3076,7 +3076,7 @@ export default function AdminDashboard() {
                 <div className="relative w-full md:w-96">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <Input
-                    placeholder="Search audit logs by company name or ID..."
+                    placeholder="Search audit logs by company name, ID, or details..."
                     value={auditSearchTerm}
                     onChange={(e) => setAuditSearchTerm(e.target.value)}
                     className="pl-10 h-11 bg-white border-slate-200"
@@ -3127,12 +3127,15 @@ export default function AdminDashboard() {
                     return false;
                   }
                   if (!auditSearchTerm) return true;
-                  const q = auditSearchTerm.toLowerCase();
+                  const q = auditSearchTerm.toLowerCase().trim();
+                  const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";
                   return (
                     log.partnerName?.toLowerCase().includes(q) ||
                     log.action?.toLowerCase().includes(q) ||
                     log.details?.toLowerCase().includes(q) ||
-                    log.partnerId?.toLowerCase().includes(q)
+                    log.partnerId?.toLowerCase().includes(q) ||
+                    log.id?.toLowerCase().includes(q) ||
+                    metaStr.includes(q)
                   );
                 })}
               />
