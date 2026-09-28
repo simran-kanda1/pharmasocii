@@ -1235,7 +1235,7 @@ export default function AdminDashboard() {
     fetchListings();
     const listingsInterval = setInterval(fetchListings, 30000);
 
-    const qAudit = query(collection(db, "auditLogs"), orderBy("timestamp", "desc"), limit(2000));
+    const qAudit = query(collection(db, "auditLogs"), orderBy("timestamp", "desc"), limit(20000));
     const unsubAudit = onSnapshot(qAudit, (snap) => {
       setAuditLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
     });
@@ -3157,8 +3157,8 @@ export default function AdminDashboard() {
               className="flex items-center gap-2"
               onClick={() => {
                 setActiveTab("audit");
-                setAuditCategoryFilter("partner");
-                setAuditSearchTerm(selectedPartner?.id || "");
+                setAuditCategoryFilter("all");
+                setAuditSearchTerm(selectedPartner?.id || selectedPartner?.businessName || "");
                 setPartnerEditorOpen(false);
               }}
             >
@@ -3595,10 +3595,10 @@ export default function AdminDashboard() {
               className="flex items-center gap-2"
               onClick={() => {
                 if (selectedListing) {
-                  const pId = selectedListing.__path?.split('/')[1] || selectedListing.partnerId || "";
+                  const pId = selectedListing.partnerId || (selectedListing.__path?.startsWith("partnersCollection/") ? selectedListing.__path.split('/')[1] : "") || "";
                   setActiveTab("audit");
-                  setAuditCategoryFilter("listing");
-                  setAuditSearchTerm(pId || selectedListing.businessName || "");
+                  setAuditCategoryFilter("all");
+                  setAuditSearchTerm(pId || selectedListing.id || selectedListing.businessName || selectedListing.eventName || selectedListing.jobTitle || "");
                   setListingEditorOpen(false);
                 }
               }}
