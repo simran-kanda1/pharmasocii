@@ -2640,7 +2640,7 @@ export default function AdminDashboard() {
       "Status",
       "Latest Plan",
       "Total Active Listings",
-      "Total Active F",
+      "Total Active Features",
     ];
 
     const rows = filteredPartners.map((partner) => {
@@ -4196,7 +4196,7 @@ function PartnerList({
                 <TableHead className="px-2 py-3 text-xs">Profile Created</TableHead>
                 <TableHead className="px-2 py-3 text-xs">User Plan</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Listings</TableHead>
-                <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active F</TableHead>
+                <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Features</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Contact</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center">By Admin</TableHead>
                 <TableHead className="pl-2 pr-4 py-3 text-xs text-right">Actions</TableHead>
