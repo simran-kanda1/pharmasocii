@@ -4198,6 +4198,7 @@ function PartnerList({
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Listings</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Features</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Contact</TableHead>
+                <TableHead className="px-2 py-3 text-xs">Head Office Country</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center">By Admin</TableHead>
                 <TableHead className="pl-2 pr-4 py-3 text-xs text-right">Actions</TableHead>
               </TableRow>
@@ -4270,10 +4271,12 @@ function PartnerList({
                     <TableCell className="px-2 py-2 text-sm text-center">{insight?.listingCount || 0}</TableCell>
                     <TableCell className="px-2 py-2 text-sm text-center">{insight?.featuredCount || 0}</TableCell>
                     <TableCell className="px-2 py-2">
-                      <p className="text-sm max-w-[110px] truncate font-medium text-slate-800" title={partner.primaryName || ""}>
+                      <p className="text-sm max-w-[120px] truncate font-medium text-slate-800" title={partner.primaryName || ""}>
                         {partner.primaryName || "-"}
                       </p>
-                      <p className="text-xs text-slate-500 max-w-[130px] truncate" title={partner.businessCountry || partner.headOfficeCountry || partner.headquartersCountry || partner.country || ""}>
+                    </TableCell>
+                    <TableCell className="px-2 py-2">
+                      <p className="text-sm text-slate-700 max-w-[130px] truncate" title={partner.businessCountry || partner.headOfficeCountry || partner.headquartersCountry || partner.country || ""}>
                         {partner.businessCountry || partner.headOfficeCountry || partner.headquartersCountry || partner.country || "-"}
                       </p>
                     </TableCell>
