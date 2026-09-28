@@ -2395,6 +2395,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     action: "SUBSCRIPTION_CANCELLED",
                     details: `Subscription ${subscription.id} cancelled.`,
                     category: "billing",
+                    performedBy: "partner",
                     metadata: { subscriptionId: subscription.id }
                 });
             }
@@ -6917,6 +6918,7 @@ app.post("/api/cancel-plan", async (req, res) => {
             action: "SUBSCRIPTION_CANCELLED",
             details: `Cancellation processed (${cancelScope}).`,
             category: "billing",
+            performedBy: "partner",
             metadata: {
                 cancelScope,
                 planDocId,

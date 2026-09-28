@@ -5089,23 +5089,12 @@ function isListingOrBillingLog(log: any): boolean {
 }
 
 function getAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badgeClass: string } {
-  const perf = (log.performedBy || log.metadata?.performedBy || "").toLowerCase();
-  if (perf === "admin") {
-    return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
-  }
-  if (perf === "system" || perf === "stripe") {
-    return { label: "System", badgeClass: "bg-slate-100 text-slate-700 border-slate-200" };
-  }
-  if (perf === "partner" || perf === "user") {
-    return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
-  }
-
   const category = (log.category || "").toLowerCase();
   const details = (log.details || "").toLowerCase();
   const action = (log.action || "").toUpperCase();
   const hasAdminEmail = Boolean(log.metadata?.adminEmail || log.adminEmail);
 
-  // 1. Admin actions
+  // 1. Admin actions (explicitly admin-triggered or containing admin email / admin details)
   if (
     category === "admin" ||
     hasAdminEmail ||
@@ -5117,13 +5106,31 @@ function getAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badge
     return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
   }
 
-  // 2. Automatic transactions & billing/subscription events (Stripe, webhooks, renewals, auto-cancellations)
+  // 2. Subscription cancellations are performed by the partner
+  if (
+    action === "SUBSCRIPTION_CANCELLED" ||
+    details.includes("subscription cancelled") ||
+    details.includes("cancellation processed")
+  ) {
+    return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
+  }
+
+  const perf = (log.performedBy || log.metadata?.performedBy || "").toLowerCase();
+  if (perf === "admin") {
+    return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
+  }
+  if (perf === "partner" || perf === "user") {
+    return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
+  }
+  if (perf === "system" || perf === "stripe") {
+    return { label: "System", badgeClass: "bg-slate-100 text-slate-700 border-slate-200" };
+  }
+
+  // 3. Automatic transactions & billing events (Stripe, webhooks, renewals, auto-cancellations)
   if (
     action.startsWith("PAYMENT_") ||
-    action.startsWith("SUBSCRIPTION_") ||
     category === "billing" ||
     details.includes("recurring invoice") ||
-    details.includes("cancellation processed") ||
     details.includes("invoice in_") ||
     details.includes("subscription invoice") ||
     details.includes("auto-cancelled") ||
@@ -5132,7 +5139,7 @@ function getAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badge
     return { label: "System", badgeClass: "bg-slate-100 text-slate-700 border-slate-200" };
   }
 
-  // 3. Otherwise, partner / user performed action
+  // 4. Otherwise, partner / user performed action
   return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
 }
 
