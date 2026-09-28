@@ -82,5 +82,35 @@ export async function cleanupExpiredSpotlights() {
         total += await runQuery(col, false);
     }
     total += await runQuery("businessOfferingsCollection", true);
+
+    // Also clean up all featuresCollection entries whose accessThrough date has passed
+    try {
+        const featSnap = await db.collectionGroup("featuresCollection")
+            .where("active", "==", true)
+            .get();
+        for (const fDoc of featSnap.docs) {
+            const data = fDoc.data() || {};
+            const accessEnd = data.accessThrough ? (typeof data.accessThrough.toDate === "function" ? data.accessThrough.toDate() : new Date(data.accessThrough)) : null;
+            if (accessEnd && accessEnd.getTime() <= Date.now()) {
+                await fDoc.ref.set({
+                    active: false,
+                    status: "Expired",
+                    deactivatedAt: fv.serverTimestamp(),
+                }, { merge: true });
+                total += 1;
+                const partnerId = data.partnerId || (fDoc.ref.path.includes("partnersCollection") ? fDoc.ref.path.split("/")[1] : "");
+                if (partnerId) {
+                    await db.collection("partnersCollection").doc(partnerId).set({
+                        isFeatured: false,
+                        selectedAddon: fv.delete(),
+                        featuredPlacement: fv.delete(),
+                    }, { merge: true });
+                }
+            }
+        }
+    } catch (featErr) {
+        console.warn("cleanupExpiredSpotlights featuresCollection scan error:", featErr?.message || featErr);
+    }
+
     return { updated: total };
 }

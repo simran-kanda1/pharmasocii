@@ -193,10 +193,14 @@ type PartnerPlanRecord = {
   planId?: string;
   planName?: string;
   isTrial?: boolean;
+  source?: string;
+  createdByAdmin?: boolean;
+  status?: string;
   startDate?: any;
   billingPeriodEnd?: any;
   createdAt?: { seconds?: number };
   active?: boolean;
+  [key: string]: any;
 };
 
 type FeaturedPlanPurchase = {
@@ -209,7 +213,11 @@ type FeaturedPlanPurchase = {
   lastPaymentReceived?: any;
   isTrial?: boolean;
   trialPeriod?: string | null;
+  source?: string;
+  createdByAdmin?: boolean;
+  status?: string;
   createdAt?: { seconds?: number };
+  [key: string]: any;
 };
 
 type AdminSettingsRecord = {
@@ -798,8 +806,9 @@ function getEffectiveListingStatus(listing: ListingRecord, insight?: any): strin
 
   const expiryMs = parseTimestampMs(insight?.expiryDate || plan?.billingPeriodEnd || listing.expiryDate);
   const isDateExpired = expiryMs != null && expiryMs < Date.now();
+  const isAdminGranted = Boolean(plan?.isTrial || plan?.source === "admin_granted" || (listing as any)?.createdByAdmin);
 
-  if (isExplicitExpired || (isDateExpired && stripeStatus !== "active" && stripeStatus !== "trialing")) {
+  if (isExplicitExpired || (isDateExpired && (isAdminGranted || (stripeStatus !== "active" && stripeStatus !== "trialing")))) {
     return "Expired";
   }
 
@@ -898,8 +907,9 @@ function getEffectiveFeatureStatus(feature?: any, listing?: any): string {
 
   const expiryMs = parseTimestampMs(feature?.accessThrough || feature?.billingPeriodEnd || listing?.featureSpotlightPaidThrough || feature?.expiryDate);
   const isDateExpired = expiryMs != null && expiryMs < Date.now();
+  const isAdminGranted = Boolean(feature?.isTrial || feature?.source === "admin_granted" || (listing as any)?.createdByAdmin);
 
-  if (isExplicitExpired || (isDateExpired && stripeStatus !== "active" && stripeStatus !== "trialing")) {
+  if (isExplicitExpired || (isDateExpired && (isAdminGranted || (stripeStatus !== "active" && stripeStatus !== "trialing")))) {
     return "Expired";
   }
 
@@ -1131,10 +1141,11 @@ export default function AdminDashboard() {
           partnerId: d.ref.path.split("/")[1] || "",
         })) as PartnerPlanRecord[];
 
-        // Automatically cancel trials that have expired
+        // Automatically cancel admin-granted plans/trials that have expired
         const now = Date.now();
         plans.forEach(async (plan) => {
-          if (plan.isTrial && plan.active !== false && plan.billingPeriodEnd) {
+          const isAdminPlan = Boolean(plan.isTrial || plan.source === "admin_granted");
+          if (isAdminPlan && plan.active !== false && plan.billingPeriodEnd) {
             const endMs = typeof plan.billingPeriodEnd.toMillis === 'function'
               ? plan.billingPeriodEnd.toMillis()
               : (plan.billingPeriodEnd.seconds ? plan.billingPeriodEnd.seconds * 1000 : new Date(plan.billingPeriodEnd).getTime());
@@ -1165,7 +1176,7 @@ export default function AdminDashboard() {
                   console.warn("Auto-cancel partner isFeatured sync error:", pe);
                 }
 
-                console.log(`Auto-cancelled expired trial plan & feature ${plan.id} for partner ${plan.partnerId}`);
+                console.log(`Auto-cancelled expired admin plan & feature ${plan.id} for partner ${plan.partnerId}`);
               } catch (e) {
                 console.error("Error auto-cancelling expired trial plan:", e);
               }
@@ -1184,13 +1195,37 @@ export default function AdminDashboard() {
     const unsubFeatured = onSnapshot(
       qFeatured,
       (snap) => {
-        setFeaturedPlans(
-          snap.docs.map((d) => ({
-            id: d.id,
-            ...(d.data() as Record<string, any>),
-            partnerId: d.ref.path.split("/")[1] || "",
-          })) as FeaturedPlanPurchase[],
-        );
+        const featList = snap.docs.map((d) => ({
+          id: d.id,
+          ...(d.data() as Record<string, any>),
+          partnerId: d.ref.path.split("/")[1] || "",
+        })) as FeaturedPlanPurchase[];
+
+        // Automatically cancel admin-granted features that have expired
+        const now = Date.now();
+        featList.forEach(async (feat) => {
+          const isAdminFeat = Boolean(feat.isTrial || feat.source === "admin_granted");
+          if (isAdminFeat && feat.active !== false && feat.accessThrough) {
+            const accessMs = typeof feat.accessThrough.toMillis === 'function'
+              ? feat.accessThrough.toMillis()
+              : (feat.accessThrough.seconds ? feat.accessThrough.seconds * 1000 : new Date(feat.accessThrough).getTime());
+            if (accessMs < now) {
+              try {
+                const featRef = doc(db, "partnersCollection", feat.partnerId, "featuresCollection", feat.id);
+                await updateDoc(featRef, { active: false, status: "Expired" });
+                await updateDoc(doc(db, "partnersCollection", feat.partnerId), {
+                  isFeatured: false,
+                  selectedAddon: "",
+                  featuredPlacement: "",
+                });
+              } catch (e) {
+                console.warn("Auto-cancel expired admin feature error:", e);
+              }
+            }
+          }
+        });
+
+        setFeaturedPlans(featList);
       },
       (error) => {
         console.error("Failed to fetch featuredPlans:", error);

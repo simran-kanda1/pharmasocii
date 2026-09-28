@@ -32,15 +32,16 @@ export function toDateValue(value: unknown): Date | null {
 
 export function isPlanBillingLive(plan: Record<string, unknown>): boolean {
     if (plan?.active === false) return false;
+    const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
+    if (plan?.isTrial || plan?.source === "admin_granted" || Boolean(plan?.createdByAdmin)) {
+        if (end && end.getTime() < Date.now()) return false;
+        return true;
+    }
     const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
     if (["active", "trialing", "past_due"].includes(stripeStatus)) {
-        const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
         if (plan?.cancelAtPeriodEnd && end && end.getTime() < Date.now()) return false;
         return true;
     }
-    const end =
-        toDateValue(plan?.billingPeriodEnd) ||
-        toDateValue(plan?.cancelAt);
     if (end && end.getTime() < Date.now()) return false;
     return true;
 }
