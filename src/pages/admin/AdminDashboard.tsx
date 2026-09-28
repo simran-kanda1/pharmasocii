@@ -59,6 +59,7 @@ import {
   query,
   setDoc,
   updateDoc,
+  where,
   serverTimestamp,
 } from "firebase/firestore";
 import { getDownloadURL, ref, uploadBytes } from "firebase/storage";
@@ -1235,9 +1236,11 @@ export default function AdminDashboard() {
     fetchListings();
     const listingsInterval = setInterval(fetchListings, 30000);
 
-    const qAudit = query(collection(db, "auditLogs"), orderBy("timestamp", "desc"), limit(20000));
+    const qAudit = query(collection(db, "auditLogs"), orderBy("timestamp", "desc"), limit(5000));
     const unsubAudit = onSnapshot(qAudit, (snap) => {
       setAuditLogs(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      console.error("Failed to fetch auditLogs snapshot:", error);
     });
 
     const settingsRef = doc(db, "adminSettingsCollection", "platformSettings");
@@ -1256,6 +1259,37 @@ export default function AdminDashboard() {
       clearInterval(listingsInterval);
     };
   }, [isAuthorized]);
+
+  // If searching by partner ID or listing ID, also run a direct targeted query in case the log is older
+  useEffect(() => {
+    if (!isAuthorized || !auditSearchTerm) return;
+    const term = auditSearchTerm.trim();
+    if (term.length < 10) return;
+
+    let cancelled = false;
+    const fetchTargetedLogs = async () => {
+      try {
+        const qByPartner = query(collection(db, "auditLogs"), where("partnerId", "==", term), limit(500));
+        const snap = await getDocs(qByPartner);
+        if (cancelled || snap.empty) return;
+        setAuditLogs((prev) => {
+          const existingIds = new Set(prev.map((l) => l.id));
+          const newItems = snap.docs
+            .filter((d) => !existingIds.has(d.id))
+            .map((d) => ({ id: d.id, ...d.data() }));
+          if (newItems.length === 0) return prev;
+          const merged = [...prev, ...newItems];
+          merged.sort((a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+          return merged;
+        });
+      } catch (err) {
+        console.warn("Targeted audit log lookup error:", err);
+      }
+    };
+
+    fetchTargetedLogs();
+    return () => { cancelled = true; };
+  }, [auditSearchTerm, isAuthorized]);
 
   useEffect(() => {
     if (!isAuthorized || activeTab !== "communityCategories") return;
