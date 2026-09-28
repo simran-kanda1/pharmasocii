@@ -1142,8 +1142,30 @@ export default function AdminDashboard() {
             if (endMs < now) {
               try {
                 const planRef = doc(db, "partnersCollection", plan.partnerId, "planCollection", plan.id);
-                await updateDoc(planRef, { active: false });
-                console.log(`Auto-cancelled expired trial plan ${plan.id} for partner ${plan.partnerId}`);
+                await updateDoc(planRef, { active: false, status: "Expired" });
+
+                // Synchronize featuresCollection on expiry
+                try {
+                  const featSnap = await getDocs(collection(db, "partnersCollection", plan.partnerId, "featuresCollection"));
+                  for (const fDoc of featSnap.docs) {
+                    await updateDoc(fDoc.ref, { active: false, status: "Expired" });
+                  }
+                } catch (fe) {
+                  console.warn("Auto-cancel featuresCollection sync error:", fe);
+                }
+
+                // Deactivate partner feature spotlight
+                try {
+                  await updateDoc(doc(db, "partnersCollection", plan.partnerId), {
+                    isFeatured: false,
+                    selectedAddon: "",
+                    featuredPlacement: "",
+                  });
+                } catch (pe) {
+                  console.warn("Auto-cancel partner isFeatured sync error:", pe);
+                }
+
+                console.log(`Auto-cancelled expired trial plan & feature ${plan.id} for partner ${plan.partnerId}`);
               } catch (e) {
                 console.error("Error auto-cancelling expired trial plan:", e);
               }
@@ -1787,107 +1809,135 @@ export default function AdminDashboard() {
     if (!selectedPartner || !(selectedPartner as any).createdByAdmin) return;
     if (!window.confirm("Are you sure you want to cancel this partner's trial? Their plan and feature spotlight will be deactivated immediately.")) return;
     try {
-      const latestPlan = partnerPlans
-        .filter((plan) => plan.partnerId === selectedPartner.id)
-        .sort((a, b) => {
-          const aTs = a.startDate?.seconds || a.createdAt?.seconds || 0;
-          const bTs = b.startDate?.seconds || b.createdAt?.seconds || 0;
-          return bTs - aTs;
-        })[0];
+      const now = new Date();
 
-      if (!latestPlan) {
-        alert("No plan document found for this partner.");
-        return;
+      // 1. Deactivate ALL plan documents in planCollection for this partner
+      try {
+        const plansSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "planCollection"));
+        for (const pDoc of plansSnap.docs) {
+          await updateDoc(pDoc.ref, {
+            active: false,
+            billingPeriodEnd: now,
+            status: "Cancelled",
+            cancelledAt: now,
+            cancelAt: now,
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to deactivate planCollection:", e);
       }
 
-      const now = new Date();
-      const planDocRef = doc(db, "partnersCollection", selectedPartner.id, "planCollection", latestPlan.id);
-      await updateDoc(planDocRef, {
-        active: false,
-        billingPeriodEnd: now,
-      });
-
-      // Synchronize featuresCollection on cancel
+      // 2. Deactivate ALL feature documents in featuresCollection for this partner
       try {
         const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
         for (const fDoc of featSnap.docs) {
           await updateDoc(fDoc.ref, {
             active: false,
-            accessThrough: now
+            accessThrough: now,
+            status: "Cancelled",
+            cancelledAt: now,
+            cancelAt: now,
           });
         }
       } catch (e) {
         console.warn("Failed to cancel featuresCollection:", e);
       }
 
-      // Sync partner document feature fields
+      // 3. Update the partner document: disable featured flag, clear addons, mark status Cancelled
       try {
         await updateDoc(doc(db, "partnersCollection", selectedPartner.id), {
           isFeatured: false,
-          featureSpotlightPaidThrough: now
+          featureSpotlightPaidThrough: now,
+          selectedAddon: "",
+          featuredPlacement: "",
+          featureStatus: "Cancelled",
+          partnerStatus: "Cancelled",
+          status: "Cancelled",
+          updatedAt: serverTimestamp(),
         });
       } catch (e) {
         console.warn("Failed to cancel partner feature spotlight:", e);
       }
 
-      // Sync status to the associated listing if present
-      const listingId = (latestPlan as any).listingId;
-      const collectionName = (latestPlan as any).collectionName;
-      if (listingId && collectionName) {
-        let listingRef;
-        if (collectionName === "businessOfferingsCollection") {
-          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", listingId);
-        } else {
-          listingRef = doc(db, collectionName, listingId);
-        }
-        try {
-          await updateDoc(listingRef, { 
-            status: "Cancelled", 
-            active: false,
-            isFeatured: false,
-            featureSpotlightPaidThrough: now
-          });
-        } catch (e) {
-          console.warn("Failed to sync listing status to Cancelled:", e);
-        }
-      }
+      // 4. Deactivate and mark Cancelled on ALL listings belonging to this partner across all collections
+      const partnerListings = listings.filter((l) => {
+        const pId = l.partnerId || (l.__path?.startsWith("partnersCollection/") ? l.__path.split('/')[1] : "");
+        return pId === selectedPartner.id;
+      });
 
-      const partnerListing = listings.find((l) => l.partnerId === selectedPartner.id);
-      if (partnerListing && (!listingId || partnerListing.id !== listingId)) {
-        let listingRef;
-        const col = partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
-          partnerListing.selectedGroup === "events" ? "eventsCollection" : (
-            partnerListing.selectedGroup === "jobs" ? "jobsCollection" : "consultingServicesCollection"
-          )
-        );
-        if (partnerListing.selectedGroup === "business_offerings") {
-          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", partnerListing.id);
-        } else {
-          listingRef = doc(db, col, partnerListing.id);
-        }
+      for (const pl of partnerListings) {
+        if (!pl.__path) continue;
         try {
-          await updateDoc(listingRef, {
+          await updateDoc(doc(db, pl.__path), {
             status: "Cancelled",
             active: false,
             isFeatured: false,
-            featureSpotlightPaidThrough: now
+            featureStatus: "Cancelled",
+            featureSpotlightPaidThrough: now,
+            selectedAddon: "",
+            featuredPlacement: "",
+            updatedAt: serverTimestamp(),
           });
         } catch (e) {
-          console.warn("Failed to sync partner listing on cancel:", e);
+          console.warn(`Failed to cancel listing ${pl.id} at ${pl.__path}:`, e);
         }
       }
 
+      // Also check subcollections directly under partnersCollection/{id}/...
+      const subCols = ["businessOfferingsCollection", "eventsCollection", "jobsCollection", "consultingServicesCollection", "consultingCollection"];
+      for (const sc of subCols) {
+        try {
+          const scSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, sc));
+          for (const sDoc of scSnap.docs) {
+            await updateDoc(sDoc.ref, {
+              status: "Cancelled",
+              active: false,
+              isFeatured: false,
+              featureStatus: "Cancelled",
+              featureSpotlightPaidThrough: now,
+              selectedAddon: "",
+              featuredPlacement: "",
+              updatedAt: serverTimestamp(),
+            });
+          }
+        } catch (e) {
+          // ignore if subcollection doesn't exist
+        }
+      }
+
+      // 5. Update local React states so UI reflects changes immediately
+      setPartnerPlans((prev) =>
+        prev.map((p) => (p.partnerId === selectedPartner.id ? { ...p, active: false, billingPeriodEnd: now, status: "Cancelled" } : p))
+      );
+      setFeaturedPlans((prev) =>
+        prev.map((f) => (f.partnerId === selectedPartner.id ? { ...f, active: false, accessThrough: now, status: "Cancelled" } : f))
+      );
+      setPartners((prev) =>
+        prev.map((p) => (p.id === selectedPartner.id ? { ...p, isFeatured: false, partnerStatus: "Cancelled", status: "Cancelled" } : p))
+      );
+      setListings((prev) =>
+        prev.map((l) => {
+          const pId = l.partnerId || (l.__path?.startsWith("partnersCollection/") ? l.__path.split('/')[1] : "");
+          return pId === selectedPartner.id ? { ...l, status: "Cancelled", active: false, isFeatured: false, featureStatus: "Cancelled" } : l;
+        })
+      );
+      setPartnerEditor((prev) => ({
+        ...prev,
+        partnerStatus: "Cancelled",
+      }));
+
+      // 6. Log to Audit Trail
       await logActivity({
         partnerId: selectedPartner.id,
         partnerName: selectedPartner.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
-        details: `Trial and feature spotlight cancelled immediately by admin: ${adminEmail}`,
+        details: `Trial, plan, and feature spotlight cancelled immediately by admin: ${adminEmail}`,
         category: "admin",
         performedBy: "admin",
         metadata: { adminEmail, cancelledAt: now, performedBy: "admin" }
       });
 
-      alert("Trial and feature spotlight cancelled successfully.");
+      alert("Trial, plan, and feature spotlight cancelled successfully.");
     } catch (err: any) {
       console.error("Error cancelling trial:", err);
       alert("Failed to cancel trial: " + err.message);
