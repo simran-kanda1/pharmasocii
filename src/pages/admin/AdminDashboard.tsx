@@ -2426,7 +2426,68 @@ export default function AdminDashboard() {
 
         if (isCatInactive) return;
 
-        if (!Array.isArray(subEntries) || subEntries.length === 0) {
+        let pushedForCategory = 0;
+
+        if (Array.isArray(subEntries) && subEntries.length > 0) {
+          subEntries.forEach((sub: any) => {
+            if (typeof sub === "string") {
+              const specificSubMeta = categoryMetadataMap[`${groupKey}:${category}:${sub}`];
+              const isSubInactive = specificSubMeta && (
+                (specificSubMeta.status || "").toLowerCase() === "inactive" ||
+                specificSubMeta.isDeleted === true ||
+                specificSubMeta.deleted === true
+              );
+
+              if (isSubInactive) return;
+
+              const subMeta = specificSubMeta || catMeta;
+              pushedForCategory++;
+              rows.push({
+                id: subMeta.id || catMeta.id,
+                group,
+                category,
+                subcategory: sub,
+                subSubcategory: "-",
+                status: specificSubMeta?.status || catMeta.status || "Active",
+                imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
+                metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
+                metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
+                description: subMeta.description || catMeta.description || "",
+              });
+              return;
+            }
+            const subLabel = sub.label || "-";
+            const subSubs =
+              Array.isArray(sub.subSubcategories) && sub.subSubcategories.length > 0
+                ? sub.subSubcategories.join(", ")
+                : "-";
+            const specificSubMeta = categoryMetadataMap[`${groupKey}:${category}:${subLabel}`];
+            const isSubInactive = specificSubMeta && (
+              (specificSubMeta.status || "").toLowerCase() === "inactive" ||
+              specificSubMeta.isDeleted === true ||
+              specificSubMeta.deleted === true
+            );
+
+            if (isSubInactive) return;
+
+            const subMeta = specificSubMeta || catMeta;
+            pushedForCategory++;
+            rows.push({
+              id: subMeta.id || catMeta.id,
+              group,
+              category,
+              subcategory: subLabel,
+              subSubcategory: subSubs,
+              status: specificSubMeta?.status || catMeta.status || "Active",
+              imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
+              metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
+              metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
+              description: subMeta.description || catMeta.description || "",
+            });
+          });
+        }
+
+        if (pushedForCategory === 0) {
           rows.push({
             id: catMeta.id,
             group,
@@ -2439,59 +2500,7 @@ export default function AdminDashboard() {
             metaKeywords: catMeta.metaKeywords || "",
             description: catMeta.description || "",
           });
-          return;
         }
-
-        subEntries.forEach((sub: any) => {
-          if (typeof sub === "string") {
-            const subMeta = categoryMetadataMap[`${groupKey}:${category}:${sub}`] || catMeta;
-            const isSubInactive =
-              (subMeta.status || "").toLowerCase() === "inactive" ||
-              subMeta.isDeleted === true ||
-              subMeta.deleted === true;
-
-            if (isSubInactive) return;
-
-            rows.push({
-              id: subMeta.id || catMeta.id,
-              group,
-              category,
-              subcategory: sub,
-              subSubcategory: "-",
-              status: subMeta.status || catMeta.status || "Active",
-              imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
-              metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
-              metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
-              description: subMeta.description || catMeta.description || "",
-            });
-            return;
-          }
-          const subLabel = sub.label || "-";
-          const subSubs =
-            Array.isArray(sub.subSubcategories) && sub.subSubcategories.length > 0
-              ? sub.subSubcategories.join(", ")
-              : "-";
-          const subMeta = categoryMetadataMap[`${groupKey}:${category}:${subLabel}`] || catMeta;
-          const isSubInactive =
-            (subMeta.status || "").toLowerCase() === "inactive" ||
-            subMeta.isDeleted === true ||
-            subMeta.deleted === true;
-
-          if (isSubInactive) return;
-
-          rows.push({
-            id: subMeta.id || catMeta.id,
-            group,
-            category,
-            subcategory: subLabel,
-            subSubcategory: subSubs,
-            status: subMeta.status || catMeta.status || "Active",
-            imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
-            metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
-            metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
-            description: subMeta.description || catMeta.description || "",
-          });
-        });
       });
     });
 
