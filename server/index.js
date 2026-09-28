@@ -7861,7 +7861,12 @@ app.post("/api/admin/create-partner", async (req, res) => {
             VAT_ABN_EIN_businessId: businessId || null,
             selectedGroup: groupKey,
             selectedPlan: selectedPlan || "none",
-            selectedAddon: "",
+            selectedAddon: (featuredPlan && featuredPlan !== "none") ? featuredPlan : "",
+            isFeatured: (featuredPlan && featuredPlan !== "none"),
+            ...(featuredPlan && featuredPlan !== "none" ? {
+                featureSpotlightPaidThrough: new Date(billingPeriodEnd.getTime()),
+                lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp()
+            } : {}),
             selectedCategories: selectedCategories || [],
             selectedSubcategories: selectedSubcategories || [],
             selectedSubSubcategories: selectedSubSubcategories || [],

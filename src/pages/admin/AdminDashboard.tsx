@@ -1554,17 +1554,33 @@ export default function AdminDashboard() {
       });
 
       // Synchronize featuresCollection if partner has an active feature spotlight
+      let hasFeature = false;
       try {
         const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
-        for (const fDoc of featSnap.docs) {
-          await updateDoc(fDoc.ref, {
-            accessThrough: newEnd,
-            active: true,
-            isTrial: true
-          });
+        if (!featSnap.empty) {
+          hasFeature = true;
+          for (const fDoc of featSnap.docs) {
+            await updateDoc(fDoc.ref, {
+              accessThrough: newEnd,
+              active: true,
+              isTrial: true
+            });
+          }
         }
       } catch (e) {
         console.warn("Failed to synchronize featuresCollection on trial extend:", e);
+      }
+
+      // Sync partner document featureSpotlightPaidThrough
+      if (hasFeature || selectedPartner.selectedAddon || selectedPartner.isFeatured) {
+        try {
+          await updateDoc(doc(db, "partnersCollection", selectedPartner.id), {
+            featureSpotlightPaidThrough: newEnd,
+            isFeatured: true
+          });
+        } catch (e) {
+          console.warn("Failed to sync partner featureSpotlightPaidThrough:", e);
+        }
       }
 
       // Sync status and feature spotlight to the associated listing if present
@@ -1580,63 +1596,15 @@ export default function AdminDashboard() {
         try {
           await updateDoc(listingRef, { 
             status: "Extended",
-            ...(selectedPartner.selectedAddon || selectedPartner.isFeatured ? { featureSpotlightPaidThrough: newEnd } : {})
+            ...(hasFeature || selectedPartner.selectedAddon || selectedPartner.isFeatured ? { isFeatured: true, featureSpotlightPaidThrough: newEnd } : {})
           });
         } catch (e) {
           console.warn("Failed to sync listing status to Extended:", e);
         }
       }
 
-      await logActivity({
-        partnerId: selectedPartner.id,
-        partnerName: selectedPartner.businessName || "Unnamed Business",
-        action: "ACCOUNT_UPDATED",
-        details: `Trial extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`,
-        category: "admin",
-        performedBy: "admin",
-        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd, performedBy: "admin" }
-      });
-
-    } catch (err: any) {
-      console.error("Error extending trial:", err);
-      alert("Failed to extend trial: " + err.message);
-    }
-  };
-
-  const extendFeature = async (days: number) => {
-    if (!selectedPartner || !(selectedPartner as any).createdByAdmin) return;
-    try {
-      const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
-      if (featSnap.empty) {
-        alert("No feature spotlight document found for this partner to extend.");
-        return;
-      }
-
-      let currentEndMs = Date.now();
-      featSnap.docs.forEach((docSnap) => {
-        const data = docSnap.data();
-        const end = data.accessThrough || data.billingPeriodEnd;
-        if (end) {
-          const ms = typeof end.toMillis === "function" ? end.toMillis() : (end.seconds ? end.seconds * 1000 : new Date(end).getTime());
-          if (ms > currentEndMs) currentEndMs = ms;
-        }
-      });
-
-      const baseMs = currentEndMs < Date.now() ? Date.now() : currentEndMs;
-      const extensionMs = days * 24 * 60 * 60 * 1000;
-      const newEnd = new Date(baseMs + extensionMs);
-
-      for (const fDoc of featSnap.docs) {
-        await updateDoc(fDoc.ref, {
-          accessThrough: newEnd,
-          active: true,
-          isTrial: true
-        });
-      }
-
-      // Sync listing's featureSpotlightPaidThrough
       const partnerListing = listings.find((l) => l.partnerId === selectedPartner.id);
-      if (partnerListing) {
+      if (partnerListing && (!listingId || partnerListing.id !== listingId)) {
         let listingRef;
         const col = partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
           partnerListing.selectedGroup === "events" ? "eventsCollection" : (
@@ -1650,29 +1618,32 @@ export default function AdminDashboard() {
         }
         try {
           await updateDoc(listingRef, {
-            isFeatured: true,
-            featureSpotlightPaidThrough: newEnd
+            status: "Extended",
+            ...(hasFeature || selectedPartner.selectedAddon || selectedPartner.isFeatured ? { isFeatured: true, featureSpotlightPaidThrough: newEnd } : {})
           });
         } catch (e) {
-          console.warn("Failed to sync listing featureSpotlightPaidThrough:", e);
+          console.warn("Failed to sync partner listing on trial extend:", e);
         }
       }
+
+      const actionMsg = hasFeature 
+        ? `Trial & feature spotlight extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`
+        : `Trial extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`;
 
       await logActivity({
         partnerId: selectedPartner.id,
         partnerName: selectedPartner.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
-        details: `Feature spotlight extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`,
+        details: actionMsg,
         category: "admin",
         performedBy: "admin",
         metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd, performedBy: "admin" }
       });
 
-      setSaveNotice(`Feature spotlight extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()})`);
-      alert(`Feature spotlight successfully extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()})`);
+      setSaveNotice(actionMsg);
     } catch (err: any) {
-      console.error("Error extending feature:", err);
-      alert("Failed to extend feature: " + err.message);
+      console.error("Error extending trial:", err);
+      alert("Failed to extend trial: " + err.message);
     }
   };
 
@@ -1693,6 +1664,30 @@ export default function AdminDashboard() {
       const planDocRef = doc(db, "partnersCollection", selectedPartner.id, "planCollection", latestPlan.id);
       await updateDoc(planDocRef, { billingPeriodEnd: previousEnd });
 
+      // Synchronize featuresCollection on undo
+      try {
+        const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
+        for (const fDoc of featSnap.docs) {
+          await updateDoc(fDoc.ref, {
+            accessThrough: previousEnd,
+            active: previousEnd.getTime() > Date.now(),
+            isTrial: true
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to revert featuresCollection on undo:", e);
+      }
+
+      // Sync partner document featureSpotlightPaidThrough
+      try {
+        await updateDoc(doc(db, "partnersCollection", selectedPartner.id), {
+          featureSpotlightPaidThrough: previousEnd,
+          isFeatured: previousEnd.getTime() > Date.now()
+        });
+      } catch (e) {
+        console.warn("Failed to revert partner featureSpotlightPaidThrough on undo:", e);
+      }
+
       // Sync status to the associated listing if present
       const listingId = (latestPlan as any).listingId;
       const collectionName = (latestPlan as any).collectionName;
@@ -1704,9 +1699,36 @@ export default function AdminDashboard() {
           listingRef = doc(db, collectionName, listingId);
         }
         try {
-          await updateDoc(listingRef, { status: "Approved" });
+          await updateDoc(listingRef, { 
+            status: "Approved",
+            featureSpotlightPaidThrough: previousEnd,
+            isFeatured: previousEnd.getTime() > Date.now()
+          });
         } catch (e) {
           console.warn("Failed to revert listing status on undo:", e);
+        }
+      }
+
+      const partnerListing = listings.find((l) => l.partnerId === selectedPartner.id);
+      if (partnerListing && (!listingId || partnerListing.id !== listingId)) {
+        let listingRef;
+        const col = partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
+          partnerListing.selectedGroup === "events" ? "eventsCollection" : (
+            partnerListing.selectedGroup === "jobs" ? "jobsCollection" : "consultingServicesCollection"
+          )
+        );
+        if (partnerListing.selectedGroup === "business_offerings") {
+          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", partnerListing.id);
+        } else {
+          listingRef = doc(db, col, partnerListing.id);
+        }
+        try {
+          await updateDoc(listingRef, {
+            featureSpotlightPaidThrough: previousEnd,
+            isFeatured: previousEnd.getTime() > Date.now()
+          });
+        } catch (e) {
+          console.warn("Failed to sync partner listing on undo:", e);
         }
       }
 
@@ -1729,7 +1751,7 @@ export default function AdminDashboard() {
 
   const cancelTrial = async () => {
     if (!selectedPartner || !(selectedPartner as any).createdByAdmin) return;
-    if (!window.confirm("Are you sure you want to cancel this partner's trial? Their plan will be deactivated immediately.")) return;
+    if (!window.confirm("Are you sure you want to cancel this partner's trial? Their plan and feature spotlight will be deactivated immediately.")) return;
     try {
       const latestPlan = partnerPlans
         .filter((plan) => plan.partnerId === selectedPartner.id)
@@ -1744,11 +1766,35 @@ export default function AdminDashboard() {
         return;
       }
 
+      const now = new Date();
       const planDocRef = doc(db, "partnersCollection", selectedPartner.id, "planCollection", latestPlan.id);
       await updateDoc(planDocRef, {
         active: false,
-        billingPeriodEnd: new Date(),
+        billingPeriodEnd: now,
       });
+
+      // Synchronize featuresCollection on cancel
+      try {
+        const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
+        for (const fDoc of featSnap.docs) {
+          await updateDoc(fDoc.ref, {
+            active: false,
+            accessThrough: now
+          });
+        }
+      } catch (e) {
+        console.warn("Failed to cancel featuresCollection:", e);
+      }
+
+      // Sync partner document feature fields
+      try {
+        await updateDoc(doc(db, "partnersCollection", selectedPartner.id), {
+          isFeatured: false,
+          featureSpotlightPaidThrough: now
+        });
+      } catch (e) {
+        console.warn("Failed to cancel partner feature spotlight:", e);
+      }
 
       // Sync status to the associated listing if present
       const listingId = (latestPlan as any).listingId;
@@ -1761,9 +1807,39 @@ export default function AdminDashboard() {
           listingRef = doc(db, collectionName, listingId);
         }
         try {
-          await updateDoc(listingRef, { status: "Cancelled", active: false });
+          await updateDoc(listingRef, { 
+            status: "Cancelled", 
+            active: false,
+            isFeatured: false,
+            featureSpotlightPaidThrough: now
+          });
         } catch (e) {
           console.warn("Failed to sync listing status to Cancelled:", e);
+        }
+      }
+
+      const partnerListing = listings.find((l) => l.partnerId === selectedPartner.id);
+      if (partnerListing && (!listingId || partnerListing.id !== listingId)) {
+        let listingRef;
+        const col = partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
+          partnerListing.selectedGroup === "events" ? "eventsCollection" : (
+            partnerListing.selectedGroup === "jobs" ? "jobsCollection" : "consultingServicesCollection"
+          )
+        );
+        if (partnerListing.selectedGroup === "business_offerings") {
+          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", partnerListing.id);
+        } else {
+          listingRef = doc(db, col, partnerListing.id);
+        }
+        try {
+          await updateDoc(listingRef, {
+            status: "Cancelled",
+            active: false,
+            isFeatured: false,
+            featureSpotlightPaidThrough: now
+          });
+        } catch (e) {
+          console.warn("Failed to sync partner listing on cancel:", e);
         }
       }
 
@@ -1771,13 +1847,13 @@ export default function AdminDashboard() {
         partnerId: selectedPartner.id,
         partnerName: selectedPartner.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
-        details: `Trial cancelled immediately by admin: ${adminEmail}`,
+        details: `Trial and feature spotlight cancelled immediately by admin: ${adminEmail}`,
         category: "admin",
         performedBy: "admin",
-        metadata: { adminEmail, cancelledAt: new Date(), performedBy: "admin" }
+        metadata: { adminEmail, cancelledAt: now, performedBy: "admin" }
       });
 
-      alert("Trial cancelled successfully.");
+      alert("Trial and feature spotlight cancelled successfully.");
     } catch (err: any) {
       console.error("Error cancelling trial:", err);
       alert("Failed to cancel trial: " + err.message);
@@ -3208,35 +3284,7 @@ export default function AdminDashboard() {
                   <div className="text-sm text-slate-700 space-y-1">
                     <p><strong>Feature:</strong> {featureName}</p>
                     {accessDate && <p><strong>Expiration:</strong> {accessDate.toLocaleDateString()}</p>}
-                  </div>
-                  <div className="space-y-1.5 pt-1">
-                    <p className="text-xs font-medium text-amber-900">Extend Feature Spotlight Period:</p>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
-                        onClick={() => extendFeature(7)}
-                      >
-                        +7 Days
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
-                        onClick={() => extendFeature(30)}
-                      >
-                        +30 Days
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
-                        onClick={() => extendFeature(90)}
-                      >
-                        +90 Days
-                      </Button>
-                    </div>
+                    <p className="text-xs text-amber-800/80 italic pt-0.5">Automatically synchronized with plan trial period</p>
                   </div>
                 </div>
               );
