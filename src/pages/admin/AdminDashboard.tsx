@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertCircle,
   AlertTriangle,
-  BadgeCheck,
   Ban,
   CheckCircle2,
   ChevronLeft,
@@ -3877,26 +3875,15 @@ function SidebarItem({
 function StatCard({
   label,
   value,
-  icon: Icon,
-  iconClass,
 }: {
   label: string;
   value: string | number;
-  icon: any;
-  iconClass: string;
 }) {
   return (
     <Card className="bg-white border-slate-200 shadow-sm">
       <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs tracking-wide text-slate-500">{label}</p>
-            <p className="text-2xl font-semibold mt-1">{value}</p>
-          </div>
-          <div className={`p-2 rounded-md ${iconClass}`}>
-            <Icon className="w-4 h-4" />
-          </div>
-        </div>
+        <p className="text-xs font-medium tracking-wide text-slate-500">{label}</p>
+        <p className="text-2xl font-bold mt-1 text-slate-900 tracking-tight">{value}</p>
       </CardContent>
     </Card>
   );
@@ -3918,11 +3905,11 @@ function OverviewTab({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard label="Revenue" value={`$${Number(stats.totalRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Receipt} iconClass="bg-emerald-100 text-emerald-700" />
-        <StatCard label="Partners" value={stats.totalPartners} icon={Users} iconClass="bg-sky-100 text-sky-700" />
-        <StatCard label="Pending Partners" value={stats.pendingApprovals} icon={AlertCircle} iconClass="bg-amber-100 text-amber-700" />
-        <StatCard label="Pending Listings" value={stats.pendingListings} icon={Clock} iconClass="bg-amber-100 text-amber-700" />
-        <StatCard label="Live Listings" value={stats.activeListings} icon={BadgeCheck} iconClass="bg-indigo-100 text-indigo-700" />
+        <StatCard label="Revenue" value={`$${Number(stats.totalRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+        <StatCard label="Partners" value={stats.totalPartners} />
+        <StatCard label="Pending Partners" value={stats.pendingApprovals} />
+        <StatCard label="Pending Listings" value={stats.pendingListings} />
+        <StatCard label="Live Listings" value={stats.activeListings} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
