@@ -2537,50 +2537,56 @@ export default function AdminDashboard() {
         const actor = getMemberAuditActor(log);
         const isAdmin = actor.label === "Admin";
 
+        const isAuthAction =
+          action.includes("REGISTER") ||
+          action.includes("LOGIN") ||
+          action.includes("ACCOUNT_") ||
+          action.includes("PASSWORD_") ||
+          action.includes("PROFILE_") ||
+          action.startsWith("MEMBER_REGISTERED") ||
+          action.startsWith("MEMBER_LOGIN") ||
+          action.startsWith("MEMBER_UPDATED") ||
+          details.includes("registered") ||
+          details.includes("logged in") ||
+          details.includes("password") ||
+          details.includes("profile");
+
+        const isContentAction =
+          !isAdmin &&
+          category !== "admin" &&
+          action !== "ADMIN_ACTION" &&
+          !isAuthAction &&
+          (action.startsWith("POST_") ||
+            action.startsWith("COMMENT_") ||
+            scope.includes("posts") ||
+            scope.includes("comments") ||
+            details.includes("post") ||
+            details.includes("comment"));
+
+        const isModerationAction =
+          isAdmin ||
+          category === "admin" ||
+          action === "ADMIN_ACTION" ||
+          action === "MEMBER_STATUS_CHANGED" ||
+          action === "MEMBER_DELETED" ||
+          action.includes("ACTIVATED") ||
+          action.includes("DEACTIVATED") ||
+          details.includes("admin") ||
+          details.includes("activated") ||
+          details.includes("deactivated") ||
+          details.includes("hold") ||
+          details.includes("blocked");
+
         if (auditCategoryFilter === "auth") {
-          const isAuth =
-            action.includes("REGISTER") ||
-            action.includes("LOGIN") ||
-            action.includes("ACCOUNT_") ||
-            action.includes("PASSWORD_") ||
-            action.includes("PROFILE_") ||
-            details.includes("registered") ||
-            details.includes("logged in") ||
-            details.includes("password");
-          if (!isAuth) return false;
+          if (!isAuthAction) return false;
         }
         if (auditCategoryFilter === "content") {
-          // Member-generated community content activities
-          const isContent =
-            !isAdmin &&
-            category !== "admin" &&
-            action !== "ADMIN_ACTION" &&
-            (action.startsWith("POST_") ||
-              action.startsWith("COMMENT_") ||
-              category === "community" ||
-              scope.includes("posts") ||
-              scope.includes("comments") ||
-              details.includes("post") ||
-              details.includes("comment"));
-          if (!isContent) return false;
+          if (!isContentAction) return false;
         }
         if (auditCategoryFilter === "moderation") {
-          // Administrative moderation interventions
-          const isMod =
-            isAdmin ||
-            category === "admin" ||
-            action === "ADMIN_ACTION" ||
-            action === "MEMBER_STATUS_CHANGED" ||
-            action === "MEMBER_DELETED" ||
-            action.includes("ACTIVATED") ||
-            action.includes("DEACTIVATED") ||
-            details.includes("admin") ||
-            details.includes("activated") ||
-            details.includes("deactivated") ||
-            details.includes("hold") ||
-            details.includes("blocked");
-          if (!isMod) return false;
+          if (!isModerationAction) return false;
         }
+
         if (!auditSearchTerm) return true;
         const q = auditSearchTerm.toLowerCase().trim();
         const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";

@@ -14,7 +14,7 @@ import { useEffect, useMemo, useState } from "react";
 import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { notifyPasswordChanged } from "@/lib/adminCommunityCallables";
 import { auth, db } from "@/firebase";
-import { logActivity } from "@/lib/auditLogger";
+import { logMemberActivity } from "@/lib/auditLogger";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -542,6 +542,15 @@ export function CommunityMemberPanels({
                 industry: industry.trim(),
                 aboutMe: aboutMe.trim(),
               });
+              logMemberActivity({
+                memberId: userId,
+                memberName: userName || name || auth.currentUser.email || "Community Member",
+                action: "MEMBER_UPDATED",
+                details: "Community member profile updated.",
+                category: "account",
+                performedBy: "member",
+                metadata: { email: auth.currentUser.email, scope: "community_members" },
+              }).catch((e) => console.warn("Audit log error:", e));
               setProfileMsg("Profile updated successfully.");
             } catch {
               setProfileMsg("Could not save.");
@@ -648,12 +657,14 @@ export function CommunityMemberPanels({
                 } catch (mailErr) {
                   console.warn("Password changed but confirmation email failed:", mailErr);
                 }
-                await logActivity({
-                  partnerId: user.uid,
-                  partnerName: userName || name || user.email,
+                await logMemberActivity({
+                  memberId: user.uid,
+                  memberName: userName || name || user.email || "Community Member",
                   action: "PASSWORD_UPDATED",
                   details: "Community member password changed.",
-                  category: "community",
+                  category: "account",
+                  performedBy: "member",
+                  metadata: { email: user.email, scope: "community_members" },
                 });
                 setPasswordMsg("Password updated.");
                 alert("Password updated successfully.");
