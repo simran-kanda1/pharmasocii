@@ -2457,7 +2457,7 @@ export default function Dashboard() {
             const canListingPlanUpgradeAction =
                 !isPast && getAvailablePlanUpgradeIds(plan.planId, plan.collectionName).length > 0 && !planActionsLocked;
             const cardShell = isPast
-                ? "rounded-xl border border-slate-200/80 bg-slate-100/70 dark:bg-slate-900/50 dark:border-slate-800 p-5 opacity-70"
+                ? "rounded-xl border border-slate-200/90 bg-slate-50 dark:bg-slate-900/40 dark:border-slate-800 p-5 shadow-xs"
                 : isEnding
                 ? "rounded-xl border border-amber-300/80 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-950/20 p-5 shadow-sm"
                 : "rounded-xl border border-blue-200/90 bg-blue-50/50 dark:border-blue-800/40 dark:bg-blue-950/20 p-5 shadow-sm";
