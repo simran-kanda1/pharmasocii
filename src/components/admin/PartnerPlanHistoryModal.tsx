@@ -19,17 +19,10 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Building2,
-  CheckCircle2,
-  Clock,
   Copy,
   Check,
   ExternalLink,
-  Layers,
-  Sparkles,
-  Receipt,
   AlertCircle,
-  XCircle,
   Download,
 } from "lucide-react";
 import {
@@ -113,47 +106,47 @@ function StatusBadge({ status }: { status?: string }) {
   const s = String(status || "").trim().toLowerCase();
   if (s === "active" || s === "approved" || s === "extended" || s === "succeeded") {
     return (
-      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">
-        <CheckCircle2 className="w-3 h-3 mr-1" /> Active
+      <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200 font-medium">
+        Active
       </Badge>
     );
   }
   if (s === "pending review" || s === "pending") {
     return (
-      <Badge className="bg-amber-50 text-amber-700 border-amber-200">
-        <Clock className="w-3 h-3 mr-1" /> Pending
+      <Badge className="bg-amber-50 text-amber-700 border-amber-200 font-medium">
+        Pending
       </Badge>
     );
   }
   if (s === "cancelled" || s === "canceled") {
     return (
-      <Badge className="bg-rose-50 text-rose-700 border-rose-200">
-        <XCircle className="w-3 h-3 mr-1" /> Cancelled
+      <Badge className="bg-rose-50 text-rose-700 border-rose-200 font-medium">
+        Cancelled
       </Badge>
     );
   }
   if (s === "expired") {
     return (
-      <Badge className="bg-orange-50 text-orange-700 border-orange-200">
-        <AlertCircle className="w-3 h-3 mr-1" /> Expired
+      <Badge className="bg-orange-50 text-orange-700 border-orange-200 font-medium">
+        Expired
       </Badge>
     );
   }
   if (s.includes("incomplete") || s.includes("error") || s.includes("past_due") || s.includes("failed")) {
     return (
-      <Badge className="bg-red-50 text-red-700 border-red-200">
-        <AlertCircle className="w-3 h-3 mr-1" /> Incomplete Payment
+      <Badge className="bg-red-50 text-red-700 border-red-200 font-medium">
+        Incomplete Payment
       </Badge>
     );
   }
   if (s === "disabled") {
     return (
-      <Badge className="bg-slate-100 text-slate-600 border-slate-200">
+      <Badge className="bg-slate-100 text-slate-600 border-slate-200 font-medium">
         Disabled
       </Badge>
     );
   }
-  return <Badge variant="outline">{status || "Unknown"}</Badge>;
+  return <Badge variant="outline" className="font-medium">{status || "Unknown"}</Badge>;
 }
 
 function getListingCategoriesDisplay(l: any): string {
@@ -369,8 +362,8 @@ export function PartnerPlanHistoryModal({
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
               <Card className="bg-slate-50/70 border-slate-200 shadow-none">
                 <CardContent className="p-3.5">
-                  <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
-                    <Layers className="w-3.5 h-3.5 text-blue-600" /> Current Plan
+                  <p className="text-xs font-medium text-slate-500">
+                    Current Plan
                   </p>
                   <p className="text-sm font-bold text-slate-900 mt-1 truncate" title={latestPlan?.planName || latestPlan?.planId || partner.selectedPlan || "None"}>
                     {latestPlan?.planName || latestPlan?.planId || partner.selectedPlan || "No Active Plan"}
@@ -383,8 +376,8 @@ export function PartnerPlanHistoryModal({
 
               <Card className="bg-slate-50/70 border-slate-200 shadow-none">
                 <CardContent className="p-3.5">
-                  <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-emerald-600" /> Listings
+                  <p className="text-xs font-medium text-slate-500">
+                    Listings
                   </p>
                   <p className="text-sm font-bold text-slate-900 mt-1">
                     <span className="text-emerald-700">{activeListingsCount} active</span>
@@ -398,8 +391,8 @@ export function PartnerPlanHistoryModal({
 
               <Card className="bg-slate-50/70 border-slate-200 shadow-none">
                 <CardContent className="p-3.5">
-                  <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-500" /> Features & Spotlights
+                  <p className="text-xs font-medium text-slate-500">
+                    Features & Spotlights
                   </p>
                   <p className="text-sm font-bold text-slate-900 mt-1">
                     <span className="text-amber-700">{activeFeaturesCount} active</span>
@@ -413,8 +406,8 @@ export function PartnerPlanHistoryModal({
 
               <Card className="bg-slate-50/70 border-slate-200 shadow-none">
                 <CardContent className="p-3.5">
-                  <p className="text-xs font-medium text-slate-500 flex items-center gap-1.5">
-                    <Receipt className="w-3.5 h-3.5 text-indigo-600" /> Lifetime Invoiced
+                  <p className="text-xs font-medium text-slate-500">
+                    Lifetime Invoiced
                   </p>
                   <p className="text-sm font-bold text-slate-900 mt-1">
                     ${(totalSpent || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -449,7 +442,6 @@ export function PartnerPlanHistoryModal({
               <TabsContent value="plans" className="space-y-3 focus-visible:outline-none">
                 {partnerPlansList.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                    <Layers className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                     <p className="font-semibold text-slate-700">No plan subscriptions found</p>
                     <p className="text-xs text-slate-500 mt-1">This partner does not currently have any plan records in planCollection.</p>
                   </div>
@@ -548,7 +540,6 @@ export function PartnerPlanHistoryModal({
               <TabsContent value="features" className="space-y-3 focus-visible:outline-none">
                 {partnerFeaturesList.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                    <Sparkles className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                     <p className="font-semibold text-slate-700">No feature spotlights recorded</p>
                     <p className="text-xs text-slate-500 mt-1">This partner has not purchased or been granted any feature spotlights.</p>
                   </div>
@@ -611,7 +602,6 @@ export function PartnerPlanHistoryModal({
               <TabsContent value="listings" className="space-y-3 focus-visible:outline-none">
                 {partnerListingsList.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                    <Building2 className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                     <p className="font-semibold text-slate-700">No listings found</p>
                     <p className="text-xs text-slate-500 mt-1">This partner has not created any listings yet.</p>
                   </div>
@@ -676,19 +666,19 @@ export function PartnerPlanHistoryModal({
                               </TableCell>
                               <TableCell>
                                 {isFeatActive ? (
-                                  <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
-                                    <Sparkles className="w-3 h-3 mr-1" /> Featured
+                                  <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-medium">
+                                    Featured
                                   </Badge>
                                 ) : featStatus === "Expired" ? (
-                                  <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs">
+                                  <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs font-medium">
                                     Expired
                                   </Badge>
                                 ) : featStatus === "Cancelled" ? (
-                                  <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-xs">
+                                  <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-xs font-medium">
                                     Cancelled
                                   </Badge>
                                 ) : featStatus === "Disabled" ? (
-                                  <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs">
+                                  <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs font-medium">
                                     Disabled
                                   </Badge>
                                 ) : (
@@ -721,7 +711,6 @@ export function PartnerPlanHistoryModal({
               <TabsContent value="transactions" className="space-y-3 focus-visible:outline-none">
                 {partnerTransactionsList.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                    <Receipt className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                     <p className="font-semibold text-slate-700">No payment transactions found</p>
                     <p className="text-xs text-slate-500 mt-1">Transactions will appear here once the partner checks out or subscribes.</p>
                   </div>

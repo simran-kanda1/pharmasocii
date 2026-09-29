@@ -36,7 +36,7 @@ import {
   SearchX,
   Settings,
   ShieldCheck,
-  Sparkles,
+  Star,
   Tags,
   User,
   Users,
@@ -2667,7 +2667,7 @@ export default function AdminDashboard() {
             <SidebarItem label="Partners" icon={Users} active={activeTab === "partners"} onClick={() => setActiveTab("partners")} badge={stats.pendingApprovals > 0 ? stats.pendingApprovals : undefined} />
             <SidebarItem label="Listings" icon={FileText} active={activeTab === "listings"} onClick={() => setActiveTab("listings")} badge={stats.pendingListings > 0 ? stats.pendingListings : undefined} />
             <SidebarItem label="Plans" icon={Tags} active={activeTab === "plans"} onClick={() => setActiveTab("plans")} />
-            <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
+            <SidebarItem label="Featured Plans" icon={Star} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
             <SidebarItem label="Health Authority Sites" icon={Globe} active={activeTab === "healthAuthorities"} onClick={() => setActiveTab("healthAuthorities")} />
             <SidebarItem label="Site Policies" icon={ShieldCheck} active={activeTab === "policies"} onClick={() => setActiveTab("policies")} />
@@ -3271,8 +3271,7 @@ export default function AdminDashboard() {
               return (
                 <div className="bg-amber-50/50 p-4 rounded-lg border border-amber-200 space-y-3 mt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold tracking-wider text-amber-800 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="text-xs font-semibold tracking-wider text-amber-800">
                       Feature Spotlight Status
                     </span>
                     {isExpired ? (

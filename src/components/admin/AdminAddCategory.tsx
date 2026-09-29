@@ -17,7 +17,6 @@ import {
   FolderTree,
   Tag,
   Layers,
-  Sparkles,
   CheckCircle2,
   Image as ImageIcon,
   ChevronRight,
@@ -801,7 +800,6 @@ export function AdminAddCategory({
                 <Card className="border-slate-200 shadow-sm bg-white overflow-hidden">
                   <CardHeader className="bg-emerald-800 text-white pb-4">
                     <div className="flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-emerald-300" />
                       <CardTitle className="text-sm font-bold text-white tracking-wide uppercase">
                         Live Hierarchy Preview
                       </CardTitle>

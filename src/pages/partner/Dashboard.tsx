@@ -28,7 +28,7 @@ import {
     Building, Mail, Phone, MapPin,
     PlusCircle, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
-    CreditCard, Star, Sparkles, Crown, Check, X, Calendar,
+    CreditCard, Star, Crown, Check, X, Calendar,
     Edit3, Globe, Tag, Search, Trash2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -162,7 +162,7 @@ function getAvailablePlanUpgradeIds(
 const FEATURE_PLANS = [
     { id: "landing_page", label: "Landing Page Spotlight", description: "Featured on the category landing page for increased visibility", price: "$700.00", numericPrice: 700, durationDays: 30, countryLimit: 5, categoryLimit: 5, icon: Star },
     { id: "home_page", label: "Home Page Spotlight", description: "Featured on the home page for maximum brand visibility", price: "$1,000.00", numericPrice: 1000, durationDays: 30, countryLimit: 1, categoryLimit: 2, icon: Crown },
-    { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,500.00", numericPrice: 1500, durationDays: 30, countryLimit: 5, categoryLimit: 2, icon: Sparkles },
+    { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,500.00", numericPrice: 1500, durationDays: 30, countryLimit: 5, categoryLimit: 2, icon: Star },
 ];
 
 
@@ -621,7 +621,7 @@ export default function Dashboard() {
         const activeOptions = liveFeaturedPlansConfig?.groups?.flatMap(g => g.options.filter(o => o.status !== "Inactive")) || [];
         if (activeOptions.length === 0) return FEATURE_PLANS;
         return activeOptions.map(opt => {
-            const icon = opt.id === "landing_page" ? Star : opt.id === "home_page" ? Crown : Sparkles;
+            const icon = opt.id === "landing_page" ? Star : opt.id === "home_page" ? Crown : Star;
             return {
                 id: opt.id,
                 label: opt.label,
@@ -2675,8 +2675,7 @@ export default function Dashboard() {
                         </div>
                         {!isPast && (includedPlanFeature || hasFeature) && (
                             <div className="pt-3 border-t border-foreground/10">
-                                <p className="text-sm text-foreground flex items-center gap-2">
-                                    <Sparkles className="w-4 h-4 text-primary" />
+                                <p className="text-sm text-foreground">
                                     {includedPlanFeature && !hasStandaloneAddon
                                         ? `Included: ${includedPlanFeature === "home_page" ? "Home page" : "Landing page"} spotlight`
                                         : `${featureEndsWithPlan || spotlightCancelPending ? "Spotlight" : "Active spotlight"}: ${dynamicFeaturePlans.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label || (effectiveSpotlightId === "home_page" ? "Home Page Spotlight" : effectiveSpotlightId === "landing_page" ? "Landing Page Spotlight" : "Spotlight add-on")}`}
@@ -5098,8 +5097,7 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-primary" />
+                    <div>
                         <h2 className="text-xl font-bold text-foreground">
                             Upgrade Spotlight
                         </h2>
@@ -5209,8 +5207,7 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-primary" />
+                    <div>
                         <h2 className="text-xl font-bold text-foreground">
                             Add Feature Plan
                         </h2>
