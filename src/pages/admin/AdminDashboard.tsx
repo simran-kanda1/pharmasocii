@@ -22,6 +22,7 @@ import {
   Globe,
   History,
   HelpCircle,
+  Layers,
   LayoutDashboard,
   Loader2,
   LogOut,
@@ -121,6 +122,7 @@ import { AdminFaqsPanel } from "@/components/admin/AdminFaqsPanel";
 import { AdminContactPanel } from "@/components/admin/AdminContactPanel";
 import { AdminHealthAuthoritiesPanel } from "@/components/admin/AdminHealthAuthoritiesPanel";
 import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
+import { PartnerPlanHistoryModal } from "@/components/admin/PartnerPlanHistoryModal";
 
 import { SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 import {
@@ -1088,6 +1090,7 @@ export default function AdminDashboard() {
   const [communityCategoriesError, setCommunityCategoriesError] = useState("");
 
   const [selectedPartner, setSelectedPartner] = useState<PartnerRecord | null>(null);
+  const [historyPartner, setHistoryPartner] = useState<PartnerRecord | null>(null);
   const [partnerEditor, setPartnerEditor] = useState<Record<string, any>>({});
   const [partnerEditorOpen, setPartnerEditorOpen] = useState(false);
   const [lastTrialEndMs, setLastTrialEndMs] = useState<number | null>(null); // for undo last extension
@@ -2356,11 +2359,16 @@ export default function AdminDashboard() {
       const rawPlan = latestPlan?.planName || latestPlan?.planId || (partner as any).selectedPlan || "-";
 
       const pListings = partnerListingsMap.get(partner.id) || [];
+      const totalListingsCount = pListings.length;
       const activeListings = pListings.filter((listing) => {
         const insight = listingInsights[listing.id];
         const status = getEffectiveListingStatus(listing, insight);
         return status === "Active" || status === "Approved" || status === "Extended";
       });
+
+      const pFeatures = featuredPlans.filter((f) => f.partnerId === partner.id);
+      const listingFeaturedCount = pListings.filter((l) => Boolean((l as any).isFeatured || (l as any).featureSpotlightPaidThrough || (l as any).selectedAddon || ((l as any).featureStatus && (l as any).featureStatus !== "-"))).length;
+      const totalFeaturedCount = Math.max(pFeatures.length, listingFeaturedCount);
 
       let activeFeaturedCount = 0;
       activeListings.forEach((listing) => {
@@ -2374,14 +2382,18 @@ export default function AdminDashboard() {
       acc[partner.id] = {
         latestPlan: formatUserPlan(rawPlan, latestPlan),
         listingCount: activeListings.length,
+        totalListingsCount,
         featuredCount: activeFeaturedCount,
+        totalFeaturedCount,
         trialInfo,
       };
       return acc;
     }, {} as Record<string, { 
       latestPlan: string; 
       listingCount: number; 
+      totalListingsCount: number;
       featuredCount: number; 
+      totalFeaturedCount: number;
       trialInfo?: { 
         durationDays: number; 
         currentDay: number; 
@@ -2649,7 +2661,9 @@ export default function AdminDashboard() {
       "Status",
       "Latest Plan",
       "Total Active Listings",
+      "Total Listings",
       "Total Active Features",
+      "Total Features",
     ];
 
     const rows = filteredPartners.map((partner) => {
@@ -2669,7 +2683,9 @@ export default function AdminDashboard() {
         partner.partnerStatus || "",
         insight?.latestPlan || "-",
         `${insight?.listingCount || 0}`,
+        `${insight?.totalListingsCount || 0}`,
         `${insight?.featuredCount || 0}`,
+        `${insight?.totalFeaturedCount || 0}`,
       ];
     });
 
@@ -2943,6 +2959,7 @@ export default function AdminDashboard() {
                   partnerInsights={partnerInsights}
                   onView={openPartnerEditor}
                   onSetStatus={setPartnerStatus}
+                  onOpenHistory={(partner) => setHistoryPartner(partner)}
                 />
               </div>
             )
@@ -3296,20 +3313,35 @@ export default function AdminDashboard() {
               <SheetTitle>Edit Partner Profile</SheetTitle>
               <SheetDescription>Update partner's information and account status</SheetDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-              onClick={() => {
-                setActiveTab("audit");
-                setAuditCategoryFilter("all");
-                setAuditSearchTerm(selectedPartner?.id || selectedPartner?.businessName || "");
-                setPartnerEditorOpen(false);
-              }}
-            >
-              <History className="w-4 h-4" />
-              View History
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1.5 text-emerald-700 border-emerald-200 hover:bg-emerald-50"
+                onClick={() => {
+                  if (selectedPartner) {
+                    setHistoryPartner(selectedPartner);
+                  }
+                }}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Plan History
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1.5"
+                onClick={() => {
+                  setActiveTab("audit");
+                  setAuditCategoryFilter("all");
+                  setAuditSearchTerm(selectedPartner?.id || selectedPartner?.businessName || "");
+                  setPartnerEditorOpen(false);
+                }}
+              >
+                <History className="w-3.5 h-3.5" />
+                Audit Logs
+              </Button>
+            </div>
           </SheetHeader>
           <div className="mt-6 space-y-6">
             {selectedPartner && !Boolean((selectedPartner as any).createdByAdmin) && (
@@ -3975,6 +4007,17 @@ export default function AdminDashboard() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <PartnerPlanHistoryModal
+        partner={historyPartner}
+        isOpen={Boolean(historyPartner)}
+        onClose={() => setHistoryPartner(null)}
+        partnerPlans={partnerPlans}
+        featuredPlans={featuredPlans}
+        listings={listings}
+        transactions={transactions}
+        listingInsights={listingInsights}
+      />
     </div>
   );
 }
@@ -4163,6 +4206,7 @@ function PartnerList({
   partnerInsights,
   onView,
   onSetStatus,
+  onOpenHistory,
 }: {
   partners: PartnerRecord[];
   partnerInsights: Record<
@@ -4170,7 +4214,9 @@ function PartnerList({
     {
       latestPlan: string;
       listingCount: number;
+      totalListingsCount: number;
       featuredCount: number;
+      totalFeaturedCount: number;
       trialInfo?: {
         durationDays: number;
         currentDay: number;
@@ -4181,6 +4227,7 @@ function PartnerList({
   >;
   onView: (partner: PartnerRecord) => void;
   onSetStatus: (partner: PartnerRecord, status: string) => void;
+  onOpenHistory: (partner: PartnerRecord) => void;
 }) {
   if (partners.length === 0) {
     return (
@@ -4205,7 +4252,9 @@ function PartnerList({
                 <TableHead className="px-2 py-3 text-xs">Profile Created</TableHead>
                 <TableHead className="px-2 py-3 text-xs">User Plan</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Listings</TableHead>
+                <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Listings</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Features</TableHead>
+                <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Features</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Contact</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Head Office Country</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center">By Admin</TableHead>
@@ -4270,15 +4319,58 @@ function PartnerList({
                     </TableCell>
 
                     <TableCell className="px-2 py-2">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-medium truncate max-w-[120px]" title={insight?.latestPlan || ""}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(partner)}
+                        className="flex flex-col gap-1 text-left group hover:opacity-80 transition-opacity"
+                        title="Click to view plan and feature history"
+                      >
+                        <span className="text-xs font-medium truncate max-w-[120px] text-slate-900 group-hover:text-blue-600 underline-offset-2 group-hover:underline" title={insight?.latestPlan || ""}>
                           {insight?.latestPlan || "-"}
                         </span>
                         {trialBadge}
-                      </div>
+                      </button>
                     </TableCell>
-                    <TableCell className="px-2 py-2 text-sm text-center">{insight?.listingCount || 0}</TableCell>
-                    <TableCell className="px-2 py-2 text-sm text-center">{insight?.featuredCount || 0}</TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(partner)}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                        title="Click to view active listings history"
+                      >
+                        {insight?.listingCount || 0}
+                      </button>
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(partner)}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                        title="Click to view all-time listings history"
+                      >
+                        {insight?.totalListingsCount || 0}
+                      </button>
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(partner)}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                        title="Click to view active features history"
+                      >
+                        {insight?.featuredCount || 0}
+                      </button>
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(partner)}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
+                        title="Click to view all-time features history"
+                      >
+                        {insight?.totalFeaturedCount || 0}
+                      </button>
+                    </TableCell>
                     <TableCell className="px-2 py-2">
                       <p className="text-sm max-w-[120px] truncate font-medium text-slate-800" title={partner.primaryName || ""}>
                         {partner.primaryName || "-"}
@@ -4299,8 +4391,11 @@ function PartnerList({
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[190px]">
+                        <DropdownMenuContent align="end" className="min-w-[210px]">
                           <DropdownMenuLabel>Partner Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => onOpenHistory(partner)}>
+                            <History className="w-4 h-4 mr-2 text-blue-600" /> Plan & feature history
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => onView(partner)}>
                             <Eye className="w-4 h-4 mr-2" /> View / Edit profile
                           </DropdownMenuItem>
