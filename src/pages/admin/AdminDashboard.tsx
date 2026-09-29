@@ -2534,6 +2534,8 @@ export default function AdminDashboard() {
         const category = (log.category || "").toLowerCase();
         const details = (log.details || "").toLowerCase();
         const scope = (log.metadata?.scope || "").toLowerCase();
+        const actor = getMemberAuditActor(log);
+        const isAdmin = actor.label === "Admin";
 
         if (auditCategoryFilter === "auth") {
           const isAuth =
@@ -2548,25 +2550,35 @@ export default function AdminDashboard() {
           if (!isAuth) return false;
         }
         if (auditCategoryFilter === "content") {
+          // Member-generated community content activities
           const isContent =
-            action.startsWith("POST_") ||
-            action.startsWith("COMMENT_") ||
-            scope.includes("posts") ||
-            scope.includes("comments") ||
-            details.includes("post") ||
-            details.includes("comment");
+            !isAdmin &&
+            category !== "admin" &&
+            action !== "ADMIN_ACTION" &&
+            (action.startsWith("POST_") ||
+              action.startsWith("COMMENT_") ||
+              category === "community" ||
+              scope.includes("posts") ||
+              scope.includes("comments") ||
+              details.includes("post") ||
+              details.includes("comment"));
           if (!isContent) return false;
         }
         if (auditCategoryFilter === "moderation") {
+          // Administrative moderation interventions
           const isMod =
+            isAdmin ||
             category === "admin" ||
             action === "ADMIN_ACTION" ||
             action === "MEMBER_STATUS_CHANGED" ||
             action === "MEMBER_DELETED" ||
+            action.includes("ACTIVATED") ||
+            action.includes("DEACTIVATED") ||
             details.includes("admin") ||
+            details.includes("activated") ||
+            details.includes("deactivated") ||
             details.includes("hold") ||
-            details.includes("blocked") ||
-            details.includes("deactivated");
+            details.includes("blocked");
           if (!isMod) return false;
         }
         if (!auditSearchTerm) return true;
@@ -2584,18 +2596,23 @@ export default function AdminDashboard() {
   }, [auditLogs, auditCategoryFilter, auditSearchTerm]);
 
   const exportMemberAuditLogs = (format: "csv" | "excel") => {
-    const headers = ["Timestamp", "Member Name", "Member ID", "Action", "Performed By", "Details"];
+    const headers = ["Timestamp", "Member / Subject", "Member ID", "Action", "Performed By", "Details"];
     const rows = filteredMemberLogs.map((log) => {
       const actor = getMemberAuditActor(log);
+      const subject = getMemberAuditSubject(log, actor);
       const timeStr = log.timestamp?.seconds
         ? new Date(log.timestamp.seconds * 1000).toLocaleString()
         : "-";
+      const performer =
+        actor.label === "Admin" && (log.partnerName?.includes("@") || log.metadata?.adminEmail)
+          ? `Admin (${log.partnerName || log.metadata?.adminEmail})`
+          : actor.label;
       return [
         timeStr,
-        log.partnerName || log.memberName || "Community Member",
-        log.partnerId || log.memberId || "",
+        subject.name,
+        subject.id || log.partnerId || log.memberId || "",
         log.action || "",
-        actor.label,
+        performer,
         log.details || "",
       ];
     });
@@ -5272,6 +5289,43 @@ function getMemberAuditActor(log: any): { label: "Admin" | "Member" | "System"; 
   return { label: "Member", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
 }
 
+function getMemberAuditSubject(log: any, actor: { label: string }): { name: string; email?: string; id?: string } {
+  const details = (log.details || "").toLowerCase();
+  const isAdmin = actor.label === "Admin";
+  const nameStored = log.partnerName || log.memberName || "";
+  const isSelfAdminStored = isAdmin && (nameStored.includes("admin@") || nameStored.toLowerCase() === "admin");
+
+  if (isSelfAdminStored) {
+    if (details.includes("post")) {
+      return {
+        name: "Community Post",
+        email: log.metadata?.authorEmail || (log.targetMember ? `Author: ${log.targetMember}` : undefined),
+        id: log.metadata?.postId || log.partnerId || log.memberId,
+      };
+    }
+    if (details.includes("comment")) {
+      return {
+        name: "Community Comment",
+        email: log.metadata?.authorEmail || (log.targetMember ? `Author: ${log.targetMember}` : undefined),
+        id: log.metadata?.commentId || log.partnerId || log.memberId,
+      };
+    }
+    if (log.targetMember || log.metadata?.targetMember) {
+      return {
+        name: log.targetMember || log.metadata?.targetMember,
+        email: log.metadata?.email,
+        id: log.metadata?.targetMemberId || log.partnerId || log.memberId,
+      };
+    }
+  }
+
+  return {
+    name: nameStored || "Community Member",
+    email: log.metadata?.email,
+    id: log.partnerId || log.memberId || "",
+  };
+}
+
 function MemberAuditLogList({ logs }: { logs: any[] }) {
   if (logs.length === 0) {
     return (
@@ -5301,12 +5355,16 @@ function MemberAuditLogList({ logs }: { logs: any[] }) {
         return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Member Deleted</Badge>;
       case "POST_CREATED":
         return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Post Created</Badge>;
+      case "POST_EDITED":
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Post Edited</Badge>;
       case "POST_ARCHIVED":
         return <Badge className="bg-slate-100 text-slate-700 border-slate-300">Post Archived</Badge>;
       case "POST_RESTORED":
         return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Post Restored</Badge>;
       case "POST_DELETED":
         return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Post Deleted</Badge>;
+      case "COMMENT_POSTED":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Comment Posted</Badge>;
       case "COMMENT_REPORTED":
         return <Badge className="bg-red-50 text-red-700 border-red-200">Comment Reported</Badge>;
       case "COMMENT_ACTIVATED":
@@ -5327,7 +5385,7 @@ function MemberAuditLogList({ logs }: { logs: any[] }) {
           <TableHeader>
             <TableRow>
               <TableHead className="pl-6">Timestamp</TableHead>
-              <TableHead>Member</TableHead>
+              <TableHead>Member / Target</TableHead>
               <TableHead>Action</TableHead>
               <TableHead>Performed By</TableHead>
               <TableHead>Details</TableHead>
@@ -5337,6 +5395,7 @@ function MemberAuditLogList({ logs }: { logs: any[] }) {
           <TableBody>
             {logs.map((log) => {
               const actor = getMemberAuditActor(log);
+              const subject = getMemberAuditSubject(log, actor);
               return (
                 <TableRow key={log.id}>
                   <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
@@ -5346,21 +5405,28 @@ function MemberAuditLogList({ logs }: { logs: any[] }) {
                   </TableCell>
                   <TableCell className="font-medium whitespace-nowrap">
                     <div className="space-y-0.5 max-w-[200px]">
-                      <p className="truncate text-sm text-slate-900">{log.partnerName || log.memberName || "Community Member"}</p>
-                      {log.metadata?.email && (
-                        <p className="text-xs text-slate-500 truncate">{log.metadata.email}</p>
+                      <p className="truncate text-sm text-slate-900">{subject.name}</p>
+                      {subject.email && (
+                        <p className="text-xs text-slate-500 truncate">{subject.email}</p>
                       )}
                     </div>
                   </TableCell>
                   <TableCell>{getActionBadge(log.action)}</TableCell>
                   <TableCell>
-                    <Badge className={`${actor.badgeClass} font-medium text-xs`}>
-                      {actor.label}
-                    </Badge>
+                    <div className="space-y-0.5">
+                      <Badge className={`${actor.badgeClass} font-medium text-xs`}>
+                        {actor.label}
+                      </Badge>
+                      {actor.label === "Admin" && (log.partnerName?.includes("@") || log.metadata?.adminEmail) && (
+                        <p className="text-[11px] text-slate-400 truncate max-w-[140px]">
+                          {log.partnerName || log.metadata?.adminEmail}
+                        </p>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-sm text-slate-600 max-w-md">{log.details}</TableCell>
                   <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400">
-                    {log.partnerId || log.memberId || "-"}
+                    {subject.id || log.partnerId || log.memberId || "-"}
                   </TableCell>
                 </TableRow>
               );

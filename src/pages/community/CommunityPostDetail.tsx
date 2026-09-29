@@ -43,6 +43,7 @@ import { CheckSquare, Link2, MessageSquare, Pencil, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { goBackToCommunityFeed } from "@/lib/communityScrollRestore";
 import { syncPostCommentCount, recordCommentNotification } from "@/lib/communityCallables";
+import { logMemberActivity } from "@/lib/auditLogger";
 import { CreatePostModal } from "@/components/community/CreatePostModal";
 import type { PostCardPost } from "@/components/community/PostCard";
 import { HIDE_DIRECTORY_DATA_PREVIEW } from "@/lib/partnerListingPublic";
@@ -409,6 +410,21 @@ export default function CommunityPostDetail() {
         text: t,
         fromUserName: userName,
       }).catch((notifyErr) => console.warn("Comment notification:", notifyErr));
+
+      logMemberActivity({
+        memberId: user.uid,
+        memberName: userName || user.email || "Community Member",
+        action: "COMMENT_POSTED",
+        details: `Posted comment on post ${postId.slice(0, 8)}...: "${t.slice(0, 50)}"`,
+        category: "community",
+        performedBy: "member",
+        metadata: {
+          postId,
+          commentId: commentRef.id,
+          email: user.email,
+          scope: "community_comments",
+        },
+      }).catch((e) => console.warn("Failed to log comment audit:", e));
       setCommentText("");
       setCommentFile(null);
       setCommentLink("");
