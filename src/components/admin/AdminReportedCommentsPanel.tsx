@@ -88,10 +88,16 @@ export function AdminReportedCommentsPanel() {
         await logActivity({
           partnerId: u.uid,
           partnerName: u.email || "Admin",
-          action: "ADMIN_ACTION",
+          action: row.commentArchived ? "COMMENT_ACTIVATED" : "COMMENT_DEACTIVATED",
           details: `${row.commentArchived ? "Activated" : "Deactivated"} comment ${row.commentId}`,
           category: "admin",
-          metadata: { scope: "reported_comments" },
+          performedBy: "admin",
+          metadata: {
+            scope: "reported_comments",
+            adminEmail: u.email,
+            postId: row.postId,
+            commentId: row.commentId,
+          },
         });
       }
       setMsg(row.commentArchived ? "Comment activated." : "Comment deactivated.");
