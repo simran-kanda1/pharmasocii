@@ -38,6 +38,10 @@ import {
   type PartnerTransactionRow,
 } from "@/lib/partnerTransactions";
 import { downloadSingleTransactionInvoicePdf } from "@/lib/transactionExport";
+import {
+  getEffectiveListingStatus,
+  getEffectiveFeatureStatus,
+} from "@/lib/adminEffectiveStatus";
 
 interface Props {
   partner: any | null;
@@ -288,18 +292,25 @@ export function PartnerPlanHistoryModal({
 
   if (!partner) return null;
 
-  // Calculated Stats
+  // Calculated Stats - accurately synchronized with AdminDashboard getEffectiveListingStatus
   const activeListingsCount = partnerListingsList.filter((l) => {
     const insight = listingInsights && l?.id ? listingInsights[l.id] : null;
-    const status = String(insight?.status || l?.status || "Active").toLowerCase();
-    return status === "active" || status === "approved" || status === "extended";
+    const status = getEffectiveListingStatus(l, insight);
+    return status === "Active" || status === "Approved" || status === "Extended";
   }).length;
 
-  const activeFeaturesCount = partnerFeaturesList.filter((f) => {
-    const status = String(f?.status || "").toLowerCase();
-    const isExpired = Boolean(f?.accessThrough?.seconds && f.accessThrough.seconds * 1000 < Date.now());
-    return (f?.active !== false && status === "active" && !isExpired) || status === "succeeded";
-  }).length;
+  let activeFeaturesCount = 0;
+  partnerListingsList.forEach((listing) => {
+    const insight = listingInsights && listing?.id ? listingInsights[listing.id] : null;
+    const status = getEffectiveListingStatus(listing, insight);
+    const isActiveListing = status === "Active" || status === "Approved" || status === "Extended";
+    if (isActiveListing) {
+      const featStatus = insight?.featureStatus || getEffectiveFeatureStatus(insight?.feature, listing);
+      if (featStatus === "Active") {
+        activeFeaturesCount += 1;
+      }
+    }
+  });
 
   const totalSpent = partnerTransactionsList.reduce((acc, t) => {
     if (t.statusRaw === "succeeded" || String(t.statusLabel || "").toLowerCase() === "completed") {
@@ -548,6 +559,7 @@ export function PartnerPlanHistoryModal({
                       const startFormatted = formatDate(feat.lastPaymentReceived || feat.createdAt);
                       const endFormatted = formatDate(feat.accessThrough || feat.billingPeriodEnd);
                       const isExpired = Boolean(feat.accessThrough?.seconds && feat.accessThrough.seconds * 1000 < Date.now());
+                      const effectiveFeatStatus = feat.status === "Disabled" ? "Disabled" : (feat.status === "Cancelled" || feat.status === "canceled") ? "Cancelled" : isExpired ? "Expired" : (feat.status || "Active");
 
                       return (
                         <Card key={feat.id || idx} className="bg-white border border-slate-200">
@@ -562,7 +574,7 @@ export function PartnerPlanHistoryModal({
                                     Admin Granted
                                   </Badge>
                                 )}
-                                <StatusBadge status={feat.status || (isExpired ? "Expired" : "Active")} />
+                                <StatusBadge status={effectiveFeatStatus} />
                               </div>
                               <div className="text-xs text-slate-500 flex items-center gap-1">
                                 <span>Feature Doc ID:</span> <CopyableText text={feat.id} label="Feature ID" />
@@ -611,8 +623,8 @@ export function PartnerPlanHistoryModal({
                           <TableHead className="pl-4">Listing Title / Name</TableHead>
                           <TableHead>Group</TableHead>
                           <TableHead>Categories</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Featured</TableHead>
+                          <TableHead>Listing Status</TableHead>
+                          <TableHead>Feature Spotlight</TableHead>
                           <TableHead>Created</TableHead>
                           <TableHead className="pr-4 text-right">View</TableHead>
                         </TableRow>
@@ -620,8 +632,10 @@ export function PartnerPlanHistoryModal({
                       <TableBody>
                         {partnerListingsList.map((l) => {
                           const insight = listingInsights && l?.id ? listingInsights[l.id] : null;
-                          const effectiveStatus = insight?.status || l?.status || "Active";
-                          const isFeat = Boolean(insight?.isFeatured || l?.isFeatured);
+                          const effectiveStatus = getEffectiveListingStatus(l, insight);
+                          const featStatus = insight?.featureStatus || getEffectiveFeatureStatus(insight?.feature, l);
+                          const isFeatActive = featStatus === "Active";
+
                           const groupDisplay =
                             l?.selectedGroup === "business_offerings" || l?.__col === "businessOfferingsCollection"
                               ? "Business"
@@ -661,9 +675,21 @@ export function PartnerPlanHistoryModal({
                                 <StatusBadge status={effectiveStatus} />
                               </TableCell>
                               <TableCell>
-                                {isFeat ? (
+                                {isFeatActive ? (
                                   <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs">
                                     <Sparkles className="w-3 h-3 mr-1" /> Featured
+                                  </Badge>
+                                ) : featStatus === "Expired" ? (
+                                  <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs">
+                                    Expired
+                                  </Badge>
+                                ) : featStatus === "Cancelled" ? (
+                                  <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-xs">
+                                    Cancelled
+                                  </Badge>
+                                ) : featStatus === "Disabled" ? (
+                                  <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs">
+                                    Disabled
                                   </Badge>
                                 ) : (
                                   <span className="text-xs text-slate-400">Standard</span>
