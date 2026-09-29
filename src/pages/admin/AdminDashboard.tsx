@@ -2551,17 +2551,16 @@ export default function AdminDashboard() {
           details.includes("password") ||
           details.includes("profile");
 
+        // Community Content: Any activity on community posts or comments (creation, edits, reports, activations, deactivations)
         const isContentAction =
-          !isAdmin &&
-          category !== "admin" &&
-          action !== "ADMIN_ACTION" &&
-          !isAuthAction &&
-          (action.startsWith("POST_") ||
-            action.startsWith("COMMENT_") ||
-            scope.includes("posts") ||
-            scope.includes("comments") ||
-            details.includes("post") ||
-            details.includes("comment"));
+          action.startsWith("POST_") ||
+          action.startsWith("COMMENT_") ||
+          scope.includes("posts") ||
+          scope.includes("comments") ||
+          scope.includes("community") ||
+          category === "community" ||
+          details.includes("post") ||
+          details.includes("comment");
 
         const isModerationAction =
           isAdmin ||
@@ -5222,8 +5221,7 @@ function Field({
 function isMemberAuditLog(log: any): boolean {
   const category = (log.category || "").toLowerCase();
   const action = (log.action || "").toUpperCase();
-  const scope = (log.metadata?.scope || "").toLowerCase();
-  const role = (log.metadata?.role || "").toLowerCase();
+  const details = (log.details || "").toLowerCase();
 
   // Explicit partner exclusions (billing, Stripe payments, partner listings, partner plans)
   if (
@@ -5233,36 +5231,16 @@ function isMemberAuditLog(log: any): boolean {
     action === "FEATURE_ADDED" ||
     action === "CATEGORY_DELETED" ||
     category === "billing" ||
-    category === "listing"
+    category === "listing" ||
+    details.includes("partner status") ||
+    details.includes("partner profile") ||
+    details.includes("partner password") ||
+    details.includes("trial, plan, and feature spotlight")
   ) {
     return false;
   }
 
-  if (
-    category === "community" ||
-    role === "member" ||
-    scope.includes("community") ||
-    scope.includes("reported_comments") ||
-    scope.includes("member") ||
-    action.startsWith("MEMBER_") ||
-    action.startsWith("POST_") ||
-    action.startsWith("COMMENT_")
-  ) {
-    return true;
-  }
-
-  if (
-    category === "admin" &&
-    (scope.includes("community") ||
-      scope.includes("reported_comments") ||
-      (log.details || "").toLowerCase().includes("member") ||
-      (log.details || "").toLowerCase().includes("post") ||
-      (log.details || "").toLowerCase().includes("comment"))
-  ) {
-    return true;
-  }
-
-  return false;
+  return true;
 }
 
 function getMemberAuditActor(log: any): { label: "Admin" | "Member" | "System"; badgeClass: string } {
@@ -5305,14 +5283,14 @@ function getMemberAuditSubject(log: any, actor: { label: string }): { name: stri
     if (details.includes("post")) {
       return {
         name: "Community Post",
-        email: log.metadata?.authorEmail || (log.targetMember ? `Author: ${log.targetMember}` : undefined),
+        email: log.metadata?.authorEmail,
         id: log.metadata?.postId || log.partnerId || log.memberId,
       };
     }
     if (details.includes("comment")) {
       return {
         name: "Community Comment",
-        email: log.metadata?.authorEmail || (log.targetMember ? `Author: ${log.targetMember}` : undefined),
+        email: log.metadata?.authorEmail,
         id: log.metadata?.commentId || log.partnerId || log.memberId,
       };
     }
@@ -5403,7 +5381,7 @@ function MemberAuditLogList({ logs }: { logs: any[] }) {
               const actor = getMemberAuditActor(log);
               const subject = getMemberAuditSubject(log, actor);
               return (
-                <TableRow key={log.id}>
+                <TableRow key={log.id} className="hover:bg-slate-50/50">
                   <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
                     {log.timestamp?.seconds
                       ? new Date(log.timestamp.seconds * 1000).toLocaleString()
@@ -5417,21 +5395,14 @@ function MemberAuditLogList({ logs }: { logs: any[] }) {
                       )}
                     </div>
                   </TableCell>
-                  <TableCell>{getActionBadge(log.action)}</TableCell>
-                  <TableCell>
-                    <div className="space-y-0.5">
-                      <Badge className={`${actor.badgeClass} font-medium text-xs`}>
-                        {actor.label}
-                      </Badge>
-                      {actor.label === "Admin" && (log.partnerName?.includes("@") || log.metadata?.adminEmail) && (
-                        <p className="text-[11px] text-slate-400 truncate max-w-[140px]">
-                          {log.partnerName || log.metadata?.adminEmail}
-                        </p>
-                      )}
-                    </div>
+                  <TableCell className="whitespace-nowrap">{getActionBadge(log.action)}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Badge className={`${actor.badgeClass} font-medium text-xs`}>
+                      {actor.label}
+                    </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-slate-600 max-w-md">{log.details}</TableCell>
-                  <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400">
+                  <TableCell className="text-sm text-slate-600 max-w-md break-words">{log.details}</TableCell>
+                  <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400 whitespace-nowrap">
                     {subject.id || log.partnerId || log.memberId || "-"}
                   </TableCell>
                 </TableRow>
