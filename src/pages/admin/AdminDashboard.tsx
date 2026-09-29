@@ -3261,12 +3261,35 @@ export default function AdminDashboard() {
               );
             })()}
 
-            {selectedPartner && Boolean((selectedPartner as any).createdByAdmin) && (() => {
+            {selectedPartner && (() => {
               const partnerFeature = featuredPlans.find((f) => f.partnerId === selectedPartner.id);
-              if (!partnerFeature && !selectedPartner.selectedAddon) return null;
-              const accessDate = partnerFeature?.accessThrough ? new Date(typeof (partnerFeature.accessThrough as any).toDate === 'function' ? (partnerFeature.accessThrough as any).toDate() : partnerFeature.accessThrough) : null;
+              const hasAddon =
+                selectedPartner.selectedAddon &&
+                selectedPartner.selectedAddon !== "none" &&
+                selectedPartner.selectedAddon !== "null" &&
+                String(selectedPartner.selectedAddon).trim() !== "";
+
+              if (!partnerFeature && !hasAddon) return null;
+
+              const accessDate = partnerFeature?.accessThrough
+                ? new Date(
+                    typeof (partnerFeature.accessThrough as any).toDate === "function"
+                      ? (partnerFeature.accessThrough as any).toDate()
+                      : partnerFeature.accessThrough
+                  )
+                : null;
               const isExpired = accessDate ? accessDate.getTime() < Date.now() : false;
-              const featureName = (partnerFeature?.featureName || partnerFeature?.featureId || selectedPartner.selectedAddon || "").replace(/_/g, ' ');
+              const rawName =
+                partnerFeature?.featureName ||
+                partnerFeature?.featureId ||
+                (hasAddon ? selectedPartner.selectedAddon : "") ||
+                "";
+              const featureName = rawName.replace(/_/g, " ").trim();
+
+              if (!featureName || featureName.toLowerCase() === "none" || featureName.toLowerCase() === "null") {
+                return null;
+              }
+
               return (
                 <div className="bg-amber-50/50 p-4 rounded-lg border border-amber-200 space-y-3 mt-2">
                   <div className="flex items-center justify-between">
@@ -3274,15 +3297,21 @@ export default function AdminDashboard() {
                       Feature Spotlight Status
                     </span>
                     {isExpired ? (
-                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">Expired</Badge>
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">
+                        Expired
+                      </Badge>
                     ) : (
                       <Badge className="bg-amber-100 text-amber-800 border-amber-300">Active Spotlight</Badge>
                     )}
                   </div>
                   <div className="text-sm text-slate-700 space-y-1">
-                    <p><strong>Feature:</strong> {featureName}</p>
+                    <p>
+                      <strong>Feature:</strong> {featureName}
+                    </p>
                     {accessDate && <p><strong>Expiration:</strong> {accessDate.toLocaleDateString()}</p>}
-                    <p className="text-xs text-amber-800/80 italic pt-0.5">Automatically synchronized with plan trial period</p>
+                    <p className="text-xs text-amber-800/80 italic pt-0.5">
+                      Automatically synchronized with plan trial period
+                    </p>
                   </div>
                 </div>
               );
