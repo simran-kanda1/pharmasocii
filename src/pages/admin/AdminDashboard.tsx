@@ -4086,7 +4086,6 @@ function PartnerList({
                 <TableHead className="px-2 py-3 text-xs">Email</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Phone</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Profile Created</TableHead>
-                <TableHead className="px-2 py-3 text-xs">User Plan</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Listings</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Listings</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Features</TableHead>
@@ -4100,32 +4099,7 @@ function PartnerList({
             <TableBody>
               {partners.map((partner) => {
                 const insight = partnerInsights[partner.id];
-                const trial = insight?.trialInfo;
                 const created = formatPartnerCreatedAt(partner.createdAt || partner.created || partner.registeredAt);
-
-                let trialBadge = null;
-                if (trial) {
-                  if (trial.isExpired) {
-                    trialBadge = (
-                      <Badge className="w-fit bg-slate-100 text-slate-600 border-slate-200 text-[10px] px-1.5 py-0 font-normal">
-                        Trial: Expired
-                      </Badge>
-                    );
-                  } else {
-                    const percentage = (trial.currentDay / trial.durationDays) * 100;
-                    let colorClass = "bg-blue-50 text-blue-700 border-blue-200";
-                    if (percentage >= 90) {
-                      colorClass = "bg-rose-50 text-rose-700 border-rose-200";
-                    } else if (percentage >= 50) {
-                      colorClass = "bg-amber-50 text-amber-700 border-amber-200";
-                    }
-                    trialBadge = (
-                      <Badge className={`w-fit border text-[10px] px-1.5 py-0 font-normal ${colorClass}`}>
-                        Trial: {trial.currentDay}/{trial.durationDays}
-                      </Badge>
-                    );
-                  }
-                }
 
                 return (
                   <TableRow key={partner.id}>
@@ -4152,20 +4126,6 @@ function PartnerList({
                       ) : (
                         <span className="text-xs text-slate-400">-</span>
                       )}
-                    </TableCell>
-
-                    <TableCell className="px-2 py-2">
-                      <button
-                        type="button"
-                        onClick={() => onOpenHistory(partner)}
-                        className="flex flex-col gap-1 text-left group hover:opacity-80 transition-opacity"
-                        title="Click to view plan and feature history"
-                      >
-                        <span className="text-xs font-medium truncate max-w-[120px] text-slate-900 group-hover:text-blue-600 underline-offset-2 group-hover:underline" title={insight?.latestPlan || ""}>
-                          {insight?.latestPlan || "-"}
-                        </span>
-                        {trialBadge}
-                      </button>
                     </TableCell>
                     <TableCell className="px-2 py-2 text-sm text-center">
                       <button
