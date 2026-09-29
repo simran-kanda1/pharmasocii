@@ -136,6 +136,7 @@ import {
   downloadPartnerTransactionsCsv,
   downloadPartnerTransactionsExcel,
   downloadPartnerTransactionsPdf,
+  downloadSingleTransactionInvoicePdf,
 } from "@/lib/transactionExport";
 
 type AdminTab =
@@ -5014,7 +5015,8 @@ function TransactionList({ transactions }: { transactions: any[] }) {
                     <TableHead>Group</TableHead>
                     <TableHead>Listing ID</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right pr-6">Amount</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right pr-6">Invoice</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -5049,8 +5051,26 @@ function TransactionList({ transactions }: { transactions: any[] }) {
                           {t.statusLabel}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right pr-6 font-semibold text-emerald-700 tabular-nums whitespace-nowrap">
+                      <TableCell className="text-right font-semibold text-emerald-700 tabular-nums whitespace-nowrap">
                         {t.amountDisplay}
+                      </TableCell>
+                      <TableCell className="text-right pr-6 whitespace-nowrap">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() =>
+                            downloadSingleTransactionInvoicePdf(t, {
+                              companyName: t.businessName || "Partner",
+                              email: t.customerEmail || "",
+                              businessId: t.partnerId || "",
+                            })
+                          }
+                          className="h-8 text-xs font-medium border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 inline-flex items-center gap-1.5"
+                          title="Download Invoice PDF"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                          <span>PDF</span>
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
