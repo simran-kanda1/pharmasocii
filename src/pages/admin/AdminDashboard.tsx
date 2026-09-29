@@ -1406,15 +1406,33 @@ export default function AdminDashboard() {
         prev.map((p) => (p.id === selectedPartner.id ? { ...p, ...payload } : p)),
       );
 
+      const changes: string[] = [];
+      if (payload.businessName && payload.businessName !== selectedPartner.businessName) {
+        changes.push(`Company name updated from "${selectedPartner.businessName || ''}" to "${payload.businessName}"`);
+      }
+      if (payload.primaryEmail && payload.primaryEmail !== selectedPartner.primaryEmail) {
+        changes.push(`Primary email changed from "${selectedPartner.primaryEmail || ''}" to "${payload.primaryEmail}"`);
+      }
+      if (payload.primaryName && payload.primaryName !== selectedPartner.primaryName) {
+        changes.push(`Primary contact changed from "${selectedPartner.primaryName || ''}" to "${payload.primaryName}"`);
+      }
+      if (payload.companyWebsite && payload.companyWebsite !== selectedPartner.companyWebsite) {
+        changes.push(`Company URL changed from "${selectedPartner.companyWebsite || ''}" to "${payload.companyWebsite}"`);
+      }
+
+      const changeDetails = changes.length > 0
+        ? `Partner profile updated by Admin (${adminEmail}): ${changes.join(". ")}.`
+        : `Profile updated by admin: ${payload.businessName || selectedPartner.businessName} (Contact: ${payload.primaryName || selectedPartner.primaryName}). Admin: ${adminEmail}`;
+
       // Log to Audit Trail
       await logActivity({
         partnerId: selectedPartner.id,
         partnerName: payload.businessName || selectedPartner.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
-        details: `Profile updated by admin: ${payload.businessName || selectedPartner.businessName} (Contact: ${payload.primaryName || selectedPartner.primaryName}). Admin: ${adminEmail}`,
+        details: changeDetails,
         category: "admin",
         performedBy: "admin",
-        metadata: { adminEmail, updatedFields: payload, performedBy: "admin" }
+        metadata: { adminEmail, changes, updatedFields: payload, performedBy: "admin" }
       });
 
       setSaveNotice("Partner profile updated.");

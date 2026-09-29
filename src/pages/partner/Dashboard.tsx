@@ -1400,14 +1400,43 @@ export default function Dashboard() {
                     }
                 });
 
+                const changes: string[] = [];
+                const oldEmail = partnerData.primaryEmail || "";
+                const newEmail = nextEmail;
+                if (oldEmail && newEmail && oldEmail !== newEmail) {
+                    changes.push(`Primary email changed from "${oldEmail}" to "${newEmail}"`);
+                }
+                const oldContact = partnerData.primaryName || "";
+                const newContact = `${profileForm.firstName} ${profileForm.lastName}`.trim();
+                if (oldContact && newContact && oldContact !== newContact) {
+                    changes.push(`Primary contact changed from "${oldContact}" to "${newContact}"`);
+                }
+                const oldBusiness = partnerData.businessName || "";
+                const newBusiness = profileForm.companyName || "";
+                if (oldBusiness && newBusiness && oldBusiness !== newBusiness) {
+                    changes.push(`Company name updated from "${oldBusiness}" to "${newBusiness}"`);
+                }
+                const oldUrl = partnerData.companyWebsite || "";
+                const newUrl = profileForm.companyWebsite || "";
+                if (oldUrl && newUrl && oldUrl !== newUrl) {
+                    changes.push(`Company URL changed from "${oldUrl}" to "${newUrl}"`);
+                }
+
+                const changeDetails = changes.length > 0
+                    ? `Partner profile updated by Partner: ${changes.join(". ")}.`
+                    : "Partner profile updated by partner.";
+
                 // Log to Audit Trail
                 await logActivity({
                     partnerId: auth.currentUser.uid,
                     partnerName: profileForm.companyName || partnerData.businessName || "Unnamed Business",
                     action: "ACCOUNT_UPDATED",
-                    details: `Partner profile updated by partner.`,
+                    details: changeDetails,
                     category: "account",
+                    performedBy: "partner",
                     metadata: {
+                        performedBy: "partner",
+                        changes,
                         updatedFields: Object.keys(profileForm).filter(k => profileForm[k] !== partnerData[k])
                     }
                 });
