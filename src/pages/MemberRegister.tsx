@@ -17,6 +17,7 @@ import { normalizeUserNameKey } from "@/lib/community";
 import { ensureVerificationPending } from "@/lib/ensureVerificationPending";
 import { getAllCommunityCountries } from "@/lib/communityCountries";
 import { getFriendlyErrorMessage } from "@/lib/errorHandler";
+import { logMemberActivity } from "@/lib/auditLogger";
 
 export default function MemberRegister() {
   const navigate = useNavigate();
@@ -129,6 +130,20 @@ export default function MemberRegister() {
           aboutMe: form.aboutMe.trim(),
         });
       });
+
+      try {
+        await logMemberActivity({
+          memberId: user.uid,
+          memberName: form.name.trim() || `@${form.userName.trim()}`,
+          action: "MEMBER_REGISTERED",
+          details: `New community member registered (@${form.userName.trim()}, ${emailTrim})`,
+          category: "community",
+          performedBy: "member",
+          metadata: { email: emailTrim, userName: form.userName.trim(), country: form.country },
+        });
+      } catch (logErr) {
+        console.warn("Failed to log member registration activity:", logErr);
+      }
 
       try {
         const queue = await ensureVerificationPending();
