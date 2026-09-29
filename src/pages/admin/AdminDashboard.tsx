@@ -5222,8 +5222,10 @@ function isMemberAuditLog(log: any): boolean {
   const category = (log.category || "").toLowerCase();
   const action = (log.action || "").toUpperCase();
   const details = (log.details || "").toLowerCase();
+  const scope = (log.metadata?.scope || "").toLowerCase();
+  const role = (log.metadata?.role || "").toLowerCase();
 
-  // Explicit partner exclusions (billing, Stripe payments, partner listings, partner plans)
+  // Explicit partner exclusions (B2B directory vendors, trials, listings, payments, partner accounts)
   if (
     action.startsWith("PAYMENT_") ||
     action.startsWith("SUBSCRIPTION_") ||
@@ -5232,15 +5234,33 @@ function isMemberAuditLog(log: any): boolean {
     action === "CATEGORY_DELETED" ||
     category === "billing" ||
     category === "listing" ||
-    details.includes("partner status") ||
-    details.includes("partner profile") ||
-    details.includes("partner password") ||
-    details.includes("trial, plan, and feature spotlight")
+    details.includes("partner") ||
+    details.includes("trial extended") ||
+    details.includes("trial, plan, and feature spotlight") ||
+    (details.includes("contact:") && !details.includes("community"))
   ) {
     return false;
   }
 
-  return true;
+  // Explicit community / member inclusions
+  if (
+    category === "community" ||
+    role === "member" ||
+    scope.includes("community") ||
+    scope.includes("reported_comments") ||
+    scope.includes("member") ||
+    details.includes("member") ||
+    details.includes("community") ||
+    details.includes("post") ||
+    details.includes("comment") ||
+    action.startsWith("MEMBER_") ||
+    action.startsWith("POST_") ||
+    action.startsWith("COMMENT_")
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function getMemberAuditActor(log: any): { label: "Admin" | "Member" | "System"; badgeClass: string } {
