@@ -2379,8 +2379,6 @@ export default function Dashboard() {
             const periodEnd = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
             const renewalDate = getRenewalDate(periodEnd);
             const cancelledAt = toDateValue(plan.cancelledAt);
-            const isYearly = plan.billingInterval === "year" || plan.planId?.includes("_yr");
-            const billingCycleLabel = isYearly ? "Annual" : "Monthly";
             const linkedListing = getLinkedListingForPlan(plan);
             const spotlightAccessEnded = isSpotlightAccessEnded(linkedListing);
             const hasFeature = !spotlightAccessEnded && linkedListing?.selectedAddon && linkedListing?.selectedAddon !== "" && linkedListing?.selectedAddon !== "none";
@@ -2458,12 +2456,11 @@ export default function Dashboard() {
             const featureActionsLocked = isPast || areFeatureActionsLocked(plan, linkedListing);
             const canListingPlanUpgradeAction =
                 !isPast && getAvailablePlanUpgradeIds(plan.planId, plan.collectionName).length > 0 && !planActionsLocked;
-            const pastStatusLabel = plan.cancelAtPeriodEnd ? "Cancelled" : plan.active === false ? "Expired" : "Ended";
             const cardShell = isPast
-                ? "rounded-xl border border-foreground/15 bg-muted/25 p-5 opacity-95"
+                ? "rounded-xl border border-slate-200/80 bg-slate-100/70 dark:bg-slate-900/50 dark:border-slate-800 p-5 opacity-70"
                 : isEnding
-                ? "rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-5"
-                : "rounded-xl border border-foreground/10 bg-muted/40 p-5";
+                ? "rounded-xl border border-amber-300/80 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-950/20 p-5 shadow-sm"
+                : "rounded-xl border border-blue-200/90 bg-blue-50/50 dark:border-blue-800/40 dark:bg-blue-950/20 p-5 shadow-sm";
             const planGroupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
             const listingName = getListingDisplayName(linkedListing, plan);
             const planTierLabel = formatPlanTierLabel(plan, planConfig);
@@ -2478,22 +2475,6 @@ export default function Dashboard() {
                                     <h4 className="text-lg font-bold text-foreground">
                                         {listingName || planSummaryParts.join(" · ") || planTierLabel}
                                     </h4>
-                                    {isPast ? (
-                                        <>
-                                            <Badge variant="outline" className="bg-foreground/10 text-muted-foreground border-foreground/20">{pastStatusLabel}</Badge>
-                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-                                        </>
-                                    ) : isEnding ? (
-                                        <>
-                                            <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>Scheduled to end</Badge>
-                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>Active</Badge>
-                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-                                        </>
-                                    )}
                                 </div>
                                 {listingName && planSummaryParts.length > 0 && (
                                     <p className="text-sm text-muted-foreground mb-1">{planSummaryParts.join(" · ")}</p>
@@ -2550,20 +2531,6 @@ export default function Dashboard() {
                                             <h5 className="text-lg font-bold text-foreground">
                                                 {standaloneSpotlightPlan?.label || "Spotlight add-on"}
                                             </h5>
-                                            {featureEndsWithPlan ? (
-                                                <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>
-                                                    Ends with plan
-                                                </Badge>
-                                            ) : spotlightCancelPending ? (
-                                                <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>
-                                                    Scheduled to end
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>
-                                                    Active
-                                                </Badge>
-                                            )}
-                                            <Badge variant="outline" className="border-foreground/20">Monthly</Badge>
                                         </div>
                                         <p className="text-sm text-muted-foreground mb-1">
                                             Spotlight Add-on Subscription
