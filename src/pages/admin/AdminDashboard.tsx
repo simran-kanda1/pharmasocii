@@ -5133,7 +5133,8 @@ function TransactionList({ transactions }: { transactions: any[] }) {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="pl-6">Date</TableHead>
-                    <TableHead>Partner</TableHead>
+                    <TableHead>Partner Email</TableHead>
+                    <TableHead>Partner ID</TableHead>
                     <TableHead>Business</TableHead>
                     <TableHead>Type</TableHead>
                     <TableHead>Description</TableHead>
@@ -5148,13 +5149,11 @@ function TransactionList({ transactions }: { transactions: any[] }) {
                   {filtered.map((t: PartnerTransactionRow) => (
                     <TableRow key={t.id}>
                       <TableCell className="pl-6 whitespace-nowrap text-slate-600">{t.dateDisplay}</TableCell>
-                      <TableCell>
-                        <div className="space-y-0.5 max-w-[200px]">
-                          <p className="truncate">{t.customerEmail || "—"}</p>
-                          <p className="text-xs text-slate-500 font-mono truncate" title={t.partnerId || ""}>
-                            {t.partnerId || "—"}
-                          </p>
-                        </div>
+                      <TableCell className="max-w-[200px] truncate" title={t.customerEmail || ""}>
+                        {t.customerEmail || "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs max-w-[140px] truncate text-slate-600" title={t.partnerId || ""}>
+                        {t.partnerId || "—"}
                       </TableCell>
                       <TableCell className="max-w-[160px] truncate">{t.businessName || "—"}</TableCell>
                       <TableCell>{t.typeLabel}</TableCell>
