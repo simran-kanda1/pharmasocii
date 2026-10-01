@@ -5414,6 +5414,7 @@ function Field({
 function isPartnerAccountLog(log: any): boolean {
   const action = (log.action || "").toUpperCase();
   const category = (log.category || "").toLowerCase();
+  const details = (log.details || "").toLowerCase();
 
   // Explicit exclusions: payment, billing, subscription, or listing actions
   if (
@@ -5421,11 +5422,7 @@ function isPartnerAccountLog(log: any): boolean {
     action.startsWith("SUBSCRIPTION_") ||
     action.startsWith("LISTING_") ||
     action.startsWith("PLAN_") ||
-    action === "FEATURE_ADDED" ||
-    action === "FEATURE_UPGRADED" ||
-    action === "FEATURE_CANCELLED" ||
-    action === "FEATURE_RENEWED" ||
-    action === "CATEGORY_DELETED" ||
+    action.startsWith("FEATURE_") ||
     category === "billing" ||
     category === "listing"
   ) {
@@ -5438,7 +5435,12 @@ function isPartnerAccountLog(log: any): boolean {
     action === "ACCOUNT_UPDATED" ||
     action === "PASSWORD_UPDATED" ||
     category === "account" ||
-    category === "admin"
+    category === "admin" ||
+    details.includes("password") ||
+    details.includes("company name") ||
+    details.includes("primary email") ||
+    details.includes("primary contact") ||
+    details.includes("company url")
   ) {
     return true;
   }
@@ -5449,6 +5451,7 @@ function isPartnerAccountLog(log: any): boolean {
 function isListingOrBillingLog(log: any): boolean {
   const action = (log.action || "").toUpperCase();
   const category = (log.category || "").toLowerCase();
+  const details = (log.details || "").toLowerCase();
 
   if (
     action.startsWith("PAYMENT_") ||
@@ -5456,9 +5459,15 @@ function isListingOrBillingLog(log: any): boolean {
     action.startsWith("LISTING_") ||
     action.startsWith("PLAN_") ||
     action.startsWith("FEATURE_") ||
-    action === "CATEGORY_DELETED" ||
     category === "billing" ||
-    category === "listing"
+    category === "listing" ||
+    details.includes("plan") ||
+    details.includes("feature") ||
+    details.includes("spotlight") ||
+    details.includes("subscription") ||
+    details.includes("cancel") ||
+    details.includes("renew") ||
+    details.includes("invoice")
   ) {
     return true;
   }
@@ -5535,45 +5544,87 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
     );
   }
 
-  const getActionBadge = (action: string) => {
-    switch (action) {
-      case "ACCOUNT_CREATED":
-        return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Account Created</Badge>;
-      case "ACCOUNT_UPDATED":
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Profile Updated</Badge>;
-      case "PASSWORD_UPDATED":
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Password Updated</Badge>;
-      case "PAYMENT_SUCCESS":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Payment Success</Badge>;
-      case "PAYMENT_FAILED":
-        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Payment Failed</Badge>;
-      case "PLAN_CANCELLED":
-      case "SUBSCRIPTION_CANCELLED":
-        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Plan Cancelled</Badge>;
-      case "FEATURE_CANCELLED":
-        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Feature Cancelled</Badge>;
-      case "PLAN_UPGRADED":
-      case "SUBSCRIPTION_UPGRADED":
-        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Plan Upgraded</Badge>;
-      case "FEATURE_ADDED":
-        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Added</Badge>;
-      case "FEATURE_UPGRADED":
-        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Upgraded</Badge>;
-      case "PLAN_RENEWED":
-        return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Plan Renewed</Badge>;
-      case "FEATURE_RENEWED":
-        return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Feature Renewed</Badge>;
-      case "LISTING_CREATED":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Listing Created</Badge>;
-      case "LISTING_UPDATED":
-        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Listing Updated</Badge>;
-      case "LISTING_DELETED":
-        return <Badge className="bg-slate-100 text-slate-700 border-slate-300">Listing Deleted</Badge>;
-      case "ADMIN_ACTION":
-        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Admin Action</Badge>;
-      default:
-        return <Badge variant="outline">{action ? action.replace(/_/g, " ") : "Activity"}</Badge>;
+  const getActionBadge = (log: any) => {
+    const action = (log.action || "").toUpperCase();
+    const details = (log.details || "").toLowerCase();
+
+    // 1. Password changed
+    if (action === "PASSWORD_UPDATED" || action.includes("PASSWORD")) {
+      return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Password Changed</Badge>;
     }
+
+    // 2. Account created
+    if (action === "ACCOUNT_CREATED" || action.includes("REGISTER")) {
+      return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Partner Account Created</Badge>;
+    }
+
+    // 3. Profile field updates with explicit diffs
+    if (action === "ACCOUNT_UPDATED" || action === "PROFILE_UPDATED") {
+      if (details.includes("company name updated") || details.includes("company name changed")) {
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Company Name Updated</Badge>;
+      }
+      if (details.includes("primary email changed")) {
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Primary Email Changed</Badge>;
+      }
+      if (details.includes("primary contact changed")) {
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Primary Contact Changed</Badge>;
+      }
+      if (details.includes("company url changed") || details.includes("website changed")) {
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Company URL Changed</Badge>;
+      }
+      return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Profile Updated</Badge>;
+    }
+
+    // 4. Feature and Plan cancellations
+    if (action === "FEATURE_CANCELLED" || (action === "SUBSCRIPTION_CANCELLED" && details.includes("feature"))) {
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Feature (F) Cancelled</Badge>;
+    }
+    if (action === "PLAN_CANCELLED" || action === "SUBSCRIPTION_CANCELLED") {
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Plan Cancelled</Badge>;
+    }
+
+    // 5. Upgrades
+    if (action === "FEATURE_UPGRADED") {
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature (F) Upgraded</Badge>;
+    }
+    if (action === "PLAN_UPGRADED" || action === "SUBSCRIPTION_UPGRADED" || details.includes("upgraded")) {
+      return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Subscription Upgraded</Badge>;
+    }
+
+    // 6. Add Feature
+    if (action === "FEATURE_ADDED" || details.includes("feature spotlight")) {
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature (F) Added</Badge>;
+    }
+
+    // 7. Renewals
+    if (action === "FEATURE_RENEWED" || (details.includes("renewed") && details.includes("feature"))) {
+      return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Feature (F) Renewed</Badge>;
+    }
+    if (action === "PLAN_RENEWED" || details.includes("plan renewed") || details.includes("subscription renewed")) {
+      return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Plan Renewed</Badge>;
+    }
+
+    // 8. Purchases & Payments
+    if (action === "PAYMENT_SUCCESS" || action === "SUBSCRIPTION_PURCHASED") {
+      return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Subscription Purchased</Badge>;
+    }
+    if (action === "PAYMENT_FAILED") {
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Payment Failed</Badge>;
+    }
+    if (action === "LISTING_CREATED") {
+      return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Listing Created</Badge>;
+    }
+    if (action === "LISTING_UPDATED") {
+      return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Listing Updated</Badge>;
+    }
+    if (action === "LISTING_DELETED") {
+      return <Badge className="bg-slate-100 text-slate-700 border-slate-300">Listing Deleted</Badge>;
+    }
+    if (action === "ADMIN_ACTION") {
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Admin Action</Badge>;
+    }
+
+    return <Badge variant="outline">{action ? action.replace(/_/g, " ") : "Activity"}</Badge>;
   };
 
   return (
@@ -5608,7 +5659,7 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
                       ) : null}
                     </div>
                   </TableCell>
-                  <TableCell className="whitespace-nowrap">{getActionBadge(log.action)}</TableCell>
+                  <TableCell className="whitespace-nowrap">{getActionBadge(log)}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <Badge className={`${actor.badgeClass} font-medium text-xs`}>
                       {actor.label}
