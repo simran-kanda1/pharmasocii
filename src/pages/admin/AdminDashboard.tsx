@@ -5577,7 +5577,7 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
 
     // 4. Feature and Plan cancellations
     if (action === "FEATURE_CANCELLED" || (action === "SUBSCRIPTION_CANCELLED" && details.includes("feature"))) {
-      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Feature (F) Cancelled</Badge>;
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Feature Cancelled</Badge>;
     }
     if (action === "PLAN_CANCELLED" || action === "SUBSCRIPTION_CANCELLED") {
       return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Plan Cancelled</Badge>;
@@ -5585,7 +5585,7 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
 
     // 5. Upgrades
     if (action === "FEATURE_UPGRADED") {
-      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature (F) Upgraded</Badge>;
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Upgraded</Badge>;
     }
     if (action === "PLAN_UPGRADED" || action === "SUBSCRIPTION_UPGRADED" || details.includes("upgraded")) {
       return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Subscription Upgraded</Badge>;
@@ -5593,12 +5593,12 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
 
     // 6. Add Feature
     if (action === "FEATURE_ADDED" || details.includes("feature spotlight")) {
-      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature (F) Added</Badge>;
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Added</Badge>;
     }
 
     // 7. Renewals
     if (action === "FEATURE_RENEWED" || (details.includes("renewed") && details.includes("feature"))) {
-      return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Feature (F) Renewed</Badge>;
+      return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Feature Renewed</Badge>;
     }
     if (action === "PLAN_RENEWED" || details.includes("plan renewed") || details.includes("subscription renewed")) {
       return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Plan Renewed</Badge>;
