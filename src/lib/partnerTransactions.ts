@@ -12,6 +12,7 @@ export type PartnerTransactionRow = {
     description: string;
     planDisplay: string;
     eventDisplay: string;
+    primaryContact: string | null;
     planId: string | null;
     featureId: string | null;
     group: string | null;
@@ -162,7 +163,7 @@ function formatCleanEvent(
     const desc = (rawDesc || "").toLowerCase();
     const evt = (eventType || "").toLowerCase();
     if (isUpgrade || previousPlanId || previousFeatureId || desc.includes("upgrade") || evt.includes("upgrade")) {
-        return desc.includes("prorated") || isUpgrade ? "Upgrade (prorated)" : "Upgrade";
+        return "Upgrade";
     }
     if (desc.includes("renewal") || evt.includes("renewal")) {
         return "Renewal";
@@ -285,11 +286,24 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
         : Math.max(0, amountNumeric - taxAmountNumeric);
 
     const currency = String(t.currency || "usd").toUpperCase();
-    const statusRaw = String(t.status || "");
-    const statusLabel = statusRaw === "succeeded" ? "Completed" : statusRaw || "—";
+    const statusRaw = String(t.status || "").toLowerCase();
+    const statusLabel =
+        statusRaw === "succeeded" || statusRaw === "completed" || statusRaw === "paid"
+            ? "Completed"
+            : statusRaw === "pending" || statusRaw === "requires_action" || statusRaw === "incomplete" || statusRaw === "open"
+                ? "Incomplete"
+                : statusRaw === "failed" || statusRaw === "canceled"
+                    ? "Failed"
+                    : statusRaw ? cleanTitleCase(statusRaw) : "Incomplete";
 
     const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]).map(String) : []);
     const reps = Array.isArray(t.companyRepresentatives) ? (t.companyRepresentatives as CompanyRep[]) : [];
+    const repName = reps.length > 0 ? [reps[0].firstName, reps[0].lastName].filter(Boolean).join(" ").trim() : "";
+    const primaryContact = (t.primaryContact as string) ||
+        (t.primaryName as string) ||
+        (t.contactName as string) ||
+        (t.contactPerson as string) ||
+        (repName || null);
 
     const collectionName = t.collectionName ? String(t.collectionName) : null;
     const groupDisplay = resolveCleanGroup(t, collectionName, planId);
@@ -319,6 +333,7 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
         description,
         planDisplay,
         eventDisplay,
+        primaryContact,
         planId,
         featureId,
         group: groupDisplay,

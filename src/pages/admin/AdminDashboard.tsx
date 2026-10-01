@@ -11,7 +11,6 @@ import {
   X,
   XCircle,
   Clock,
-  Copy,
   Download,
   ExternalLink,
   Flag,
@@ -2982,7 +2981,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {activeTab === "transactions" && <TransactionList transactions={transactions} />}
+          {activeTab === "transactions" && <TransactionList transactions={transactions} partners={partners} />}
 
           {activeTab === "plans" && <PlansCMS />}
 
@@ -5028,16 +5027,18 @@ function ListingsList({
   );
 }
 
-function TransactionList({ transactions }: { transactions: any[] }) {
+function TransactionList({ transactions, partners = [] }: { transactions: any[]; partners?: PartnerRecord[] }) {
   const [search, setSearch] = useState("");
-  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const copyToClipboard = (text: string | null | undefined, key: string) => {
-    if (!text) return;
-    navigator.clipboard.writeText(text);
-    setCopiedId(key);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
+  const partnerMap = useMemo(() => {
+    const byId = new Map<string, PartnerRecord>();
+    const byEmail = new Map<string, PartnerRecord>();
+    for (const p of partners) {
+      if (p.id) byId.set(p.id, p);
+      if (p.primaryEmail) byEmail.set(p.primaryEmail.toLowerCase(), p);
+    }
+    return { byId, byEmail };
+  }, [partners]);
 
   const rows = useMemo(
     () =>
@@ -5051,27 +5052,28 @@ function TransactionList({ transactions }: { transactions: any[] }) {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => {
+      const p = (r.partnerId ? partnerMap.byId.get(r.partnerId) : null) || (r.customerEmail ? partnerMap.byEmail.get(r.customerEmail.toLowerCase()) : null);
+      const contact = r.primaryContact || p?.primaryName || "";
+      const bName = r.businessName || p?.businessName || "";
+      const em = r.customerEmail || p?.primaryEmail || "";
       const hay = [
         r.dateDisplay,
-        r.typeLabel,
-        r.description,
+        em,
+        contact,
+        bName,
         r.group,
-        r.businessName,
-        r.customerEmail,
-        r.partnerId,
-        r.planId,
-        r.featureId,
-        r.listingId,
+        r.eventDisplay,
+        r.planDisplay,
+        r.description,
         r.statusLabel,
         r.amountDisplay,
-        r.collectionName,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search]);
+  }, [rows, search, partnerMap]);
 
   const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     if (filtered.length === 0) return;
@@ -5142,109 +5144,80 @@ function TransactionList({ transactions }: { transactions: any[] }) {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="pl-6">Date</TableHead>
-                    <TableHead>Partner Email</TableHead>
-                    <TableHead>Partner ID</TableHead>
-                    <TableHead>Business</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Description</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Primary contact</TableHead>
+                    <TableHead>Business name</TableHead>
                     <TableHead>Group</TableHead>
-                    <TableHead>Listing ID</TableHead>
+                    <TableHead>Event</TableHead>
+                    <TableHead>Description</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="text-right">Amount</TableHead>
-                    <TableHead className="text-right pr-6">Invoice</TableHead>
+                    <TableHead className="text-right pr-6">Invoice (pdf)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((t: PartnerTransactionRow) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="pl-6 whitespace-nowrap text-slate-600">{t.dateDisplay}</TableCell>
-                      <TableCell className="max-w-[200px] truncate" title={t.customerEmail || ""}>
-                        {t.customerEmail || "—"}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs text-slate-700 select-all" title={t.partnerId || ""}>
-                            {t.partnerId || "—"}
-                          </span>
-                          {t.partnerId && (
-                            <button
-                              type="button"
-                              onClick={() => copyToClipboard(t.partnerId, `partner-${t.id}`)}
-                              className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                              title="Copy full Partner ID"
-                            >
-                              {copiedId === `partner-${t.id}` ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-[160px] truncate">{t.businessName || "—"}</TableCell>
-                      <TableCell>{t.typeLabel}</TableCell>
-                      <TableCell className="max-w-[220px] truncate" title={t.description}>
-                        {t.description}
-                      </TableCell>
-                      <TableCell className="capitalize whitespace-nowrap">{t.group || "—"}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-xs text-slate-700 select-all" title={t.listingId || ""}>
-                            {t.listingId || "—"}
-                          </span>
-                          {t.listingId && (
-                            <button
-                              type="button"
-                              onClick={() => copyToClipboard(t.listingId, `listing-${t.id}`)}
-                              className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                              title="Copy full Listing ID"
-                            >
-                              {copiedId === `listing-${t.id}` ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-600" />
-                              ) : (
-                                <Copy className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            t.statusRaw === "succeeded"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : t.statusRaw === "pending"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : "bg-rose-50 text-rose-700 border-rose-200"
-                          }
-                        >
-                          {t.statusLabel}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right font-semibold text-emerald-700 tabular-nums whitespace-nowrap">
-                        {t.amountDisplay}
-                      </TableCell>
-                      <TableCell className="text-right pr-6 whitespace-nowrap">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() =>
-                            downloadSingleTransactionInvoicePdf(t, {
-                              companyName: t.businessName || "Partner",
-                              email: t.customerEmail || "",
-                              businessId: t.partnerId || "",
-                            })
-                          }
-                          className="h-8 text-xs font-medium border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 inline-flex items-center gap-1.5"
-                          title="Download Invoice PDF"
-                        >
-                          <Download className="w-3.5 h-3.5" />
-                          <span>PDF</span>
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filtered.map((t: PartnerTransactionRow) => {
+                    const partner = (t.partnerId ? partnerMap.byId.get(t.partnerId) : null) || (t.customerEmail ? partnerMap.byEmail.get(t.customerEmail.toLowerCase()) : null);
+                    const email = t.customerEmail || partner?.primaryEmail || "—";
+                    const primaryContact = t.primaryContact || partner?.primaryName || "—";
+                    const businessName = t.businessName || partner?.businessName || "—";
+                    const event = t.eventDisplay || "Initial";
+                    const description = t.planDisplay || t.description || "—";
+
+                    return (
+                      <TableRow key={t.id}>
+                        <TableCell className="pl-6 whitespace-nowrap text-slate-600">{t.dateDisplay}</TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={email}>
+                          {email}
+                        </TableCell>
+                        <TableCell className="max-w-[170px] truncate font-medium text-slate-800" title={primaryContact}>
+                          {primaryContact}
+                        </TableCell>
+                        <TableCell className="max-w-[190px] truncate text-slate-700" title={businessName}>
+                          {businessName}
+                        </TableCell>
+                        <TableCell className="capitalize whitespace-nowrap">{t.group || "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap font-medium text-slate-700">{event}</TableCell>
+                        <TableCell className="max-w-[220px] truncate" title={description}>
+                          {description}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              t.statusLabel === "Completed"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-medium"
+                                : t.statusLabel === "Incomplete"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 font-medium"
+                                  : "bg-rose-50 text-rose-700 border-rose-200 font-medium"
+                            }
+                          >
+                            {t.statusLabel}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-emerald-700 tabular-nums whitespace-nowrap">
+                          {t.amountDisplay}
+                        </TableCell>
+                        <TableCell className="text-right pr-6 whitespace-nowrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              downloadSingleTransactionInvoicePdf(t, {
+                                companyName: businessName !== "—" ? businessName : "Partner",
+                                email: email !== "—" ? email : "",
+                                businessId: t.partnerId || partner?.id || "",
+                              })
+                            }
+                            className="h-8 text-xs font-medium border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 inline-flex items-center gap-1.5"
+                            title="Download Invoice PDF"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>PDF</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
