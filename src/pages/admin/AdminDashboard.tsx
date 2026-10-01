@@ -157,7 +157,8 @@ type AdminTab =
   | "emailLog"
   | "settings"
   | "transactions"
-  | "audit";
+  | "audit"
+  | "memberAudit";
 type ListingFilter = "all" | "active" | "approved" | "cancelled" | "expired" | "incomplete_payment" | "payment_error" | "disabled" | "pending";
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
@@ -888,7 +889,9 @@ export default function AdminDashboard() {
   const [saveNotice, setSaveNotice] = useState("");
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditSearchTerm, setAuditSearchTerm] = useState("");
-  const [auditCategoryFilter, setAuditCategoryFilter] = useState<"all" | "auth" | "content" | "moderation">("all");
+  const [auditCategoryFilter, setAuditCategoryFilter] = useState<"all" | "partner" | "listing">("all");
+  const [memberAuditSearchTerm, setMemberAuditSearchTerm] = useState("");
+  const [memberAuditCategoryFilter, setMemberAuditCategoryFilter] = useState<"all" | "auth" | "content" | "moderation">("all");
   const [settingsData, setSettingsData] = useState<AdminSettingsRecord>({
     email: "",
     phone: "",
@@ -2544,6 +2547,66 @@ export default function AdminDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  const filteredPartnerLogs = useMemo(() => {
+    return auditLogs
+      .filter((log) => !isMemberAuditLog(log))
+      .filter((log) => {
+        if (auditCategoryFilter === "partner" && !isPartnerAccountLog(log)) {
+          return false;
+        }
+        if (auditCategoryFilter === "listing" && !isListingOrBillingLog(log)) {
+          return false;
+        }
+        if (!auditSearchTerm) return true;
+        const q = auditSearchTerm.toLowerCase().trim();
+        const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";
+        return (
+          (log.partnerName || "").toLowerCase().includes(q) ||
+          (log.action || "").toLowerCase().includes(q) ||
+          (log.details || "").toLowerCase().includes(q) ||
+          (log.partnerId || "").toLowerCase().includes(q) ||
+          (log.id || "").toLowerCase().includes(q) ||
+          metaStr.includes(q)
+        );
+      });
+  }, [auditLogs, auditCategoryFilter, auditSearchTerm]);
+
+  const exportPartnerAuditLogs = (format: "csv" | "excel") => {
+    const headers = ["Timestamp", "Company / Partner", "Partner ID", "Action", "Updated By", "Details"];
+    const rows = filteredPartnerLogs.map((log) => {
+      const actor = getPartnerAuditActor(log);
+      const timeStr = log.timestamp?.seconds
+        ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+        : "-";
+      return [
+        timeStr,
+        log.partnerName || "Unknown",
+        log.partnerId || "",
+        log.action || "",
+        actor.label,
+        log.details || "",
+      ];
+    });
+
+    const separator = format === "excel" ? "\t" : ",";
+    const escapedRows = rows.map((row) =>
+      row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(separator),
+    );
+    const content = [headers.join(separator), ...escapedRows].join("\n");
+
+    const blob = new Blob([content], {
+      type: format === "excel" ? "application/vnd.ms-excel;charset=utf-8;" : "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `partner-audit-logs-${new Date().toISOString().slice(0, 10)}.${format === "excel" ? "xls" : "csv"}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const filteredMemberLogs = useMemo(() => {
     return auditLogs
       .filter(isMemberAuditLog)
@@ -2594,18 +2657,18 @@ export default function AdminDashboard() {
           details.includes("hold") ||
           details.includes("blocked");
 
-        if (auditCategoryFilter === "auth") {
+        if (memberAuditCategoryFilter === "auth") {
           if (!isAuthAction) return false;
         }
-        if (auditCategoryFilter === "content") {
+        if (memberAuditCategoryFilter === "content") {
           if (!isContentAction) return false;
         }
-        if (auditCategoryFilter === "moderation") {
+        if (memberAuditCategoryFilter === "moderation") {
           if (!isModerationAction) return false;
         }
 
-        if (!auditSearchTerm) return true;
-        const q = auditSearchTerm.toLowerCase().trim();
+        if (!memberAuditSearchTerm) return true;
+        const q = memberAuditSearchTerm.toLowerCase().trim();
         const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";
         return (
           (log.partnerName || log.memberName || "").toLowerCase().includes(q) ||
@@ -2616,7 +2679,7 @@ export default function AdminDashboard() {
           metaStr.includes(q)
         );
       });
-  }, [auditLogs, auditCategoryFilter, auditSearchTerm]);
+  }, [auditLogs, memberAuditCategoryFilter, memberAuditSearchTerm]);
 
   const exportMemberAuditLogs = (format: "csv" | "excel") => {
     const headers = ["Timestamp", "Member / Subject", "Member ID", "Action", "Performed By", "Details"];
@@ -2767,7 +2830,8 @@ export default function AdminDashboard() {
     emailLog: "Email log",
     settings: "Settings",
     transactions: "Transactions",
-    audit: "Member Audit Trail",
+    audit: "Audit Trail",
+    memberAudit: "Member Audit Trail",
   };
 
   if (isAuthorized === null) {
@@ -2804,6 +2868,8 @@ export default function AdminDashboard() {
             <SidebarItem label="Site Policies" icon={ShieldCheck} active={activeTab === "policies"} onClick={() => setActiveTab("policies")} />
             <SidebarItem label="FAQs" icon={HelpCircle} active={activeTab === "faqs"} onClick={() => setActiveTab("faqs")} />
             <SidebarItem label="Contact Page" icon={Mail} active={activeTab === "contact"} onClick={() => setActiveTab("contact")} />
+            <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
+            <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
             <p className="text-[11px] font-semibold tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
             <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
             <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
@@ -2811,9 +2877,8 @@ export default function AdminDashboard() {
             <SidebarItem label="Reported comments" icon={Flag} active={activeTab === "communityReportedComments"} onClick={() => setActiveTab("communityReportedComments")} />
             <SidebarItem label="Community categories" icon={Tags} active={activeTab === "communityCategories"} onClick={() => setActiveTab("communityCategories")} />
             <SidebarItem label="Email log" icon={History} active={activeTab === "emailLog"} onClick={() => setActiveTab("emailLog")} />
+            <SidebarItem label="Member Audit Trail" icon={History} active={activeTab === "memberAudit"} onClick={() => setActiveTab("memberAudit")} />
             <SidebarItem label="Settings" icon={Settings} active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
-            <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
-            <SidebarItem label="Member Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
         </nav>
 
         <div className="shrink-0 p-4 border-t border-slate-200 space-y-2 bg-white">
@@ -3188,14 +3253,14 @@ export default function AdminDashboard() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-sm text-slate-600">
-                    Audit logs, registration history, authentication events, and moderation actions for community members.
+                    Audit logs, account registrations, profile updates, listings, plans, upgrades, feature spotlights, and cancellations for partners.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative w-full sm:w-72">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <Input
-                      placeholder="Search member, email, details…"
+                      placeholder="Search company, ID, email, details…"
                       value={auditSearchTerm}
                       onChange={(e) => setAuditSearchTerm(e.target.value)}
                       className="pl-9 h-10 bg-white"
@@ -3215,9 +3280,88 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setAuditCategoryFilter("auth")}
+                      onClick={() => setAuditCategoryFilter("partner")}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        auditCategoryFilter === "auth"
+                        auditCategoryFilter === "partner"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Partner Accounts
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuditCategoryFilter("listing")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        auditCategoryFilter === "listing"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Listings & Money
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportPartnerAuditLogs("csv")}
+                      className="h-10 text-xs"
+                      disabled={filteredPartnerLogs.length === 0}
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1.5" /> CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportPartnerAuditLogs("excel")}
+                      className="h-10 text-xs"
+                      disabled={filteredPartnerLogs.length === 0}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <PartnerAuditLogList logs={filteredPartnerLogs} />
+            </div>
+          )}
+
+          {activeTab === "memberAudit" && (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">
+                    Audit logs, registration history, authentication events, and moderation actions for community members.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Search member, email, details…"
+                      value={memberAuditSearchTerm}
+                      onChange={(e) => setMemberAuditSearchTerm(e.target.value)}
+                      className="pl-9 h-10 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setMemberAuditCategoryFilter("all")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        memberAuditCategoryFilter === "all"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      All Logs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberAuditCategoryFilter("auth")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        memberAuditCategoryFilter === "auth"
                           ? "bg-white text-slate-900 shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
@@ -3226,9 +3370,9 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setAuditCategoryFilter("content")}
+                      onClick={() => setMemberAuditCategoryFilter("content")}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        auditCategoryFilter === "content"
+                        memberAuditCategoryFilter === "content"
                           ? "bg-white text-slate-900 shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
@@ -3237,9 +3381,9 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setAuditCategoryFilter("moderation")}
+                      onClick={() => setMemberAuditCategoryFilter("moderation")}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        auditCategoryFilter === "moderation"
+                        memberAuditCategoryFilter === "moderation"
                           ? "bg-white text-slate-900 shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
@@ -3289,12 +3433,15 @@ export default function AdminDashboard() {
                 className="flex items-center gap-1.5 text-blue-700 border-blue-200 hover:bg-blue-50"
                 onClick={() => {
                   if (selectedPartner) {
-                    setHistoryPartner(selectedPartner);
+                    setActiveTab("audit");
+                    setAuditCategoryFilter("all");
+                    setAuditSearchTerm(selectedPartner.id || selectedPartner.businessName || "");
+                    setPartnerEditorOpen(false);
                   }
                 }}
               >
                 <History className="w-3.5 h-3.5" />
-                Plan & Audit History
+                Partner Audit Trail
               </Button>
             </div>
           </SheetHeader>
@@ -5261,6 +5408,223 @@ function Field({
         className={disabled ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : ""}
       />
     </div>
+  );
+}
+
+function isPartnerAccountLog(log: any): boolean {
+  const action = (log.action || "").toUpperCase();
+  const category = (log.category || "").toLowerCase();
+
+  // Explicit exclusions: payment, billing, subscription, or listing actions
+  if (
+    action.startsWith("PAYMENT_") ||
+    action.startsWith("SUBSCRIPTION_") ||
+    action.startsWith("LISTING_") ||
+    action.startsWith("PLAN_") ||
+    action === "FEATURE_ADDED" ||
+    action === "FEATURE_UPGRADED" ||
+    action === "FEATURE_CANCELLED" ||
+    action === "FEATURE_RENEWED" ||
+    action === "CATEGORY_DELETED" ||
+    category === "billing" ||
+    category === "listing"
+  ) {
+    return false;
+  }
+
+  // Explicit inclusions: account actions or category
+  if (
+    action === "ACCOUNT_CREATED" ||
+    action === "ACCOUNT_UPDATED" ||
+    action === "PASSWORD_UPDATED" ||
+    category === "account" ||
+    category === "admin"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isListingOrBillingLog(log: any): boolean {
+  const action = (log.action || "").toUpperCase();
+  const category = (log.category || "").toLowerCase();
+
+  if (
+    action.startsWith("PAYMENT_") ||
+    action.startsWith("SUBSCRIPTION_") ||
+    action.startsWith("LISTING_") ||
+    action.startsWith("PLAN_") ||
+    action.startsWith("FEATURE_") ||
+    action === "CATEGORY_DELETED" ||
+    category === "billing" ||
+    category === "listing"
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function getPartnerAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badgeClass: string } {
+  const category = (log.category || "").toLowerCase();
+  const details = (log.details || "").toLowerCase();
+  const action = (log.action || "").toUpperCase();
+  const hasAdminEmail = Boolean(log.metadata?.adminEmail || log.adminEmail);
+
+  // 1. Admin actions (explicitly admin-triggered or containing admin email / admin details)
+  if (
+    category === "admin" ||
+    hasAdminEmail ||
+    details.includes("admin:") ||
+    details.includes("by admin") ||
+    details.includes("admin (") ||
+    action === "ADMIN_ACTION"
+  ) {
+    return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
+  }
+
+  // 2. Cancellations or modifications performed by partner
+  if (
+    action === "SUBSCRIPTION_CANCELLED" ||
+    action === "PLAN_CANCELLED" ||
+    action === "FEATURE_CANCELLED" ||
+    details.includes("subscription cancelled") ||
+    details.includes("cancellation processed")
+  ) {
+    return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
+  }
+
+  const perf = (log.performedBy || log.metadata?.performedBy || "").toLowerCase();
+  if (perf === "admin") {
+    return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
+  }
+  if (perf === "partner" || perf === "user") {
+    return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
+  }
+  if (perf === "system" || perf === "stripe") {
+    return { label: "System", badgeClass: "bg-slate-100 text-slate-700 border-slate-200" };
+  }
+
+  // 3. Automatic transactions & billing events (Stripe, webhooks, renewals, auto-cancellations)
+  if (
+    action.startsWith("PAYMENT_") ||
+    action === "PLAN_RENEWED" ||
+    action === "FEATURE_RENEWED" ||
+    category === "billing" ||
+    details.includes("recurring invoice") ||
+    details.includes("invoice in_") ||
+    details.includes("subscription invoice") ||
+    details.includes("auto-cancelled") ||
+    details.includes("stripe")
+  ) {
+    return { label: "System", badgeClass: "bg-slate-100 text-slate-700 border-slate-200" };
+  }
+
+  return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
+}
+
+function PartnerAuditLogList({ logs }: { logs: any[] }) {
+  if (logs.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
+        <History className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+        <h3 className="font-semibold">No partner audit logs found</h3>
+        <p className="text-sm text-slate-500">Partner registrations, profile changes, listing actions, plan upgrades, and cancellations will appear here.</p>
+      </div>
+    );
+  }
+
+  const getActionBadge = (action: string) => {
+    switch (action) {
+      case "ACCOUNT_CREATED":
+        return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Account Created</Badge>;
+      case "ACCOUNT_UPDATED":
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Profile Updated</Badge>;
+      case "PASSWORD_UPDATED":
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Password Updated</Badge>;
+      case "PAYMENT_SUCCESS":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Payment Success</Badge>;
+      case "PAYMENT_FAILED":
+        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Payment Failed</Badge>;
+      case "PLAN_CANCELLED":
+      case "SUBSCRIPTION_CANCELLED":
+        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Plan Cancelled</Badge>;
+      case "FEATURE_CANCELLED":
+        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Feature Cancelled</Badge>;
+      case "PLAN_UPGRADED":
+      case "SUBSCRIPTION_UPGRADED":
+        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Plan Upgraded</Badge>;
+      case "FEATURE_ADDED":
+        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Added</Badge>;
+      case "FEATURE_UPGRADED":
+        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Upgraded</Badge>;
+      case "PLAN_RENEWED":
+        return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Plan Renewed</Badge>;
+      case "FEATURE_RENEWED":
+        return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Feature Renewed</Badge>;
+      case "LISTING_CREATED":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Listing Created</Badge>;
+      case "LISTING_UPDATED":
+        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Listing Updated</Badge>;
+      case "LISTING_DELETED":
+        return <Badge className="bg-slate-100 text-slate-700 border-slate-300">Listing Deleted</Badge>;
+      case "ADMIN_ACTION":
+        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Admin Action</Badge>;
+      default:
+        return <Badge variant="outline">{action ? action.replace(/_/g, " ") : "Activity"}</Badge>;
+    }
+  };
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">Timestamp</TableHead>
+              <TableHead>Company / Partner</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead>Updated By</TableHead>
+              <TableHead>Details</TableHead>
+              <TableHead className="text-right pr-6">Partner ID</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {logs.map((log) => {
+              const actor = getPartnerAuditActor(log);
+              return (
+                <TableRow key={log.id} className="hover:bg-slate-50/50">
+                  <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
+                    {log.timestamp?.seconds
+                      ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+                      : "Recently"}
+                  </TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">
+                    <div className="space-y-0.5 max-w-[200px]">
+                      <p className="truncate text-sm text-slate-900 font-semibold">{log.partnerName || "Partner Account"}</p>
+                      {log.metadata?.email || log.primaryEmail ? (
+                        <p className="text-xs text-slate-500 truncate">{log.metadata?.email || log.primaryEmail}</p>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{getActionBadge(log.action)}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Badge className={`${actor.badgeClass} font-medium text-xs`}>
+                      {actor.label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-600 max-w-md break-words">{log.details}</TableCell>
+                  <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                    {log.partnerId || "-"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
   );
 }
 
