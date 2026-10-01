@@ -1298,14 +1298,16 @@ export default function AdminDashboard() {
     const pPrimaryEmail = (partnerEditor.primaryEmail || "").trim();
     const pBusinessName = (partnerEditor.businessName || "").trim();
 
-    if (!pPrimaryName || !pBusinessName) {
-      setSaveNotice("Company Name and Contact Name cannot be empty.");
-      return;
-    }
-
-    if (isPartnerAdminCreated && !pPrimaryEmail) {
-      setSaveNotice("Primary Email cannot be empty.");
-      return;
+    if (isPartnerAdminCreated) {
+      if (!pPrimaryName || !pBusinessName || !pPrimaryEmail) {
+        setSaveNotice("Company Name, Contact Name, and Primary Email cannot be empty.");
+        return;
+      }
+    } else {
+      if (!pBusinessName || !pPrimaryEmail) {
+        setSaveNotice("Company Name and Primary Email cannot be empty.");
+        return;
+      }
     }
 
     try {
@@ -1315,9 +1317,7 @@ export default function AdminDashboard() {
         payload = {
           businessName: pBusinessName,
           companyName: pBusinessName,
-          primaryName: pPrimaryName,
-          ...(partnerEditor.firstName !== undefined ? { firstName: partnerEditor.firstName } : {}),
-          ...(partnerEditor.lastName !== undefined ? { lastName: partnerEditor.lastName } : {}),
+          primaryEmail: pPrimaryEmail,
         };
       } else {
         payload = {
@@ -3300,11 +3300,11 @@ export default function AdminDashboard() {
           </SheetHeader>
           <div className="mt-6 space-y-6">
             {selectedPartner && !Boolean((selectedPartner as any).createdByAdmin) && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2">
-                <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800 flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold">Self-Registered Partner Account</span>
-                  <p className="text-amber-700 mt-0.5">Only the Company Name and Primary Contact Name are editable by admins. Other profile fields are managed directly by the user.</p>
+                  <p className="text-blue-700 mt-0.5">Only the Company Name and Primary Email are editable by admins. Other profile fields are managed directly by the partner.</p>
                 </div>
               </div>
             )}
@@ -3457,16 +3457,21 @@ export default function AdminDashboard() {
             <div className="border-b pb-2 pt-4 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Contact Information</h3>
             </div>
+            {!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) && (
+              <div className="bg-blue-50/70 border border-blue-200/80 rounded-lg p-3 text-xs text-blue-800 mb-2">
+                <strong>Self-serve Partner Account:</strong> Only Company Name and Primary Email can be updated by admin. All other profile information is managed by the partner.
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
-              <Field label="First Name" value={partnerEditor.firstName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, firstName: v }))} />
-              <Field label="Last Name" value={partnerEditor.lastName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, lastName: v }))} />
+              <Field label="First Name" value={partnerEditor.firstName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, firstName: v }))} disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)} />
+              <Field label="Last Name" value={partnerEditor.lastName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, lastName: v }))} disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)} />
             </div>
-            <Field label="Primary Contact Name" value={partnerEditor.primaryName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryName: v }))} />
+            <Field label="Primary Contact Name" value={partnerEditor.primaryName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryName: v }))} disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)} />
             <Field 
               label="Primary Email" 
               value={partnerEditor.primaryEmail || ""} 
               onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryEmail: v }))} 
-              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+              disabled={false}
             />
             <Field 
               label="Phone Number" 
@@ -3479,7 +3484,7 @@ export default function AdminDashboard() {
             <div className="border-b pb-2 pt-4 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Company Details</h3>
             </div>
-            <Field label="Business / Company Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} />
+            <Field label="Business / Company Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} disabled={false} />
             <Field 
               label="Company Website" 
               value={partnerEditor.companyWebsite || ""} 
@@ -3733,7 +3738,11 @@ export default function AdminDashboard() {
 
             <Button 
               onClick={savePartnerEdits} 
-              disabled={!((partnerEditor.primaryName?.trim() || (partnerEditor.firstName?.trim() && partnerEditor.lastName?.trim())) && partnerEditor.businessName?.trim())} 
+              disabled={
+                Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)
+                  ? !((partnerEditor.primaryName?.trim() || (partnerEditor.firstName?.trim() && partnerEditor.lastName?.trim())) && partnerEditor.businessName?.trim() && partnerEditor.primaryEmail?.trim())
+                  : !(partnerEditor.businessName?.trim() && partnerEditor.primaryEmail?.trim())
+              } 
               className="w-full"
             >
               Save Partner Changes

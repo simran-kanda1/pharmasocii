@@ -6915,8 +6915,10 @@ app.post("/api/cancel-plan", async (req, res) => {
 
         await logAudit({
             partnerId,
-            action: "SUBSCRIPTION_CANCELLED",
-            details: `Cancellation processed (${cancelScope}).`,
+            action: cancelScope === "feature" ? "FEATURE_CANCELLED" : "PLAN_CANCELLED",
+            details: cancelScope === "feature"
+                ? `Spotlight feature (${linkedFeatureId || "add-on"}) scheduled to end.`
+                : `Listing plan scheduled to end.`,
             category: "billing",
             performedBy: "partner",
             metadata: {
