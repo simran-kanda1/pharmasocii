@@ -11,6 +11,7 @@ import {
   X,
   XCircle,
   Clock,
+  Copy,
   Download,
   ExternalLink,
   Flag,
@@ -5029,6 +5030,14 @@ function ListingsList({
 
 function TransactionList({ transactions }: { transactions: any[] }) {
   const [search, setSearch] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string | null | undefined, key: string) => {
+    if (!text) return;
+    navigator.clipboard.writeText(text);
+    setCopiedId(key);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   const rows = useMemo(
     () =>
@@ -5152,8 +5161,26 @@ function TransactionList({ transactions }: { transactions: any[] }) {
                       <TableCell className="max-w-[200px] truncate" title={t.customerEmail || ""}>
                         {t.customerEmail || "—"}
                       </TableCell>
-                      <TableCell className="font-mono text-xs max-w-[140px] truncate text-slate-600" title={t.partnerId || ""}>
-                        {t.partnerId || "—"}
+                      <TableCell className="whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-slate-700 select-all" title={t.partnerId || ""}>
+                            {t.partnerId || "—"}
+                          </span>
+                          {t.partnerId && (
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(t.partnerId, `partner-${t.id}`)}
+                              className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                              title="Copy full Partner ID"
+                            >
+                              {copiedId === `partner-${t.id}` ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </TableCell>
                       <TableCell className="max-w-[160px] truncate">{t.businessName || "—"}</TableCell>
                       <TableCell>{t.typeLabel}</TableCell>
@@ -5161,7 +5188,27 @@ function TransactionList({ transactions }: { transactions: any[] }) {
                         {t.description}
                       </TableCell>
                       <TableCell className="capitalize whitespace-nowrap">{t.group || "—"}</TableCell>
-                      <TableCell className="font-mono text-xs max-w-[120px] truncate">{t.listingId || "—"}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-mono text-xs text-slate-700 select-all" title={t.listingId || ""}>
+                            {t.listingId || "—"}
+                          </span>
+                          {t.listingId && (
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(t.listingId, `listing-${t.id}`)}
+                              className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                              title="Copy full Listing ID"
+                            >
+                              {copiedId === `listing-${t.id}` ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+                      </TableCell>
                       <TableCell>
                         <Badge
                           className={
