@@ -3849,17 +3849,23 @@ async function tryProcessSpotlightAddonInvoicePaid({
         if (fd.listingId && fd.collectionName && resolvedFeatureId && periodEnd) {
             const listingRef = await resolveListingDocRef(partnerId, fd.collectionName, fd.listingId);
             if (listingRef) {
-                await listingRef.set({
-                    selectedAddon: resolvedFeatureId,
-                    featuredPlacement: resolvedFeatureId,
-                    isFeatured: true,
-                    active: true,
-                    status: "Approved",
-                    lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    featureSpotlightPaidThrough: periodEnd,
-                    ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
-                    ...(customerId ? { stripeCustomerId: customerId } : {}),
-                }, { merge: true });
+                const listingSnap = await listingRef.get();
+                const currentData = listingSnap.exists ? listingSnap.data() || {} : {};
+                const currentTier = spotlightTierFromId(currentData.selectedAddon || currentData.featuredPlacement);
+                const resolvedTier = spotlightTierFromId(resolvedFeatureId);
+                if (currentTier <= resolvedTier) {
+                    await listingRef.set({
+                        selectedAddon: resolvedFeatureId,
+                        featuredPlacement: resolvedFeatureId,
+                        isFeatured: true,
+                        active: true,
+                        status: "Approved",
+                        lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                        featureSpotlightPaidThrough: periodEnd,
+                        ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
+                        ...(customerId ? { stripeCustomerId: customerId } : {}),
+                    }, { merge: true });
+                }
             }
         }
     }
@@ -4068,19 +4074,27 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
             ...(customerId ? { stripeCustomerId: customerId } : {}),
         };
         if (includedSpotlight) {
-            const spotlightEnd = (stripeEndIsLater ? existingPeriodEnd : billingPeriodEnd)
-                || toDateValue(planData.billingPeriodEnd)
-                || addBillingPeriodFallback(new Date(), planData.planId);
-            listingUpdate.selectedAddon = includedSpotlight;
-            listingUpdate.featuredPlacement = includedSpotlight;
-            listingUpdate.isFeatured = true;
-            listingUpdate.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
-            listingUpdate.featureSpotlightPaidThrough = spotlightEnd;
-            if (billingPeriodStart) {
-                listingUpdate.featureSpotlightBillingPeriodStart = billingPeriodStart;
-            }
-            if (!billingPeriodEnd) {
-                console.warn(`   ⚠ billingPeriodEnd null for included spotlight sync ${includedSpotlight}; used fallback ${spotlightEnd.toISOString()}`);
+            const currentListingSnap = await listingRef.get();
+            const currentListingData = currentListingSnap.exists ? currentListingSnap.data() || {} : {};
+            const currentTier = spotlightTierFromId(currentListingData.selectedAddon || currentListingData.featuredPlacement);
+            const includedTier = spotlightTierFromId(includedSpotlight);
+            const hasActiveStandaloneSub = Boolean(currentListingData.featureSpotlightStripeSubscriptionId);
+
+            if (!hasActiveStandaloneSub && currentTier <= includedTier) {
+                const spotlightEnd = (stripeEndIsLater ? existingPeriodEnd : billingPeriodEnd)
+                    || toDateValue(planData.billingPeriodEnd)
+                    || addBillingPeriodFallback(new Date(), planData.planId);
+                listingUpdate.selectedAddon = includedSpotlight;
+                listingUpdate.featuredPlacement = includedSpotlight;
+                listingUpdate.isFeatured = true;
+                listingUpdate.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
+                listingUpdate.featureSpotlightPaidThrough = spotlightEnd;
+                if (billingPeriodStart) {
+                    listingUpdate.featureSpotlightBillingPeriodStart = billingPeriodStart;
+                }
+                if (!billingPeriodEnd) {
+                    console.warn(`   ⚠ billingPeriodEnd null for included spotlight sync ${includedSpotlight}; used fallback ${spotlightEnd.toISOString()}`);
+                }
             }
         }
 
@@ -4733,37 +4747,53 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
                     ...(customerId ? { stripeCustomerId: customerId } : {}),
                 };
                 if (includedSpotlight) {
-                    const spotlightEnd = billingPeriodEnd
-                        || toDateValue(planData.billingPeriodEnd)
-                        || addBillingPeriodFallback(new Date(), planData.planId);
-                    listingRenew.selectedAddon = includedSpotlight;
-                    listingRenew.featuredPlacement = includedSpotlight;
-                    listingRenew.isFeatured = true;
-                    listingRenew.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
-                    listingRenew.featureSpotlightPaidThrough = spotlightEnd;
-                    if (billingPeriodStart) {
-                        listingRenew.featureSpotlightBillingPeriodStart = billingPeriodStart;
-                    }
-                    if (!billingPeriodEnd) {
-                        console.warn(`   ⚠ billingPeriodEnd null for included spotlight ${includedSpotlight}; used fallback ${spotlightEnd.toISOString()}`);
+                    const currentSnap = await listingRef.get();
+                    const currentData = currentSnap.exists ? currentSnap.data() || {} : {};
+                    const currentTier = spotlightTierFromId(currentData.selectedAddon || currentData.featuredPlacement);
+                    const includedTier = spotlightTierFromId(includedSpotlight);
+                    const hasActiveStandalone = Boolean(currentData.featureSpotlightStripeSubscriptionId);
+
+                    if (!hasActiveStandalone && currentTier <= includedTier) {
+                        const spotlightEnd = billingPeriodEnd
+                            || toDateValue(planData.billingPeriodEnd)
+                            || addBillingPeriodFallback(new Date(), planData.planId);
+                        listingRenew.selectedAddon = includedSpotlight;
+                        listingRenew.featuredPlacement = includedSpotlight;
+                        listingRenew.isFeatured = true;
+                        listingRenew.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
+                        listingRenew.featureSpotlightPaidThrough = spotlightEnd;
+                        if (billingPeriodStart) {
+                            listingRenew.featureSpotlightBillingPeriodStart = billingPeriodStart;
+                        }
+                        if (!billingPeriodEnd) {
+                            console.warn(`   ⚠ billingPeriodEnd null for included spotlight ${includedSpotlight}; used fallback ${spotlightEnd.toISOString()}`);
+                        }
                     }
                 }
                 await listingRef.set(listingRenew, { merge: true });
 
                 if (includedSpotlight) {
-                    const spotlightEnd = billingPeriodEnd
-                        || toDateValue(planData.billingPeriodEnd)
-                        || addBillingPeriodFallback(new Date(), planData.planId);
-                    const partnerRef = db.collection("partnersCollection").doc(partnerId);
-                    await upsertIncludedPlanFeature(partnerRef, {
-                        featureId: includedSpotlight,
-                        listingId: planData.listingId,
-                        collectionName: planData.collectionName,
-                        planId: planData.planId,
-                        sessionId: planData.sessionId || invoice.id || "",
-                        accessThrough: spotlightEnd,
-                    });
-                    await deactivateSupersededPartnerFeatures(partnerRef, planData.listingId, includedSpotlight);
+                    const currentSnap = await listingRef.get();
+                    const currentData = currentSnap.exists ? currentSnap.data() || {} : {};
+                    const currentTier = spotlightTierFromId(currentData.selectedAddon || currentData.featuredPlacement);
+                    const includedTier = spotlightTierFromId(includedSpotlight);
+                    const hasActiveStandalone = Boolean(currentData.featureSpotlightStripeSubscriptionId);
+
+                    if (!hasActiveStandalone && currentTier <= includedTier) {
+                        const spotlightEnd = billingPeriodEnd
+                            || toDateValue(planData.billingPeriodEnd)
+                            || addBillingPeriodFallback(new Date(), planData.planId);
+                        const partnerRef = db.collection("partnersCollection").doc(partnerId);
+                        await upsertIncludedPlanFeature(partnerRef, {
+                            featureId: includedSpotlight,
+                            listingId: planData.listingId,
+                            collectionName: planData.collectionName,
+                            planId: planData.planId,
+                            sessionId: planData.sessionId || invoice.id || "",
+                            accessThrough: spotlightEnd,
+                        });
+                        await deactivateSupersededPartnerFeatures(partnerRef, planData.listingId, includedSpotlight);
+                    }
                 }
             }
         }
