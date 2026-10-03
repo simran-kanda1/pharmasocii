@@ -519,48 +519,76 @@ export default function Dashboard() {
         if (livePlans.length === 0) return;
 
         offerings.forEach(async (offering) => {
-            if (offering.status !== "pending_payment") return;
             const listingGroup = inferListingGroup(offering);
+            const col = offering.__col || (listingGroup === "business_offerings" ? "businessOfferingsCollection" : listingGroup === "consulting" ? "consultingServicesCollection" : listingGroup === "events" ? "eventsCollection" : "jobsCollection");
+            const source = offering.__source || "partner";
 
-            // Find matching active plan by explicit listingId OR by group for single-plan groups
-            const matchingPlan = livePlans.find((p) => {
-                if (p.listingId && p.listingId === offering.id) return true;
-                const planGroup = inferPlanGroup(p);
-                if (planGroup && listingGroup && planGroup === listingGroup && (listingGroup === "business_offerings" || listingGroup === "consulting")) {
-                    return true;
+            if (offering.status === "pending_payment") {
+                // Find matching active plan by explicit listingId OR by group for single-plan groups
+                const matchingPlan = livePlans.find((p) => {
+                    if (p.listingId && p.listingId === offering.id) return true;
+                    const planGroup = inferPlanGroup(p);
+                    if (planGroup && listingGroup && planGroup === listingGroup && (listingGroup === "business_offerings" || listingGroup === "consulting")) {
+                        return true;
+                    }
+                    return false;
+                });
+
+                if (matchingPlan) {
+                    try {
+                        const listingPatch = { status: "Approved", active: true };
+
+                        if (source === "partner" || col === "businessOfferingsCollection") {
+                            await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), listingPatch);
+                        } else {
+                            await updateDoc(doc(db, col, offering.id), listingPatch);
+                        }
+
+                        // Also link plan to listing if missing
+                        if (!matchingPlan.listingId && matchingPlan.id) {
+                            try {
+                                const planRef = doc(db, "partnersCollection", auth.currentUser!.uid, "planCollection", matchingPlan.id);
+                                await updateDoc(planRef, { listingId: offering.id, collectionName: col });
+                            } catch (_) {}
+                        }
+
+                        setOfferings((prev) =>
+                            prev.map((o) => (o.id === offering.id ? { ...o, status: "Approved", active: true } : o))
+                        );
+                    } catch (e) {
+                        console.error("Error auto-healing paid listing:", e);
+                    }
                 }
-                return false;
-            });
+            }
 
-            if (matchingPlan) {
+            // Also auto-heal spotlight addon synchronization on the listing document
+            const activeFeat = partnerFeatures.find(
+                (f) => f.listingId === offering.id && f.active !== false && !f.cancelPending && f.featureId
+            );
+            if (activeFeat && activeFeat.featureId && (offering.selectedAddon !== activeFeat.featureId || !offering.isFeatured)) {
                 try {
-                    const col = offering.__col || (listingGroup === "business_offerings" ? "businessOfferingsCollection" : listingGroup === "consulting" ? "consultingServicesCollection" : listingGroup === "events" ? "eventsCollection" : "jobsCollection");
-                    const source = offering.__source || "partner";
-                    const listingPatch = { status: "Approved", active: true };
-
+                    const spotlightPatch: Record<string, any> = {
+                        selectedAddon: activeFeat.featureId,
+                        featuredPlacement: activeFeat.featureId,
+                        isFeatured: true,
+                        ...(activeFeat.accessThrough ? { featureSpotlightPaidThrough: activeFeat.accessThrough } : {}),
+                        ...(activeFeat.billingPeriodStart ? { featureSpotlightBillingPeriodStart: activeFeat.billingPeriodStart } : {}),
+                        ...(activeFeat.stripeSubscriptionId ? { featureSpotlightStripeSubscriptionId: activeFeat.stripeSubscriptionId } : {}),
+                    };
                     if (source === "partner" || col === "businessOfferingsCollection") {
-                        await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), listingPatch);
+                        await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), spotlightPatch);
                     } else {
-                        await updateDoc(doc(db, col, offering.id), listingPatch);
+                        await updateDoc(doc(db, col, offering.id), spotlightPatch);
                     }
-
-                    // Also link plan to listing if missing
-                    if (!matchingPlan.listingId && matchingPlan.id) {
-                        try {
-                            const planRef = doc(db, "partnersCollection", auth.currentUser!.uid, "planCollection", matchingPlan.id);
-                            await updateDoc(planRef, { listingId: offering.id, collectionName: col });
-                        } catch (_) {}
-                    }
-
                     setOfferings((prev) =>
-                        prev.map((o) => (o.id === offering.id ? { ...o, status: "Approved", active: true } : o))
+                        prev.map((o) => (o.id === offering.id ? { ...o, ...spotlightPatch } : o))
                     );
                 } catch (e) {
-                    console.error("Error auto-healing paid listing:", e);
+                    console.warn("Error auto-healing listing spotlight:", e);
                 }
             }
         });
-    }, [activePlans, offerings]);
+    }, [activePlans, offerings, partnerFeatures]);
 
     // Feature plan modal
     const [showFeatureModal, setShowFeatureModal] = useState(false);
@@ -688,47 +716,83 @@ export default function Dashboard() {
             }
             return feature.source === "spotlight_addon" || Boolean(feature.stripeSubscriptionId);
         });
+
+        // Sort matches by active status first, then highest spotlight tier, then recency
+        const sortedMatches = [...matches].sort((a, b) => {
+            if (a.active !== b.active) return a.active ? -1 : 1;
+            const tierA = spotlightTierFromId(a.featureId);
+            const tierB = spotlightTierFromId(b.featureId);
+            if (tierA !== tierB) return tierB - tierA;
+            const timeA = toDateValue(a.lastPaymentReceived)?.getTime() || toDateValue(a.createdAt)?.getTime() || 0;
+            const timeB = toDateValue(b.lastPaymentReceived)?.getTime() || toDateValue(b.createdAt)?.getTime() || 0;
+            return timeB - timeA;
+        });
+
         const currentSub = String(listing?.featureSpotlightStripeSubscriptionId || "").trim();
         if (currentSub) {
-            const current = matches.find((feature) => String(feature.stripeSubscriptionId || "").trim() === currentSub);
+            const current = sortedMatches.find((feature) => String(feature.stripeSubscriptionId || "").trim() === currentSub && feature.active !== false);
             if (current) return current;
         }
-        return matches.find((feature) => feature.source === "spotlight_addon" && !feature.cancelPending)
-            || matches.find((feature) => !feature.cancelPending)
-            || matches.find((feature) => feature.cancelPending)
-            || matches[0]
+        return sortedMatches.find((feature) => feature.source === "spotlight_addon" && !feature.cancelPending)
+            || sortedMatches.find((feature) => !feature.cancelPending)
+            || sortedMatches.find((feature) => feature.cancelPending)
+            || sortedMatches[0]
             || null;
     };
 
     const enrichListingSpotlightFromFeatures = (listing: any, plan: any) => {
         if (!listing || !plan) return listing;
         const featureRecord = getStandaloneFeatureRecordForPlan(plan, listing);
-        const listingSub = String(listing.featureSpotlightStripeSubscriptionId || "").trim();
+        let updatedListing = { ...listing };
+
+        // Enrich the listing with active feature fields if an active standalone feature record exists
+        if (featureRecord && featureRecord.active !== false && !featureRecord.cancelPending) {
+            const activeFeatureId = featureRecord.featureId;
+            if (activeFeatureId) {
+                updatedListing.selectedAddon = activeFeatureId;
+                updatedListing.featuredPlacement = activeFeatureId;
+                updatedListing.isFeatured = true;
+            }
+            if (featureRecord.accessThrough) {
+                updatedListing.featureSpotlightPaidThrough = featureRecord.accessThrough;
+            }
+            if (featureRecord.billingPeriodStart) {
+                updatedListing.featureSpotlightBillingPeriodStart = featureRecord.billingPeriodStart;
+            }
+            if (featureRecord.stripeSubscriptionId) {
+                updatedListing.featureSpotlightStripeSubscriptionId = featureRecord.stripeSubscriptionId;
+            }
+            if (featureRecord.subscriptionItemId) {
+                updatedListing.featureSpotlightSubscriptionItemId = featureRecord.subscriptionItemId;
+            }
+        }
+
+        const listingSub = String(updatedListing.featureSpotlightStripeSubscriptionId || "").trim();
         const recordSub = String(featureRecord?.stripeSubscriptionId || "").trim();
         const recordMatchesListing = !listingSub || !recordSub || recordSub === listingSub;
         const planEndsFeature = Boolean(plan.cancelAtPeriodEnd);
         const hasSpotlight = Boolean(
-            getSpotlightAddonTierId(listing) ||
+            getSpotlightAddonTierId(updatedListing) ||
             (plan.planId && PLAN_CONFIGS[plan.planId]?.featurePlan) ||
             featureRecord,
         );
         if (
             !recordMatchesListing ||
-            (!featureRecord?.cancelPending && !listing.featureSpotlightCancelPending && !(planEndsFeature && hasSpotlight))
+            (!featureRecord?.cancelPending && !updatedListing.featureSpotlightCancelPending && !(planEndsFeature && hasSpotlight))
         ) {
-            return listing;
+            return updatedListing;
         }
         const listingEnd =
-            toDateValue(listing.featureSpotlightAccessEnd) ||
-            toDateValue(listing.featureSpotlightPaidThrough);
+            toDateValue(updatedListing.featureSpotlightAccessEnd) ||
+            toDateValue(updatedListing.featureSpotlightPaidThrough);
         const featureEnd = recordMatchesListing ? toDateValue(featureRecord?.accessThrough) : null;
         const planEnd = getPlanPeriodEndDate(plan);
         // Prefer the earlier scheduled end so a later feature date cannot outlast a plan cancel.
-        let accessEnd = listing.featureSpotlightAccessEnd || featureRecord?.accessThrough || null;
+        let accessEnd = updatedListing.featureSpotlightAccessEnd || featureRecord?.accessThrough || null;
         if (listingEnd && featureEnd) {
             accessEnd = featureEnd.getTime() < listingEnd.getTime()
                 ? featureRecord.accessThrough
-                : (listing.featureSpotlightAccessEnd || listing.featureSpotlightPaidThrough);
+                : (updatedListing.featureSpotlightAccessEnd || updatedListing.featureSpotlightPaidThrough);
         } else if (featureEnd && !listingEnd) {
             accessEnd = featureRecord.accessThrough;
         }
@@ -741,9 +805,9 @@ export default function Dashboard() {
         }
         const cancelScope = planEndsFeature
             ? "plan"
-            : (listing.featureSpotlightCancelScope || featureRecord?.cancelScope || "feature");
+            : (updatedListing.featureSpotlightCancelScope || featureRecord?.cancelScope || "feature");
         return {
-            ...listing,
+            ...updatedListing,
             featureSpotlightCancelPending: true,
             featureSpotlightCancelScope: cancelScope,
             featureSpotlightAccessEnd: accessEnd,

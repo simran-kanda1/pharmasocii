@@ -807,18 +807,14 @@ async function resolveListingDocRef(partnerId, collectionName, listingId) {
     return canonicalRef;
 }
 
-/** Write listing patch to every known doc location (global + legacy partner-embedded). */
+/** Write listing patch to every known doc location (global + partner-embedded). */
 async function applyListingPatchEverywhere(partnerId, collectionName, listingId, patch) {
     const refs = [];
-    const canonical = getListingDocRef(partnerId, collectionName, listingId);
-    if (canonical) refs.push(canonical);
-    if (partnerId && collectionName && collectionName !== "businessOfferingsCollection") {
-        const legacy = db
-            .collection("partnersCollection")
-            .doc(partnerId)
-            .collection(collectionName)
-            .doc(listingId);
-        if (!refs.some((r) => r.path === legacy.path)) refs.push(legacy);
+    if (partnerId && collectionName) {
+        refs.push(db.collection("partnersCollection").doc(partnerId).collection(collectionName).doc(listingId));
+    }
+    if (collectionName) {
+        refs.push(db.collection(collectionName).doc(listingId));
     }
 
     const uniqueRefs = [...new Map(refs.map((r) => [r.path, r])).values()];
@@ -3556,9 +3552,11 @@ async function retireReplacedSpotlightAddonDocs(partnerRef, listingId, keepSubsc
 async function deactivateSupersededPartnerFeatures(partnerRef, listingId, newFeatureId) {
     if (!partnerRef || !listingId || !newFeatureId) return;
     const snap = await partnerRef.collection("featuresCollection").where("listingId", "==", listingId).get();
+    const newTier = spotlightTierFromId(newFeatureId);
     for (const doc of snap.docs) {
         const d = doc.data() || {};
-        if (d.active && d.featureId && d.featureId !== newFeatureId) {
+        const existingTier = spotlightTierFromId(d.featureId);
+        if (d.active && d.featureId && d.featureId !== newFeatureId && existingTier <= newTier) {
             await doc.ref.set(
                 {
                     active: false,
@@ -4360,15 +4358,27 @@ async function backfillUnappliedPaidCheckouts(partnerId) {
                 .limit(1)
                 .get();
             if (existingFeature.empty) {
-                await finalizeSpotlightAddonPurchaseWrites({
-                    session,
-                    partnerId,
-                    partnerRef,
-                    featureId,
-                    listingId,
-                    resolvedCollectionName: collectionName,
-                    group: meta.group || null,
-                });
+                if (meta.featureUpgradeFlow === "true" || meta.featureUpgrade === "true") {
+                    await finalizeFeatureUpgradeAfterPayment({
+                        session,
+                        partnerId,
+                        partnerRef,
+                        featureId,
+                        listingId,
+                        collectionName,
+                        group: meta.group || null,
+                    });
+                } else {
+                    await finalizeSpotlightAddonPurchaseWrites({
+                        session,
+                        partnerId,
+                        partnerRef,
+                        featureId,
+                        listingId,
+                        resolvedCollectionName: collectionName,
+                        group: meta.group || null,
+                    });
+                }
                 repaired += 1;
             }
             if (await ensureCheckoutTransaction(session, partnerId)) transactions += 1;
