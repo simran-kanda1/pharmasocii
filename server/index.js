@@ -709,8 +709,21 @@ async function processPartnerPaidSubscriptionInvoices(partnerId) {
         .get();
     const subIds = new Set();
     for (const planDoc of planSnap.docs) {
-        const subId = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
+        const planData = planDoc.data() || {};
+        const subId = toStripeSubscriptionId(planData.stripeSubscriptionId);
         if (subId) subIds.add(subId);
+        if (planData.listingId && planData.collectionName) {
+            try {
+                const listingRef = await resolveListingDocRef(partnerId, planData.collectionName, planData.listingId);
+                const listingSnap = listingRef ? await listingRef.get() : null;
+                const featureSubId = toStripeSubscriptionId(
+                    listingSnap?.exists ? listingSnap.data()?.featureSpotlightStripeSubscriptionId : null,
+                );
+                if (featureSubId && featureSubId !== subId) subIds.add(featureSubId);
+            } catch (listingErr) {
+                console.warn("processPartnerPaidSubscriptionInvoices listing spotlight:", listingErr?.message || listingErr);
+            }
+        }
     }
 
     const featSnap = await db.collection("partnersCollection")
@@ -1119,11 +1132,13 @@ async function reconcileStaleSpotlightOnListing({
     const windowOver = Boolean(paidEnd && paidEnd.getTime() <= Date.now());
 
     let featureSubLive = false;
+    let featureSubPeriodEnd = null;
     if (featureSubId) {
         try {
             const sub = await stripe.subscriptions.retrieve(featureSubId);
             const status = String(sub?.status || "").toLowerCase();
             featureSubLive = ["active", "trialing", "past_due", "unpaid"].includes(status);
+            if (sub?.current_period_end) featureSubPeriodEnd = new Date(sub.current_period_end * 1000);
         } catch (_) {
             featureSubLive = false;
         }
@@ -1144,14 +1159,28 @@ async function reconcileStaleSpotlightOnListing({
     );
     if (!hasResidue) return { cleared: false, listingData, reason: "clean" };
 
-    // Still within a live paid add-on window — leave alone.
-    if (featureSubLive && !windowOver) {
+    const stripeWindowOpen = Boolean(featureSubPeriodEnd && featureSubPeriodEnd.getTime() > Date.now());
+    const stripeWindowClosed = Boolean(featureSubPeriodEnd && featureSubPeriodEnd.getTime() <= Date.now());
+    // Stripe is still inside a paid period — leave the add-on alone (do not clear on wall-clock lag).
+    if (featureSubLive && (stripeWindowOpen || !stripeWindowClosed)) {
         return { cleared: false, listingData, reason: "feature_live" };
     }
 
     // Cancel still pending inside paid window — leave alone (UI shows scheduled to end).
-    if (isSpotlightCancelPending(listingData) && !windowOver && featureSubLive) {
+    if (isSpotlightCancelPending(listingData) && !windowOver && featureSubLive && !stripeWindowClosed) {
         return { cleared: false, listingData, reason: "cancel_pending_live" };
+    }
+
+    // Paid window is over in Stripe as well. Stop the leftover subscription so it cannot bill again,
+    // then clear the listing so a new spotlight can be purchased.
+    if (featureSubLive && featureSubId && stripeWindowClosed) {
+        try {
+            await stripe.subscriptions.cancel(featureSubId);
+            console.log(`   ✓ Cancelled expired spotlight subscription ${featureSubId}`);
+        } catch (cancelErr) {
+            console.warn("   ⚠ Could not cancel expired spotlight subscription:", cancelErr?.message || cancelErr);
+        }
+        featureSubLive = false;
     }
 
     // Stale residue (ended sub, past paid window, or orphaned fields after plan repurchase).
@@ -2274,9 +2303,11 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         .where("stripeSubscriptionId", "==", subscription.id)
                         .get();
                     for (const endingPlan of endingPlans.docs) {
+                        const endingData = endingPlan.data() || {};
                         await endingPlan.ref.set({
                             active: false,
-                            cancelAtPeriodEnd: false,
+                            // Keep an explicit cancel so the dashboard still says Cancelled, not a silent end.
+                            ...(endingData.cancelAtPeriodEnd ? { cancelAtPeriodEnd: true } : {}),
                             expiredAt: admin.firestore.FieldValue.serverTimestamp(),
                         }, { merge: true });
                     }
@@ -3235,6 +3266,28 @@ async function finalizeSpotlightAddonPurchaseWrites({
     }
     if (!periodStart) periodStart = new Date();
 
+    // An older initial checkout must not overwrite a newer upgrade (L→H, L→Both, H→Both).
+    if (listingId && resolvedCollectionName) {
+        const currentListingRef = await resolveListingDocRef(partnerId, resolvedCollectionName, listingId);
+        const currentListingSnap = currentListingRef ? await currentListingRef.get() : null;
+        if (currentListingSnap?.exists) {
+            const currentListing = currentListingSnap.data() || {};
+            const currentTier = spotlightTierFromId(currentListing.selectedAddon || currentListing.featuredPlacement);
+            const incomingTier = spotlightTierFromId(featureId);
+            const lastPay = toDateValue(currentListing.lastFeaturePaymentReceivedAt);
+            const sessionCreated = session?.created ? new Date(session.created * 1000) : null;
+            const newerThanThisCheckout = Boolean(
+                lastPay && (!sessionCreated || lastPay.getTime() > sessionCreated.getTime() + 1000),
+            );
+            if (currentTier > incomingTier && newerThanThisCheckout) {
+                console.log(
+                    `   ℹ Skipping stale spotlight checkout ${session?.id || ""}; listing is already on a higher tier.`,
+                );
+                return;
+            }
+        }
+    }
+
     const existingFeature = await partnerRef
         .collection("featuresCollection")
         .where("sessionId", "==", session.id)
@@ -3320,7 +3373,11 @@ function resolveFeatureCheckoutAmount(
         isEventOrJobCollection(collectionName) || isEventOrJobPlanId(planId);
 
     const included = String(planIncludedSpotlight || "").trim();
-    const curDisplay = String(listingAddonRaw || featuredPlacementRaw || "").trim();
+    const paidEnd = listingData
+        ? (toDateValue(listingData.featureSpotlightAccessEnd) || toDateValue(listingData.featureSpotlightPaidThrough))
+        : null;
+    const addonWindowEnded = Boolean(paidEnd && paidEnd.getTime() <= Date.now());
+    const curDisplay = addonWindowEnded ? "" : String(listingAddonRaw || featuredPlacementRaw || "").trim();
     const effectiveTier = Math.max(spotlightTierFromId(curDisplay), spotlightTierFromId(included));
     const effectiveFeatureId = spotlightIdFromTier(effectiveTier);
     const newTier = spotlightTierFromId(targetFeatureId);
@@ -3726,6 +3783,51 @@ async function tryProcessSpotlightAddonInvoicePaid({
         return;
     }
 
+    // A cancelled or ended listing plan must not keep billing its spotlight add-on.
+    if (billingReason === "subscription_cycle" && addonDocs.length > 0) {
+        const fd0 = addonDocs[0].data() || {};
+        const planPartnerId = partnerId || partnerIdFromPartnersPlanRef(addonDocs[0].ref);
+        if (planPartnerId && fd0.listingId && fd0.collectionName) {
+            let livePlan = null;
+            try {
+                livePlan = await findLivePlanDocForListing(planPartnerId, fd0.listingId, fd0.collectionName);
+            } catch (planErr) {
+                console.warn("   ⚠ Could not check listing plan before spotlight renewal:", planErr?.message || planErr);
+            }
+            const planData = livePlan ? livePlan.data() || {} : null;
+            const planLive = Boolean(planData && isFirestorePlanBillingLive(planData));
+            if (!planLive) {
+                console.log(`   ℹ Spotlight renewal ${subscriptionId} skipped; the listing plan is not live.`);
+                try {
+                    await stripe.subscriptions.cancel(subscriptionId);
+                } catch (cancelErr) {
+                    console.warn("   ⚠ Could not cancel spotlight after plan end:", cancelErr?.message || cancelErr);
+                }
+                return;
+            }
+            if (isFirestorePlanLockedForChanges(planData)) {
+                const planEnd = toDateValue(planData.billingPeriodEnd) || toDateValue(planData.cancelAt);
+                if (planEnd && periodEnd && periodEnd.getTime() > planEnd.getTime() + 60 * 1000) {
+                    console.log(`   ℹ Spotlight renewal ${subscriptionId} skipped; it would bill past the cancelled plan.`);
+                    try {
+                        const cancelAtUnix = Math.floor(planEnd.getTime() / 1000);
+                        if (cancelAtUnix > Math.floor(Date.now() / 1000) + 60) {
+                            await stripe.subscriptions.update(subscriptionId, {
+                                cancel_at: cancelAtUnix,
+                                cancel_at_period_end: false,
+                            });
+                        } else {
+                            await stripe.subscriptions.cancel(subscriptionId);
+                        }
+                    } catch (cancelErr) {
+                        console.warn("   ⚠ Could not stop spotlight at plan end:", cancelErr?.message || cancelErr);
+                    }
+                    return;
+                }
+            }
+        }
+    }
+
     if (addonDocs.length === 0) {
         console.warn(`   ⚠ No featuresCollection doc for spotlight subscription ${subscriptionId}; trying listing fallback.`);
         const listingCollections = ["eventsCollection", "jobsCollection", "consultingServicesCollection", "consultingCollection"];
@@ -3835,20 +3937,17 @@ async function tryProcessSpotlightAddonInvoicePaid({
         }
 
         if (fd.listingId && fd.collectionName && resolvedFeatureId && periodEnd) {
-            const listingRef = await resolveListingDocRef(partnerId, fd.collectionName, fd.listingId);
-            if (listingRef) {
-                await listingRef.set({
-                    selectedAddon: resolvedFeatureId,
-                    featuredPlacement: resolvedFeatureId,
-                    isFeatured: true,
-                    active: true,
-                    status: "Approved",
-                    lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    featureSpotlightPaidThrough: periodEnd,
-                    ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
-                    ...(customerId ? { stripeCustomerId: customerId } : {}),
-                }, { merge: true });
-            }
+            await applyListingPatchEverywhere(partnerId, fd.collectionName, fd.listingId, {
+                selectedAddon: resolvedFeatureId,
+                featuredPlacement: resolvedFeatureId,
+                isFeatured: true,
+                active: true,
+                status: "Approved",
+                lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
+                featureSpotlightPaidThrough: periodEnd,
+                ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
+                ...(customerId ? { stripeCustomerId: customerId } : {}),
+            });
         }
     }
 
@@ -4355,21 +4454,41 @@ async function backfillUnappliedPaidCheckouts(partnerId) {
         const listingId = meta.listingId || "";
         const collectionName = meta.collectionName || "";
         if (featureId && listingId && collectionName) {
-            const existingFeature = await partnerRef.collection("featuresCollection")
-                .where("sessionId", "==", session.id)
-                .limit(1)
-                .get();
-            if (existingFeature.empty) {
-                await finalizeSpotlightAddonPurchaseWrites({
-                    session,
-                    partnerId,
-                    partnerRef,
-                    featureId,
-                    listingId,
-                    resolvedCollectionName: collectionName,
-                    group: meta.group || null,
-                });
-                repaired += 1;
+            if (meta.featureUpgradeFlow === "true") {
+                const listingRef = await resolveListingDocRef(partnerId, collectionName, listingId);
+                const listingSnap = listingRef ? await listingRef.get() : null;
+                const listing = listingSnap?.exists ? listingSnap.data() || {} : {};
+                const currentTier = spotlightTierFromId(listing.selectedAddon || listing.featuredPlacement);
+                const targetTier = spotlightTierFromId(featureId);
+                if (targetTier > currentTier) {
+                    await finalizeFeatureUpgradeAfterPayment({
+                        session,
+                        partnerId,
+                        partnerRef,
+                        featureId,
+                        listingId,
+                        collectionName,
+                        group: meta.group || null,
+                    });
+                    repaired += 1;
+                }
+            } else {
+                const existingFeature = await partnerRef.collection("featuresCollection")
+                    .where("sessionId", "==", session.id)
+                    .limit(1)
+                    .get();
+                if (existingFeature.empty) {
+                    await finalizeSpotlightAddonPurchaseWrites({
+                        session,
+                        partnerId,
+                        partnerRef,
+                        featureId,
+                        listingId,
+                        resolvedCollectionName: collectionName,
+                        group: meta.group || null,
+                    });
+                    repaired += 1;
+                }
             }
             if (await ensureCheckoutTransaction(session, partnerId)) transactions += 1;
             continue;
@@ -5362,7 +5481,11 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             return res.status(400).json({ error: pricing.error });
         }
 
-        if (listingData.featureSpotlightStripeSubscriptionId && !pricing.isUpgrade) {
+        const featurePaidEnd =
+            toDateValue(listingData.featureSpotlightAccessEnd) ||
+            toDateValue(listingData.featureSpotlightPaidThrough);
+        const featureWindowEnded = Boolean(featurePaidEnd && featurePaidEnd.getTime() <= Date.now());
+        if (listingData.featureSpotlightStripeSubscriptionId && !pricing.isUpgrade && !featureWindowEnded) {
             return res.status(400).json({
                 error: "This listing already has a monthly spotlight subscription. Use upgrade to change tier, or cancel the add-on in Stripe before subscribing again.",
             });
@@ -5384,9 +5507,39 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                     return isSpotlight && String(meta.listingId || "") === String(listingId);
                 });
                 if (alreadyPaid) {
-                    return res.status(409).json({
-                        error: "A spotlight purchase for this listing is already paid. Refresh the dashboard to see it instead of buying again.",
-                    });
+                    const periodEndMs = (alreadyPaid.current_period_end || 0) * 1000;
+                    const stillPaid = periodEndMs > Date.now();
+                    if (stillPaid) {
+                        const restoredFeatureId =
+                            normalizeSpotlightFeatureId(alreadyPaid.metadata?.featureId) ||
+                            spotlightFeatureIdFromUnitAmount(alreadyPaid.items?.data?.[0]?.price?.unit_amount);
+                        if (restoredFeatureId) {
+                            const periodEnd = new Date(periodEndMs);
+                            const periodStart = alreadyPaid.current_period_start
+                                ? new Date(alreadyPaid.current_period_start * 1000)
+                                : null;
+                            await applyListingPatchEverywhere(partnerId, collectionName, listingId, {
+                                selectedAddon: restoredFeatureId,
+                                featuredPlacement: restoredFeatureId,
+                                isFeatured: true,
+                                featureSpotlightStripeSubscriptionId: alreadyPaid.id,
+                                featureSpotlightSubscriptionItemId: alreadyPaid.items?.data?.[0]?.id || null,
+                                featureSpotlightPaidThrough: periodEnd,
+                                ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
+                                featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
+                                featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
+                            });
+                        }
+                        return res.status(409).json({
+                            error: "A spotlight purchase for this listing is already paid. Refresh the dashboard to see it instead of buying again.",
+                        });
+                    }
+                    try {
+                        await stripe.subscriptions.cancel(alreadyPaid.id);
+                        console.log(`   ✓ Cancelled expired spotlight subscription ${alreadyPaid.id} so a new purchase can start`);
+                    } catch (cancelErr) {
+                        console.warn("   ⚠ Could not cancel expired spotlight before repurchase:", cancelErr?.message || cancelErr);
+                    }
                 }
             } catch (subListErr) {
                 if (!stripeResourceMissing(subListErr)) throw subListErr;
@@ -5412,11 +5565,15 @@ app.post("/api/create-feature-checkout", async (req, res) => {
             });
 
             let stripeCustomerId = null;
+            let resolvedItemId = existingItemId;
             if (existingSubId) {
                 try {
                     const existingSub = await stripe.subscriptions.retrieve(existingSubId);
                     stripeCustomerId =
                         typeof existingSub.customer === "string" ? existingSub.customer : existingSub.customer?.id || null;
+                    if (!resolvedItemId) {
+                        resolvedItemId = existingSub.items?.data?.[0]?.id || null;
+                    }
                 } catch (subErr) {
                     console.warn("Feature upgrade: could not load existing subscription customer:", subErr?.message);
                 }
@@ -5431,10 +5588,10 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                 group: group || "",
                 previousFeatureId: pricing.previousFeatureId || "",
                 featureUpgrade: "true",
-                ...(existingSubId && existingItemId
+                ...(existingSubId && resolvedItemId
                     ? {
                         subscriptionId: existingSubId,
-                        subscriptionItemId: existingItemId,
+                        subscriptionItemId: resolvedItemId,
                         newPriceId: newPrice.id,
                     }
                     : { featureUpgradeNoSub: "true" }),
@@ -5483,9 +5640,18 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                 recurring: getStripeSubscriptionRecurring(feature.interval || "month"),
                 product_data: { name: `Pharma Socii — ${feature.name}` },
             });
-            if (existingSubId && existingItemId) {
+            let zeroChargeItemId = existingItemId;
+            if (existingSubId && !zeroChargeItemId) {
+                try {
+                    const existingSub = await stripe.subscriptions.retrieve(existingSubId);
+                    zeroChargeItemId = existingSub.items?.data?.[0]?.id || null;
+                } catch (subErr) {
+                    console.warn("Feature upgrade: could not resolve subscription item:", subErr?.message);
+                }
+            }
+            if (existingSubId && zeroChargeItemId) {
                 const updatedSub = await stripe.subscriptions.update(existingSubId, {
-                    items: [{ id: existingItemId, price: newPrice.id, quantity: 1 }],
+                    items: [{ id: zeroChargeItemId, price: newPrice.id, quantity: 1 }],
                     proration_behavior: "none",
                     metadata: {
                         purchaseType: "spotlight_addon",
@@ -5501,7 +5667,7 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                         id: "inline-feature-upgrade",
                         metadata: {
                             subscriptionId: updatedSub.id,
-                            subscriptionItemId: updatedSub.items?.data?.[0]?.id || existingItemId,
+                            subscriptionItemId: updatedSub.items?.data?.[0]?.id || zeroChargeItemId,
                             newPriceId: newPrice.id,
                         },
                     },

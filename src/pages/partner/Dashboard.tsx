@@ -1999,8 +1999,8 @@ export default function Dashboard() {
             }
         } catch (err: any) {
             console.error("Failed to purchase feature:", err);
-            alert(getFriendlyErrorMessage(err, "Failed to purchase feature plan."));
             setActionProcessing(false);
+            alert(getFriendlyErrorMessage(err, "Failed to purchase feature plan."));
         }
     };
 
