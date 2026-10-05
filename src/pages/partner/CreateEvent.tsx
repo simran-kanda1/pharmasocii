@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { ArrowLeft, Save, Calendar } from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 
 export default function CreateEvent() {
     const navigate = useNavigate();
@@ -68,13 +68,8 @@ export default function CreateEvent() {
 
                 <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-2xl">
                     <CardHeader className="pb-8 border-b border-foreground/10">
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="bg-primary/20 p-2 rounded-lg border border-primary/30 text-primary">
-                                <Calendar className="w-6 h-6" />
-                            </div>
-                            <CardTitle className="text-3xl text-foreground">Post an Event</CardTitle>
-                        </div>
-                        <CardDescription className="text-base text-muted-foreground ml-1">
+                        <CardTitle className="text-3xl text-foreground mb-2">Post an Event</CardTitle>
+                        <CardDescription className="text-base text-muted-foreground">
                             Payment verified cleanly. Please configure your new event listing below. Use commas for categories.
                         </CardDescription>
                     </CardHeader>

@@ -32,7 +32,6 @@ export const DEFAULT_BUSINESS_CATEGORIES: CategoriesDict = {
     "Cleaning Agents": [],
     "Cleaning Services": [],
     "Clinical & Diagnostic Testing": ["Blood", "Compartmental Specimens", "Donor", "Genetics", "HLA Typing", "Molecular Specimens", "Plasma", "Serum", "Tissues"],
-    "Clinical Research": ["Adverse Event Management", "Animal Research Centers", "Audits", "Biobanking & Storage", "Biospecimen Services", "Biostats", "Contract Support", "Data Management", "Decentralized Trials", "End to End Pharmacovigilance System", "EU QPPV", "Lab & Analytical Services", "Literature Screening", "Local Contact Person", "Mice Models for Research", "Non-Human Primates for Research", "Other", "Patient Recruitment & Support", "Patient Support", "Pharmacovigilance", "Post Authorization Safety Studies", "Post Marketing Surveillance", "Pre-Clinical Studies", "Primate Models for Research", "Product Complaints Management", "Project Management", "Protocol Writing", "Real World Evidence", "Research Platforms", "Site Management", "Site Selection & Qualification", "Specialty Testing", "Study Design", "Target & Lead Optimization", "Translational Sciences", "Trial Planning & Management", "Vendor Management"],
     "Clinical Research & Development": ["Adverse Event Management", "Animal Research Centers", "Audits", "Biobanking & Storage", "Biospecimen Services", "Biostats", "Contract Support", "Data Management", "Decentralized Trials", "End to End Pharmacovigilance System", "EU QPPV", "Lab & Analytical Services", "Literature Screening", "Local Contact Person", "Mice Models for Research", "Non-Human Primates for Research", "Other", "Patient Recruitment & Support", "Patient Support", "Pharmacovigilance", "Post Authorization Safety Studies", "Post Marketing Surveillance", "Pre-Clinical Studies", "Primate Models for Research", "Product Complaints Management", "Project Management", "Protocol Writing", "Real World Evidence", "Research Platforms", "Site Management", "Site Selection & Qualification", "Specialty Testing", "Study Design", "Target & Lead Optimization", "Translational Sciences", "Trial Planning & Management", "Vendor Management"],
     "Container Closures & Packaging": ["Ampoules & Vials", "Blister Packaging", "Bottles & Jars", "Caps & Closures", "Cartons & Boxes", "Child-Resistant Packaging", "Cold Chain Packaging", "Desiccants & Absorbers", "Droppers & Pipettes", "Labels & Seals", "Medical Device Packaging", "PFS (Prefilled Syringes)", "Pouches & Bags", "Primary Packaging", "Secondary Packaging", "Sterile Packaging", "Tamper-Evident Packaging", "Temperature-Controlled Containers", "Track & Trace / Serialization", "Tubes", "Visual Inspection", "Other"],
     "Digital Solutions For Life Sciences": [],
@@ -508,7 +507,9 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
         if (doc.id) {
             categoryMetadataMap[doc.id] = doc;
         }
-        categoryMetadataMap[`${groupKey}:${categoryName}`] = doc;
+        if (subList.length === 0) {
+            categoryMetadataMap[`${groupKey}:${categoryName}`] = doc;
+        }
         subList.forEach((sub) => {
             categoryMetadataMap[`${groupKey}:${categoryName}:${sub}`] = doc;
             subSubList.forEach((ss) => {
@@ -642,7 +643,9 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
         if (doc.id) {
             categoryMetadataMap[doc.id] = doc;
         }
-        categoryMetadataMap[`${groupKey}:${categoryName}`] = doc;
+        if (subList.length === 0) {
+            categoryMetadataMap[`${groupKey}:${categoryName}`] = doc;
+        }
         subList.forEach((sub) => {
             categoryMetadataMap[`${groupKey}:${categoryName}:${sub}`] = doc;
             subSubList.forEach((ss) => {

@@ -92,10 +92,10 @@ export function AdminMembersPanel() {
     await logActivity({
       partnerId: u.uid,
       partnerName: u.email || "Admin",
-      action: "ADMIN_ACTION",
+      action: "MEMBER_DELETED",
       details,
       category: "admin",
-      metadata: { scope: "community_members" },
+      metadata: { scope: "community_members", adminEmail: u.email },
     });
   };
 

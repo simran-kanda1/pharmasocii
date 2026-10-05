@@ -75,10 +75,15 @@ export function AdminMemberPostsPanel() {
         await logActivity({
           partnerId: u.uid,
           partnerName: u.email || "Admin",
-          action: "ADMIN_ACTION",
+          action: "POST_ARCHIVED",
           details: `Deactivated post ${archiveTarget.id}`,
           category: "admin",
-          metadata: { scope: "community_posts" },
+          performedBy: "admin",
+          metadata: {
+            scope: "community_posts",
+            adminEmail: u.email,
+            postId: archiveTarget.id,
+          },
         });
       }
       setArchiveTarget(null);

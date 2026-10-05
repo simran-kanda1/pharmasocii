@@ -31,17 +31,23 @@ export function toDateValue(value: unknown): Date | null {
 }
 
 export function isPlanBillingLive(plan: Record<string, unknown>): boolean {
-    if (plan?.active === false) return false;
     const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
     if (plan?.isTrial || plan?.source === "admin_granted" || Boolean(plan?.createdByAdmin)) {
+        if (plan?.active === false) return false;
         if (end && end.getTime() < Date.now()) return false;
         return true;
     }
     const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
-    if (["active", "trialing", "past_due"].includes(stripeStatus)) {
-        if (plan?.cancelAtPeriodEnd && end && end.getTime() < Date.now()) return false;
+    if (["past_due", "unpaid", "canceled", "cancelled", "incomplete_expired"].includes(stripeStatus)) {
+        return false;
+    }
+    if (plan?.endedForNonpayment) return false;
+    // Stripe still active: keep the listing up, including a scheduled cancel and a test clock
+    // whose stored end is behind the wall clock. Hide only after Stripe itself is no longer active.
+    if (["active", "trialing"].includes(stripeStatus)) {
         return true;
     }
+    if (plan?.active === false) return false;
     if (end && end.getTime() < Date.now()) return false;
     return true;
 }

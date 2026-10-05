@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  AlertCircle,
   AlertTriangle,
-  BadgeCheck,
   Ban,
   CheckCircle2,
   ChevronLeft,
@@ -35,7 +33,7 @@ import {
   SearchX,
   Settings,
   ShieldCheck,
-  Sparkles,
+  Star,
   Tags,
   User,
   Users,
@@ -121,6 +119,11 @@ import { AdminFaqsPanel } from "@/components/admin/AdminFaqsPanel";
 import { AdminContactPanel } from "@/components/admin/AdminContactPanel";
 import { AdminHealthAuthoritiesPanel } from "@/components/admin/AdminHealthAuthoritiesPanel";
 import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
+import { PartnerPlanHistoryModal } from "@/components/admin/PartnerPlanHistoryModal";
+import {
+  getEffectiveListingStatus,
+  getEffectiveFeatureStatus,
+} from "@/lib/adminEffectiveStatus";
 
 import { SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
 import {
@@ -132,6 +135,7 @@ import {
   downloadPartnerTransactionsCsv,
   downloadPartnerTransactionsExcel,
   downloadPartnerTransactionsPdf,
+  downloadSingleTransactionInvoicePdf,
 } from "@/lib/transactionExport";
 
 type AdminTab =
@@ -153,7 +157,8 @@ type AdminTab =
   | "emailLog"
   | "settings"
   | "transactions"
-  | "audit";
+  | "audit"
+  | "memberAudit";
 type ListingFilter = "all" | "active" | "approved" | "cancelled" | "expired" | "incomplete_payment" | "payment_error" | "disabled" | "pending";
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
@@ -742,190 +747,6 @@ const formatAdminDate = (val: any) => {
   return `${day}-${month}-${year}`;
 };
 
-function parseTimestampMs(val: any): number | null {
-  if (!val) return null;
-  if (typeof val.toMillis === "function") return val.toMillis();
-  if (typeof val.toDate === "function") return val.toDate().getTime();
-  if (val.seconds != null) return val.seconds * 1000;
-  if (val instanceof Date) return isNaN(val.getTime()) ? null : val.getTime();
-  if (typeof val === "number") return val > 1e12 ? val : val * 1000;
-  if (typeof val === "string") {
-    const t = new Date(val).getTime();
-    return isNaN(t) ? null : t;
-  }
-  return null;
-}
-
-function getEffectiveListingStatus(listing: ListingRecord, insight?: any): string {
-  const plan = insight?.plan;
-
-  // 1. Incomplete Payment / Payment Error
-  const stripeStatus = String(plan?.stripeSubscriptionStatus || listing.stripeSubscriptionStatus || "").toLowerCase();
-  const isPaymentFailed = 
-    ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(stripeStatus) ||
-    listing.paymentStatus === "failed" ||
-    listing.paymentStatus === "past_due" ||
-    listing.status === "Incomplete Payment" ||
-    listing.status === "incomplete_payment" ||
-    listing.status === "Payment Error" ||
-    listing.status === "payment_error" ||
-    listing.status === "past_due" ||
-    Boolean(plan?.paymentError) ||
-    Boolean(plan?.paymentFailed) ||
-    String(plan?.status || "").toLowerCase() === "incomplete payment" ||
-    String(plan?.status || "").toLowerCase() === "incomplete_payment" ||
-    String(plan?.status || "").toLowerCase() === "payment_error" ||
-    String(plan?.status || "").toLowerCase() === "past_due" ||
-    Boolean(plan?.lastPaymentError);
-
-  if (isPaymentFailed) {
-    return "Incomplete Payment";
-  }
-
-  // 2. Cancelled
-  const isCancelled =
-    listing.status === "Cancelled" ||
-    listing.status === "Canceled" ||
-    stripeStatus === "canceled" ||
-    stripeStatus === "cancelled" ||
-    String(plan?.status || "").toLowerCase() === "cancelled" ||
-    String(plan?.status || "").toLowerCase() === "canceled" ||
-    Boolean(plan?.cancelAtPeriodEnd) ||
-    insight?.cancelledOn != null ||
-    plan?.cancelAt != null ||
-    plan?.canceledAt != null;
-
-  if (isCancelled) {
-    return "Cancelled";
-  }
-
-  // 3. Expired
-  const isExplicitExpired = 
-    listing.status === "Expired" || 
-    String(plan?.status || "").toLowerCase() === "expired";
-
-  const expiryMs = parseTimestampMs(insight?.expiryDate || plan?.billingPeriodEnd || listing.expiryDate);
-  const isDateExpired = expiryMs != null && expiryMs < Date.now();
-  const isAdminGranted = Boolean(plan?.isTrial || plan?.source === "admin_granted" || (listing as any)?.createdByAdmin);
-
-  if (isExplicitExpired || (isDateExpired && (isAdminGranted || (stripeStatus !== "active" && stripeStatus !== "trialing")))) {
-    return "Expired";
-  }
-
-  // 4. Disabled / Inactive by admin
-  if (listing.status === "Disabled" || listing.active === false) {
-    return "Disabled";
-  }
-
-  // 5. Pending Review
-  if (listing.status === "Pending Review" || listing.status === "Pending") {
-    return "Pending Review";
-  }
-
-  // 6. Extended
-  if (listing.status === "Extended") {
-    return "Active";
-  }
-
-  // 7. Approved / Active
-  if (listing.status === "Approved" || listing.status === "Active" || listing.active === true) {
-    return "Active";
-  }
-
-  return listing.status || "Active";
-}
-
-function getEffectiveFeatureStatus(feature?: any, listing?: any): string {
-  const explicitStatus = listing?.featureStatus || feature?.status;
-
-  const hasFeature = Boolean(
-    feature ||
-    listing?.isFeatured ||
-    listing?.featureSpotlightPaidThrough ||
-    listing?.selectedAddon ||
-    listing?.featuredPlan ||
-    (listing?.featureStatus && listing.featureStatus !== "-")
-  );
-
-  if (!hasFeature) {
-    return "-";
-  }
-
-  // Check explicit admin or document status override first
-  if (explicitStatus) {
-    const norm = String(explicitStatus).trim().toLowerCase();
-    if (norm === "disabled") return "Disabled";
-    if (norm === "cancelled" || norm === "canceled") return "Cancelled";
-    if (norm === "expired") return "Expired";
-    if (norm === "incomplete payment" || norm === "incomplete_payment" || norm === "payment error" || norm === "payment_error") return "Incomplete Payment";
-    if (norm === "active" || norm === "approved") return "Active";
-  }
-
-  // 1. Incomplete Payment / Payment Error
-  const stripeStatus = String(feature?.stripeSubscriptionStatus || listing?.stripeSubscriptionStatus || "").toLowerCase();
-  const isPaymentFailed =
-    ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(stripeStatus) ||
-    feature?.paymentStatus === "failed" ||
-    feature?.paymentStatus === "past_due" ||
-    feature?.status === "Incomplete Payment" ||
-    feature?.status === "incomplete_payment" ||
-    feature?.status === "Payment Error" ||
-    feature?.status === "payment_error" ||
-    feature?.status === "past_due" ||
-    Boolean(feature?.paymentError) ||
-    Boolean(feature?.paymentFailed) ||
-    String(feature?.status || "").toLowerCase() === "incomplete payment" ||
-    String(feature?.status || "").toLowerCase() === "incomplete_payment" ||
-    String(feature?.status || "").toLowerCase() === "payment_error" ||
-    String(feature?.status || "").toLowerCase() === "past_due" ||
-    Boolean(feature?.lastPaymentError);
-
-  if (isPaymentFailed) {
-    return "Incomplete Payment";
-  }
-
-  // 2. Cancelled
-  const isCancelled =
-    feature?.status === "Cancelled" ||
-    feature?.status === "Canceled" ||
-    stripeStatus === "canceled" ||
-    stripeStatus === "cancelled" ||
-    String(feature?.status || "").toLowerCase() === "cancelled" ||
-    String(feature?.status || "").toLowerCase() === "canceled" ||
-    Boolean(feature?.cancelAtPeriodEnd) ||
-    feature?.cancelAt != null ||
-    feature?.canceledAt != null;
-
-  if (isCancelled) {
-    return "Cancelled";
-  }
-
-  // 3. Expired
-  const isExplicitExpired =
-    feature?.status === "Expired" ||
-    String(feature?.status || "").toLowerCase() === "expired";
-
-  const expiryMs = parseTimestampMs(feature?.accessThrough || feature?.billingPeriodEnd || listing?.featureSpotlightPaidThrough || feature?.expiryDate);
-  const isDateExpired = expiryMs != null && expiryMs < Date.now();
-  const isAdminGranted = Boolean(feature?.isTrial || feature?.source === "admin_granted" || (listing as any)?.createdByAdmin);
-
-  if (isExplicitExpired || (isDateExpired && (isAdminGranted || (stripeStatus !== "active" && stripeStatus !== "trialing")))) {
-    return "Expired";
-  }
-
-  // 4. Disabled
-  if (feature?.status === "Disabled" || feature?.active === false || listing?.isFeatured === false) {
-    return "Disabled";
-  }
-
-  // 5. Active
-  if (feature?.active === true || feature?.status === "Active" || feature?.status === "active" || feature?.status === "succeeded" || listing?.isFeatured === true || (expiryMs != null && expiryMs > Date.now())) {
-    return "Active";
-  }
-
-  return feature?.status || "Active";
-}
-
 const getStatusBadge = (status?: string) => {
   const norm = String(status || "").trim().toLowerCase();
   switch (norm) {
@@ -1069,6 +890,8 @@ export default function AdminDashboard() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [auditSearchTerm, setAuditSearchTerm] = useState("");
   const [auditCategoryFilter, setAuditCategoryFilter] = useState<"all" | "partner" | "listing">("all");
+  const [memberAuditSearchTerm, setMemberAuditSearchTerm] = useState("");
+  const [memberAuditCategoryFilter, setMemberAuditCategoryFilter] = useState<"all" | "auth" | "content" | "moderation">("all");
   const [settingsData, setSettingsData] = useState<AdminSettingsRecord>({
     email: "",
     phone: "",
@@ -1088,6 +911,7 @@ export default function AdminDashboard() {
   const [communityCategoriesError, setCommunityCategoriesError] = useState("");
 
   const [selectedPartner, setSelectedPartner] = useState<PartnerRecord | null>(null);
+  const [historyPartner, setHistoryPartner] = useState<PartnerRecord | null>(null);
   const [partnerEditor, setPartnerEditor] = useState<Record<string, any>>({});
   const [partnerEditorOpen, setPartnerEditorOpen] = useState(false);
   const [lastTrialEndMs, setLastTrialEndMs] = useState<number | null>(null); // for undo last extension
@@ -1477,14 +1301,16 @@ export default function AdminDashboard() {
     const pPrimaryEmail = (partnerEditor.primaryEmail || "").trim();
     const pBusinessName = (partnerEditor.businessName || "").trim();
 
-    if (!pPrimaryName || !pBusinessName) {
-      setSaveNotice("Company Name and Contact Name cannot be empty.");
-      return;
-    }
-
-    if (isPartnerAdminCreated && !pPrimaryEmail) {
-      setSaveNotice("Primary Email cannot be empty.");
-      return;
+    if (isPartnerAdminCreated) {
+      if (!pPrimaryName || !pBusinessName || !pPrimaryEmail) {
+        setSaveNotice("Company Name, Contact Name, and Primary Email cannot be empty.");
+        return;
+      }
+    } else {
+      if (!pBusinessName || !pPrimaryEmail) {
+        setSaveNotice("Company Name and Primary Email cannot be empty.");
+        return;
+      }
     }
 
     try {
@@ -1494,9 +1320,7 @@ export default function AdminDashboard() {
         payload = {
           businessName: pBusinessName,
           companyName: pBusinessName,
-          primaryName: pPrimaryName,
-          ...(partnerEditor.firstName !== undefined ? { firstName: partnerEditor.firstName } : {}),
-          ...(partnerEditor.lastName !== undefined ? { lastName: partnerEditor.lastName } : {}),
+          primaryEmail: pPrimaryEmail,
         };
       } else {
         payload = {
@@ -1585,15 +1409,33 @@ export default function AdminDashboard() {
         prev.map((p) => (p.id === selectedPartner.id ? { ...p, ...payload } : p)),
       );
 
+      const changes: string[] = [];
+      if (payload.businessName && payload.businessName !== selectedPartner.businessName) {
+        changes.push(`Company name updated from "${selectedPartner.businessName || ''}" to "${payload.businessName}"`);
+      }
+      if (payload.primaryEmail && payload.primaryEmail !== selectedPartner.primaryEmail) {
+        changes.push(`Primary email changed from "${selectedPartner.primaryEmail || ''}" to "${payload.primaryEmail}"`);
+      }
+      if (payload.primaryName && payload.primaryName !== selectedPartner.primaryName) {
+        changes.push(`Primary contact changed from "${selectedPartner.primaryName || ''}" to "${payload.primaryName}"`);
+      }
+      if (payload.companyWebsite && payload.companyWebsite !== selectedPartner.companyWebsite) {
+        changes.push(`Company URL changed from "${selectedPartner.companyWebsite || ''}" to "${payload.companyWebsite}"`);
+      }
+
+      const changeDetails = changes.length > 0
+        ? `Partner profile updated by Admin (${adminEmail}): ${changes.join(". ")}.`
+        : `Profile updated by admin: ${payload.businessName || selectedPartner.businessName} (Contact: ${payload.primaryName || selectedPartner.primaryName}). Admin: ${adminEmail}`;
+
       // Log to Audit Trail
       await logActivity({
         partnerId: selectedPartner.id,
         partnerName: payload.businessName || selectedPartner.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
-        details: `Profile updated by admin: ${payload.businessName || selectedPartner.businessName} (Contact: ${payload.primaryName || selectedPartner.primaryName}). Admin: ${adminEmail}`,
+        details: changeDetails,
         category: "admin",
         performedBy: "admin",
-        metadata: { adminEmail, updatedFields: payload, performedBy: "admin" }
+        metadata: { adminEmail, changes, updatedFields: payload, performedBy: "admin" }
       });
 
       setSaveNotice("Partner profile updated.");
@@ -2356,11 +2198,16 @@ export default function AdminDashboard() {
       const rawPlan = latestPlan?.planName || latestPlan?.planId || (partner as any).selectedPlan || "-";
 
       const pListings = partnerListingsMap.get(partner.id) || [];
+      const totalListingsCount = pListings.length;
       const activeListings = pListings.filter((listing) => {
         const insight = listingInsights[listing.id];
         const status = getEffectiveListingStatus(listing, insight);
         return status === "Active" || status === "Approved" || status === "Extended";
       });
+
+      const pFeatures = featuredPlans.filter((f) => f.partnerId === partner.id);
+      const listingFeaturedCount = pListings.filter((l) => Boolean((l as any).isFeatured || (l as any).featureSpotlightPaidThrough || (l as any).selectedAddon || ((l as any).featureStatus && (l as any).featureStatus !== "-"))).length;
+      const totalFeaturedCount = Math.max(pFeatures.length, listingFeaturedCount);
 
       let activeFeaturedCount = 0;
       activeListings.forEach((listing) => {
@@ -2374,14 +2221,18 @@ export default function AdminDashboard() {
       acc[partner.id] = {
         latestPlan: formatUserPlan(rawPlan, latestPlan),
         listingCount: activeListings.length,
+        totalListingsCount,
         featuredCount: activeFeaturedCount,
+        totalFeaturedCount,
         trialInfo,
       };
       return acc;
     }, {} as Record<string, { 
       latestPlan: string; 
       listingCount: number; 
+      totalListingsCount: number;
       featuredCount: number; 
+      totalFeaturedCount: number;
       trialInfo?: { 
         durationDays: number; 
         currentDay: number; 
@@ -2426,7 +2277,68 @@ export default function AdminDashboard() {
 
         if (isCatInactive) return;
 
-        if (!Array.isArray(subEntries) || subEntries.length === 0) {
+        let pushedForCategory = 0;
+
+        if (Array.isArray(subEntries) && subEntries.length > 0) {
+          subEntries.forEach((sub: any) => {
+            if (typeof sub === "string") {
+              const specificSubMeta = categoryMetadataMap[`${groupKey}:${category}:${sub}`];
+              const isSubInactive = specificSubMeta && (
+                (specificSubMeta.status || "").toLowerCase() === "inactive" ||
+                specificSubMeta.isDeleted === true ||
+                specificSubMeta.deleted === true
+              );
+
+              if (isSubInactive) return;
+
+              const subMeta = specificSubMeta || catMeta;
+              pushedForCategory++;
+              rows.push({
+                id: subMeta.id || catMeta.id,
+                group,
+                category,
+                subcategory: sub,
+                subSubcategory: "-",
+                status: specificSubMeta?.status || catMeta.status || "Active",
+                imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
+                metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
+                metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
+                description: subMeta.description || catMeta.description || "",
+              });
+              return;
+            }
+            const subLabel = sub.label || "-";
+            const subSubs =
+              Array.isArray(sub.subSubcategories) && sub.subSubcategories.length > 0
+                ? sub.subSubcategories.join(", ")
+                : "-";
+            const specificSubMeta = categoryMetadataMap[`${groupKey}:${category}:${subLabel}`];
+            const isSubInactive = specificSubMeta && (
+              (specificSubMeta.status || "").toLowerCase() === "inactive" ||
+              specificSubMeta.isDeleted === true ||
+              specificSubMeta.deleted === true
+            );
+
+            if (isSubInactive) return;
+
+            const subMeta = specificSubMeta || catMeta;
+            pushedForCategory++;
+            rows.push({
+              id: subMeta.id || catMeta.id,
+              group,
+              category,
+              subcategory: subLabel,
+              subSubcategory: subSubs,
+              status: specificSubMeta?.status || catMeta.status || "Active",
+              imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
+              metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
+              metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
+              description: subMeta.description || catMeta.description || "",
+            });
+          });
+        }
+
+        if (pushedForCategory === 0) {
           rows.push({
             id: catMeta.id,
             group,
@@ -2439,59 +2351,7 @@ export default function AdminDashboard() {
             metaKeywords: catMeta.metaKeywords || "",
             description: catMeta.description || "",
           });
-          return;
         }
-
-        subEntries.forEach((sub: any) => {
-          if (typeof sub === "string") {
-            const subMeta = categoryMetadataMap[`${groupKey}:${category}:${sub}`] || catMeta;
-            const isSubInactive =
-              (subMeta.status || "").toLowerCase() === "inactive" ||
-              subMeta.isDeleted === true ||
-              subMeta.deleted === true;
-
-            if (isSubInactive) return;
-
-            rows.push({
-              id: subMeta.id || catMeta.id,
-              group,
-              category,
-              subcategory: sub,
-              subSubcategory: "-",
-              status: subMeta.status || catMeta.status || "Active",
-              imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
-              metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
-              metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
-              description: subMeta.description || catMeta.description || "",
-            });
-            return;
-          }
-          const subLabel = sub.label || "-";
-          const subSubs =
-            Array.isArray(sub.subSubcategories) && sub.subSubcategories.length > 0
-              ? sub.subSubcategories.join(", ")
-              : "-";
-          const subMeta = categoryMetadataMap[`${groupKey}:${category}:${subLabel}`] || catMeta;
-          const isSubInactive =
-            (subMeta.status || "").toLowerCase() === "inactive" ||
-            subMeta.isDeleted === true ||
-            subMeta.deleted === true;
-
-          if (isSubInactive) return;
-
-          rows.push({
-            id: subMeta.id || catMeta.id,
-            group,
-            category,
-            subcategory: subLabel,
-            subSubcategory: subSubs,
-            status: subMeta.status || catMeta.status || "Active",
-            imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
-            metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
-            metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
-            description: subMeta.description || catMeta.description || "",
-          });
-        });
       });
     });
 
@@ -2640,7 +2500,9 @@ export default function AdminDashboard() {
       "Status",
       "Latest Plan",
       "Total Active Listings",
+      "Total Listings",
       "Total Active Features",
+      "Total Features",
     ];
 
     const rows = filteredPartners.map((partner) => {
@@ -2660,7 +2522,9 @@ export default function AdminDashboard() {
         partner.partnerStatus || "",
         insight?.latestPlan || "-",
         `${insight?.listingCount || 0}`,
+        `${insight?.totalListingsCount || 0}`,
         `${insight?.featuredCount || 0}`,
+        `${insight?.totalFeaturedCount || 0}`,
       ];
     });
 
@@ -2677,6 +2541,181 @@ export default function AdminDashboard() {
     const link = document.createElement("a");
     link.href = url;
     link.download = `partners-export-${new Date().toISOString().slice(0, 10)}.${format === "excel" ? "xls" : "csv"}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const filteredPartnerLogs = useMemo(() => {
+    return auditLogs
+      .filter((log) => !isMemberAuditLog(log))
+      .filter((log) => {
+        if (auditCategoryFilter === "partner" && !isPartnerAccountLog(log)) {
+          return false;
+        }
+        if (auditCategoryFilter === "listing" && !isListingOrBillingLog(log)) {
+          return false;
+        }
+        if (!auditSearchTerm) return true;
+        const q = auditSearchTerm.toLowerCase().trim();
+        const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";
+        return (
+          (log.partnerName || "").toLowerCase().includes(q) ||
+          (log.action || "").toLowerCase().includes(q) ||
+          (log.details || "").toLowerCase().includes(q) ||
+          (log.partnerId || "").toLowerCase().includes(q) ||
+          (log.id || "").toLowerCase().includes(q) ||
+          metaStr.includes(q)
+        );
+      });
+  }, [auditLogs, auditCategoryFilter, auditSearchTerm]);
+
+  const exportPartnerAuditLogs = (format: "csv" | "excel") => {
+    const headers = ["Timestamp", "Company / Partner", "Partner ID", "Action", "Updated By", "Details"];
+    const rows = filteredPartnerLogs.map((log) => {
+      const actor = getPartnerAuditActor(log);
+      const timeStr = log.timestamp?.seconds
+        ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+        : "-";
+      return [
+        timeStr,
+        log.partnerName || "Unknown",
+        log.partnerId || "",
+        log.action || "",
+        actor.label,
+        log.details || "",
+      ];
+    });
+
+    const separator = format === "excel" ? "\t" : ",";
+    const escapedRows = rows.map((row) =>
+      row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(separator),
+    );
+    const content = [headers.join(separator), ...escapedRows].join("\n");
+
+    const blob = new Blob([content], {
+      type: format === "excel" ? "application/vnd.ms-excel;charset=utf-8;" : "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `partner-audit-logs-${new Date().toISOString().slice(0, 10)}.${format === "excel" ? "xls" : "csv"}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  const filteredMemberLogs = useMemo(() => {
+    return auditLogs
+      .filter(isMemberAuditLog)
+      .filter((log) => {
+        const action = (log.action || "").toUpperCase();
+        const category = (log.category || "").toLowerCase();
+        const details = (log.details || "").toLowerCase();
+        const scope = (log.metadata?.scope || "").toLowerCase();
+        const actor = getMemberAuditActor(log);
+        const isAdmin = actor.label === "Admin";
+
+        const isAuthAction =
+          action.includes("REGISTER") ||
+          action.includes("LOGIN") ||
+          action.includes("ACCOUNT_") ||
+          action.includes("PASSWORD_") ||
+          action.includes("PROFILE_") ||
+          action.startsWith("MEMBER_REGISTERED") ||
+          action.startsWith("MEMBER_LOGIN") ||
+          action.startsWith("MEMBER_UPDATED") ||
+          details.includes("registered") ||
+          details.includes("logged in") ||
+          details.includes("password") ||
+          details.includes("profile");
+
+        // Community Content: Any activity on community posts or comments (creation, edits, reports, activations, deactivations)
+        const isContentAction =
+          action.startsWith("POST_") ||
+          action.startsWith("COMMENT_") ||
+          scope.includes("posts") ||
+          scope.includes("comments") ||
+          scope.includes("community") ||
+          category === "community" ||
+          details.includes("post") ||
+          details.includes("comment");
+
+        const isModerationAction =
+          isAdmin ||
+          category === "admin" ||
+          action === "ADMIN_ACTION" ||
+          action === "MEMBER_STATUS_CHANGED" ||
+          action === "MEMBER_DELETED" ||
+          action.includes("ACTIVATED") ||
+          action.includes("DEACTIVATED") ||
+          details.includes("admin") ||
+          details.includes("activated") ||
+          details.includes("deactivated") ||
+          details.includes("hold") ||
+          details.includes("blocked");
+
+        if (memberAuditCategoryFilter === "auth") {
+          if (!isAuthAction) return false;
+        }
+        if (memberAuditCategoryFilter === "content") {
+          if (!isContentAction) return false;
+        }
+        if (memberAuditCategoryFilter === "moderation") {
+          if (!isModerationAction) return false;
+        }
+
+        if (!memberAuditSearchTerm) return true;
+        const q = memberAuditSearchTerm.toLowerCase().trim();
+        const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";
+        return (
+          (log.partnerName || log.memberName || "").toLowerCase().includes(q) ||
+          (log.action || "").toLowerCase().includes(q) ||
+          (log.details || "").toLowerCase().includes(q) ||
+          (log.partnerId || log.memberId || "").toLowerCase().includes(q) ||
+          (log.id || "").toLowerCase().includes(q) ||
+          metaStr.includes(q)
+        );
+      });
+  }, [auditLogs, memberAuditCategoryFilter, memberAuditSearchTerm]);
+
+  const exportMemberAuditLogs = (format: "csv" | "excel") => {
+    const headers = ["Timestamp", "Member / Subject", "Member ID", "Action", "Performed By", "Details"];
+    const rows = filteredMemberLogs.map((log) => {
+      const actor = getMemberAuditActor(log);
+      const subject = getMemberAuditSubject(log, actor);
+      const timeStr = log.timestamp?.seconds
+        ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+        : "-";
+      const performer =
+        actor.label === "Admin" && (log.partnerName?.includes("@") || log.metadata?.adminEmail)
+          ? `Admin (${log.partnerName || log.metadata?.adminEmail})`
+          : actor.label;
+      return [
+        timeStr,
+        subject.name,
+        subject.id || log.partnerId || log.memberId || "",
+        log.action || "",
+        performer,
+        log.details || "",
+      ];
+    });
+
+    const separator = format === "excel" ? "\t" : ",";
+    const escapedRows = rows.map((row) =>
+      row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(separator),
+    );
+    const content = [headers.join(separator), ...escapedRows].join("\n");
+
+    const blob = new Blob([content], {
+      type: format === "excel" ? "application/vnd.ms-excel;charset=utf-8;" : "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `member-audit-logs-${new Date().toISOString().slice(0, 10)}.${format === "excel" ? "xls" : "csv"}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2792,6 +2831,7 @@ export default function AdminDashboard() {
     settings: "Settings",
     transactions: "Transactions",
     audit: "Audit Trail",
+    memberAudit: "Member Audit Trail",
   };
 
   if (isAuthorized === null) {
@@ -2822,12 +2862,14 @@ export default function AdminDashboard() {
             <SidebarItem label="Partners" icon={Users} active={activeTab === "partners"} onClick={() => setActiveTab("partners")} badge={stats.pendingApprovals > 0 ? stats.pendingApprovals : undefined} />
             <SidebarItem label="Listings" icon={FileText} active={activeTab === "listings"} onClick={() => setActiveTab("listings")} badge={stats.pendingListings > 0 ? stats.pendingListings : undefined} />
             <SidebarItem label="Plans" icon={Tags} active={activeTab === "plans"} onClick={() => setActiveTab("plans")} />
-            <SidebarItem label="Featured Plans" icon={Sparkles} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
+            <SidebarItem label="Featured Plans" icon={Star} active={activeTab === "featuredPlans"} onClick={() => setActiveTab("featuredPlans")} />
             <SidebarItem label="Categories" icon={FileText} active={activeTab === "categories"} onClick={() => setActiveTab("categories")} />
             <SidebarItem label="Health Authority Sites" icon={Globe} active={activeTab === "healthAuthorities"} onClick={() => setActiveTab("healthAuthorities")} />
             <SidebarItem label="Site Policies" icon={ShieldCheck} active={activeTab === "policies"} onClick={() => setActiveTab("policies")} />
             <SidebarItem label="FAQs" icon={HelpCircle} active={activeTab === "faqs"} onClick={() => setActiveTab("faqs")} />
             <SidebarItem label="Contact Page" icon={Mail} active={activeTab === "contact"} onClick={() => setActiveTab("contact")} />
+            <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
+            <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
             <p className="text-[11px] font-semibold tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
             <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
             <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
@@ -2835,9 +2877,8 @@ export default function AdminDashboard() {
             <SidebarItem label="Reported comments" icon={Flag} active={activeTab === "communityReportedComments"} onClick={() => setActiveTab("communityReportedComments")} />
             <SidebarItem label="Community categories" icon={Tags} active={activeTab === "communityCategories"} onClick={() => setActiveTab("communityCategories")} />
             <SidebarItem label="Email log" icon={History} active={activeTab === "emailLog"} onClick={() => setActiveTab("emailLog")} />
+            <SidebarItem label="Member Audit Trail" icon={History} active={activeTab === "memberAudit"} onClick={() => setActiveTab("memberAudit")} />
             <SidebarItem label="Settings" icon={Settings} active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
-            <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
-            <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
         </nav>
 
         <div className="shrink-0 p-4 border-t border-slate-200 space-y-2 bg-white">
@@ -2934,6 +2975,7 @@ export default function AdminDashboard() {
                   partnerInsights={partnerInsights}
                   onView={openPartnerEditor}
                   onSetStatus={setPartnerStatus}
+                  onOpenHistory={(partner) => setHistoryPartner(partner)}
                 />
               </div>
             )
@@ -3004,7 +3046,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {activeTab === "transactions" && <TransactionList transactions={transactions} />}
+          {activeTab === "transactions" && <TransactionList transactions={transactions} partners={partners} />}
 
           {activeTab === "plans" && <PlansCMS />}
 
@@ -3208,73 +3250,170 @@ export default function AdminDashboard() {
 
           {activeTab === "audit" && (
             <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
-                <div className="relative w-full md:w-96">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <Input
-                    placeholder="Search audit logs by company name, ID, or details..."
-                    value={auditSearchTerm}
-                    onChange={(e) => setAuditSearchTerm(e.target.value)}
-                    className="pl-10 h-11 bg-white border-slate-200"
-                  />
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">
+                    Audit logs, account registrations, profile updates, listings, plans, upgrades, feature spotlights, and cancellations for partners.
+                  </p>
                 </div>
-                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                  <button
-                    type="button"
-                    onClick={() => setAuditCategoryFilter("all")}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                      auditCategoryFilter === "all"
-                        ? "bg-white text-slate-900 shadow-sm"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    All Logs
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuditCategoryFilter("partner")}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                      auditCategoryFilter === "partner"
-                        ? "bg-white text-slate-900 shadow-sm"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Partner Accounts
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuditCategoryFilter("listing")}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                      auditCategoryFilter === "listing"
-                        ? "bg-white text-slate-900 shadow-sm"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Listings & Payments
-                  </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Search company, ID, email, details…"
+                      value={auditSearchTerm}
+                      onChange={(e) => setAuditSearchTerm(e.target.value)}
+                      className="pl-9 h-10 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setAuditCategoryFilter("all")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        auditCategoryFilter === "all"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      All Logs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuditCategoryFilter("partner")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        auditCategoryFilter === "partner"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Partner Accounts
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAuditCategoryFilter("listing")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        auditCategoryFilter === "listing"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Listings & Money
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportPartnerAuditLogs("csv")}
+                      className="h-10 text-xs"
+                      disabled={filteredPartnerLogs.length === 0}
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1.5" /> CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportPartnerAuditLogs("excel")}
+                      className="h-10 text-xs"
+                      disabled={filteredPartnerLogs.length === 0}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
+                    </Button>
+                  </div>
                 </div>
               </div>
-              <AuditLogList
-                logs={auditLogs.filter(log => {
-                  if (auditCategoryFilter === "partner" && !isPartnerAccountLog(log)) {
-                    return false;
-                  }
-                  if (auditCategoryFilter === "listing" && !isListingOrBillingLog(log)) {
-                    return false;
-                  }
-                  if (!auditSearchTerm) return true;
-                  const q = auditSearchTerm.toLowerCase().trim();
-                  const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";
-                  return (
-                    log.partnerName?.toLowerCase().includes(q) ||
-                    log.action?.toLowerCase().includes(q) ||
-                    log.details?.toLowerCase().includes(q) ||
-                    log.partnerId?.toLowerCase().includes(q) ||
-                    log.id?.toLowerCase().includes(q) ||
-                    metaStr.includes(q)
-                  );
-                })}
-              />
+              <PartnerAuditLogList logs={filteredPartnerLogs} />
+            </div>
+          )}
+
+          {activeTab === "memberAudit" && (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm text-slate-600">
+                    Audit logs, registration history, authentication events, and moderation actions for community members.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative w-full sm:w-72">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <Input
+                      placeholder="Search member, email, details…"
+                      value={memberAuditSearchTerm}
+                      onChange={(e) => setMemberAuditSearchTerm(e.target.value)}
+                      className="pl-9 h-10 bg-white"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => setMemberAuditCategoryFilter("all")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        memberAuditCategoryFilter === "all"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      All Logs
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberAuditCategoryFilter("auth")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        memberAuditCategoryFilter === "auth"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Account & Auth
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberAuditCategoryFilter("content")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        memberAuditCategoryFilter === "content"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Community Content
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberAuditCategoryFilter("moderation")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        memberAuditCategoryFilter === "moderation"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Admin Moderation
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportMemberAuditLogs("csv")}
+                      className="h-10 text-xs"
+                      disabled={filteredMemberLogs.length === 0}
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1.5" /> CSV
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => exportMemberAuditLogs("excel")}
+                      className="h-10 text-xs"
+                      disabled={filteredMemberLogs.length === 0}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <MemberAuditLogList logs={filteredMemberLogs} />
             </div>
           )}
         </div>
@@ -3287,28 +3426,32 @@ export default function AdminDashboard() {
               <SheetTitle>Edit Partner Profile</SheetTitle>
               <SheetDescription>Update partner's information and account status</SheetDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-              onClick={() => {
-                setActiveTab("audit");
-                setAuditCategoryFilter("all");
-                setAuditSearchTerm(selectedPartner?.id || selectedPartner?.businessName || "");
-                setPartnerEditorOpen(false);
-              }}
-            >
-              <History className="w-4 h-4" />
-              View History
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex items-center gap-1.5 text-blue-700 border-blue-200 hover:bg-blue-50"
+                onClick={() => {
+                  if (selectedPartner) {
+                    setActiveTab("audit");
+                    setAuditCategoryFilter("all");
+                    setAuditSearchTerm(selectedPartner.id || selectedPartner.businessName || "");
+                    setPartnerEditorOpen(false);
+                  }
+                }}
+              >
+                <History className="w-3.5 h-3.5" />
+                Partner Audit Trail
+              </Button>
+            </div>
           </SheetHeader>
           <div className="mt-6 space-y-6">
             {selectedPartner && !Boolean((selectedPartner as any).createdByAdmin) && (
-              <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 flex items-start gap-2">
-                <Info className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800 flex items-start gap-2">
+                <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div>
                   <span className="font-semibold">Self-Registered Partner Account</span>
-                  <p className="text-amber-700 mt-0.5">Only the Company Name and Primary Contact Name are editable by admins. Other profile fields are managed directly by the user.</p>
+                  <p className="text-blue-700 mt-0.5">Only the Company Name and Primary Email are editable by admins. Other profile fields are managed directly by the partner.</p>
                 </div>
               </div>
             )}
@@ -3401,29 +3544,57 @@ export default function AdminDashboard() {
               );
             })()}
 
-            {selectedPartner && Boolean((selectedPartner as any).createdByAdmin) && (() => {
+            {selectedPartner && (() => {
               const partnerFeature = featuredPlans.find((f) => f.partnerId === selectedPartner.id);
-              if (!partnerFeature && !selectedPartner.selectedAddon) return null;
-              const accessDate = partnerFeature?.accessThrough ? new Date(typeof (partnerFeature.accessThrough as any).toDate === 'function' ? (partnerFeature.accessThrough as any).toDate() : partnerFeature.accessThrough) : null;
+              const hasAddon =
+                selectedPartner.selectedAddon &&
+                selectedPartner.selectedAddon !== "none" &&
+                selectedPartner.selectedAddon !== "null" &&
+                String(selectedPartner.selectedAddon).trim() !== "";
+
+              if (!partnerFeature && !hasAddon) return null;
+
+              const accessDate = partnerFeature?.accessThrough
+                ? new Date(
+                    typeof (partnerFeature.accessThrough as any).toDate === "function"
+                      ? (partnerFeature.accessThrough as any).toDate()
+                      : partnerFeature.accessThrough
+                  )
+                : null;
               const isExpired = accessDate ? accessDate.getTime() < Date.now() : false;
-              const featureName = (partnerFeature?.featureName || partnerFeature?.featureId || selectedPartner.selectedAddon || "").replace(/_/g, ' ');
+              const rawName =
+                partnerFeature?.featureName ||
+                partnerFeature?.featureId ||
+                (hasAddon ? selectedPartner.selectedAddon : "") ||
+                "";
+              const featureName = rawName.replace(/_/g, " ").trim();
+
+              if (!featureName || featureName.toLowerCase() === "none" || featureName.toLowerCase() === "null") {
+                return null;
+              }
+
               return (
                 <div className="bg-amber-50/50 p-4 rounded-lg border border-amber-200 space-y-3 mt-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold tracking-wider text-amber-800 flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span className="text-xs font-semibold tracking-wider text-amber-800">
                       Feature Spotlight Status
                     </span>
                     {isExpired ? (
-                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">Expired</Badge>
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">
+                        Expired
+                      </Badge>
                     ) : (
                       <Badge className="bg-amber-100 text-amber-800 border-amber-300">Active Spotlight</Badge>
                     )}
                   </div>
                   <div className="text-sm text-slate-700 space-y-1">
-                    <p><strong>Feature:</strong> {featureName}</p>
+                    <p>
+                      <strong>Feature:</strong> {featureName}
+                    </p>
                     {accessDate && <p><strong>Expiration:</strong> {accessDate.toLocaleDateString()}</p>}
-                    <p className="text-xs text-amber-800/80 italic pt-0.5">Automatically synchronized with plan trial period</p>
+                    <p className="text-xs text-amber-800/80 italic pt-0.5">
+                      Automatically synchronized with plan trial period
+                    </p>
                   </div>
                 </div>
               );
@@ -3433,16 +3604,21 @@ export default function AdminDashboard() {
             <div className="border-b pb-2 pt-4 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Contact Information</h3>
             </div>
+            {!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) && (
+              <div className="bg-blue-50/70 border border-blue-200/80 rounded-lg p-3 text-xs text-blue-800 mb-2">
+                <strong>Self-serve Partner Account:</strong> Only Company Name and Primary Email can be updated by admin. All other profile information is managed by the partner.
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-4">
-              <Field label="First Name" value={partnerEditor.firstName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, firstName: v }))} />
-              <Field label="Last Name" value={partnerEditor.lastName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, lastName: v }))} />
+              <Field label="First Name" value={partnerEditor.firstName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, firstName: v }))} disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)} />
+              <Field label="Last Name" value={partnerEditor.lastName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, lastName: v }))} disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)} />
             </div>
-            <Field label="Primary Contact Name" value={partnerEditor.primaryName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryName: v }))} />
+            <Field label="Primary Contact Name" value={partnerEditor.primaryName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryName: v }))} disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)} />
             <Field 
               label="Primary Email" 
               value={partnerEditor.primaryEmail || ""} 
               onChange={(v) => setPartnerEditor((prev) => ({ ...prev, primaryEmail: v }))} 
-              disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+              disabled={false}
             />
             <Field 
               label="Phone Number" 
@@ -3455,7 +3631,7 @@ export default function AdminDashboard() {
             <div className="border-b pb-2 pt-4 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Company Details</h3>
             </div>
-            <Field label="Business / Company Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} />
+            <Field label="Business / Company Name" value={partnerEditor.businessName || ""} onChange={(v) => setPartnerEditor((prev) => ({ ...prev, businessName: v }))} disabled={false} />
             <Field 
               label="Company Website" 
               value={partnerEditor.companyWebsite || ""} 
@@ -3709,7 +3885,11 @@ export default function AdminDashboard() {
 
             <Button 
               onClick={savePartnerEdits} 
-              disabled={!((partnerEditor.primaryName?.trim() || (partnerEditor.firstName?.trim() && partnerEditor.lastName?.trim())) && partnerEditor.businessName?.trim())} 
+              disabled={
+                Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)
+                  ? !((partnerEditor.primaryName?.trim() || (partnerEditor.firstName?.trim() && partnerEditor.lastName?.trim())) && partnerEditor.businessName?.trim() && partnerEditor.primaryEmail?.trim())
+                  : !(partnerEditor.businessName?.trim() && partnerEditor.primaryEmail?.trim())
+              } 
               className="w-full"
             >
               Save Partner Changes
@@ -3966,6 +4146,17 @@ export default function AdminDashboard() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <PartnerPlanHistoryModal
+        partner={historyPartner}
+        isOpen={Boolean(historyPartner)}
+        onClose={() => setHistoryPartner(null)}
+        partnerPlans={partnerPlans}
+        featuredPlans={featuredPlans}
+        listings={listings}
+        transactions={transactions}
+        listingInsights={listingInsights}
+      />
     </div>
   );
 }
@@ -4006,26 +4197,15 @@ function SidebarItem({
 function StatCard({
   label,
   value,
-  icon: Icon,
-  iconClass,
 }: {
   label: string;
   value: string | number;
-  icon: any;
-  iconClass: string;
 }) {
   return (
     <Card className="bg-white border-slate-200 shadow-sm">
       <CardContent className="p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-xs tracking-wide text-slate-500">{label}</p>
-            <p className="text-2xl font-semibold mt-1">{value}</p>
-          </div>
-          <div className={`p-2 rounded-md ${iconClass}`}>
-            <Icon className="w-4 h-4" />
-          </div>
-        </div>
+        <p className="text-xs font-medium tracking-wide text-slate-500">{label}</p>
+        <p className="text-2xl font-bold mt-1 text-slate-900 tracking-tight">{value}</p>
       </CardContent>
     </Card>
   );
@@ -4047,11 +4227,11 @@ function OverviewTab({
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard label="Revenue" value={`$${Number(stats.totalRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} icon={Receipt} iconClass="bg-emerald-100 text-emerald-700" />
-        <StatCard label="Partners" value={stats.totalPartners} icon={Users} iconClass="bg-sky-100 text-sky-700" />
-        <StatCard label="Pending Partners" value={stats.pendingApprovals} icon={AlertCircle} iconClass="bg-amber-100 text-amber-700" />
-        <StatCard label="Pending Listings" value={stats.pendingListings} icon={Clock} iconClass="bg-amber-100 text-amber-700" />
-        <StatCard label="Live Listings" value={stats.activeListings} icon={BadgeCheck} iconClass="bg-indigo-100 text-indigo-700" />
+        <StatCard label="Revenue" value={`$${Number(stats.totalRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+        <StatCard label="Partners" value={stats.totalPartners} />
+        <StatCard label="Pending Partners" value={stats.pendingApprovals} />
+        <StatCard label="Pending Listings" value={stats.pendingListings} />
+        <StatCard label="Live Listings" value={stats.activeListings} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -4154,6 +4334,7 @@ function PartnerList({
   partnerInsights,
   onView,
   onSetStatus,
+  onOpenHistory,
 }: {
   partners: PartnerRecord[];
   partnerInsights: Record<
@@ -4161,7 +4342,9 @@ function PartnerList({
     {
       latestPlan: string;
       listingCount: number;
+      totalListingsCount: number;
       featuredCount: number;
+      totalFeaturedCount: number;
       trialInfo?: {
         durationDays: number;
         currentDay: number;
@@ -4172,6 +4355,7 @@ function PartnerList({
   >;
   onView: (partner: PartnerRecord) => void;
   onSetStatus: (partner: PartnerRecord, status: string) => void;
+  onOpenHistory: (partner: PartnerRecord) => void;
 }) {
   if (partners.length === 0) {
     return (
@@ -4194,9 +4378,10 @@ function PartnerList({
                 <TableHead className="px-2 py-3 text-xs">Email</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Phone</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Profile Created</TableHead>
-                <TableHead className="px-2 py-3 text-xs">User Plan</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Listings</TableHead>
+                <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Listings</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Active Features</TableHead>
+                <TableHead className="px-2 py-3 text-xs text-center whitespace-nowrap">Total Features</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Contact</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Head Office Country</TableHead>
                 <TableHead className="px-2 py-3 text-xs text-center">By Admin</TableHead>
@@ -4206,32 +4391,7 @@ function PartnerList({
             <TableBody>
               {partners.map((partner) => {
                 const insight = partnerInsights[partner.id];
-                const trial = insight?.trialInfo;
                 const created = formatPartnerCreatedAt(partner.createdAt || partner.created || partner.registeredAt);
-
-                let trialBadge = null;
-                if (trial) {
-                  if (trial.isExpired) {
-                    trialBadge = (
-                      <Badge className="w-fit bg-slate-100 text-slate-600 border-slate-200 text-[10px] px-1.5 py-0 font-normal">
-                        Trial: Expired
-                      </Badge>
-                    );
-                  } else {
-                    const percentage = (trial.currentDay / trial.durationDays) * 100;
-                    let colorClass = "bg-blue-50 text-blue-700 border-blue-200";
-                    if (percentage >= 90) {
-                      colorClass = "bg-rose-50 text-rose-700 border-rose-200";
-                    } else if (percentage >= 50) {
-                      colorClass = "bg-amber-50 text-amber-700 border-amber-200";
-                    }
-                    trialBadge = (
-                      <Badge className={`w-fit border text-[10px] px-1.5 py-0 font-normal ${colorClass}`}>
-                        Trial: {trial.currentDay}/{trial.durationDays}
-                      </Badge>
-                    );
-                  }
-                }
 
                 return (
                   <TableRow key={partner.id}>
@@ -4259,17 +4419,46 @@ function PartnerList({
                         <span className="text-xs text-slate-400">-</span>
                       )}
                     </TableCell>
-
-                    <TableCell className="px-2 py-2">
-                      <div className="flex flex-col gap-1">
-                        <span className="text-xs font-medium truncate max-w-[120px]" title={insight?.latestPlan || ""}>
-                          {insight?.latestPlan || "-"}
-                        </span>
-                        {trialBadge}
-                      </div>
+                    <TableCell className="px-2 py-2 text-sm text-center">
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(partner)}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                        title="Click to view active listings history"
+                      >
+                        {insight?.listingCount || 0}
+                      </button>
                     </TableCell>
-                    <TableCell className="px-2 py-2 text-sm text-center">{insight?.listingCount || 0}</TableCell>
-                    <TableCell className="px-2 py-2 text-sm text-center">{insight?.featuredCount || 0}</TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(partner)}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
+                        title="Click to view all-time listings history"
+                      >
+                        {insight?.totalListingsCount || 0}
+                      </button>
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(partner)}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-purple-50 hover:text-purple-600 transition-colors"
+                        title="Click to view active features history"
+                      >
+                        {insight?.featuredCount || 0}
+                      </button>
+                    </TableCell>
+                    <TableCell className="px-2 py-2 text-sm text-center">
+                      <button
+                        type="button"
+                        onClick={() => onOpenHistory(partner)}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
+                        title="Click to view all-time features history"
+                      >
+                        {insight?.totalFeaturedCount || 0}
+                      </button>
+                    </TableCell>
                     <TableCell className="px-2 py-2">
                       <p className="text-sm max-w-[120px] truncate font-medium text-slate-800" title={partner.primaryName || ""}>
                         {partner.primaryName || "-"}
@@ -4290,8 +4479,11 @@ function PartnerList({
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[190px]">
+                        <DropdownMenuContent align="end" className="min-w-[210px]">
                           <DropdownMenuLabel>Partner Actions</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => onOpenHistory(partner)}>
+                            <History className="w-4 h-4 mr-2 text-blue-600" /> Plan & feature history
+                          </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => onView(partner)}>
                             <Eye className="w-4 h-4 mr-2" /> View / Edit profile
                           </DropdownMenuItem>
@@ -4991,8 +5183,18 @@ function ListingsList({
   );
 }
 
-function TransactionList({ transactions }: { transactions: any[] }) {
+function TransactionList({ transactions, partners = [] }: { transactions: any[]; partners?: PartnerRecord[] }) {
   const [search, setSearch] = useState("");
+
+  const partnerMap = useMemo(() => {
+    const byId = new Map<string, PartnerRecord>();
+    const byEmail = new Map<string, PartnerRecord>();
+    for (const p of partners) {
+      if (p.id) byId.set(p.id, p);
+      if (p.primaryEmail) byEmail.set(p.primaryEmail.toLowerCase(), p);
+    }
+    return { byId, byEmail };
+  }, [partners]);
 
   const rows = useMemo(
     () =>
@@ -5006,27 +5208,28 @@ function TransactionList({ transactions }: { transactions: any[] }) {
     const q = search.trim().toLowerCase();
     if (!q) return rows;
     return rows.filter((r) => {
+      const p = (r.partnerId ? partnerMap.byId.get(r.partnerId) : null) || (r.customerEmail ? partnerMap.byEmail.get(r.customerEmail.toLowerCase()) : null);
+      const contact = r.primaryContact || p?.primaryName || "";
+      const bName = r.businessName || p?.businessName || "";
+      const em = r.customerEmail || p?.primaryEmail || "";
       const hay = [
         r.dateDisplay,
-        r.typeLabel,
-        r.description,
+        em,
+        contact,
+        bName,
         r.group,
-        r.businessName,
-        r.customerEmail,
-        r.partnerId,
-        r.planId,
-        r.featureId,
-        r.listingId,
+        r.eventDisplay,
+        r.planDisplay,
+        r.description,
         r.statusLabel,
         r.amountDisplay,
-        r.collectionName,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search]);
+  }, [rows, search, partnerMap]);
 
   const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     if (filtered.length === 0) return;
@@ -5097,53 +5300,80 @@ function TransactionList({ transactions }: { transactions: any[] }) {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="pl-6">Date</TableHead>
-                    <TableHead>Partner</TableHead>
-                    <TableHead>Business</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Description</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Primary contact</TableHead>
+                    <TableHead>Business name</TableHead>
                     <TableHead>Group</TableHead>
-                    <TableHead>Listing ID</TableHead>
+                    <TableHead>Event</TableHead>
+                    <TableHead>Description</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead className="text-right pr-6">Amount</TableHead>
+                    <TableHead className="text-right">Amount</TableHead>
+                    <TableHead className="text-right pr-6">Invoice (pdf)</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((t: PartnerTransactionRow) => (
-                    <TableRow key={t.id}>
-                      <TableCell className="pl-6 whitespace-nowrap text-slate-600">{t.dateDisplay}</TableCell>
-                      <TableCell>
-                        <div className="space-y-0.5 max-w-[200px]">
-                          <p className="truncate">{t.customerEmail || "—"}</p>
-                          <p className="text-xs text-slate-500 font-mono truncate" title={t.partnerId || ""}>
-                            {t.partnerId || "—"}
-                          </p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="max-w-[160px] truncate">{t.businessName || "—"}</TableCell>
-                      <TableCell>{t.typeLabel}</TableCell>
-                      <TableCell className="max-w-[220px] truncate" title={t.description}>
-                        {t.description}
-                      </TableCell>
-                      <TableCell className="capitalize whitespace-nowrap">{t.group || "—"}</TableCell>
-                      <TableCell className="font-mono text-xs max-w-[120px] truncate">{t.listingId || "—"}</TableCell>
-                      <TableCell>
-                        <Badge
-                          className={
-                            t.statusRaw === "succeeded"
-                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                              : t.statusRaw === "pending"
-                                ? "bg-amber-50 text-amber-700 border-amber-200"
-                                : "bg-rose-50 text-rose-700 border-rose-200"
-                          }
-                        >
-                          {t.statusLabel}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right pr-6 font-semibold text-emerald-700 tabular-nums whitespace-nowrap">
-                        {t.amountDisplay}
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  {filtered.map((t: PartnerTransactionRow) => {
+                    const partner = (t.partnerId ? partnerMap.byId.get(t.partnerId) : null) || (t.customerEmail ? partnerMap.byEmail.get(t.customerEmail.toLowerCase()) : null);
+                    const email = t.customerEmail || partner?.primaryEmail || "—";
+                    const primaryContact = t.primaryContact || partner?.primaryName || "—";
+                    const businessName = t.businessName || partner?.businessName || "—";
+                    const event = t.eventDisplay || "Initial";
+                    const description = t.planDisplay || t.description || "—";
+
+                    return (
+                      <TableRow key={t.id}>
+                        <TableCell className="pl-6 whitespace-nowrap text-slate-600">{t.dateDisplay}</TableCell>
+                        <TableCell className="max-w-[200px] truncate" title={email}>
+                          {email}
+                        </TableCell>
+                        <TableCell className="max-w-[170px] truncate font-medium text-slate-800" title={primaryContact}>
+                          {primaryContact}
+                        </TableCell>
+                        <TableCell className="max-w-[190px] truncate text-slate-700" title={businessName}>
+                          {businessName}
+                        </TableCell>
+                        <TableCell className="capitalize whitespace-nowrap">{t.group || "—"}</TableCell>
+                        <TableCell className="whitespace-nowrap font-medium text-slate-700">{event}</TableCell>
+                        <TableCell className="max-w-[220px] truncate" title={description}>
+                          {description}
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            className={
+                              t.statusLabel === "Completed"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-medium"
+                                : t.statusLabel === "Incomplete"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200 font-medium"
+                                  : "bg-rose-50 text-rose-700 border-rose-200 font-medium"
+                            }
+                          >
+                            {t.statusLabel}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-emerald-700 tabular-nums whitespace-nowrap">
+                          {t.amountDisplay}
+                        </TableCell>
+                        <TableCell className="text-right pr-6 whitespace-nowrap">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              downloadSingleTransactionInvoicePdf(t, {
+                                companyName: businessName !== "—" ? businessName : "Partner",
+                                email: email !== "—" ? email : "",
+                                businessId: t.partnerId || partner?.id || "",
+                              })
+                            }
+                            className="h-8 text-xs font-medium border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 inline-flex items-center gap-1.5"
+                            title="Download Invoice PDF"
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            <span>PDF</span>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
@@ -5184,14 +5414,15 @@ function Field({
 function isPartnerAccountLog(log: any): boolean {
   const action = (log.action || "").toUpperCase();
   const category = (log.category || "").toLowerCase();
+  const details = (log.details || "").toLowerCase();
 
   // Explicit exclusions: payment, billing, subscription, or listing actions
   if (
     action.startsWith("PAYMENT_") ||
     action.startsWith("SUBSCRIPTION_") ||
     action.startsWith("LISTING_") ||
-    action === "FEATURE_ADDED" ||
-    action === "CATEGORY_DELETED" ||
+    action.startsWith("PLAN_") ||
+    action.startsWith("FEATURE_") ||
     category === "billing" ||
     category === "listing"
   ) {
@@ -5203,7 +5434,13 @@ function isPartnerAccountLog(log: any): boolean {
     action === "ACCOUNT_CREATED" ||
     action === "ACCOUNT_UPDATED" ||
     action === "PASSWORD_UPDATED" ||
-    category === "account"
+    category === "account" ||
+    category === "admin" ||
+    details.includes("password") ||
+    details.includes("company name") ||
+    details.includes("primary email") ||
+    details.includes("primary contact") ||
+    details.includes("company url")
   ) {
     return true;
   }
@@ -5214,15 +5451,23 @@ function isPartnerAccountLog(log: any): boolean {
 function isListingOrBillingLog(log: any): boolean {
   const action = (log.action || "").toUpperCase();
   const category = (log.category || "").toLowerCase();
+  const details = (log.details || "").toLowerCase();
 
   if (
     action.startsWith("PAYMENT_") ||
     action.startsWith("SUBSCRIPTION_") ||
     action.startsWith("LISTING_") ||
-    action === "FEATURE_ADDED" ||
-    action === "CATEGORY_DELETED" ||
+    action.startsWith("PLAN_") ||
+    action.startsWith("FEATURE_") ||
     category === "billing" ||
-    category === "listing"
+    category === "listing" ||
+    details.includes("plan") ||
+    details.includes("feature") ||
+    details.includes("spotlight") ||
+    details.includes("subscription") ||
+    details.includes("cancel") ||
+    details.includes("renew") ||
+    details.includes("invoice")
   ) {
     return true;
   }
@@ -5230,7 +5475,7 @@ function isListingOrBillingLog(log: any): boolean {
   return false;
 }
 
-function getAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badgeClass: string } {
+function getPartnerAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badgeClass: string } {
   const category = (log.category || "").toLowerCase();
   const details = (log.details || "").toLowerCase();
   const action = (log.action || "").toUpperCase();
@@ -5248,9 +5493,11 @@ function getAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badge
     return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
   }
 
-  // 2. Subscription cancellations are performed by the partner
+  // 2. Cancellations or modifications performed by partner
   if (
     action === "SUBSCRIPTION_CANCELLED" ||
+    action === "PLAN_CANCELLED" ||
+    action === "FEATURE_CANCELLED" ||
     details.includes("subscription cancelled") ||
     details.includes("cancellation processed")
   ) {
@@ -5271,6 +5518,8 @@ function getAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badge
   // 3. Automatic transactions & billing events (Stripe, webhooks, renewals, auto-cancellations)
   if (
     action.startsWith("PAYMENT_") ||
+    action === "PLAN_RENEWED" ||
+    action === "FEATURE_RENEWED" ||
     category === "billing" ||
     details.includes("recurring invoice") ||
     details.includes("invoice in_") ||
@@ -5281,45 +5530,316 @@ function getAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badge
     return { label: "System", badgeClass: "bg-slate-100 text-slate-700 border-slate-200" };
   }
 
-  // 4. Otherwise, partner / user performed action
   return { label: "Partner", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
 }
 
-function AuditLogList({ logs }: { logs: any[] }) {
+function PartnerAuditLogList({ logs }: { logs: any[] }) {
   if (logs.length === 0) {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
         <History className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
-        <h3 className="font-semibold">No audit logs found</h3>
-        <p className="text-sm text-slate-500">Activity will appear here as it happens.</p>
+        <h3 className="font-semibold">No partner audit logs found</h3>
+        <p className="text-sm text-slate-500">Partner registrations, profile changes, listing actions, plan upgrades, and cancellations will appear here.</p>
+      </div>
+    );
+  }
+
+  const getActionBadge = (log: any) => {
+    const action = (log.action || "").toUpperCase();
+    const details = (log.details || "").toLowerCase();
+
+    // 1. Password changed
+    if (action === "PASSWORD_UPDATED" || action.includes("PASSWORD")) {
+      return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Password Changed</Badge>;
+    }
+
+    // 2. Account created
+    if (action === "ACCOUNT_CREATED" || action.includes("REGISTER")) {
+      return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Partner Account Created</Badge>;
+    }
+
+    // 3. Profile field updates with explicit diffs
+    if (action === "ACCOUNT_UPDATED" || action === "PROFILE_UPDATED") {
+      if (details.includes("company name updated") || details.includes("company name changed")) {
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Company Name Updated</Badge>;
+      }
+      if (details.includes("primary email changed")) {
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Primary Email Changed</Badge>;
+      }
+      if (details.includes("primary contact changed")) {
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Primary Contact Changed</Badge>;
+      }
+      if (details.includes("company url changed") || details.includes("website changed")) {
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Company URL Changed</Badge>;
+      }
+      return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Profile Updated</Badge>;
+    }
+
+    // 4. Feature and Plan cancellations
+    if (action === "FEATURE_CANCELLED" || (action === "SUBSCRIPTION_CANCELLED" && details.includes("feature"))) {
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Feature Cancelled</Badge>;
+    }
+    if (action === "PLAN_CANCELLED" || action === "SUBSCRIPTION_CANCELLED") {
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Plan Cancelled</Badge>;
+    }
+
+    // 5. Upgrades
+    if (action === "FEATURE_UPGRADED") {
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Upgraded</Badge>;
+    }
+    if (action === "PLAN_UPGRADED" || action === "SUBSCRIPTION_UPGRADED" || details.includes("upgraded")) {
+      return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Subscription Upgraded</Badge>;
+    }
+
+    // 6. Add Feature
+    if (action === "FEATURE_ADDED" || details.includes("feature spotlight")) {
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Added</Badge>;
+    }
+
+    // 7. Renewals
+    if (action === "FEATURE_RENEWED" || (details.includes("renewed") && details.includes("feature"))) {
+      return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Feature Renewed</Badge>;
+    }
+    if (action === "PLAN_RENEWED" || details.includes("plan renewed") || details.includes("subscription renewed")) {
+      return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Plan Renewed</Badge>;
+    }
+
+    // 8. Purchases & Payments
+    if (action === "PAYMENT_SUCCESS" || action === "SUBSCRIPTION_PURCHASED") {
+      return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Subscription Purchased</Badge>;
+    }
+    if (action === "PAYMENT_FAILED") {
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Payment Failed</Badge>;
+    }
+    if (action === "LISTING_CREATED") {
+      return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Listing Created</Badge>;
+    }
+    if (action === "LISTING_UPDATED") {
+      return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Listing Updated</Badge>;
+    }
+    if (action === "LISTING_DELETED") {
+      return <Badge className="bg-slate-100 text-slate-700 border-slate-300">Listing Deleted</Badge>;
+    }
+    if (action === "ADMIN_ACTION") {
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Admin Action</Badge>;
+    }
+
+    return <Badge variant="outline">{action ? action.replace(/_/g, " ") : "Activity"}</Badge>;
+  };
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm">
+      <CardContent className="p-0">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="pl-6">Timestamp</TableHead>
+              <TableHead>Company / Partner</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead>Updated By</TableHead>
+              <TableHead>Details</TableHead>
+              <TableHead className="text-right pr-6">Partner ID</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {logs.map((log) => {
+              const actor = getPartnerAuditActor(log);
+              return (
+                <TableRow key={log.id} className="hover:bg-slate-50/50">
+                  <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
+                    {log.timestamp?.seconds
+                      ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+                      : "Recently"}
+                  </TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">
+                    <div className="space-y-0.5 max-w-[200px]">
+                      <p className="truncate text-sm text-slate-900 font-semibold">{log.partnerName || "Partner Account"}</p>
+                      {log.metadata?.email || log.primaryEmail ? (
+                        <p className="text-xs text-slate-500 truncate">{log.metadata?.email || log.primaryEmail}</p>
+                      ) : null}
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{getActionBadge(log)}</TableCell>
+                  <TableCell className="whitespace-nowrap">
+                    <Badge className={`${actor.badgeClass} font-medium text-xs`}>
+                      {actor.label}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-slate-600 max-w-md break-words">{log.details}</TableCell>
+                  <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                    {log.partnerId || "-"}
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </CardContent>
+    </Card>
+  );
+}
+
+function isMemberAuditLog(log: any): boolean {
+  const category = (log.category || "").toLowerCase();
+  const action = (log.action || "").toUpperCase();
+  const details = (log.details || "").toLowerCase();
+  const scope = (log.metadata?.scope || "").toLowerCase();
+  const role = (log.metadata?.role || "").toLowerCase();
+
+  // Explicit partner exclusions (B2B directory vendors, trials, listings, payments, partner accounts)
+  if (
+    action.startsWith("PAYMENT_") ||
+    action.startsWith("SUBSCRIPTION_") ||
+    action.startsWith("LISTING_") ||
+    action === "FEATURE_ADDED" ||
+    action === "CATEGORY_DELETED" ||
+    category === "billing" ||
+    category === "listing" ||
+    details.includes("partner") ||
+    details.includes("trial extended") ||
+    details.includes("trial, plan, and feature spotlight") ||
+    (details.includes("contact:") && !details.includes("community"))
+  ) {
+    return false;
+  }
+
+  // Explicit community / member inclusions
+  if (
+    category === "community" ||
+    role === "member" ||
+    scope.includes("community") ||
+    scope.includes("reported_comments") ||
+    scope.includes("member") ||
+    details.includes("member") ||
+    details.includes("community") ||
+    details.includes("post") ||
+    details.includes("comment") ||
+    action.startsWith("MEMBER_") ||
+    action.startsWith("POST_") ||
+    action.startsWith("COMMENT_")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function getMemberAuditActor(log: any): { label: "Admin" | "Member" | "System"; badgeClass: string } {
+  const category = (log.category || "").toLowerCase();
+  const details = (log.details || "").toLowerCase();
+  const action = (log.action || "").toUpperCase();
+  const hasAdminEmail = Boolean(log.metadata?.adminEmail || log.adminEmail);
+
+  if (
+    category === "admin" ||
+    hasAdminEmail ||
+    details.includes("admin:") ||
+    details.includes("by admin") ||
+    details.includes("admin (") ||
+    details.includes("admin deleted") ||
+    details.includes("admin hold") ||
+    action === "ADMIN_ACTION"
+  ) {
+    return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
+  }
+
+  const perf = (log.performedBy || log.metadata?.performedBy || "").toLowerCase();
+  if (perf === "admin") {
+    return { label: "Admin", badgeClass: "bg-purple-50 text-purple-700 border-purple-200" };
+  }
+  if (perf === "system") {
+    return { label: "System", badgeClass: "bg-slate-100 text-slate-700 border-slate-200" };
+  }
+
+  return { label: "Member", badgeClass: "bg-blue-50 text-blue-700 border-blue-200" };
+}
+
+function getMemberAuditSubject(log: any, actor: { label: string }): { name: string; email?: string; id?: string } {
+  const details = (log.details || "").toLowerCase();
+  const isAdmin = actor.label === "Admin";
+  const nameStored = log.partnerName || log.memberName || "";
+  const isSelfAdminStored = isAdmin && (nameStored.includes("admin@") || nameStored.toLowerCase() === "admin");
+
+  if (isSelfAdminStored) {
+    if (details.includes("post")) {
+      return {
+        name: "Community Post",
+        email: log.metadata?.authorEmail,
+        id: log.metadata?.postId || log.partnerId || log.memberId,
+      };
+    }
+    if (details.includes("comment")) {
+      return {
+        name: "Community Comment",
+        email: log.metadata?.authorEmail,
+        id: log.metadata?.commentId || log.partnerId || log.memberId,
+      };
+    }
+    if (log.targetMember || log.metadata?.targetMember) {
+      return {
+        name: log.targetMember || log.metadata?.targetMember,
+        email: log.metadata?.email,
+        id: log.metadata?.targetMemberId || log.partnerId || log.memberId,
+      };
+    }
+  }
+
+  return {
+    name: nameStored || "Community Member",
+    email: log.metadata?.email,
+    id: log.partnerId || log.memberId || "",
+  };
+}
+
+function MemberAuditLogList({ logs }: { logs: any[] }) {
+  if (logs.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
+        <History className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+        <h3 className="font-semibold">No member audit logs found</h3>
+        <p className="text-sm text-slate-500">Member registrations, logins, community actions, and admin moderation events will appear here.</p>
       </div>
     );
   }
 
   const getActionBadge = (action: string) => {
     switch (action) {
+      case "MEMBER_REGISTERED":
       case "ACCOUNT_CREATED":
-        return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Account Created</Badge>;
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Registered</Badge>;
+      case "MEMBER_LOGIN":
+        return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Login</Badge>;
+      case "MEMBER_UPDATED":
       case "ACCOUNT_UPDATED":
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Account Updated</Badge>;
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Profile Updated</Badge>;
       case "PASSWORD_UPDATED":
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Password Updated</Badge>;
-      case "PAYMENT_SUCCESS":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Payment Success</Badge>;
-      case "PAYMENT_FAILED":
-        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Payment Failed</Badge>;
-      case "SUBSCRIPTION_CANCELLED":
-        return <Badge className="bg-red-50 text-red-700 border-red-200">Subscription Cancelled</Badge>;
-      case "LISTING_CREATED":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Listing Created</Badge>;
-      case "LISTING_UPDATED":
-        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Listing Updated</Badge>;
-      case "LISTING_DELETED":
-        return <Badge className="bg-slate-100 text-slate-700 border-slate-300">Listing Deleted</Badge>;
-      case "FEATURE_ADDED":
-        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Feature Added</Badge>;
+        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Password Updated</Badge>;
+      case "MEMBER_STATUS_CHANGED":
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Status Changed</Badge>;
+      case "MEMBER_DELETED":
+        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Member Deleted</Badge>;
+      case "POST_CREATED":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Post Created</Badge>;
+      case "POST_EDITED":
+        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Post Edited</Badge>;
+      case "POST_ARCHIVED":
+        return <Badge className="bg-slate-100 text-slate-700 border-slate-300">Post Archived</Badge>;
+      case "POST_RESTORED":
+        return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Post Restored</Badge>;
+      case "POST_DELETED":
+        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Post Deleted</Badge>;
+      case "COMMENT_POSTED":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Comment Posted</Badge>;
+      case "COMMENT_REPORTED":
+        return <Badge className="bg-red-50 text-red-700 border-red-200">Comment Reported</Badge>;
+      case "COMMENT_ACTIVATED":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Comment Activated</Badge>;
+      case "COMMENT_DEACTIVATED":
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Comment Deactivated</Badge>;
+      case "ADMIN_ACTION":
+        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Admin Action</Badge>;
       default:
-        return <Badge variant="outline">{action}</Badge>;
+        return <Badge variant="outline">{action ? action.replace(/_/g, " ") : "Activity"}</Badge>;
     }
   };
 
@@ -5330,33 +5850,41 @@ function AuditLogList({ logs }: { logs: any[] }) {
           <TableHeader>
             <TableRow>
               <TableHead className="pl-6">Timestamp</TableHead>
-              <TableHead>Company</TableHead>
+              <TableHead>Member / Target</TableHead>
               <TableHead>Action</TableHead>
-              <TableHead>Updated By</TableHead>
+              <TableHead>Performed By</TableHead>
               <TableHead>Details</TableHead>
-              <TableHead className="text-right pr-6">Partner ID</TableHead>
+              <TableHead className="text-right pr-6">Member ID</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {logs.map((log) => {
-              const actor = getAuditActor(log);
+              const actor = getMemberAuditActor(log);
+              const subject = getMemberAuditSubject(log, actor);
               return (
-                <TableRow key={log.id}>
+                <TableRow key={log.id} className="hover:bg-slate-50/50">
                   <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
                     {log.timestamp?.seconds
                       ? new Date(log.timestamp.seconds * 1000).toLocaleString()
                       : "Recently"}
                   </TableCell>
-                  <TableCell className="font-medium whitespace-nowrap">{log.partnerName || "Unknown"}</TableCell>
-                  <TableCell>{getActionBadge(log.action)}</TableCell>
-                  <TableCell>
+                  <TableCell className="font-medium whitespace-nowrap">
+                    <div className="space-y-0.5 max-w-[200px]">
+                      <p className="truncate text-sm text-slate-900">{subject.name}</p>
+                      {subject.email && (
+                        <p className="text-xs text-slate-500 truncate">{subject.email}</p>
+                      )}
+                    </div>
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap">{getActionBadge(log.action)}</TableCell>
+                  <TableCell className="whitespace-nowrap">
                     <Badge className={`${actor.badgeClass} font-medium text-xs`}>
                       {actor.label}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-slate-600 max-w-md">{log.details}</TableCell>
-                  <TableCell className="text-right pr-6 font-mono text-[10px] text-slate-400">
-                    {log.partnerId || "-"}
+                  <TableCell className="text-sm text-slate-600 max-w-md break-words">{log.details}</TableCell>
+                  <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                    {subject.id || log.partnerId || log.memberId || "-"}
                   </TableCell>
                 </TableRow>
               );

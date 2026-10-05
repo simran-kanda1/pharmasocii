@@ -28,7 +28,7 @@ import {
     Building, Mail, Phone, MapPin,
     PlusCircle, Save, CheckCircle2,
     Clock, ChevronDown, ChevronRight, UploadCloud, Eye, EyeOff,
-    CreditCard, Star, Sparkles, Crown, Check, X, Calendar,
+    CreditCard, Star, Crown, Check, X, Calendar,
     Edit3, Globe, Tag, Search, Trash2
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -162,7 +162,7 @@ function getAvailablePlanUpgradeIds(
 const FEATURE_PLANS = [
     { id: "landing_page", label: "Landing Page Spotlight", description: "Featured on the category landing page for increased visibility", price: "$700.00", numericPrice: 700, durationDays: 30, countryLimit: 5, categoryLimit: 5, icon: Star },
     { id: "home_page", label: "Home Page Spotlight", description: "Featured on the home page for maximum brand visibility", price: "$1,000.00", numericPrice: 1000, durationDays: 30, countryLimit: 1, categoryLimit: 2, icon: Crown },
-    { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,500.00", numericPrice: 1500, durationDays: 30, countryLimit: 5, categoryLimit: 2, icon: Sparkles },
+    { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,500.00", numericPrice: 1500, durationDays: 30, countryLimit: 5, categoryLimit: 2, icon: Star },
 ];
 
 
@@ -388,18 +388,17 @@ const sameCalendarDay = (a: Date | null, b: Date | null): boolean =>
 
 /** Paid access still in effect (not lapsed / not deactivated). */
 const isPlanBillingLive = (plan: any): boolean => {
-    if (plan?.active === false) return false;
     const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
-    // Test-clock lag: Stripe can still be live while billingPeriodEnd is behind wall clock.
-    if (["active", "trialing", "past_due"].includes(stripeStatus) && !plan?.cancelAtPeriodEnd) {
-        return true;
-    }
-    if (["active", "trialing", "past_due"].includes(stripeStatus) && plan?.cancelAtPeriodEnd) {
-        const end = getPlanPeriodEndDate(plan);
-        // Still within the paid cancel window.
-        if (!end || end.getTime() >= Date.now()) return true;
+    if (["past_due", "unpaid", "canceled", "cancelled", "incomplete_expired"].includes(stripeStatus)) {
         return false;
     }
+    if (plan?.endedForNonpayment) return false;
+    // Stripe still active: stay on the site through a scheduled cancel, and when a test clock's
+    // stored end is behind the wall clock. A failed renewal is not active, so it stays hidden.
+    if (["active", "trialing"].includes(stripeStatus)) {
+        return true;
+    }
+    if (plan?.active === false) return false;
     const end = getPlanPeriodEndDate(plan);
     if (end && end.getTime() < Date.now()) return false;
     return true;
@@ -519,48 +518,76 @@ export default function Dashboard() {
         if (livePlans.length === 0) return;
 
         offerings.forEach(async (offering) => {
-            if (offering.status !== "pending_payment") return;
             const listingGroup = inferListingGroup(offering);
+            const col = offering.__col || (listingGroup === "business_offerings" ? "businessOfferingsCollection" : listingGroup === "consulting" ? "consultingServicesCollection" : listingGroup === "events" ? "eventsCollection" : "jobsCollection");
+            const source = offering.__source || "partner";
 
-            // Find matching active plan by explicit listingId OR by group for single-plan groups
-            const matchingPlan = livePlans.find((p) => {
-                if (p.listingId && p.listingId === offering.id) return true;
-                const planGroup = inferPlanGroup(p);
-                if (planGroup && listingGroup && planGroup === listingGroup && (listingGroup === "business_offerings" || listingGroup === "consulting")) {
-                    return true;
+            if (offering.status === "pending_payment") {
+                // Find matching active plan by explicit listingId OR by group for single-plan groups
+                const matchingPlan = livePlans.find((p) => {
+                    if (p.listingId && p.listingId === offering.id) return true;
+                    const planGroup = inferPlanGroup(p);
+                    if (planGroup && listingGroup && planGroup === listingGroup && (listingGroup === "business_offerings" || listingGroup === "consulting")) {
+                        return true;
+                    }
+                    return false;
+                });
+
+                if (matchingPlan) {
+                    try {
+                        const listingPatch = { status: "Approved", active: true };
+
+                        if (source === "partner" || col === "businessOfferingsCollection") {
+                            await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), listingPatch);
+                        } else {
+                            await updateDoc(doc(db, col, offering.id), listingPatch);
+                        }
+
+                        // Also link plan to listing if missing
+                        if (!matchingPlan.listingId && matchingPlan.id) {
+                            try {
+                                const planRef = doc(db, "partnersCollection", auth.currentUser!.uid, "planCollection", matchingPlan.id);
+                                await updateDoc(planRef, { listingId: offering.id, collectionName: col });
+                            } catch (_) {}
+                        }
+
+                        setOfferings((prev) =>
+                            prev.map((o) => (o.id === offering.id ? { ...o, status: "Approved", active: true } : o))
+                        );
+                    } catch (e) {
+                        console.error("Error auto-healing paid listing:", e);
+                    }
                 }
-                return false;
-            });
+            }
 
-            if (matchingPlan) {
+            // Also auto-heal spotlight addon synchronization on the listing document
+            const activeFeat = partnerFeatures.find(
+                (f) => f.listingId === offering.id && f.active !== false && !f.cancelPending && f.featureId
+            );
+            if (activeFeat && activeFeat.featureId && (offering.selectedAddon !== activeFeat.featureId || !offering.isFeatured)) {
                 try {
-                    const col = offering.__col || (listingGroup === "business_offerings" ? "businessOfferingsCollection" : listingGroup === "consulting" ? "consultingServicesCollection" : listingGroup === "events" ? "eventsCollection" : "jobsCollection");
-                    const source = offering.__source || "partner";
-                    const listingPatch = { status: "Approved", active: true };
-
+                    const spotlightPatch: Record<string, any> = {
+                        selectedAddon: activeFeat.featureId,
+                        featuredPlacement: activeFeat.featureId,
+                        isFeatured: true,
+                        ...(activeFeat.accessThrough ? { featureSpotlightPaidThrough: activeFeat.accessThrough } : {}),
+                        ...(activeFeat.billingPeriodStart ? { featureSpotlightBillingPeriodStart: activeFeat.billingPeriodStart } : {}),
+                        ...(activeFeat.stripeSubscriptionId ? { featureSpotlightStripeSubscriptionId: activeFeat.stripeSubscriptionId } : {}),
+                    };
                     if (source === "partner" || col === "businessOfferingsCollection") {
-                        await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), listingPatch);
+                        await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), spotlightPatch);
                     } else {
-                        await updateDoc(doc(db, col, offering.id), listingPatch);
+                        await updateDoc(doc(db, col, offering.id), spotlightPatch);
                     }
-
-                    // Also link plan to listing if missing
-                    if (!matchingPlan.listingId && matchingPlan.id) {
-                        try {
-                            const planRef = doc(db, "partnersCollection", auth.currentUser!.uid, "planCollection", matchingPlan.id);
-                            await updateDoc(planRef, { listingId: offering.id, collectionName: col });
-                        } catch (_) {}
-                    }
-
                     setOfferings((prev) =>
-                        prev.map((o) => (o.id === offering.id ? { ...o, status: "Approved", active: true } : o))
+                        prev.map((o) => (o.id === offering.id ? { ...o, ...spotlightPatch } : o))
                     );
                 } catch (e) {
-                    console.error("Error auto-healing paid listing:", e);
+                    console.warn("Error auto-healing listing spotlight:", e);
                 }
             }
         });
-    }, [activePlans, offerings]);
+    }, [activePlans, offerings, partnerFeatures]);
 
     // Feature plan modal
     const [showFeatureModal, setShowFeatureModal] = useState(false);
@@ -621,7 +648,7 @@ export default function Dashboard() {
         const activeOptions = liveFeaturedPlansConfig?.groups?.flatMap(g => g.options.filter(o => o.status !== "Inactive")) || [];
         if (activeOptions.length === 0) return FEATURE_PLANS;
         return activeOptions.map(opt => {
-            const icon = opt.id === "landing_page" ? Star : opt.id === "home_page" ? Crown : Sparkles;
+            const icon = opt.id === "landing_page" ? Star : opt.id === "home_page" ? Crown : Star;
             return {
                 id: opt.id,
                 label: opt.label,
@@ -688,47 +715,83 @@ export default function Dashboard() {
             }
             return feature.source === "spotlight_addon" || Boolean(feature.stripeSubscriptionId);
         });
+
+        // Sort matches by active status first, then highest spotlight tier, then recency
+        const sortedMatches = [...matches].sort((a, b) => {
+            if (a.active !== b.active) return a.active ? -1 : 1;
+            const tierA = spotlightTierFromId(a.featureId);
+            const tierB = spotlightTierFromId(b.featureId);
+            if (tierA !== tierB) return tierB - tierA;
+            const timeA = toDateValue(a.lastPaymentReceived)?.getTime() || toDateValue(a.createdAt)?.getTime() || 0;
+            const timeB = toDateValue(b.lastPaymentReceived)?.getTime() || toDateValue(b.createdAt)?.getTime() || 0;
+            return timeB - timeA;
+        });
+
         const currentSub = String(listing?.featureSpotlightStripeSubscriptionId || "").trim();
         if (currentSub) {
-            const current = matches.find((feature) => String(feature.stripeSubscriptionId || "").trim() === currentSub);
+            const current = sortedMatches.find((feature) => String(feature.stripeSubscriptionId || "").trim() === currentSub && feature.active !== false);
             if (current) return current;
         }
-        return matches.find((feature) => feature.source === "spotlight_addon" && !feature.cancelPending)
-            || matches.find((feature) => !feature.cancelPending)
-            || matches.find((feature) => feature.cancelPending)
-            || matches[0]
+        return sortedMatches.find((feature) => feature.source === "spotlight_addon" && !feature.cancelPending)
+            || sortedMatches.find((feature) => !feature.cancelPending)
+            || sortedMatches.find((feature) => feature.cancelPending)
+            || sortedMatches[0]
             || null;
     };
 
     const enrichListingSpotlightFromFeatures = (listing: any, plan: any) => {
         if (!listing || !plan) return listing;
         const featureRecord = getStandaloneFeatureRecordForPlan(plan, listing);
-        const listingSub = String(listing.featureSpotlightStripeSubscriptionId || "").trim();
+        let updatedListing = { ...listing };
+
+        // Enrich the listing with active feature fields if an active standalone feature record exists
+        if (featureRecord && featureRecord.active !== false && !featureRecord.cancelPending) {
+            const activeFeatureId = featureRecord.featureId;
+            if (activeFeatureId) {
+                updatedListing.selectedAddon = activeFeatureId;
+                updatedListing.featuredPlacement = activeFeatureId;
+                updatedListing.isFeatured = true;
+            }
+            if (featureRecord.accessThrough) {
+                updatedListing.featureSpotlightPaidThrough = featureRecord.accessThrough;
+            }
+            if (featureRecord.billingPeriodStart) {
+                updatedListing.featureSpotlightBillingPeriodStart = featureRecord.billingPeriodStart;
+            }
+            if (featureRecord.stripeSubscriptionId) {
+                updatedListing.featureSpotlightStripeSubscriptionId = featureRecord.stripeSubscriptionId;
+            }
+            if (featureRecord.subscriptionItemId) {
+                updatedListing.featureSpotlightSubscriptionItemId = featureRecord.subscriptionItemId;
+            }
+        }
+
+        const listingSub = String(updatedListing.featureSpotlightStripeSubscriptionId || "").trim();
         const recordSub = String(featureRecord?.stripeSubscriptionId || "").trim();
         const recordMatchesListing = !listingSub || !recordSub || recordSub === listingSub;
         const planEndsFeature = Boolean(plan.cancelAtPeriodEnd);
         const hasSpotlight = Boolean(
-            getSpotlightAddonTierId(listing) ||
+            getSpotlightAddonTierId(updatedListing) ||
             (plan.planId && PLAN_CONFIGS[plan.planId]?.featurePlan) ||
             featureRecord,
         );
         if (
             !recordMatchesListing ||
-            (!featureRecord?.cancelPending && !listing.featureSpotlightCancelPending && !(planEndsFeature && hasSpotlight))
+            (!featureRecord?.cancelPending && !updatedListing.featureSpotlightCancelPending && !(planEndsFeature && hasSpotlight))
         ) {
-            return listing;
+            return updatedListing;
         }
         const listingEnd =
-            toDateValue(listing.featureSpotlightAccessEnd) ||
-            toDateValue(listing.featureSpotlightPaidThrough);
+            toDateValue(updatedListing.featureSpotlightAccessEnd) ||
+            toDateValue(updatedListing.featureSpotlightPaidThrough);
         const featureEnd = recordMatchesListing ? toDateValue(featureRecord?.accessThrough) : null;
         const planEnd = getPlanPeriodEndDate(plan);
         // Prefer the earlier scheduled end so a later feature date cannot outlast a plan cancel.
-        let accessEnd = listing.featureSpotlightAccessEnd || featureRecord?.accessThrough || null;
+        let accessEnd = updatedListing.featureSpotlightAccessEnd || featureRecord?.accessThrough || null;
         if (listingEnd && featureEnd) {
             accessEnd = featureEnd.getTime() < listingEnd.getTime()
                 ? featureRecord.accessThrough
-                : (listing.featureSpotlightAccessEnd || listing.featureSpotlightPaidThrough);
+                : (updatedListing.featureSpotlightAccessEnd || updatedListing.featureSpotlightPaidThrough);
         } else if (featureEnd && !listingEnd) {
             accessEnd = featureRecord.accessThrough;
         }
@@ -741,9 +804,9 @@ export default function Dashboard() {
         }
         const cancelScope = planEndsFeature
             ? "plan"
-            : (listing.featureSpotlightCancelScope || featureRecord?.cancelScope || "feature");
+            : (updatedListing.featureSpotlightCancelScope || featureRecord?.cancelScope || "feature");
         return {
-            ...listing,
+            ...updatedListing,
             featureSpotlightCancelPending: true,
             featureSpotlightCancelScope: cancelScope,
             featureSpotlightAccessEnd: accessEnd,
@@ -1400,14 +1463,43 @@ export default function Dashboard() {
                     }
                 });
 
+                const changes: string[] = [];
+                const oldEmail = partnerData.primaryEmail || "";
+                const newEmail = nextEmail;
+                if (oldEmail && newEmail && oldEmail !== newEmail) {
+                    changes.push(`Primary email changed from "${oldEmail}" to "${newEmail}"`);
+                }
+                const oldContact = partnerData.primaryName || "";
+                const newContact = `${profileForm.firstName} ${profileForm.lastName}`.trim();
+                if (oldContact && newContact && oldContact !== newContact) {
+                    changes.push(`Primary contact changed from "${oldContact}" to "${newContact}"`);
+                }
+                const oldBusiness = partnerData.businessName || "";
+                const newBusiness = profileForm.companyName || "";
+                if (oldBusiness && newBusiness && oldBusiness !== newBusiness) {
+                    changes.push(`Company name updated from "${oldBusiness}" to "${newBusiness}"`);
+                }
+                const oldUrl = partnerData.companyWebsite || "";
+                const newUrl = profileForm.companyWebsite || "";
+                if (oldUrl && newUrl && oldUrl !== newUrl) {
+                    changes.push(`Company URL changed from "${oldUrl}" to "${newUrl}"`);
+                }
+
+                const changeDetails = changes.length > 0
+                    ? `Partner profile updated by Partner: ${changes.join(". ")}.`
+                    : "Partner profile updated by partner.";
+
                 // Log to Audit Trail
                 await logActivity({
                     partnerId: auth.currentUser.uid,
                     partnerName: profileForm.companyName || partnerData.businessName || "Unnamed Business",
                     action: "ACCOUNT_UPDATED",
-                    details: `Partner profile updated by partner.`,
+                    details: changeDetails,
                     category: "account",
+                    performedBy: "partner",
                     metadata: {
+                        performedBy: "partner",
+                        changes,
                         updatedFields: Object.keys(profileForm).filter(k => profileForm[k] !== partnerData[k])
                     }
                 });
@@ -2017,12 +2109,49 @@ export default function Dashboard() {
 
     if (!partnerData) return null;
 
-    const livePlans = activePlans.filter(isPlanBillingLive);
+    const planRecency = (plan: any): number =>
+        getPlanPeriodEndDate(plan)?.getTime()
+        || toDateValue(plan?.billingPeriodStart)?.getTime()
+        || toDateValue(plan?.startDate)?.getTime()
+        || 0;
+    const preferPlan = (current: any, candidate: any) => {
+        const currentLive = isPlanBillingLive(current);
+        const candidateLive = isPlanBillingLive(candidate);
+        if (currentLive !== candidateLive) return candidateLive ? candidate : current;
+        return planRecency(candidate) > planRecency(current) ? candidate : current;
+    };
+    // One card per subscription, then one card per listing. A dead duplicate must not sit beside the live plan.
+    const plansForCards = (() => {
+        const bySubscription = new Map<string, any>();
+        const withoutSubscription: any[] = [];
+        for (const plan of activePlans) {
+            const subId = String(plan?.stripeSubscriptionId || "").trim();
+            if (!subId) {
+                withoutSubscription.push(plan);
+                continue;
+            }
+            const existing = bySubscription.get(subId);
+            bySubscription.set(subId, existing ? preferPlan(existing, plan) : plan);
+        }
+        const byListing = new Map<string, any>();
+        const solo: any[] = [];
+        for (const plan of [...bySubscription.values(), ...withoutSubscription]) {
+            if (!plan?.listingId || !plan?.collectionName) {
+                solo.push(plan);
+                continue;
+            }
+            const key = `${plan.collectionName}:${plan.listingId}`;
+            const existing = byListing.get(key);
+            byListing.set(key, existing ? preferPlan(existing, plan) : plan);
+        }
+        return [...byListing.values(), ...solo];
+    })();
+    const livePlans = plansForCards.filter(isPlanBillingLive);
     const livePlansSorted = [...livePlans].sort((a, b) => {
         if (Boolean(a.cancelAtPeriodEnd) === Boolean(b.cancelAtPeriodEnd)) return 0;
         return a.cancelAtPeriodEnd ? 1 : -1;
     });
-    const expiredPlans = activePlans.filter((p) => !isPlanBillingLive(p) && (p.planId || p.planName));
+    const expiredPlans = plansForCards.filter((p) => !isPlanBillingLive(p) && (p.planId || p.planName));
 
     const isApproved = partnerData.partnerStatus !== "Disabled";
     const displayName = partnerData.primaryName || "Partner";
@@ -2349,9 +2478,8 @@ export default function Dashboard() {
                 toDateValue(plan.startDate);
             const periodEnd = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
             const renewalDate = getRenewalDate(periodEnd);
+            const lastPaidDay = getInclusivePeriodLastDay(periodEnd);
             const cancelledAt = toDateValue(plan.cancelledAt);
-            const isYearly = plan.billingInterval === "year" || plan.planId?.includes("_yr");
-            const billingCycleLabel = isYearly ? "Annual" : "Monthly";
             const linkedListing = getLinkedListingForPlan(plan);
             const spotlightAccessEnded = isSpotlightAccessEnded(linkedListing);
             const hasFeature = !spotlightAccessEnded && linkedListing?.selectedAddon && linkedListing?.selectedAddon !== "" && linkedListing?.selectedAddon !== "none";
@@ -2422,6 +2550,8 @@ export default function Dashboard() {
             }
             const displayFeatureDurationEnd = featurePeriodEnd || featureStop;
             const displayFeatureEndsOn = featureStop;
+            const featureLastPaidDay = getInclusivePeriodLastDay(displayFeatureDurationEnd);
+            const featureStopLastPaidDay = getInclusivePeriodLastDay(displayFeatureEndsOn);
             const featureEndsWithPlan = Boolean(
                 hadLinkedFeature && sameCalendarDay(displayFeatureEndsOn, renewalDate) && (isEnding || isPast),
             );
@@ -2429,12 +2559,11 @@ export default function Dashboard() {
             const featureActionsLocked = isPast || areFeatureActionsLocked(plan, linkedListing);
             const canListingPlanUpgradeAction =
                 !isPast && getAvailablePlanUpgradeIds(plan.planId, plan.collectionName).length > 0 && !planActionsLocked;
-            const pastStatusLabel = plan.cancelAtPeriodEnd ? "Cancelled" : plan.active === false ? "Expired" : "Ended";
             const cardShell = isPast
-                ? "rounded-xl border border-foreground/15 bg-muted/25 p-5 opacity-95"
+                ? "rounded-xl border border-slate-200/90 bg-slate-50 dark:bg-slate-900/40 dark:border-slate-800 p-5 shadow-xs"
                 : isEnding
-                ? "rounded-xl border border-amber-500/35 bg-amber-500/[0.07] p-5"
-                : "rounded-xl border border-foreground/10 bg-muted/40 p-5";
+                ? "rounded-xl border border-amber-300/80 bg-amber-50/50 dark:border-amber-800/40 dark:bg-amber-950/20 p-5 shadow-sm"
+                : "rounded-xl border border-blue-200/90 bg-blue-50/50 dark:border-blue-800/40 dark:bg-blue-950/20 p-5 shadow-sm";
             const planGroupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
             const listingName = getListingDisplayName(linkedListing, plan);
             const planTierLabel = formatPlanTierLabel(plan, planConfig);
@@ -2449,22 +2578,6 @@ export default function Dashboard() {
                                     <h4 className="text-lg font-bold text-foreground">
                                         {listingName || planSummaryParts.join(" · ") || planTierLabel}
                                     </h4>
-                                    {isPast ? (
-                                        <>
-                                            <Badge variant="outline" className="bg-foreground/10 text-muted-foreground border-foreground/20">{pastStatusLabel}</Badge>
-                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-                                        </>
-                                    ) : isEnding ? (
-                                        <>
-                                            <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>Scheduled to end</Badge>
-                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>Active</Badge>
-                                            <Badge variant="outline" className="border-foreground/20">{billingCycleLabel}</Badge>
-                                        </>
-                                    )}
                                 </div>
                                 {listingName && planSummaryParts.length > 0 && (
                                     <p className="text-sm text-muted-foreground mb-1">{planSummaryParts.join(" · ")}</p>
@@ -2472,16 +2585,16 @@ export default function Dashboard() {
                                 {isEnding && !isPast && (
                                     <p className="text-xs mt-1 mb-1" style={{ color: '#78350f' }}>
                                         {featureEndsWithPlan
-                                            ? `Plan and feature end on ${renewalDate ? renewalDate.toLocaleDateString() : "the plan end date"}.`
-                                            : `Plan scheduled to end on ${renewalDate ? renewalDate.toLocaleDateString() : "the end of your billing period"}. It will not renew.`}
+                                            ? `Plan and feature end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the plan end date"}.`
+                                            : `Plan scheduled to end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the end of your billing period"}. It will not renew.`}
                                     </p>
                                 )}
                                 {isPast && hadLinkedFeature && (
                                     <p className="text-sm text-muted-foreground mt-2">
                                         Spotlight ended on {(
                                             displayFeatureEndsOn && renewalDate && displayFeatureEndsOn.getTime() < renewalDate.getTime()
-                                                ? displayFeatureEndsOn
-                                                : renewalDate
+                                                ? featureStopLastPaidDay
+                                                : lastPaidDay
                                         )?.toLocaleDateString() || "the plan end date"}.
                                     </p>
                                 )}
@@ -2499,7 +2612,7 @@ export default function Dashboard() {
                                             {isPast ? "Ended On" : isEnding ? "Ends On" : "Renewal Date"}
                                         </p>
                                         <p className="text-sm text-foreground font-medium">
-                                            {renewalDate ? renewalDate.toLocaleDateString() : "N/A"}
+                                            {lastPaidDay ? lastPaidDay.toLocaleDateString() : "N/A"}
                                         </p>
                                     </div>
                                     {isPast && (
@@ -2521,27 +2634,13 @@ export default function Dashboard() {
                                             <h5 className="text-lg font-bold text-foreground">
                                                 {standaloneSpotlightPlan?.label || "Spotlight add-on"}
                                             </h5>
-                                            {featureEndsWithPlan ? (
-                                                <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>
-                                                    Ends with plan
-                                                </Badge>
-                                            ) : spotlightCancelPending ? (
-                                                <Badge variant="outline" style={{ backgroundColor: '#fef3c7', color: '#92400e', borderColor: '#f59e0b' }}>
-                                                    Scheduled to end
-                                                </Badge>
-                                            ) : (
-                                                <Badge variant="outline" style={{ backgroundColor: '#d1fae5', color: '#065f46', borderColor: '#10b981' }}>
-                                                    Active
-                                                </Badge>
-                                            )}
-                                            <Badge variant="outline" className="border-foreground/20">Monthly</Badge>
                                         </div>
                                         <p className="text-sm text-muted-foreground mb-1">
                                             Spotlight Add-on Subscription
                                         </p>
                                         {spotlightCancelPending && !featureEndsWithPlan && (
                                             <p className="text-xs mt-1 mb-2" style={{ color: '#78350f' }}>
-                                                Spotlight add-on scheduled to end on {displayFeatureEndsOn?.toLocaleDateString() || "the end of your paid period"}. It will not renew.
+                                                Spotlight add-on scheduled to end on {featureStopLastPaidDay?.toLocaleDateString() || "the end of your paid period"}. It will not renew.
                                             </p>
                                         )}
                                         <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
@@ -2556,7 +2655,7 @@ export default function Dashboard() {
                                                     {spotlightCancelPending ? "Ends On" : "Renewal Date"}
                                                 </p>
                                                 <p className="text-sm text-foreground font-medium">
-                                                    {displayFeatureEndsOn ? displayFeatureEndsOn.toLocaleDateString() : "N/A"}
+                                                    {featureLastPaidDay ? featureLastPaidDay.toLocaleDateString() : "N/A"}
                                                 </p>
                                             </div>
                                             <div className="min-w-[120px]">
@@ -2675,15 +2774,14 @@ export default function Dashboard() {
                         </div>
                         {!isPast && (includedPlanFeature || hasFeature) && (
                             <div className="pt-3 border-t border-foreground/10">
-                                <p className="text-sm text-foreground flex items-center gap-2">
-                                    <Sparkles className="w-4 h-4 text-primary" />
+                                <p className="text-sm text-foreground">
                                     {includedPlanFeature && !hasStandaloneAddon
                                         ? `Included: ${includedPlanFeature === "home_page" ? "Home page" : "Landing page"} spotlight`
                                         : `${featureEndsWithPlan || spotlightCancelPending ? "Spotlight" : "Active spotlight"}: ${dynamicFeaturePlans.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label || (effectiveSpotlightId === "home_page" ? "Home Page Spotlight" : effectiveSpotlightId === "landing_page" ? "Landing Page Spotlight" : "Spotlight add-on")}`}
                                 </p>
                                 {spotlightCancelPending && !featureEndsWithPlan && displayFeatureEndsOn && (
                                     <p className="text-xs mt-1" style={{ color: '#78350f' }}>
-                                        Spotlight add-on scheduled to end on {displayFeatureEndsOn.toLocaleDateString()}.
+                                        Spotlight add-on scheduled to end on {featureStopLastPaidDay?.toLocaleDateString() || "the end of your paid period"}.
                                         It will not renew; you can purchase again after that date.
                                     </p>
                                 )}
@@ -5098,8 +5196,7 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-primary" />
+                    <div>
                         <h2 className="text-xl font-bold text-foreground">
                             Upgrade Spotlight
                         </h2>
@@ -5209,8 +5306,7 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-2xl shadow-2xl overflow-hidden">
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Sparkles className="w-5 h-5 text-primary" />
+                    <div>
                         <h2 className="text-xl font-bold text-foreground">
                             Add Feature Plan
                         </h2>

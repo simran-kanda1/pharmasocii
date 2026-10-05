@@ -420,14 +420,11 @@ export default function Home() {
 
 // Helper components
 
-function SectionHeader({ title, subtitle, icon, action }: { title: string, subtitle: string, icon?: React.ReactNode, action?: React.ReactNode }) {
+function SectionHeader({ title, subtitle, action }: { title: string, subtitle: string, action?: React.ReactNode }) {
     return (
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6">
             <div>
-                <div className="inline-flex items-center gap-3 mb-2">
-                    {icon && <div className="p-2 rounded-lg bg-foreground/5 border border-foreground/10">{icon}</div>}
-                    <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">{title}</h2>
-                </div>
+                <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground mb-2">{title}</h2>
                 <p className="text-muted-foreground text-sm md:text-base">{subtitle}</p>
             </div>
             {action && <div>{action}</div>}

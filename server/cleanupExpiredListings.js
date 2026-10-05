@@ -28,6 +28,12 @@ function toDateValue(value) {
 }
 
 function isFirestorePlanBillingLive(plan) {
+    const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
+    if (["past_due", "unpaid", "canceled", "cancelled", "incomplete_expired"].includes(stripeStatus)) {
+        return false;
+    }
+    if (plan?.endedForNonpayment) return false;
+    if (["active", "trialing"].includes(stripeStatus)) return true;
     if (plan?.active === false) return false;
     const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
     if (end && end.getTime() < Date.now()) return false;
@@ -69,7 +75,7 @@ async function resolveListingDocRef(db, partnerId, collectionName, listingId) {
     return canonicalRef;
 }
 
-const STRIPE_LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due"]);
+const STRIPE_LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
 
 async function stripeSubscriptionStillLive(stripe, subscriptionId) {
     if (!stripe || !subscriptionId) return false;
@@ -131,6 +137,19 @@ export async function cleanupExpiredListings(options = {}) {
             );
             updatedPlans += 1;
         }
+
+        const siblingSnap = await db.collection("partnersCollection")
+            .doc(partnerId)
+            .collection("planCollection")
+            .where("listingId", "==", listingId)
+            .get();
+        const anotherLivePlan = siblingSnap.docs.some((sibling) => {
+            if (sibling.id === planDoc.id) return false;
+            const siblingPlan = sibling.data() || {};
+            if (siblingPlan.collectionName && siblingPlan.collectionName !== collectionName) return false;
+            return isFirestorePlanBillingLive(siblingPlan);
+        });
+        if (anotherLivePlan) continue;
 
         const listingRef = await resolveListingDocRef(db, partnerId, collectionName, listingId);
         if (!listingRef) continue;

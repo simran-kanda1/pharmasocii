@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
-import { db } from "@/firebase";
+import { auth, db } from "@/firebase";
+import { logMemberActivity } from "@/lib/auditLogger";
 import { AdminDetailChrome } from "@/components/admin/community/AdminDetailChrome";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,6 +78,39 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
           reason: status === "admin_hold" ? "Admin hold" : undefined,
           clearSpamCounters: status === "active",
         });
+        const u = auth.currentUser;
+        if (u) {
+          await logMemberActivity({
+            memberId,
+            memberName: member.name || member.userName || memberId,
+            action: "MEMBER_STATUS_CHANGED",
+            details: `Account status changed from "${prevStatus}" to "${status}" by admin (${u.email})`,
+            category: "admin",
+            performedBy: "admin",
+            metadata: {
+              adminEmail: u.email,
+              prevStatus,
+              newStatus: status,
+              scope: "community_members",
+            },
+          });
+        }
+      } else {
+        const u = auth.currentUser;
+        if (u) {
+          await logMemberActivity({
+            memberId,
+            memberName: name.trim() || member.name || memberId,
+            action: "MEMBER_UPDATED",
+            details: `Member profile updated by admin (${u.email})`,
+            category: "admin",
+            performedBy: "admin",
+            metadata: {
+              adminEmail: u.email,
+              scope: "community_members",
+            },
+          });
+        }
       }
       setMsg("Member updated.");
       onSaved();

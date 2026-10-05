@@ -2,6 +2,7 @@ import { addDoc, collection, doc, getDoc, serverTimestamp, updateDoc } from "fir
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from "@/firebase";
 import type { CommunityCategoryDoc } from "@/lib/communityTypes";
+import { logMemberActivity } from "@/lib/auditLogger";
 import {
   buildFilterKeysFromSelection,
   selectionToPostFields,
@@ -97,6 +98,20 @@ export async function publishCommunityPost(params: {
     likeCount: 0,
   });
 
+  logMemberActivity({
+    memberId: u.uid,
+    memberName: authorUserName || u.email || "Community Member",
+    action: "POST_CREATED",
+    details: `Created post: "${params.title.trim().slice(0, 60)}"`,
+    category: "community",
+    performedBy: "member",
+    metadata: {
+      postId: docRef.id,
+      email: u.email,
+      scope: "community_posts",
+    },
+  }).catch((e) => console.warn("Failed to log post creation audit:", e));
+
   return docRef.id;
 }
 
@@ -187,4 +202,20 @@ export async function updateCommunityPost(params: {
   }
 
   await updateDoc(postRef, updateData);
+
+  const authorUserName = resolveAuthorUserNameForPost(member?.userName);
+
+  logMemberActivity({
+    memberId: u.uid,
+    memberName: authorUserName || u.email || "Community Member",
+    action: "POST_EDITED",
+    details: `Updated post: "${params.title.trim().slice(0, 60)}"`,
+    category: "community",
+    performedBy: "member",
+    metadata: {
+      postId: params.postId,
+      email: u.email,
+      scope: "community_posts",
+    },
+  }).catch((e) => console.warn("Failed to log post edit audit:", e));
 }

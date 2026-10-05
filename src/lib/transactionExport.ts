@@ -41,6 +41,7 @@ export function transactionRowToExportRecord(row: PartnerTransactionRow): Record
         "Plan ID": row.planId || "",
         "Feature ID": row.featureId || "",
         "Business name": row.businessName || "",
+        "Primary contact": row.primaryContact || "",
         "Partner ID": row.partnerId || "",
         "Payment method": row.paymentMethod,
         "Session ID": row.sessionId || "",

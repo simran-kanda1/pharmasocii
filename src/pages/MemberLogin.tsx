@@ -12,6 +12,7 @@ import {
 } from "firebase/auth";
 import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { requestVerificationEmail } from "@/lib/adminCommunityCallables";
+import { logMemberActivity } from "@/lib/auditLogger";
 
 
 export default function MemberLogin() {
@@ -80,6 +81,21 @@ export default function MemberLogin() {
         setError("Please verify your email for active participation in the community. Check your inbox or click resend below.");
         setUnverifiedUser(true);
         return;
+      }
+
+      try {
+        const mData = memberSnap.data();
+        await logMemberActivity({
+          memberId: u.uid,
+          memberName: mData?.name || (mData?.userName ? `@${mData.userName}` : u.email || "Member"),
+          action: "MEMBER_LOGIN",
+          details: `Community member logged in (${u.email})`,
+          category: "community",
+          performedBy: "member",
+          metadata: { email: u.email, userName: mData?.userName },
+        });
+      } catch (logErr) {
+        console.warn("Failed to log member login:", logErr);
       }
 
       navigate("/community");

@@ -72,10 +72,11 @@ export function AdminArchivedPostsPanel() {
         await logActivity({
           partnerId: u.uid,
           partnerName: u.email || "Admin",
-          action: "ADMIN_ACTION",
+          action: "POST_RESTORED",
           details: `Activated post ${postId}`,
           category: "admin",
-          metadata: { scope: "community_archive" },
+          performedBy: "admin",
+          metadata: { scope: "community_archive", adminEmail: u.email, postId },
         });
       }
       setMsg("Post activated.");
