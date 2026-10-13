@@ -235,11 +235,11 @@ export default function ContactUs() {
             <section className="py-16 md:py-24 bg-muted/20">
                 <div className="container mx-auto px-4 max-w-3xl">
                     <Card className="border-foreground/10 bg-background shadow-xl rounded-3xl p-6 sm:p-10">
-                        <div className="text-center space-y-2 mb-8">
+                        <div className="text-left space-y-2 mb-8">
                             <h3 className="text-2xl sm:text-3xl font-extrabold text-foreground">
                                 Send us a message
                             </h3>
-                            <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                            <p className="text-sm text-muted-foreground max-w-md">
                                 Fill out the details below and we will route your inquiry to the appropriate department.
                             </p>
                         </div>

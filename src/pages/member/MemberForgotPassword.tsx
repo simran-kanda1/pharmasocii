@@ -40,9 +40,9 @@ export default function MemberForgotPassword() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground min-h-[80vh] px-4 py-12">
       <div className="w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
-        <div className="flex flex-col items-start text-left">
+        <div className="flex flex-col items-start text-left mb-6">
           <h1 className="text-3xl font-bold tracking-tight mb-2">Reset password</h1>
-          <p className="text-sm text-muted-foreground mb-6">
+          <p className="text-sm text-muted-foreground">
             Enter the email you used to register. We’ll send a link to set a new password.
           </p>
         </div>

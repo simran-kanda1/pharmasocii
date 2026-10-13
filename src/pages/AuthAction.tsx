@@ -115,11 +115,11 @@ export default function AuthAction() {
     return (
         <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground min-h-[80vh] px-4 py-12">
             <div className="w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
-                <div className="flex flex-col items-center text-center mb-6">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                        {status === "loading" && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
-                        {status === "success" && <CheckCircle className="h-6 w-6 text-emerald-600" />}
-                        {status === "error" && <AlertCircle className="h-6 w-6 text-destructive" />}
+                <div className="flex flex-col items-start text-left mb-6">
+                    <div className="flex items-center justify-start gap-2 mb-2">
+                        {status === "loading" && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground shrink-0" />}
+                        {status === "success" && <CheckCircle className="h-6 w-6 text-emerald-600 shrink-0" />}
+                        {status === "error" && <AlertCircle className="h-6 w-6 text-destructive shrink-0" />}
                         <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
                     </div>
                     {status === "loading" && (

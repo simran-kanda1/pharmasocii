@@ -155,10 +155,12 @@ export default function MemberCommunitySetup() {
   return (
     <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground min-h-[80vh] px-4 py-12">
       <div className="w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
-        <p className="text-muted-foreground text-sm mb-8">
-          Name/username are final at account creation.
-        </p>
+        <div className="flex flex-col items-start text-left mb-8">
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
+          <p className="text-muted-foreground text-sm">
+            Name/username are final at account creation.
+          </p>
+        </div>
 
         <form onSubmit={submit} className="space-y-4">
           <div className="space-y-2">

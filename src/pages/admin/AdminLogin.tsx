@@ -78,8 +78,8 @@ export default function AdminLogin() {
     return (
         <div className="min-h-screen flex items-center justify-center p-8 bg-slate-50">
             <Card className="w-full max-w-md bg-white border-slate-200 relative z-10 shadow-lg">
-                <CardHeader className="space-y-3 pb-8 text-center">
-                    <div className="mx-auto bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-2 border border-primary/20">
+                <CardHeader className="space-y-3 pb-8 text-left items-start">
+                    <div className="bg-primary/10 w-16 h-16 rounded-full flex items-center justify-center mb-2 border border-primary/20">
                         <ShieldAlert className="w-8 h-8 text-primary" />
                     </div>
                     <CardTitle className="text-3xl font-bold tracking-tight text-slate-900">Pharma SocII Admin</CardTitle>
