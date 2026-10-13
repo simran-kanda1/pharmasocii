@@ -184,9 +184,9 @@ export default function MemberRegister() {
     <div className="flex-1 flex flex-col items-center justify-center w-full bg-background text-foreground min-h-[80vh] px-4 py-12">
       <div className="w-full max-w-md border border-foreground/10 rounded-2xl bg-foreground/[0.02] p-8 shadow-xl">
         <div className="flex flex-col items-start text-left mb-8">
-          <h1 className="text-3xl font-bold tracking-tight mb-2">Create Your Profile</h1>
+          <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
           <p className="text-muted-foreground text-sm">
-            Name/username are final at account creation.
+            Name & username are final at account creation.
           </p>
         </div>
 

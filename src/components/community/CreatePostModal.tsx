@@ -304,10 +304,10 @@ export function CreatePostModal({
             </div>
 
             {error && <p className="text-sm text-destructive">{error}</p>}
-            <p className="text-[11px] text-muted-foreground leading-snug">
-              Main and subcategory selections are limited to keep discussions focused. Max {POST_COUNTRIES_MAX} countries
-              per post (optional).
-            </p>
+            <div className="text-[11px] text-muted-foreground leading-snug space-y-1">
+              <p>Category selections are limited to keep discussions focused.</p>
+              <p>Max {POST_COUNTRIES_MAX} countries per post (optional).</p>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

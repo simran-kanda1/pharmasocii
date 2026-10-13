@@ -463,7 +463,7 @@ export default function CommunityFeed() {
         ))}
       </div>
     </div>
-  ) : (
+  ) : !user ? null : (
     <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center gap-3 dark:border-foreground/15 dark:bg-card">
       <MessageSquarePlus className="h-8 w-8 text-muted-foreground shrink-0" />
       <div className="flex-1 min-w-[200px]">
@@ -480,11 +480,6 @@ export default function CommunityFeed() {
       </div>
       {!memberRestricted && (
         <div className="flex flex-wrap gap-2">
-          {!user && (
-            <Button size="sm" asChild>
-              <Link to="/member/login">Log in</Link>
-            </Button>
-          )}
           {user && verified && !hasMemberProfile && (
             <Button size="sm" asChild>
               <Link to="/member/setup">Set up profile</Link>

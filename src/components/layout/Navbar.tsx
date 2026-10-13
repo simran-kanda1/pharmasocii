@@ -88,14 +88,6 @@ export default function Navbar() {
                         >
                             Home
                         </Link>
-                        <Link
-                            to="/about"
-                            className={`text-sm font-medium transition-colors hover:text-primary ${
-                                location.pathname.startsWith("/about") ? "text-primary font-semibold" : "text-muted-foreground"
-                            }`}
-                        >
-                            About
-                        </Link>
                         <DropdownMenu>
                             <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors text-muted-foreground outline-none">
                                 Explore <ChevronDown className="h-4 w-4" />
@@ -207,16 +199,6 @@ export default function Navbar() {
                                             }`}
                                         >
                                             Home
-                                        </Link>
-                                    </SheetClose>
-                                    <SheetClose asChild>
-                                        <Link
-                                            to="/about"
-                                            className={`text-base font-medium py-2 px-3 rounded-lg hover:bg-foreground/5 transition-colors ${
-                                                location.pathname.startsWith("/about") ? "text-primary font-semibold bg-primary/10" : "text-foreground"
-                                            }`}
-                                        >
-                                            About
                                         </Link>
                                     </SheetClose>
                                     <SheetClose asChild>

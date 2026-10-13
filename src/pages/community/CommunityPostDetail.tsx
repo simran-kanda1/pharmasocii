@@ -967,9 +967,10 @@ function CommentComposer({
             : !canEngage
               ? "Log in to comment…"
               : isReply
-                ? "Write a reply…"
-                : "Comment"
+                ? "Replies are limited to one level to keep discussions focused."
+                : ""
         }
+        aria-label={isReply ? "Reply" : "Comment"}
         className="bg-foreground/5 border-foreground/10 disabled:cursor-not-allowed"
       />
       {canEngage && (
