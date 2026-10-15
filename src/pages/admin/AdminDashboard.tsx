@@ -894,7 +894,7 @@ export default function AdminDashboard() {
   const [auditSearchTerm, setAuditSearchTerm] = useState("");
   const [auditCategoryFilter, setAuditCategoryFilter] = useState<"all" | "partner" | "listing">("all");
   const [memberAuditSearchTerm, setMemberAuditSearchTerm] = useState("");
-  const [memberAuditCategoryFilter, setMemberAuditCategoryFilter] = useState<"all" | "auth" | "content" | "moderation">("all");
+  const [memberAuditCategoryFilter, setMemberAuditCategoryFilter] = useState<"all" | "account_created" | "password" | "status" | "post_reactivated" | "comment_reactivated">("all");
   const [settingsData, setSettingsData] = useState<AdminSettingsRecord>({
     email: "",
     phone: "",
@@ -2695,59 +2695,22 @@ export default function AdminDashboard() {
       .filter(isMemberAuditLog)
       .filter((log) => {
         const action = (log.action || "").toUpperCase();
-        const category = (log.category || "").toLowerCase();
         const details = (log.details || "").toLowerCase();
-        const scope = (log.metadata?.scope || "").toLowerCase();
-        const actor = getMemberAuditActor(log);
-        const isAdmin = actor.label === "Admin";
 
-        const isAuthAction =
-          action.includes("REGISTER") ||
-          action.includes("LOGIN") ||
-          action.includes("ACCOUNT_") ||
-          action.includes("PASSWORD_") ||
-          action.includes("PROFILE_") ||
-          action.startsWith("MEMBER_REGISTERED") ||
-          action.startsWith("MEMBER_LOGIN") ||
-          action.startsWith("MEMBER_UPDATED") ||
-          details.includes("registered") ||
-          details.includes("logged in") ||
-          details.includes("password") ||
-          details.includes("profile");
-
-        // Community Content: Any activity on community posts or comments (creation, edits, reports, activations, deactivations)
-        const isContentAction =
-          action.startsWith("POST_") ||
-          action.startsWith("COMMENT_") ||
-          scope.includes("posts") ||
-          scope.includes("comments") ||
-          scope.includes("community") ||
-          category === "community" ||
-          details.includes("post") ||
-          details.includes("comment");
-
-        const isModerationAction =
-          isAdmin ||
-          category === "admin" ||
-          action === "ADMIN_ACTION" ||
-          action === "MEMBER_STATUS_CHANGED" ||
-          action === "MEMBER_DELETED" ||
-          action.includes("ACTIVATED") ||
-          action.includes("DEACTIVATED") ||
-          details.includes("admin") ||
-          details.includes("activated") ||
-          details.includes("deactivated") ||
-          details.includes("hold") ||
-          details.includes("blocked");
-
-        if (memberAuditCategoryFilter === "auth") {
-          if (!isAuthAction) return false;
+        if (memberAuditCategoryFilter === "account_created") {
+          if (action !== "MEMBER_REGISTERED" && action !== "ACCOUNT_CREATED") return false;
         }
-        if (memberAuditCategoryFilter === "content") {
-          if (!isContentAction) return false;
+        if (memberAuditCategoryFilter === "password") {
+          if (!action.includes("PASSWORD") && !details.includes("password")) return false;
         }
-        if (memberAuditCategoryFilter === "moderation") {
-          if (!isModerationAction) return false;
+        if (memberAuditCategoryFilter === "status") {
+          if (action !== "MEMBER_STATUS_CHANGED" && !details.includes("status changed")) return false;
+        }
+        if (memberAuditCategoryFilter === "post_reactivated") {
+          if (action !== "POST_RESTORED" && !(action.includes("POST") && (details.includes("activated") || details.includes("restored")))) return false;
+        }
+        if (memberAuditCategoryFilter === "comment_reactivated") {
+          if (action !== "COMMENT_ACTIVATED" && !(action.includes("COMMENT") && (details.includes("activated") || details.includes("restored")))) return false;
         }
 
         if (!memberAuditSearchTerm) return true;
@@ -3438,40 +3401,62 @@ export default function AdminDashboard() {
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      All Logs
+                      All (5 Events)
                     </button>
                     <button
                       type="button"
-                      onClick={() => setMemberAuditCategoryFilter("auth")}
+                      onClick={() => setMemberAuditCategoryFilter("account_created")}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        memberAuditCategoryFilter === "auth"
+                        memberAuditCategoryFilter === "account_created"
                           ? "bg-white text-slate-900 shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      Account & Auth
+                      Account Created
                     </button>
                     <button
                       type="button"
-                      onClick={() => setMemberAuditCategoryFilter("content")}
+                      onClick={() => setMemberAuditCategoryFilter("password")}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        memberAuditCategoryFilter === "content"
+                        memberAuditCategoryFilter === "password"
                           ? "bg-white text-slate-900 shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      Community Content
+                      Password Changes
                     </button>
                     <button
                       type="button"
-                      onClick={() => setMemberAuditCategoryFilter("moderation")}
+                      onClick={() => setMemberAuditCategoryFilter("status")}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        memberAuditCategoryFilter === "moderation"
+                        memberAuditCategoryFilter === "status"
                           ? "bg-white text-slate-900 shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      Admin Moderation
+                      Status Changes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberAuditCategoryFilter("post_reactivated")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        memberAuditCategoryFilter === "post_reactivated"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Post Reactivations
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMemberAuditCategoryFilter("comment_reactivated")}
+                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                        memberAuditCategoryFilter === "comment_reactivated"
+                          ? "bg-white text-slate-900 shadow-sm"
+                          : "text-slate-600 hover:text-slate-900"
+                      }`}
+                    >
+                      Comment Reactivations
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
@@ -5974,43 +5959,41 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
 }
 
 function isMemberAuditLog(log: any): boolean {
-  const category = (log.category || "").toLowerCase();
   const action = (log.action || "").toUpperCase();
   const details = (log.details || "").toLowerCase();
-  const scope = (log.metadata?.scope || "").toLowerCase();
-  const role = (log.metadata?.role || "").toLowerCase();
 
-  // Explicit partner exclusions (B2B directory vendors, trials, listings, payments, partner accounts)
+  // Exactly the 5 items specified in requirements:
+  // 1. Account created – Member
+  if (action === "MEMBER_REGISTERED" || action === "ACCOUNT_CREATED") return true;
+
+  // 2. Change in PW by who and when - Member
   if (
-    action.startsWith("PAYMENT_") ||
-    action.startsWith("SUBSCRIPTION_") ||
-    action.startsWith("LISTING_") ||
-    action === "FEATURE_ADDED" ||
-    action === "CATEGORY_DELETED" ||
-    category === "billing" ||
-    category === "listing" ||
-    details.includes("partner") ||
-    details.includes("trial extended") ||
-    details.includes("trial, plan, and feature spotlight") ||
-    (details.includes("contact:") && !details.includes("community"))
+    action === "PASSWORD_UPDATED" ||
+    action === "PASSWORD_RESET" ||
+    action === "PASSWORD_CHANGED" ||
+    details.includes("password changed") ||
+    details.includes("password reset")
   ) {
-    return false;
+    return true;
   }
 
-  // Explicit community / member inclusions
+  // 3. Account status changed – system/admin/ - by who and when
+  if (action === "MEMBER_STATUS_CHANGED" || details.includes("account status changed")) {
+    return true;
+  }
+
+  // 4. Post reactivation - admin only - by who and when
   if (
-    category === "community" ||
-    role === "member" ||
-    scope.includes("community") ||
-    scope.includes("reported_comments") ||
-    scope.includes("member") ||
-    details.includes("member") ||
-    details.includes("community") ||
-    details.includes("post") ||
-    details.includes("comment") ||
-    action.startsWith("MEMBER_") ||
-    action.startsWith("POST_") ||
-    action.startsWith("COMMENT_")
+    action === "POST_RESTORED" ||
+    (action.includes("POST") && (details.includes("activated post") || details.includes("restored post")))
+  ) {
+    return true;
+  }
+
+  // 5. Comment reactivation - admin only - by who and when
+  if (
+    action === "COMMENT_ACTIVATED" ||
+    (action.includes("COMMENT") && (details.includes("activated comment") || details.includes("restored comment")))
   ) {
     return true;
   }
@@ -6100,38 +6083,17 @@ function MemberAuditLogList({ logs }: { logs: any[] }) {
     switch (action) {
       case "MEMBER_REGISTERED":
       case "ACCOUNT_CREATED":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Registered</Badge>;
-      case "MEMBER_LOGIN":
-        return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Login</Badge>;
-      case "MEMBER_UPDATED":
-      case "ACCOUNT_UPDATED":
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Profile Updated</Badge>;
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Account Created</Badge>;
       case "PASSWORD_UPDATED":
-        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Password Updated</Badge>;
+      case "PASSWORD_RESET":
+      case "PASSWORD_CHANGED":
+        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Password Changed</Badge>;
       case "MEMBER_STATUS_CHANGED":
         return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Status Changed</Badge>;
-      case "MEMBER_DELETED":
-        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Member Deleted</Badge>;
-      case "POST_CREATED":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Post Created</Badge>;
-      case "POST_EDITED":
-        return <Badge className="bg-blue-50 text-blue-700 border-blue-200">Post Edited</Badge>;
-      case "POST_ARCHIVED":
-        return <Badge className="bg-slate-100 text-slate-700 border-slate-300">Post Archived</Badge>;
       case "POST_RESTORED":
-        return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Post Restored</Badge>;
-      case "POST_DELETED":
-        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Post Deleted</Badge>;
-      case "COMMENT_POSTED":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Comment Posted</Badge>;
-      case "COMMENT_REPORTED":
-        return <Badge className="bg-red-50 text-red-700 border-red-200">Comment Reported</Badge>;
+        return <Badge className="bg-teal-50 text-teal-700 border-teal-200">Post Reactivated</Badge>;
       case "COMMENT_ACTIVATED":
-        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Comment Activated</Badge>;
-      case "COMMENT_DEACTIVATED":
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Comment Deactivated</Badge>;
-      case "ADMIN_ACTION":
-        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">Admin Action</Badge>;
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Comment Reactivated</Badge>;
       default:
         return <Badge variant="outline">{action ? action.replace(/_/g, " ") : "Activity"}</Badge>;
     }
