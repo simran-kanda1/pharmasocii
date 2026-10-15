@@ -40,7 +40,10 @@ import {
   Mail,
   Trash2,
   Info,
+  Upload,
+  EyeOff,
 } from "lucide-react";
+import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 import { db, auth, storage } from "@/firebase";
 import { logActivity } from "@/lib/auditLogger";
 import { onAuthStateChanged, signOut } from "firebase/auth";
@@ -3805,6 +3808,20 @@ export default function AdminDashboard() {
                 <AdminPdfViewer 
                   label="Event Agenda PDF" 
                   pdfUrl={partnerEditor.agendaPdfUrl} 
+                  partnerId={selectedPartner?.id || "admin"}
+                  uploadType="event"
+                  onPdfChange={async (newUrl) => {
+                    setPartnerEditor((prev) => ({ ...prev, agendaPdfUrl: newUrl }));
+                    if (selectedPartner?.id) {
+                      try {
+                        await updateDoc(doc(db, "partnersCollection", selectedPartner.id), { agendaPdfUrl: newUrl });
+                        setSaveNotice(newUrl ? "Event Agenda PDF updated!" : "Event Agenda PDF removed.");
+                        setTimeout(() => setSaveNotice(""), 4000);
+                      } catch (err) {
+                        console.error("Failed to update partner PDF:", err);
+                      }
+                    }
+                  }}
                 />
               </>
             )}
@@ -3899,6 +3916,20 @@ export default function AdminDashboard() {
                 <AdminPdfViewer 
                   label="Job Description PDF" 
                   pdfUrl={partnerEditor.jobDescriptionPdfUrl} 
+                  partnerId={selectedPartner?.id || "admin"}
+                  uploadType="job"
+                  onPdfChange={async (newUrl) => {
+                    setPartnerEditor((prev) => ({ ...prev, jobDescriptionPdfUrl: newUrl }));
+                    if (selectedPartner?.id) {
+                      try {
+                        await updateDoc(doc(db, "partnersCollection", selectedPartner.id), { jobDescriptionPdfUrl: newUrl });
+                        setSaveNotice(newUrl ? "Job Description PDF updated!" : "Job Description PDF removed.");
+                        setTimeout(() => setSaveNotice(""), 4000);
+                      } catch (err) {
+                        console.error("Failed to update partner PDF:", err);
+                      }
+                    }
+                  }}
                 />
               </>
             )}
@@ -4113,6 +4144,23 @@ export default function AdminDashboard() {
                       <AdminPdfViewer 
                         label="Event Agenda PDF" 
                         pdfUrl={listingEditor.agendaPdfUrl} 
+                        partnerId={selectedListing?.partnerId || (selectedListing?.__path?.startsWith("partnersCollection/") ? selectedListing.__path.split('/')[1] : "admin")}
+                        uploadType="event"
+                        onPdfChange={async (newUrl) => {
+                          setListingEditor((prev) => ({ ...prev, agendaPdfUrl: newUrl }));
+                          if (selectedListing?.__path) {
+                            try {
+                              await updateDoc(doc(db, selectedListing.__path), { 
+                                agendaPdfUrl: newUrl,
+                                agenda: listingEditor.agendaHighlights || ""
+                              });
+                              setSaveNotice(newUrl ? "Agenda PDF saved to listing!" : "Agenda PDF removed from listing.");
+                              setTimeout(() => setSaveNotice(""), 4000);
+                            } catch (err) {
+                              console.error("Failed to update listing PDF:", err);
+                            }
+                          }
+                        }}
                       />
                     </>
                   )}
@@ -4145,6 +4193,20 @@ export default function AdminDashboard() {
                       <AdminPdfViewer 
                         label="Job Description PDF" 
                         pdfUrl={listingEditor.jobDescriptionPdfUrl} 
+                        partnerId={selectedListing?.partnerId || (selectedListing?.__path?.startsWith("partnersCollection/") ? selectedListing.__path.split('/')[1] : "admin")}
+                        uploadType="job"
+                        onPdfChange={async (newUrl) => {
+                          setListingEditor((prev) => ({ ...prev, jobDescriptionPdfUrl: newUrl }));
+                          if (selectedListing?.__path) {
+                            try {
+                              await updateDoc(doc(db, selectedListing.__path), { jobDescriptionPdfUrl: newUrl });
+                              setSaveNotice(newUrl ? "Job Description PDF saved to listing!" : "Job Description PDF removed from listing.");
+                              setTimeout(() => setSaveNotice(""), 4000);
+                            } catch (err) {
+                              console.error("Failed to update listing PDF:", err);
+                            }
+                          }
+                        }}
                       />
                       <div className="space-y-1">
                         <p className="text-sm font-medium text-slate-500">Job Summary</p>
@@ -5440,45 +5502,203 @@ function Field({
 function AdminPdfViewer({
   label,
   pdfUrl,
+  partnerId,
+  uploadType = "event",
+  onPdfChange,
   emptyMessage = "No PDF uploaded",
 }: {
   label: string;
   pdfUrl?: string | null;
+  partnerId?: string;
+  uploadType?: "event" | "job";
+  onPdfChange?: (url: string) => Promise<void> | void;
   emptyMessage?: string;
 }) {
+  const [showPreview, setShowPreview] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const url = pdfUrl ? String(pdfUrl).trim() : "";
 
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const err = validateJobDescriptionPdf(file);
+    if (err) {
+      alert(err);
+      return;
+    }
+    setUploading(true);
+    try {
+      const pid = partnerId || "admin-upload";
+      const downloadUrl =
+        uploadType === "event"
+          ? await uploadEventAgendaPdf(pid, file, null)
+          : await uploadJobDescriptionPdf(pid, file, null);
+      if (onPdfChange) {
+        await onPdfChange(downloadUrl);
+      }
+    } catch (error: any) {
+      console.error("PDF upload failed:", error);
+      alert(error?.message || "Failed to upload PDF.");
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleRemove = async () => {
+    if (confirm(`Are you sure you want to remove the ${label}?`)) {
+      if (onPdfChange) {
+        await onPdfChange("");
+      }
+      setShowPreview(false);
+    }
+  };
+
   return (
-    <div className="space-y-1.5">
-      <p className="text-sm font-medium text-slate-700">{label}</p>
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-slate-700">{label}</p>
+        {url && (
+          <button
+            type="button"
+            onClick={() => setShowPreview((prev) => !prev)}
+            className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium cursor-pointer"
+          >
+            {showPreview ? (
+              <>
+                <EyeOff className="w-3.5 h-3.5" /> Hide Preview
+              </>
+            ) : (
+              <>
+                <Eye className="w-3.5 h-3.5" /> Inline Preview
+              </>
+            )}
+          </button>
+        )}
+      </div>
+
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="application/pdf"
+        className="hidden"
+      />
+
       {url ? (
-        <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100/80 transition-colors">
-          <div className="flex items-center gap-3 min-w-0 pr-2">
-            <div className="w-9 h-9 rounded-md bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-              <FileText className="w-5 h-5 text-rose-600" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-slate-800 truncate">
-                {label}
-              </p>
-              <p className="text-xs text-slate-500">Document attached</p>
+        <div className="space-y-2">
+          <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100/70 transition-colors">
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-3 min-w-0 flex-1 pr-2 group cursor-pointer"
+              title="Click to open PDF in new tab"
+            >
+              <div className="w-9 h-9 rounded-md bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <FileText className="w-5 h-5 text-rose-600" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-slate-800 truncate group-hover:text-blue-600 transition-colors">
+                  {label}
+                </p>
+                <p className="text-xs text-slate-500 flex items-center gap-1">
+                  <span>Document attached</span>
+                  <span className="text-slate-300">•</span>
+                  <span className="text-blue-600 font-medium group-hover:underline flex items-center gap-0.5">
+                    Click to view <ExternalLink className="w-3 h-3 inline" />
+                  </span>
+                </p>
+              </div>
+            </a>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <Button
+                asChild
+                size="sm"
+                variant="outline"
+                className="h-8 px-2.5 bg-white text-xs shadow-sm border-slate-200 text-slate-700 hover:text-slate-900"
+              >
+                <a href={url} target="_blank" rel="noopener noreferrer">
+                  <ExternalLink className="w-3.5 h-3.5 mr-1 text-slate-500" />
+                  Open PDF
+                </a>
+              </Button>
+
+              {onPdfChange && (
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="h-8 px-2.5 bg-white text-xs shadow-sm border-slate-200 text-slate-700 hover:text-slate-900"
+                  >
+                    {uploading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <>
+                        <Upload className="w-3.5 h-3.5 mr-1 text-slate-500" />
+                        Replace
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    disabled={uploading}
+                    onClick={handleRemove}
+                    className="h-8 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
+                    title="Remove PDF"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </>
+              )}
             </div>
           </div>
-          <Button
-            asChild
-            size="sm"
-            variant="outline"
-            className="shrink-0 bg-white shadow-sm border-slate-200 text-slate-700 hover:text-slate-900"
-          >
-            <a href={url} target="_blank" rel="noopener noreferrer">
-              <ExternalLink className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
-              View PDF
-            </a>
-          </Button>
+
+          {showPreview && (
+            <div className="rounded-lg border border-slate-200 overflow-hidden bg-slate-900 shadow-sm animate-in fade-in duration-200">
+              <iframe
+                src={`${url}#toolbar=1`}
+                title={label}
+                className="w-full h-96 bg-white"
+              />
+            </div>
+          )}
         </div>
       ) : (
-        <div className="p-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 text-xs text-slate-400 italic">
-          {emptyMessage}
+        <div className="flex items-center justify-between p-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/50">
+          <div className="flex items-center gap-2 text-xs text-slate-500 italic">
+            <FileText className="w-4 h-4 text-slate-400" />
+            <span>{emptyMessage}</span>
+          </div>
+          {onPdfChange && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={uploading}
+              onClick={() => fileInputRef.current?.click()}
+              className="h-8 px-3 bg-white text-xs shadow-sm border-slate-200 text-slate-700 hover:text-slate-900"
+            >
+              {uploading ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+                  Upload PDF
+                </>
+              )}
+            </Button>
+          )}
         </div>
       )}
     </div>
