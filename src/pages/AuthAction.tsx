@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Loader2, CheckCircle, AlertCircle, Eye, EyeOff, ArrowLeft } from "lucide-react";
 import { getPasswordPolicyChecks, isPasswordPolicyValid, PASSWORD_POLICY_ERROR_MESSAGE } from "@/lib/passwordPolicy";
 import { getFriendlyErrorMessage } from "@/lib/errorHandler";
+import { logMemberActivity } from "@/lib/auditLogger";
 
 export default function AuthAction() {
     const [searchParams] = useSearchParams();
@@ -28,6 +29,7 @@ export default function AuthAction() {
     const [newPassword, setNewPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [resetEmail, setResetEmail] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -57,7 +59,8 @@ export default function AuthAction() {
             try {
                 switch (mode) {
                     case "resetPassword":
-                        await verifyPasswordResetCode(auth, oobCode);
+                        const verifiedEmail = await verifyPasswordResetCode(auth, oobCode);
+                        setResetEmail(verifiedEmail);
                         setStatus("input");
                         break;
                     case "recoverEmail":
@@ -102,6 +105,19 @@ export default function AuthAction() {
         setIsSubmitting(true);
         try {
             await confirmPasswordReset(auth, oobCode!, newPassword);
+            try {
+                await logMemberActivity({
+                    memberId: resetEmail || "unknown",
+                    memberName: resetEmail || "Community Member",
+                    action: "PASSWORD_UPDATED",
+                    details: `Community member password reset via email link (${resetEmail || "email"})`,
+                    category: "account",
+                    performedBy: "member",
+                    metadata: { email: resetEmail, scope: "community_members", method: "email_reset" },
+                });
+            } catch (auditErr) {
+                console.warn("Failed to log password reset audit:", auditErr);
+            }
             setStatus("success");
             setMessage("Your password has been successfully reset. You can now log in with your new password.");
         } catch (error: any) {
