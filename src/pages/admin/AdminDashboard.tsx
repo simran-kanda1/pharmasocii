@@ -1231,27 +1231,27 @@ export default function AdminDashboard() {
     setSelectedPartner(partner);
     setPartnerEditor({
       // Primary Info
-      firstName: partner.firstName || "",
-      lastName: partner.lastName || "",
-      primaryName: partner.primaryName || "",
-      primaryEmail: partner.primaryEmail || "",
-      phoneNumber: partner.phoneNumber || "",
+      firstName: partner.firstName || (partner as any).first_name || "",
+      lastName: partner.lastName || (partner as any).last_name || "",
+      primaryName: partner.primaryName || partner.contactName || (partner as any).name || "",
+      primaryEmail: partner.primaryEmail || (partner as any).email || "",
+      phoneNumber: partner.phoneNumber || (partner as any).phone || "",
       
       // Company Info
-      businessName: partner.businessName || "",
-      companyWebsite: partner.companyWebsite || "",
-      businessPhone: partner.businessPhone || "",
-      linkedinProfile: partner.linkedinProfile || "",
-      businessAddress: partner.businessAddress || "",
-      businessCountry: partner.businessCountry || "",
-      companyProfileText: partner.companyProfileText || "",
+      businessName: partner.businessName || partner.companyName || "",
+      companyWebsite: partner.companyWebsite || (partner as any).website || "",
+      businessPhone: partner.businessPhone || (partner as any).phone || partner.phoneNumber || "",
+      linkedinProfile: partner.linkedinProfile || (partner as any).linkedin || "",
+      businessAddress: partner.businessAddress || (partner as any).addressHtml || (partner as any).address || "",
+      businessCountry: partner.businessCountry || (partner as any).country || "",
+      companyProfileText: partner.companyProfileText || (partner as any).profileHtml || (partner as any).companyProfile || "",
       
       // Billing & Admin
-      partnerStatus: partner.partnerStatus || "Pending",
-      billingEmailAddress: partner.billingEmailAddress || "",
-      VAT_ABN_EIN_businessId: partner.VAT_ABN_EIN_businessId || "",
-      altContactName: partner.altContactName || "",
-      altEmail: partner.altEmail || "",
+      partnerStatus: partner.partnerStatus || (partner as any).status || "Pending",
+      billingEmailAddress: partner.billingEmailAddress || (partner as any).billingEmail || "",
+      VAT_ABN_EIN_businessId: partner.VAT_ABN_EIN_businessId || (partner as any).businessId || (partner as any).vatNumber || (partner as any).vat || (partner as any).ein || "",
+      altContactName: partner.altContactName || (partner as any).secondaryName || (partner as any).altName || (partner as any).secondaryContactName || "",
+      altEmail: partner.altEmail || (partner as any).secondaryEmail || "",
       selectedGroup: partner.selectedGroup || "business_offerings",
       selectedPlan: partner.selectedPlan || "none",
       
@@ -1348,8 +1348,11 @@ export default function AdminDashboard() {
           status: partnerEditor.partnerStatus || "Pending",
           billingEmailAddress: partnerEditor.billingEmailAddress || "",
           VAT_ABN_EIN_businessId: partnerEditor.VAT_ABN_EIN_businessId || "",
+          businessId: partnerEditor.VAT_ABN_EIN_businessId || "",
           altContactName: partnerEditor.altContactName || "",
+          secondaryName: partnerEditor.altContactName || "",
           altEmail: partnerEditor.altEmail || "",
+          secondaryEmail: partnerEditor.altEmail || "",
           selectedGroup: partnerEditor.selectedGroup || "business_offerings",
           selectedPlan: partnerEditor.selectedPlan || "none",
           
@@ -3539,62 +3542,6 @@ export default function AdminDashboard() {
                     >
                       Cancel Trial
                     </Button>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {selectedPartner && (() => {
-              const partnerFeature = featuredPlans.find((f) => f.partnerId === selectedPartner.id);
-              const hasAddon =
-                selectedPartner.selectedAddon &&
-                selectedPartner.selectedAddon !== "none" &&
-                selectedPartner.selectedAddon !== "null" &&
-                String(selectedPartner.selectedAddon).trim() !== "";
-
-              if (!partnerFeature && !hasAddon) return null;
-
-              const accessDate = partnerFeature?.accessThrough
-                ? new Date(
-                    typeof (partnerFeature.accessThrough as any).toDate === "function"
-                      ? (partnerFeature.accessThrough as any).toDate()
-                      : partnerFeature.accessThrough
-                  )
-                : null;
-              const isExpired = accessDate ? accessDate.getTime() < Date.now() : false;
-              const rawName =
-                partnerFeature?.featureName ||
-                partnerFeature?.featureId ||
-                (hasAddon ? selectedPartner.selectedAddon : "") ||
-                "";
-              const featureName = rawName.replace(/_/g, " ").trim();
-
-              if (!featureName || featureName.toLowerCase() === "none" || featureName.toLowerCase() === "null") {
-                return null;
-              }
-
-              return (
-                <div className="bg-amber-50/50 p-4 rounded-lg border border-amber-200 space-y-3 mt-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold tracking-wider text-amber-800">
-                      Feature Spotlight Status
-                    </span>
-                    {isExpired ? (
-                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">
-                        Expired
-                      </Badge>
-                    ) : (
-                      <Badge className="bg-amber-100 text-amber-800 border-amber-300">Active Spotlight</Badge>
-                    )}
-                  </div>
-                  <div className="text-sm text-slate-700 space-y-1">
-                    <p>
-                      <strong>Feature:</strong> {featureName}
-                    </p>
-                    {accessDate && <p><strong>Expiration:</strong> {accessDate.toLocaleDateString()}</p>}
-                    <p className="text-xs text-amber-800/80 italic pt-0.5">
-                      Automatically synchronized with plan trial period
-                    </p>
                   </div>
                 </div>
               );

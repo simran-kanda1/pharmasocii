@@ -159,8 +159,8 @@ export function isPartnerListingPublic(
 const PLAN_INCLUDED_SPOTLIGHT: Record<string, string> = {
     premium_event: "landing_page",
     premium_job: "landing_page",
-    premium_plus_event: "home_page",
-    premium_plus_job: "home_page",
+    premium_plus_event: "both",
+    premium_plus_job: "both",
 };
 
 const SPOTLIGHT_TIER_RANK: Record<string, number> = {
@@ -188,25 +188,13 @@ export function inferIncludedSpotlightFromPlan(item: Record<string, unknown>): s
 
 /**
  * Resolve where a listing should appear in Featured carousels.
- * Events/Jobs: plan-included spotlight is source of truth (Premium = landing only,
- * Premium Plus = home only — not a tier hierarchy that keeps landing).
- * Business/Consulting: use the higher of plan-included vs add-on fields.
+ * Uses the higher of plan-included vs add-on fields across all plans.
  */
 export function resolveSpotlightPlacement(item: Record<string, unknown>): string {
     const addon = String(item?.selectedAddon || item?.featuredPlacement || "")
         .trim()
         .toLowerCase();
     const planIncluded = inferIncludedSpotlightFromPlan(item);
-    const planId = String(item?.selectedPlan || "").trim().toLowerCase();
-    const isEventOrJobPlan =
-        planId.includes("_event") ||
-        planId.includes("_job") ||
-        planId.endsWith("event") ||
-        planId.endsWith("job");
-
-    if (isEventOrJobPlan && planIncluded) {
-        return planIncluded;
-    }
 
     const tier = Math.max(spotlightTierRank(addon), spotlightTierRank(planIncluded));
     const resolved = spotlightPlacementFromTier(tier);
