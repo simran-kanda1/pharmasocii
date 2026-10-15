@@ -1975,7 +1975,7 @@ export default function AdminDashboard() {
       location: listing.location || "",
       eventProfile: listing.eventProfile || (listing as any).description || "",
       agendaHighlights: listing.agendaHighlights || "",
-      agendaPdfUrl: listing.agendaPdfUrl || "",
+      agendaPdfUrl: listing.agendaPdfUrl || (listing as any).agendaPdf || (listing as any).pdfUrl || partner?.agendaPdfUrl || "",
       // Job fields
       jobTitle: listing.jobTitle || "",
       industry: listing.industry || "",
@@ -1990,7 +1990,7 @@ export default function AdminDashboard() {
       education: listing.education || "",
       workModel: listing.workModel || "",
       applicationDeadline: listing.applicationDeadline || "",
-      jobDescriptionPdfUrl: listing.jobDescriptionPdfUrl || "",
+      jobDescriptionPdfUrl: listing.jobDescriptionPdfUrl || (listing as any).jobPdf || (listing as any).pdfUrl || partner?.jobDescriptionPdfUrl || "",
       companyWebsiteLink: listing.companyWebsiteLink || resolvedCompanyWebsite || "",
       linkedInJob: listing.linkedInJob || "",
     });
@@ -3802,11 +3802,9 @@ export default function AdminDashboard() {
                     className={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin) ? "min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : "min-h-20"}
                   />
                 </div>
-                <Field 
-                  label="Agenda PDF URL" 
-                  value={partnerEditor.agendaPdfUrl || ""} 
-                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, agendaPdfUrl: v }))} 
-                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                <AdminPdfViewer 
+                  label="Event Agenda PDF" 
+                  pdfUrl={partnerEditor.agendaPdfUrl} 
                 />
               </>
             )}
@@ -3898,11 +3896,9 @@ export default function AdminDashboard() {
                   onChange={(v) => setPartnerEditor((prev) => ({ ...prev, applicationDeadline: v }))} 
                   disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
                 />
-                <Field 
-                  label="Job Description PDF URL" 
-                  value={partnerEditor.jobDescriptionPdfUrl || ""} 
-                  onChange={(v) => setPartnerEditor((prev) => ({ ...prev, jobDescriptionPdfUrl: v }))} 
-                  disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
+                <AdminPdfViewer 
+                  label="Job Description PDF" 
+                  pdfUrl={partnerEditor.jobDescriptionPdfUrl} 
                 />
               </>
             )}
@@ -4114,7 +4110,10 @@ export default function AdminDashboard() {
                         <p className="text-sm font-medium text-slate-500">Agenda Highlights</p>
                         <Textarea value={listingEditor.agendaHighlights || ""} disabled={true} className="min-h-16 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" />
                       </div>
-                      <Field label="Agenda PDF URL" value={listingEditor.agendaPdfUrl || ""} onChange={() => {}} disabled={true} />
+                      <AdminPdfViewer 
+                        label="Event Agenda PDF" 
+                        pdfUrl={listingEditor.agendaPdfUrl} 
+                      />
                     </>
                   )}
 
@@ -4143,7 +4142,10 @@ export default function AdminDashboard() {
                       </div>
                       <Field label="Company Website Link (Job)" value={listingEditor.companyWebsiteLink || ""} onChange={() => {}} disabled={true} />
                       <Field label="LinkedIn Job URL" value={listingEditor.linkedInJob || ""} onChange={() => {}} disabled={true} />
-                      <Field label="Job Description PDF URL" value={listingEditor.jobDescriptionPdfUrl || ""} onChange={() => {}} disabled={true} />
+                      <AdminPdfViewer 
+                        label="Job Description PDF" 
+                        pdfUrl={listingEditor.jobDescriptionPdfUrl} 
+                      />
                       <div className="space-y-1">
                         <p className="text-sm font-medium text-slate-500">Job Summary</p>
                         <Textarea value={listingEditor.jobSummary || ""} disabled={true} className="min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" />
@@ -5431,6 +5433,54 @@ function Field({
         disabled={disabled}
         className={disabled ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : ""}
       />
+    </div>
+  );
+}
+
+function AdminPdfViewer({
+  label,
+  pdfUrl,
+  emptyMessage = "No PDF uploaded",
+}: {
+  label: string;
+  pdfUrl?: string | null;
+  emptyMessage?: string;
+}) {
+  const url = pdfUrl ? String(pdfUrl).trim() : "";
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium text-slate-700">{label}</p>
+      {url ? (
+        <div className="flex items-center justify-between p-3 rounded-lg border border-slate-200 bg-slate-50/80 hover:bg-slate-100/80 transition-colors">
+          <div className="flex items-center gap-3 min-w-0 pr-2">
+            <div className="w-9 h-9 rounded-md bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
+              <FileText className="w-5 h-5 text-rose-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-medium text-slate-800 truncate">
+                {label}
+              </p>
+              <p className="text-xs text-slate-500">Document attached</p>
+            </div>
+          </div>
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className="shrink-0 bg-white shadow-sm border-slate-200 text-slate-700 hover:text-slate-900"
+          >
+            <a href={url} target="_blank" rel="noopener noreferrer">
+              <ExternalLink className="w-3.5 h-3.5 mr-1.5 text-slate-500" />
+              View PDF
+            </a>
+          </Button>
+        </div>
+      ) : (
+        <div className="p-3 rounded-lg border border-dashed border-slate-200 bg-slate-50/50 text-xs text-slate-400 italic">
+          {emptyMessage}
+        </div>
+      )}
     </div>
   );
 }
