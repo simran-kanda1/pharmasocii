@@ -1866,10 +1866,87 @@ export default function AdminDashboard() {
       initialStatus = "Active";
     }
 
+    // Resolve associated partner to pull non-* core info (website, address, country, profile description, etc.)
+    const partnerIdFromPath = listing.__path?.startsWith("partnersCollection/")
+      ? listing.__path.split("/")[1]
+      : "";
+    const resolvedPartnerId = listing.partnerId || listing.userId || partnerIdFromPath || "";
+    const partner = partners.find(
+      (p) =>
+        (resolvedPartnerId && p.id === resolvedPartnerId) ||
+        (listing.id && p.id === listing.id) ||
+        (p.primaryEmail && (listing as any).primaryEmail && p.primaryEmail.toLowerCase() === (listing as any).primaryEmail.toLowerCase()) ||
+        (p.businessName && listing.businessName && p.businessName.trim().toLowerCase() === listing.businessName.trim().toLowerCase())
+    );
+
+    const resolvedBusinessName =
+      listing.businessName ||
+      (listing as any).companyName ||
+      partner?.businessName ||
+      partner?.companyName ||
+      "";
+
+    const resolvedCompanyWebsite =
+      listing.companyWebsite ||
+      (listing as any).website ||
+      (listing as any).companyWebsiteLink ||
+      partner?.companyWebsite ||
+      (partner as any)?.website ||
+      "";
+
+    const resolvedBusinessCountry =
+      listing.businessCountry ||
+      (listing as any).country ||
+      partner?.businessCountry ||
+      (partner as any)?.country ||
+      "";
+
+    const resolvedBusinessAddress =
+      listing.businessAddress ||
+      (listing as any).addressHtml ||
+      (listing as any).address ||
+      partner?.businessAddress ||
+      (partner as any)?.addressHtml ||
+      (partner as any)?.address ||
+      "";
+
+    const resolvedCompanyProfile =
+      listing.companyProfileText ||
+      (listing as any).profileHtml ||
+      (listing as any).companyProfile ||
+      (listing as any).description ||
+      partner?.companyProfileText ||
+      (partner as any)?.profileHtml ||
+      (partner as any)?.companyProfile ||
+      "";
+
+    const resolvedServiceCountries =
+      (listing.serviceCountries && listing.serviceCountries.length > 0)
+        ? listing.serviceCountries
+        : (partner?.serviceCountries || []);
+
+    const resolvedServiceRegions =
+      (listing.serviceRegions && listing.serviceRegions.length > 0)
+        ? listing.serviceRegions
+        : (partner?.serviceRegions || []);
+
+    const resolvedBSL =
+      (listing.bioSafetyLevel && listing.bioSafetyLevel.length > 0)
+        ? listing.bioSafetyLevel
+        : (partner?.bioSafetyLevel || []);
+
+    const resolvedCerts =
+      (listing.certifications && listing.certifications.length > 0)
+        ? listing.certifications
+        : (partner?.certifications || []);
+
+    const resolvedReps =
+      listing.companyRepresentatives || partner?.companyRepresentatives || null;
+
     setListingEditor({
       // Core
-      businessName: listing.businessName || "",
-      companyWebsite: listing.companyWebsite || "",
+      businessName: resolvedBusinessName,
+      companyWebsite: resolvedCompanyWebsite,
       selectedPlan: listing.selectedPlan || "",
       selectedGroup: listing.selectedGroup || "",
       status: initialStatus,
@@ -1878,25 +1955,25 @@ export default function AdminDashboard() {
       selectedCategories: listing.selectedCategories || [],
       selectedSubcategories: listing.selectedSubcategories || [],
       selectedSubSubcategories: listing.selectedSubSubcategories || [],
-      serviceCountries: listing.serviceCountries || [],
-      serviceRegions: listing.serviceRegions || [],
+      serviceCountries: resolvedServiceCountries,
+      serviceRegions: resolvedServiceRegions,
       // Business/Consulting
-      companyProfileText: listing.companyProfileText || "",
-      businessAddress: listing.businessAddress || "",
-      businessCountry: listing.businessCountry || "",
-      bioSafetyLevelCsv: (listing.bioSafetyLevel || []).join(", "),
-      certificationsCsv: (listing.certifications || []).join(", "),
-      companyRepresentativesJson: listing.companyRepresentatives ? JSON.stringify(listing.companyRepresentatives, null, 2) : "",
+      companyProfileText: resolvedCompanyProfile,
+      businessAddress: resolvedBusinessAddress,
+      businessCountry: resolvedBusinessCountry,
+      bioSafetyLevelCsv: resolvedBSL.join(", "),
+      certificationsCsv: resolvedCerts.join(", "),
+      companyRepresentativesJson: resolvedReps ? JSON.stringify(resolvedReps, null, 2) : "",
       // Event fields
       eventName: listing.eventName || "",
       eventLink: listing.eventLink || "",
       startDate: listing.startDate || "",
       endDate: listing.endDate || "",
-      eventCountry: listing.eventCountry || "",
+      eventCountry: listing.eventCountry || (listing as any).country || resolvedBusinessCountry || "",
       stateRegion: listing.stateRegion || "",
       city: listing.city || "",
       location: listing.location || "",
-      eventProfile: listing.eventProfile || "",
+      eventProfile: listing.eventProfile || (listing as any).description || "",
       agendaHighlights: listing.agendaHighlights || "",
       agendaPdfUrl: listing.agendaPdfUrl || "",
       // Job fields
@@ -1905,7 +1982,7 @@ export default function AdminDashboard() {
       positionType: listing.positionType || "",
       experienceLevel: listing.experienceLevel || "",
       positionLink: listing.positionLink || "",
-      jobCountry: listing.jobCountry || "",
+      jobCountry: listing.jobCountry || (listing as any).country || resolvedBusinessCountry || "",
       jobStateRegion: listing.stateRegion || "",
       jobCity: listing.city || "",
       jobLocation: listing.location || "",
@@ -1914,7 +1991,7 @@ export default function AdminDashboard() {
       workModel: listing.workModel || "",
       applicationDeadline: listing.applicationDeadline || "",
       jobDescriptionPdfUrl: listing.jobDescriptionPdfUrl || "",
-      companyWebsiteLink: listing.companyWebsiteLink || "",
+      companyWebsiteLink: listing.companyWebsiteLink || resolvedCompanyWebsite || "",
       linkedInJob: listing.linkedInJob || "",
     });
     setListingEditorOpen(true);

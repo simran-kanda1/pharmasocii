@@ -684,6 +684,7 @@ export default function CompleteProfile() {
             const listingData: Record<string, any> = {
                 partnerId: auth.currentUser.uid,
                 businessName: formData.companyName,
+                companyWebsite: formData.companyWebsite || "",
                 companyLogoUrl: logoUrlResolved || "",
                 selectedGroup: formData.group,
                 selectedPlan: formData.plan,

@@ -200,6 +200,7 @@ export default function AddListing() {
     const [companyProfile, setCompanyProfile] = useState("");
     const [businessAddress, setBusinessAddress] = useState("");
     const [businessCountry, setBusinessCountry] = useState("");
+    const [companyWebsite, setCompanyWebsite] = useState("");
 
     // ─── Business Offerings fields ───
     const [selectedBSL, setSelectedBSL] = useState<string[]>([]);
@@ -251,6 +252,7 @@ export default function AddListing() {
                     setCompanyProfile(d.companyProfileText || "");
                     setBusinessAddress(d.businessAddress || "");
                     setBusinessCountry(d.businessCountry || "");
+                    setCompanyWebsite(d.companyWebsite || d.website || "");
                     const [altFName, ...altLNames] = ((d.secondaryName || "") as string).split(" ");
                     const altRep = normalizeRepresentative({
                         firstName: d.secondaryFirstName || altFName || "",
@@ -651,6 +653,7 @@ export default function AddListing() {
             const listingData: Record<string, any> = {
                 partnerId: auth.currentUser.uid,
                 businessName: companyName,
+                companyWebsite: companyWebsite,
                 selectedGroup: dbGroup,
                 selectedPlan: plan,
                 // Feature add-ons can only be purchased after the base plan is paid.
