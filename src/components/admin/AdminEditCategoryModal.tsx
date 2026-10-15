@@ -5,6 +5,7 @@ import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { buildCategoryDocId } from "@/lib/defaultDirectoryCategories";
 import { Loader2, Trash2, X } from "lucide-react";
 
 const PARENT_CATEGORIES = [
@@ -76,7 +77,9 @@ export function AdminEditCategoryModal({
     setLoading(true);
 
     try {
-      const docId = category.id || `${formData.parentCategory}_${formData.categoryName}_${formData.subcategory || "none"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const isSub = formData.subcategory && formData.subcategory.trim() !== "" && formData.subcategory.trim() !== "-";
+      const canonicalDocId = buildCategoryDocId(formData.parentCategory, formData.categoryName, isSub ? formData.subcategory.trim() : undefined);
+      const docId = category.id || canonicalDocId;
       const docRef = doc(db, "categoriesCollection", docId);
 
       let finalImageUrl = formData.imageUrl;
@@ -84,10 +87,12 @@ export function AdminEditCategoryModal({
       if (imageFile) {
         const storageRef = ref(storage, `categories/${docId}/featured.png`);
         await uploadBytes(storageRef, imageFile);
-        finalImageUrl = await getDownloadURL(storageRef);
+        uploadedImageUrl: finalImageUrl = await getDownloadURL(storageRef);
       }
 
-      await setDoc(docRef, {
+      const isInactive = formData.status === "Inactive";
+
+      const savePayload = {
         group: formData.parentCategory,
         category: formData.categoryName,
         subcategory: formData.subcategory || "-",
@@ -95,12 +100,35 @@ export function AdminEditCategoryModal({
         parentCategory: formData.parentCategory,
         categoryName: formData.categoryName,
         status: formData.status,
+        isDeleted: isInactive,
+        deleted: isInactive,
         metaDescription: formData.metaDescription,
         metaKeywords: formData.metaKeywords,
         description: formData.description,
         imageUrl: finalImageUrl,
         updatedAt: serverTimestamp(),
-      }, { merge: true });
+      };
+
+      await setDoc(docRef, savePayload, { merge: true });
+
+      if (canonicalDocId !== docId) {
+        await setDoc(doc(db, "categoriesCollection", canonicalDocId), savePayload, { merge: true }).catch(() => {});
+      }
+
+      // If active, neutralize any stale legacy tombstone with _all suffix
+      if (!isInactive) {
+        const legacyTombstoneId = `${canonicalDocId}_all`;
+        await setDoc(
+          doc(db, "categoriesCollection", legacyTombstoneId),
+          {
+            status: "Active",
+            isDeleted: false,
+            deleted: false,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        ).catch(() => {});
+      }
 
       onSaved();
     } catch (err: any) {
@@ -120,21 +148,27 @@ export function AdminEditCategoryModal({
 
     setDeleting(true);
     try {
-      const docId = category.id || `${formData.parentCategory}_${formData.categoryName}_${isSub ? formData.subcategory : "all"}`.replace(/[^a-zA-Z0-9_-]/g, "_");
-      await setDoc(
-        doc(db, "categoriesCollection", docId),
-        {
-          group: formData.parentCategory,
-          parentCategory: formData.parentCategory,
-          category: formData.categoryName,
-          categoryName: formData.categoryName,
-          subcategory: formData.subcategory === "-" ? "" : (formData.subcategory || ""),
-          subSubcategory: "",
-          status: "Inactive",
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
-      );
+      const canonicalDocId = buildCategoryDocId(formData.parentCategory, formData.categoryName, isSub ? formData.subcategory : undefined);
+      const docId = category.id || canonicalDocId;
+
+      const deletePayload = {
+        group: formData.parentCategory,
+        parentCategory: formData.parentCategory,
+        category: formData.categoryName,
+        categoryName: formData.categoryName,
+        subcategory: formData.subcategory === "-" ? "" : (formData.subcategory || ""),
+        subSubcategory: "",
+        status: "Inactive",
+        isDeleted: true,
+        deleted: true,
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, "categoriesCollection", docId), deletePayload, { merge: true });
+      if (canonicalDocId !== docId) {
+        await setDoc(doc(db, "categoriesCollection", canonicalDocId), deletePayload, { merge: true }).catch(() => {});
+      }
+
       onSaved();
     } catch (err: any) {
       console.error("Error deleting category:", err);

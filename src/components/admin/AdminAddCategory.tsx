@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { useDirectoryCategories } from "@/hooks/useDirectoryCategories";
+import { buildCategoryDocId } from "@/lib/defaultDirectoryCategories";
 import {
   Loader2,
   Plus,
@@ -151,7 +152,7 @@ export function AdminAddCategory({
 
         // Support comma separation
         const newItems = raw
-          .split(",")
+          .split(/[\n,]/)
           .map((item) => item.trim())
           .filter((item) => item.length > 0);
 
@@ -241,62 +242,126 @@ export function AdminAddCategory({
         uploadedImageUrl = await getDownloadURL(storageRef);
       }
 
-      // 2. Prepare Subcategory Entries
-      const validSubcategories = subcategories.filter((s) => s.name.trim().length > 0);
+      // 2. Prepare and normalize Subcategory Entries:
+      // - Auto-flush any pending subSubInput into subSubcategories
+      // - Expand any comma/newline separated subcategories into individual entries
+      const processedSubcategories: Array<{
+        name: string;
+        subSubcategories: string[];
+      }> = [];
+
+      subcategories.forEach((sub) => {
+        const rawName = sub.name.trim();
+        if (!rawName) return;
+
+        // Auto-flush pending subSubInput
+        const pendingSubSubs = (sub.subSubInput || "")
+          .split(/[\n,]/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
+
+        const currentSubSubSet = new Set(sub.subSubcategories.map((x) => x.toLowerCase()));
+        const mergedSubSubs = [...sub.subSubcategories];
+        pendingSubSubs.forEach((item) => {
+          if (!currentSubSubSet.has(item.toLowerCase())) {
+            mergedSubSubs.push(item);
+            currentSubSubSet.add(item.toLowerCase());
+          }
+        });
+
+        // Check if rawName contains commas or newlines
+        const subNames = rawName
+          .split(/[\n,]/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
+
+        if (subNames.length > 1 && mergedSubSubs.length === 0) {
+          // User typed multiple subcategories in one input without specific sub-subcategories:
+          subNames.forEach((n) => {
+            processedSubcategories.push({
+              name: n,
+              subSubcategories: [],
+            });
+          });
+        } else if (subNames.length > 0) {
+          // Either single subcategory or has attached sub-subcategories
+          subNames.forEach((n) => {
+            processedSubcategories.push({
+              name: n,
+              subSubcategories: [...mergedSubSubs],
+            });
+          });
+        }
+      });
 
       const baseDocData: Record<string, any> = {
         group: targetGroupName,
         parentCategory: targetGroupName,
         category: finalCategoryName,
         categoryName: finalCategoryName,
-        status,
+        status: status || "Active",
+        isDeleted: false,
+        deleted: false,
         metaDescription: metaDescription.trim(),
         metaKeywords: metaKeywords.trim(),
         description: description.trim(),
         imageUrl: uploadedImageUrl || "",
-        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       };
 
-      if (validSubcategories.length === 0) {
-        // Create 1 base category document without subcategories
-        const safeId = `cat_${targetGroupName}_${finalCategoryName}`
-          .replace(/[^a-zA-Z0-9_-]/g, "_")
-          .toLowerCase();
+      const savePromises: Promise<any>[] = [];
 
-        await setDoc(
-          doc(db, "categoriesCollection", safeId),
+      // ALWAYS save / update the base category document so the category itself exists and retains its metadata
+      const baseCatDocId = buildCategoryDocId(targetGroupName, finalCategoryName);
+      savePromises.push(
+        setDoc(
+          doc(db, "categoriesCollection", baseCatDocId),
           {
             ...baseDocData,
             subcategory: "-",
             subSubcategory: "-",
+            createdAt: serverTimestamp(),
           },
           { merge: true }
-        );
-      } else {
-        // Save each subcategory with its explicit sub-subcategories list
-        const savePromises = validSubcategories.map(async (sub) => {
-          const subName = sub.name.trim();
-          const subSubStr =
-            sub.subSubcategories.length > 0 ? sub.subSubcategories.join(", ") : "-";
+        )
+      );
 
-          const safeId = `cat_${targetGroupName}_${finalCategoryName}_${subName}`
-            .replace(/[^a-zA-Z0-9_-]/g, "_")
-            .toLowerCase();
+      // Save each subcategory document
+      processedSubcategories.forEach((sub) => {
+        const subSubStr = sub.subSubcategories.length > 0 ? sub.subSubcategories.join(", ") : "-";
+        const subDocId = buildCategoryDocId(targetGroupName, finalCategoryName, sub.name);
 
-          return setDoc(
-            doc(db, "categoriesCollection", safeId),
+        savePromises.push(
+          setDoc(
+            doc(db, "categoriesCollection", subDocId),
             {
               ...baseDocData,
-              subcategory: subName,
+              subcategory: sub.name,
               subSubcategory: subSubStr,
+              createdAt: serverTimestamp(),
             },
             { merge: true }
-          );
-        });
+          )
+        );
 
-        await Promise.all(savePromises);
-      }
+        // Also clean up any legacy tombstone variants (e.g. ${subDocId}_all or old casing)
+        // so stale inactive docs can never hide this newly added subcategory
+        const legacyTombstoneId = `${subDocId}_all`;
+        savePromises.push(
+          setDoc(
+            doc(db, "categoriesCollection", legacyTombstoneId),
+            {
+              status: "Active",
+              isDeleted: false,
+              deleted: false,
+              updatedAt: serverTimestamp(),
+            },
+            { merge: true }
+          ).catch(() => {})
+        );
+      });
+
+      await Promise.all(savePromises);
 
       onSuccess();
     } catch (err: any) {

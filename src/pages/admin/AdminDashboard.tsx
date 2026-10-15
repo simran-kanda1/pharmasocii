@@ -89,6 +89,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useDirectoryCategories } from "@/hooks/useDirectoryCategories";
 import {
   normalizeGroupKey,
+  buildCategoryDocId,
   type SubcategoryEntry,
 } from "@/lib/defaultDirectoryCategories";
 import { DEFAULT_COMMUNITY_CATEGORIES } from "@/lib/defaultCommunityCategories";
@@ -2358,7 +2359,7 @@ export default function AdminDashboard() {
           catMeta.isDeleted === true ||
           catMeta.deleted === true;
 
-        if (isCatInactive) return;
+        if (isCatInactive && (!Array.isArray(subEntries) || subEntries.length === 0)) return;
 
         let pushedForCategory = 0;
 
@@ -2438,7 +2439,7 @@ export default function AdminDashboard() {
       });
     });
 
-    return rows.filter((r) => (r.status || "").toLowerCase() !== "inactive").sort((a, b) => {
+    return rows.sort((a, b) => {
       const gComp = (a.group || "").localeCompare(b.group || "", undefined, { sensitivity: "base" });
       if (gComp !== 0) return gComp;
       const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
@@ -4836,40 +4837,32 @@ function CategoryBreakdownTable({
     const rowKey = `${row.group}__${row.category}__${row.subcategory}__${row.subSubcategory}`;
     setDeletingKey(rowKey);
     try {
-      const sanitized = `${row.group}_${row.category}_${isSub ? row.subcategory : "all"}_${isSubSub ? row.subSubcategory : "all"}`
-        .replace(/[^a-zA-Z0-9_-]/g, "_")
-        .toLowerCase();
-      const docId = row.id || `cat_${sanitized}`;
-
-      await setDoc(
-        doc(db, "categoriesCollection", docId),
-        {
-          group: row.group,
-          parentCategory: row.group,
-          category: row.category,
-          categoryName: row.category,
-          subcategory: row.subcategory === "-" ? "" : (row.subcategory || ""),
-          subSubcategory: row.subSubcategory === "-" ? "" : (row.subSubcategory || ""),
-          status: "Inactive",
-          isDeleted: true,
-          deleted: true,
-          updatedAt: serverTimestamp(),
-        },
-        { merge: true },
+      const canonicalId = buildCategoryDocId(
+        row.group,
+        row.category,
+        isSub ? row.subcategory : undefined,
+        isSubSub ? row.subSubcategory : undefined
       );
+      const docId = row.id || canonicalId;
 
-      if (row.id && row.id !== docId) {
+      const deletePayload = {
+        group: row.group,
+        parentCategory: row.group,
+        category: row.category,
+        categoryName: row.category,
+        subcategory: row.subcategory === "-" ? "" : (row.subcategory || ""),
+        subSubcategory: row.subSubcategory === "-" ? "" : (row.subSubcategory || ""),
+        status: "Inactive",
+        isDeleted: true,
+        deleted: true,
+        updatedAt: serverTimestamp(),
+      };
+
+      await setDoc(doc(db, "categoriesCollection", docId), deletePayload, { merge: true });
+
+      if (canonicalId !== docId) {
         try {
-          await setDoc(
-            doc(db, "categoriesCollection", row.id),
-            {
-              status: "Inactive",
-              isDeleted: true,
-              deleted: true,
-              updatedAt: serverTimestamp(),
-            },
-            { merge: true },
-          );
+          await setDoc(doc(db, "categoriesCollection", canonicalId), deletePayload, { merge: true });
         } catch (_) {}
       }
     } catch (err: any) {

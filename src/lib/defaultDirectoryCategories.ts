@@ -380,10 +380,47 @@ export function sortCategoriesDict(source: CategoriesDict): CategoriesDict {
     return sorted;
 }
 
+export function buildCategoryDocId(
+    group: string,
+    category: string,
+    subcategory?: string,
+    subSubcategory?: string
+): string {
+    const cleanGroup = (group || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
+    const cleanCat = (category || "").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
+    const cleanSub = (subcategory && subcategory.trim() !== "-")
+        ? subcategory.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_")
+        : "";
+    const cleanSubSub = (subSubcategory && subSubcategory.trim() !== "-")
+        ? subSubcategory.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_")
+        : "";
+
+    let id = `cat_${cleanGroup}_${cleanCat}`;
+    if (cleanSub) id += `_${cleanSub}`;
+    if (cleanSubSub) id += `_${cleanSubSub}`;
+    return id.replace(/_+/g, "_").replace(/_$/, "");
+}
+
 export function findMatchingCategoryKey(dict: CategoriesDict, name: string): string | undefined {
     const norm = (name || "").trim().toLowerCase();
     if (!norm) return undefined;
-    return Object.keys(dict).find((k) => k.trim().toLowerCase() === norm);
+
+    // 1. Exact match (case-insensitive)
+    const exact = Object.keys(dict).find((k) => k.trim().toLowerCase() === norm);
+    if (exact) return exact;
+
+    // 2. Normalized match (handling & vs and, punctuation, spacing)
+    const simplify = (s: string) =>
+        s
+            .toLowerCase()
+            .replace(/\band\b/g, "&")
+            .replace(/[^a-z0-9&]/g, "")
+            .trim();
+
+    const normSimp = simplify(name);
+    if (!normSimp) return undefined;
+
+    return Object.keys(dict).find((k) => simplify(k) === normSimp);
 }
 
 function removeCategoryFromDict(
@@ -463,25 +500,29 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
             .filter((s) => s && s !== "-");
     };
 
-    // Separate active additions vs inactive / deletion tombstones
-    const activeDocs: DirectoryCategoryDoc[] = [];
-    const inactiveDocs: DirectoryCategoryDoc[] = [];
+    const getDocTime = (doc: DirectoryCategoryDoc): number => {
+        const ts = doc.updatedAt || doc.createdAt;
+        if (!ts) return Date.now();
+        if (typeof ts.toMillis === "function") return ts.toMillis();
+        if (typeof ts.toDate === "function") return ts.toDate().getTime();
+        if (typeof ts.seconds === "number") return ts.seconds * 1000;
+        const n = new Date(ts).getTime();
+        return Number.isNaN(n) ? Date.now() : n;
+    };
 
-    dbDocs.forEach((doc) => {
-        const isInactive =
-            (doc.status || "Active").toLowerCase() === "inactive" ||
-            doc.isDeleted === true ||
-            doc.deleted === true;
-
-        if (isInactive) {
-            inactiveDocs.push(doc);
-        } else {
-            activeDocs.push(doc);
-        }
+    // Sort documents chronologically so the latest status always takes precedence
+    const sortedDocs = [...dbDocs].sort((a, b) => {
+        const tA = getDocTime(a);
+        const tB = getDocTime(b);
+        if (tA !== tB) return tA - tB;
+        const isAInactive = (a.status || "").toLowerCase() === "inactive" || a.isDeleted === true || a.deleted === true;
+        const isBInactive = (b.status || "").toLowerCase() === "inactive" || b.isDeleted === true || b.deleted === true;
+        if (isAInactive && !isBInactive) return -1;
+        if (!isAInactive && isBInactive) return 1;
+        return 0;
     });
 
-    // 1. Process active docs first (add new categories/subcategories)
-    activeDocs.forEach((doc) => {
+    sortedDocs.forEach((doc) => {
         const groupKey = normalizeGroupKey(doc.parentCategory || doc.group);
         if (!groupKey) return;
 
@@ -503,13 +544,14 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
             subSubList = [];
         }
 
-        // Store metadata keyed by ID and hierarchy
+        // Store metadata
         if (doc.id) {
             categoryMetadataMap[doc.id] = doc;
         }
-        if (subList.length === 0) {
-            categoryMetadataMap[`${groupKey}:${categoryName}`] = doc;
-        }
+        categoryMetadataMap[`${groupKey}:${categoryName}`] = {
+            ...categoryMetadataMap[`${groupKey}:${categoryName}`],
+            ...doc,
+        };
         subList.forEach((sub) => {
             categoryMetadataMap[`${groupKey}:${categoryName}:${sub}`] = doc;
             subSubList.forEach((ss) => {
@@ -517,7 +559,40 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
             });
         });
 
-        // Add to active dicts
+        const isDeleted = doc.isDeleted === true || doc.deleted === true;
+        const isInactive = (doc.status || "Active").toLowerCase() === "inactive" || isDeleted;
+
+        if (isDeleted) {
+            // Completely deleted -> remove from active dict AND all dict
+            removeCategoryFromDict(targetActiveDict, categoryName, subList, subSubList);
+            removeCategoryFromDict(targetAllDict, categoryName, subList, subSubList);
+            return;
+        }
+
+        if (isInactive) {
+            // Inactive (hidden from front, but kept in admin table)
+            removeCategoryFromDict(targetActiveDict, categoryName, subList, subSubList);
+            const matchedAllKey = findMatchingCategoryKey(targetAllDict, categoryName);
+            const actualAllCatKey = matchedAllKey || categoryName;
+            if (!targetAllDict[actualAllCatKey]) {
+                targetAllDict[actualAllCatKey] = [];
+            }
+            if (subList.length > 0) {
+                const currentEntries = targetAllDict[actualAllCatKey];
+                subList.forEach((sub) => {
+                    const existingIndex = currentEntries.findIndex(
+                        (entry) => getSubLabel(entry).toLowerCase() === sub.toLowerCase()
+                    );
+                    if (existingIndex === -1) {
+                        currentEntries.push(subSubList.length > 0 ? { label: sub, subSubcategories: [...subSubList] } : sub);
+                    }
+                });
+            }
+            return;
+        }
+
+        // ACTIVE DOCUMENT: Add to both active and all dicts
+        // 1. Add to active dict
         const matchedActiveKey = findMatchingCategoryKey(targetActiveDict, categoryName);
         const actualActiveCatKey = matchedActiveKey || categoryName;
         if (!targetActiveDict[actualActiveCatKey]) {
@@ -566,7 +641,7 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
             }
         }
 
-        // Add to all dicts
+        // 2. Add to all dict
         const matchedAllKey = findMatchingCategoryKey(targetAllDict, categoryName);
         const actualAllCatKey = matchedAllKey || categoryName;
         if (!targetAllDict[actualAllCatKey]) {
@@ -614,48 +689,6 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
                 });
             }
         }
-    });
-
-    // 2. Process inactive / deleted docs second (remove from BOTH activeDicts and allDicts)
-    inactiveDocs.forEach((doc) => {
-        const groupKey = normalizeGroupKey(doc.parentCategory || doc.group);
-        if (!groupKey) return;
-
-        const targetActiveDict = activeDicts[groupKey];
-        const targetAllDict = allDicts[groupKey];
-        if (!targetActiveDict || !targetAllDict) return;
-
-        const categoryName = (doc.categoryName || doc.category || "").trim();
-        if (!categoryName) return;
-
-        const rawSubcategory = (doc.subcategory || "").trim();
-        const rawSubSubcategory = (doc.subSubcategory || "").trim();
-
-        let subList = parseList(rawSubcategory);
-        let subSubList = parseList(rawSubSubcategory);
-
-        if (subList.length === 0 && subSubList.length > 0) {
-            subList = subSubList;
-            subSubList = [];
-        }
-
-        // Store metadata
-        if (doc.id) {
-            categoryMetadataMap[doc.id] = doc;
-        }
-        if (subList.length === 0) {
-            categoryMetadataMap[`${groupKey}:${categoryName}`] = doc;
-        }
-        subList.forEach((sub) => {
-            categoryMetadataMap[`${groupKey}:${categoryName}:${sub}`] = doc;
-            subSubList.forEach((ss) => {
-                categoryMetadataMap[`${groupKey}:${categoryName}:${sub}:${ss}`] = doc;
-            });
-        });
-
-        // Prune from active dict (frontend) AND all dict (admin table)
-        removeCategoryFromDict(targetActiveDict, categoryName, subList, subSubList);
-        removeCategoryFromDict(targetAllDict, categoryName, subList, subSubList);
     });
 
     return {
