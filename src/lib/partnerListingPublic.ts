@@ -31,24 +31,27 @@ export function toDateValue(value: unknown): Date | null {
 }
 
 export function isPlanBillingLive(plan: Record<string, unknown>): boolean {
-    const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
-    if (plan?.isTrial || plan?.source === "admin_granted" || Boolean(plan?.createdByAdmin)) {
-        if (plan?.active === false) return false;
-        if (end && end.getTime() < Date.now()) return false;
-        return true;
-    }
+    if (plan?.active === false) return false;
+    if (plan?.endedForNonpayment) return false;
+
     const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
     if (["past_due", "unpaid", "canceled", "cancelled", "incomplete_expired"].includes(stripeStatus)) {
         return false;
     }
-    if (plan?.endedForNonpayment) return false;
-    // Stripe still active: keep the listing up, including a scheduled cancel and a test clock
-    // whose stored end is behind the wall clock. Hide only after Stripe itself is no longer active.
+
+    const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
+    if (end && end.getTime() < Date.now()) {
+        return false;
+    }
+
     if (["active", "trialing"].includes(stripeStatus)) {
         return true;
     }
-    if (plan?.active === false) return false;
-    if (end && end.getTime() < Date.now()) return false;
+
+    if (plan?.isTrial || plan?.source === "admin_granted" || Boolean(plan?.createdByAdmin)) {
+        return true;
+    }
+
     return true;
 }
 
@@ -156,30 +159,12 @@ export function isPartnerListingPublic(
 }
 
 /** Plan IDs that include a spotlight tier (events/jobs). */
-const PLAN_INCLUDED_SPOTLIGHT: Record<string, string> = {
+export const PLAN_INCLUDED_SPOTLIGHT: Record<string, string> = {
     premium_event: "landing_page",
     premium_job: "landing_page",
-    premium_plus_event: "both",
-    premium_plus_job: "both",
+    premium_plus_event: "home_page",
+    premium_plus_job: "home_page",
 };
-
-const SPOTLIGHT_TIER_RANK: Record<string, number> = {
-    landing_page: 1,
-    home_page: 2,
-    both: 3,
-    spotlight_addon: 2,
-};
-
-function spotlightTierRank(placement: string): number {
-    return SPOTLIGHT_TIER_RANK[String(placement || "").trim().toLowerCase()] || 0;
-}
-
-function spotlightPlacementFromTier(tier: number): string {
-    if (tier >= 3) return "both";
-    if (tier >= 2) return "home_page";
-    if (tier >= 1) return "landing_page";
-    return "";
-}
 
 export function inferIncludedSpotlightFromPlan(item: Record<string, unknown>): string {
     const planId = String(item?.selectedPlan || "").trim().toLowerCase();
@@ -191,14 +176,38 @@ export function inferIncludedSpotlightFromPlan(item: Record<string, unknown>): s
  * Uses the higher of plan-included vs add-on fields across all plans.
  */
 export function resolveSpotlightPlacement(item: Record<string, unknown>): string {
-    const addon = String(item?.selectedAddon || item?.featuredPlacement || "")
-        .trim()
-        .toLowerCase();
+    const rawPlacement = String(item?.featuredPlacement || "").trim().toLowerCase();
+    const rawAddon = String(item?.selectedAddon || "").trim().toLowerCase();
+
+    const addon = (rawPlacement && rawPlacement !== "none")
+        ? rawPlacement
+        : (rawAddon && rawAddon !== "none" && rawAddon !== "spotlight_addon")
+            ? rawAddon
+            : "";
+
     const planIncluded = inferIncludedSpotlightFromPlan(item);
 
-    const tier = Math.max(spotlightTierRank(addon), spotlightTierRank(planIncluded));
-    const resolved = spotlightPlacementFromTier(tier);
-    return resolved || addon || planIncluded;
+    if (
+        (addon === "home_page" && planIncluded === "landing_page") ||
+        (addon === "landing_page" && planIncluded === "home_page") ||
+        addon === "both" ||
+        planIncluded === "both"
+    ) {
+        return "both";
+    }
+
+    if (addon === "home_page" || addon === "landing_page") {
+        return addon;
+    }
+    if (planIncluded === "home_page" || planIncluded === "landing_page") {
+        return planIncluded;
+    }
+
+    if (rawAddon === "spotlight_addon") {
+        return rawPlacement || "home_page";
+    }
+
+    return "";
 }
 
 /** Spotlight stays visible until its paid/access window ends. */

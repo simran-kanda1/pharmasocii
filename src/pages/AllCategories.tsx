@@ -525,13 +525,9 @@ export default function AllCategories() {
     const featuredBusinesses = data
         .filter(item => {
             if (!spotlightDisplayActive(item)) return false;
-            const addon = resolveSpotlightPlacement(item);
-            const isLandingSpotlight =
-                addon === "landing_page" ||
-                addon === "home_page" ||
-                addon === "both" ||
-                addon === "spotlight_addon";
-            const hasLegacyFeatureFlag = Boolean(item.isFeatured) && !addon;
+            const placement = resolveSpotlightPlacement(item);
+            const isLandingSpotlight = placement === "landing_page" || placement === "both";
+            const hasLegacyFeatureFlag = Boolean(item.isFeatured) && !placement;
             if (!isLandingSpotlight && !hasLegacyFeatureFlag) return false;
             return true;
         })
@@ -1006,7 +1002,7 @@ export default function AllCategories() {
                 )}
             </div>
 
-            {isMainCategoryTab && (
+            {isMainCategoryTab && featuredBusinesses.length > 0 && (
                 <div className="w-full bg-muted/10 py-16">
                     <div className="container mx-auto px-4">
                         <div className="flex flex-col items-center overflow-hidden w-full">

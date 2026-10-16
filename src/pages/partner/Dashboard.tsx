@@ -388,19 +388,27 @@ const sameCalendarDay = (a: Date | null, b: Date | null): boolean =>
 
 /** Paid access still in effect (not lapsed / not deactivated). */
 const isPlanBillingLive = (plan: any): boolean => {
+    if (plan?.active === false) return false;
+    if (plan?.endedForNonpayment) return false;
+
     const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
     if (["past_due", "unpaid", "canceled", "cancelled", "incomplete_expired"].includes(stripeStatus)) {
         return false;
     }
-    if (plan?.endedForNonpayment) return false;
-    // Stripe still active: stay on the site through a scheduled cancel, and when a test clock's
-    // stored end is behind the wall clock. A failed renewal is not active, so it stays hidden.
+
+    const end = getPlanPeriodEndDate(plan);
+    if (end && end.getTime() < Date.now()) {
+        return false;
+    }
+
     if (["active", "trialing"].includes(stripeStatus)) {
         return true;
     }
-    if (plan?.active === false) return false;
-    const end = getPlanPeriodEndDate(plan);
-    if (end && end.getTime() < Date.now()) return false;
+
+    if (plan?.isTrial || plan?.source === "admin_granted" || Boolean(plan?.createdByAdmin)) {
+        return true;
+    }
+
     return true;
 };
 

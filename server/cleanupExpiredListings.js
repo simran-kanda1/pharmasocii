@@ -28,15 +28,19 @@ function toDateValue(value) {
 }
 
 function isFirestorePlanBillingLive(plan) {
+    if (plan?.active === false) return false;
+    if (plan?.endedForNonpayment) return false;
+
     const stripeStatus = String(plan?.stripeSubscriptionStatus || "").toLowerCase();
     if (["past_due", "unpaid", "canceled", "cancelled", "incomplete_expired"].includes(stripeStatus)) {
         return false;
     }
-    if (plan?.endedForNonpayment) return false;
-    if (["active", "trialing"].includes(stripeStatus)) return true;
-    if (plan?.active === false) return false;
+
     const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
     if (end && end.getTime() < Date.now()) return false;
+
+    if (["active", "trialing"].includes(stripeStatus)) return true;
+
     return true;
 }
 
@@ -81,7 +85,12 @@ async function stripeSubscriptionStillLive(stripe, subscriptionId) {
     if (!stripe || !subscriptionId) return false;
     try {
         const sub = await stripe.subscriptions.retrieve(String(subscriptionId));
-        return STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(String(sub?.status || "").toLowerCase());
+        const status = String(sub?.status || "").toLowerCase();
+        if (!STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(status)) return false;
+        if (sub.cancel_at_period_end && sub.current_period_end && sub.current_period_end * 1000 < Date.now()) {
+            return false;
+        }
+        return true;
     } catch {
         return false;
     }
