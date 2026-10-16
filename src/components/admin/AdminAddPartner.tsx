@@ -868,7 +868,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         !ev.eventCountry ||
         !ev.stateRegion.trim() ||
         !ev.city.trim() ||
-        !ev.location.trim() ||
         !ev.eventProfile.trim() ||
         !highlights ||
         !hasAgendaPdf
@@ -917,7 +916,6 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         !j.jobCountry.trim() ||
         !j.stateRegion?.trim() ||
         !j.city?.trim() ||
-        !j.location.trim() ||
         !j.workModel.trim() ||
         !j.positionLink.trim()
       ) {
@@ -1582,13 +1580,9 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     <Label className="text-slate-600 font-semibold">State / Province / Region <span className="text-red-500">*</span></Label>
                     <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
-                  <div>
+                  <div className="md:col-span-2">
                     <Label className="text-slate-600 font-semibold">City / Town <span className="text-red-500">*</span></Label>
                     <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
-                  </div>
-                  <div>
-                    <Label className="text-slate-600 font-semibold">Location Venue / Address <span className="text-red-500">*</span></Label>
-                    <Input value={eventData.location} onChange={e => setEventData(prev => ({ ...prev, location: e.target.value }))} className="mt-1.5 bg-white border-slate-200" placeholder="e.g. Moscone Center, Hall A" />
                   </div>
                   <div className="md:col-span-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1810,13 +1804,9 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     <Label className="text-slate-600 font-semibold">State / Province / Region <span className="text-red-500">*</span></Label>
                     <Input value={jobData.stateRegion} onChange={e => setJobData(prev => ({ ...prev, stateRegion: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
-                  <div>
+                  <div className="md:col-span-2">
                     <Label className="text-slate-600 font-semibold">City / Town <span className="text-red-500">*</span></Label>
                     <Input value={jobData.city} onChange={e => setJobData(prev => ({ ...prev, city: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
-                  </div>
-                  <div>
-                    <Label className="text-slate-600 font-semibold">Office Venue / Location <span className="text-red-500">*</span></Label>
-                    <Input value={jobData.location} onChange={e => setJobData(prev => ({ ...prev, location: e.target.value }))} className="mt-1.5 bg-white border-slate-200" placeholder="e.g. Headquarters, Bldg B" />
                   </div>
                 </div>
               </div>
