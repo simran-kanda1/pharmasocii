@@ -1114,19 +1114,19 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Building className="w-5 h-5 text-blue-500" /> Primary Account Admin</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-slate-600 font-medium">First name <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">First name <span className="text-blue-500">*</span></Label>
                   <Input value={formData.firstName} onChange={(e) => handleChange("firstName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Last name <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Last name <span className="text-blue-500">*</span></Label>
                   <Input value={formData.lastName} onChange={(e) => handleChange("lastName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Email <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Email <span className="text-blue-500">*</span></Label>
                   <Input type="email" value={formData.email} onChange={(e) => handleChange("email", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Phone <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Phone <span className="text-blue-500">*</span></Label>
                   <PhoneInput defaultCountry="US" value={toPhoneInputValue(formData.phone) || undefined}
                     onChange={(value) => handleChange("phone", value || '')}
                     className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm mt-1.5" />
@@ -1139,15 +1139,15 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Receipt className="w-5 h-5 text-blue-500" /> Alternate / Emergency Contact</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-slate-600 font-medium">First Name <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">First Name <span className="text-blue-500">*</span></Label>
                   <Input value={formData.altFirstName} onChange={(e) => handleChange("altFirstName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Last Name <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Last Name <span className="text-blue-500">*</span></Label>
                   <Input value={formData.altLastName} onChange={(e) => handleChange("altLastName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div className="md:col-span-2">
-                  <Label className="text-slate-600 font-medium">Email <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Email <span className="text-blue-500">*</span></Label>
                   <Input type="email" value={formData.altEmail} onChange={(e) => handleChange("altEmail", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
               </div>
@@ -1158,7 +1158,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <div className="relative">
-                    <Label className="text-slate-600 font-medium">Password <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-medium">Password <span className="text-blue-500">*</span></Label>
                     <Input type={showPassword ? "text" : "password"} value={formData.password} onChange={(e) => handleChange("password", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500 pr-10" />
                     <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600">
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -1173,7 +1173,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 </div>
                 <div>
                   <div className="relative">
-                    <Label className="text-slate-600 font-medium">Confirm password <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-medium">Confirm password <span className="text-blue-500">*</span></Label>
                     <Input type={showConfirmPassword ? "text" : "password"} value={formData.confirmPassword} onChange={(e) => handleChange("confirmPassword", e.target.value)} className={`mt-1.5 bg-white focus:border-blue-500 pr-10 ${passwordsMismatch ? "border-red-400" : "border-slate-200"}`} />
                     <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600">
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -1195,16 +1195,16 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Building2 className="w-5 h-5 text-blue-500" /> Company Profile Info</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-slate-600 font-medium">Company name <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Company name <span className="text-blue-500">*</span></Label>
                   <Input value={formData.companyName} onChange={(e) => handleChange("companyName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                   <p className="text-xs text-slate-400 mt-1">Original capitalization preserved.</p>
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Company website <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Company website <span className="text-blue-500">*</span></Label>
                   <Input type="url" placeholder="https://" value={formData.companyWebsite} onChange={(e) => handleChange("companyWebsite", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Business phone <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Business phone <span className="text-blue-500">*</span></Label>
                   <PhoneInput defaultCountry="US" value={toPhoneInputValue(formData.businessPhone) || undefined}
                     onChange={(value) => handleChange("businessPhone", value || '')}
                     className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm mt-1.5" />
@@ -1235,7 +1235,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Globe className="w-5 h-5 text-blue-500" /> Headquarters Address</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-slate-600 font-medium mb-1.5 block">Headquarters Country <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium mb-1.5 block">Headquarters Country <span className="text-blue-500">*</span></Label>
                   <Select value={formData.businessCountry} onValueChange={(val) => handleSelectChange("businessCountry", val)}>
                     <SelectTrigger className="w-full bg-white border-slate-200">
                       <SelectValue placeholder="Select country" />
@@ -1248,7 +1248,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Full business address <span className="text-red-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Full business address <span className="text-blue-500">*</span></Label>
                   <Textarea value={formData.addressHtml} onChange={(e) => handleChange("addressHtml", e.target.value)} className="mt-1.5 bg-white border-slate-200 resize-none h-[100px] text-sm" placeholder="123 Science Way&#10;Suite 100&#10;San Francisco, CA 94107" />
                 </div>
               </div>
@@ -1271,7 +1271,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               </div>
 
               <div>
-                <Label className="text-slate-600 font-medium">Short Company Profile Text <span className="text-red-500">*</span></Label>
+                <Label className="text-slate-600 font-medium">Short Company Profile Text <span className="text-blue-500">*</span></Label>
                 <Textarea value={formData.profileHtml} onChange={(e) => handleChange("profileHtml", e.target.value)} maxLength={COMPANY_PROFILE_MAX_LENGTH} className="mt-1.5 bg-white border-slate-200 resize-none h-[120px] text-sm" placeholder="Briefly describe your company's mission and offerings..." />
                 <p className={`text-[11px] mt-1 ${formData.profileHtml.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-slate-400'}`}>{formData.profileHtml.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
               </div>
@@ -1331,7 +1331,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           <div className="space-y-6 animate-fadeIn max-w-xl mx-auto">
             <div className="bg-slate-50/50 p-8 rounded-2xl border border-slate-100 space-y-6">
               <div>
-                <Label className="text-slate-600 font-bold mb-1.5 block">Select group <span className="text-red-500">*</span></Label>
+                <Label className="text-slate-600 font-bold mb-1.5 block">Select group <span className="text-blue-500">*</span></Label>
                 <Select value={formData.selectedGroup} onValueChange={(val) => handleSelectChange("selectedGroup", val)}>
                   <SelectTrigger className="w-full h-11 bg-white border-slate-200">
                     <SelectValue placeholder="Select group" />
@@ -1343,7 +1343,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               </div>
 
               <div>
-                <Label className="text-slate-600 font-bold mb-1.5 block">Payment plans <span className="text-red-500">*</span></Label>
+                <Label className="text-slate-600 font-bold mb-1.5 block">Payment plans <span className="text-blue-500">*</span></Label>
                 <Select value={formData.selectedPlan} onValueChange={(val) => handleSelectChange("selectedPlan", val)} disabled={!formData.selectedGroup}>
                   <SelectTrigger className="w-full h-11 bg-white border-slate-200">
                     <SelectValue placeholder={formData.selectedGroup ? "Select plan" : "Select a group first"} />
@@ -1469,7 +1469,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   </div>
                   <div className="space-y-2" onClick={e => e.stopPropagation()}>
                     <Label className="text-slate-600 font-semibold">
-                      Service Country(ies) <span className="text-red-500">*</span> :
+                      Service Country(ies) <span className="text-blue-500">*</span> :
                       <span className="ml-2 text-xs font-normal text-slate-400">
                         Selected {selectedCountries.length} of {currentLimits.maxCountries === -1 ? "Unlimited" : currentLimits.maxCountries}
                       </span>
@@ -1505,7 +1505,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   </div>
                   <div className="space-y-2" onClick={e => e.stopPropagation()}>
                     <Label className="text-slate-600 font-semibold">
-                      Service Country(ies) <span className="text-red-500">*</span> :
+                      Service Country(ies) <span className="text-blue-500">*</span> :
                       <span className="ml-2 text-xs font-normal text-slate-400">
                         Selected {selectedCountries.length} of {currentLimits.maxCountries === -1 ? "Unlimited" : currentLimits.maxCountries}
                       </span>
@@ -1528,16 +1528,16 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 <h3 className="text-lg font-bold text-slate-800 border-b pb-3 border-slate-100 flex items-center gap-2"><Calendar className="w-5 h-5 text-blue-500" /> Event Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Event Name <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Event Name <span className="text-blue-500">*</span></Label>
                     <Input value={eventData.eventName} onChange={e => setEventData(prev => ({ ...prev, eventName: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                     <p className="text-xs text-slate-400 mt-1">Original capitalization preserved.</p>
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Event Web Link <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Event Web Link <span className="text-blue-500">*</span></Label>
                     <Input type="url" placeholder="https://" value={eventData.eventLink} onChange={e => setEventData(prev => ({ ...prev, eventLink: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Start date <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Start date <span className="text-blue-500">*</span></Label>
                     <Input
                       type="date"
                       value={eventData.startDate}
@@ -1554,7 +1554,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">{formData.selectedPlan === "basic_event" ? "Event date" : "End date"} <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">{formData.selectedPlan === "basic_event" ? "Event date" : "End date"} <span className="text-blue-500">*</span></Label>
                     <Input
                       type="date"
                       value={eventData.endDate}
@@ -1564,7 +1564,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Country <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Country <span className="text-blue-500">*</span></Label>
                     <Select value={eventData.eventCountry} onValueChange={val => setEventData(prev => ({ ...prev, eventCountry: val }))}>
                       <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
                         <SelectValue placeholder="Select country" />
@@ -1577,17 +1577,17 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">State / Province / Region <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">State / Province / Region <span className="text-blue-500">*</span></Label>
                     <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">City / Town <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">City / Town <span className="text-blue-500">*</span></Label>
                     <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div className="md:col-span-2">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <div className="space-y-1.5">
-                        <Label className="text-slate-600 font-semibold">Agenda Highlights <span className="text-red-500">*</span></Label>
+                        <Label className="text-slate-600 font-semibold">Agenda Highlights <span className="text-blue-500">*</span></Label>
                         <Textarea
                           value={eventData.agendaHighlights}
                           onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX) }))}
@@ -1599,7 +1599,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                         </p>
                       </div>
                       <div className="space-y-1.5">
-                        <Label className="text-slate-600 font-semibold">Full Agenda (PDF) <span className="text-red-500">*</span></Label>
+                        <Label className="text-slate-600 font-semibold">Full Agenda (PDF) <span className="text-blue-500">*</span></Label>
                         {!eventAgendaPdfFile ? (
                           <Input
                             type="file"
@@ -1639,7 +1639,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </div>
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Event Profile <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Event Profile <span className="text-blue-500">*</span></Label>
                     <Textarea
                       value={eventData.eventProfile}
                       onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value.slice(0, EVENT_PROFILE_MAX) }))}
@@ -1660,12 +1660,12 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 <h3 className="text-lg font-bold text-slate-800 border-b pb-3 border-slate-100 flex items-center gap-2"><Briefcase className="w-5 h-5 text-blue-500" /> Job Opportunity Details</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Job Title <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Job Title <span className="text-blue-500">*</span></Label>
                     <Input value={jobData.jobTitle} onChange={e => setJobData(prev => ({ ...prev, jobTitle: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                     <p className="text-xs text-slate-400 mt-1">Original capitalization preserved.</p>
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Job Summary <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Job Summary <span className="text-blue-500">*</span></Label>
                     <Textarea
                       value={jobData.jobSummary}
                       onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, JOB_SUMMARY_MAX) }))}
@@ -1677,7 +1677,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </p>
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Full Job Description (PDF) <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Full Job Description (PDF) <span className="text-blue-500">*</span></Label>
                     {!jobPdfFile ? (
                       <Input
                         type="file"
@@ -1715,7 +1715,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     <p className="text-[11px] text-slate-400 mt-1">Accepts PDF format (Max size: 10MB)</p>
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Industry <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Industry <span className="text-blue-500">*</span></Label>
                     <Select value={jobData.industry} onValueChange={val => setJobData(prev => ({ ...prev, industry: val }))}>
                       <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
                         <SelectValue placeholder="Select industry" />
@@ -1728,7 +1728,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Job Type <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Job Type <span className="text-blue-500">*</span></Label>
                     <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
                       <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
                         <SelectValue placeholder="Select job type" />
@@ -1741,7 +1741,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Experience Level <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Experience Level <span className="text-blue-500">*</span></Label>
                     <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
                       <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
                         <SelectValue placeholder="Select experience level" />
@@ -1754,7 +1754,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Work Model <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Work Model <span className="text-blue-500">*</span></Label>
                     <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
                       <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
                         <SelectValue placeholder="Select work model" />
@@ -1767,7 +1767,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Education <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Education <span className="text-blue-500">*</span></Label>
                     <Select value={jobData.education} onValueChange={val => setJobData(prev => ({ ...prev, education: val }))}>
                       <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
                         <SelectValue placeholder="Select education" />
@@ -1784,11 +1784,11 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     <Input type="date" value={jobData.applicationDeadline} onChange={e => setJobData(prev => ({ ...prev, applicationDeadline: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">Position Link (Apply) <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Position Link (Apply) <span className="text-blue-500">*</span></Label>
                     <Input type="url" placeholder="https://" value={jobData.positionLink} onChange={e => setJobData(prev => ({ ...prev, positionLink: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Country <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Country <span className="text-blue-500">*</span></Label>
                     <Select value={jobData.jobCountry} onValueChange={val => setJobData(prev => ({ ...prev, jobCountry: val }))}>
                       <SelectTrigger className="w-full bg-white border-slate-200 mt-1.5">
                         <SelectValue placeholder="Select country" />
@@ -1801,11 +1801,11 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">State / Province / Region <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">State / Province / Region <span className="text-blue-500">*</span></Label>
                     <Input value={jobData.stateRegion} onChange={e => setJobData(prev => ({ ...prev, stateRegion: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div className="md:col-span-2">
-                    <Label className="text-slate-600 font-semibold">City / Town <span className="text-red-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">City / Town <span className="text-blue-500">*</span></Label>
                     <Input value={jobData.city} onChange={e => setJobData(prev => ({ ...prev, city: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                 </div>
@@ -1816,7 +1816,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
             <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 space-y-4">
               <div className="flex flex-col md:flex-row md:items-center justify-between border-b pb-3 border-slate-100 gap-2">
                 <div>
-                  <Label className="text-lg font-bold text-slate-800">Categories & Specializations <span className="text-red-500">*</span></Label>
+                  <Label className="text-lg font-bold text-slate-800">Categories & Specializations <span className="text-blue-500">*</span></Label>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Selected {categoryCount} of {currentLimits.maxCategories === -1 ? "Unlimited" : currentLimits.maxCategories} categories
                   </p>

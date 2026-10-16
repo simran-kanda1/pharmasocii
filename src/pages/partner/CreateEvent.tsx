@@ -77,23 +77,23 @@ export default function CreateEvent() {
                         <form onSubmit={handleSubmit} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="eventName" className="text-foreground/80">Event Name *</Label>
+                                    <Label htmlFor="eventName" className="text-foreground/80">Event Name <span className="text-blue-500">*</span></Label>
                                     <Input id="eventName" required placeholder="e.g. Global Biotech Summit '26" value={formData.eventName} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="startDate" className="text-foreground/80">Start Date *</Label>
+                                    <Label htmlFor="startDate" className="text-foreground/80">Start Date <span className="text-blue-500">*</span></Label>
                                     <Input id="startDate" type="date" required value={formData.startDate} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="eventLink" className="text-foreground/80">Event Link / Tickets *</Label>
+                                    <Label htmlFor="eventLink" className="text-foreground/80">Event Link / Tickets <span className="text-blue-500">*</span></Label>
                                     <Input id="eventLink" type="url" required placeholder="https://example.com/event" value={formData.eventLink} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="location" className="text-foreground/80">Venue / Location Name *</Label>
+                                    <Label htmlFor="location" className="text-foreground/80">Venue / Location Name <span className="text-blue-500">*</span></Label>
                                     <Input id="location" required placeholder="e.g. Moscone Center, Virtual" value={formData.location} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="city" className="text-foreground/80">City *</Label>
+                                    <Label htmlFor="city" className="text-foreground/80">City <span className="text-blue-500">*</span></Label>
                                     <Input id="city" required placeholder="e.g. San Francisco" value={formData.city} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
@@ -101,7 +101,7 @@ export default function CreateEvent() {
                                     <Input id="state" placeholder="e.g. CA" value={formData.state} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="country" className="text-foreground/80">Country *</Label>
+                                    <Label htmlFor="country" className="text-foreground/80">Country <span className="text-blue-500">*</span></Label>
                                     <Input id="country" required placeholder="e.g. United States" value={formData.country} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">

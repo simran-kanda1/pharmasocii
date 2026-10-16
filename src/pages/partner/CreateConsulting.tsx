@@ -88,19 +88,19 @@ export default function CreateConsulting() {
                         <form onSubmit={handleSubmit} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3">
-                                    <Label htmlFor="primaryName" className="text-foreground/80">Consultant / Primary Name *</Label>
+                                    <Label htmlFor="primaryName" className="text-foreground/80">Consultant / Primary Name <span className="text-blue-500">*</span></Label>
                                     <Input id="primaryName" required placeholder="e.g. Dr. Sarah Jenkins" value={formData.primaryName} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="businessName" className="text-foreground/80">Company / Affiliation *</Label>
+                                    <Label htmlFor="businessName" className="text-foreground/80">Company / Affiliation <span className="text-blue-500">*</span></Label>
                                     <Input id="businessName" required placeholder="e.g. BioTech Innovations LLC" value={formData.businessName} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="businessAddress" className="text-foreground/80">Location / Remote Status *</Label>
+                                    <Label htmlFor="businessAddress" className="text-foreground/80">Location / Remote Status <span className="text-blue-500">*</span></Label>
                                     <Input id="businessAddress" required placeholder="e.g. Remote, or New York, NY" value={formData.businessAddress} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="companyProfileText" className="text-foreground/80">Consulting Overview & Expertise *</Label>
+                                    <Label htmlFor="companyProfileText" className="text-foreground/80">Consulting Overview & Expertise <span className="text-blue-500">*</span></Label>
                                     <Textarea id="companyProfileText" required placeholder="Describe your specialized knowledge, services offered, and prior consulting experience..." value={formData.companyProfileText} onChange={handleChange} className="min-h-[160px] bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                             </div>

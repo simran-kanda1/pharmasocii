@@ -3115,15 +3115,15 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">First Name <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">First Name <span className="text-blue-500">*</span></Label>
                         <Input value={profileForm.firstName} onChange={e => setProfileForm({ ...profileForm, firstName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Last Name <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Last Name <span className="text-blue-500">*</span></Label>
                         <Input value={profileForm.lastName} onChange={e => setProfileForm({ ...profileForm, lastName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                        <Label className="text-foreground/80">Email <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Email <span className="text-blue-500">*</span></Label>
                         <Input type="email" value={profileForm.email} onChange={e => setProfileForm({ ...profileForm, email: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                         {(profileForm.email || "").trim() !== (auth.currentUser?.email || "") && (
                             <div className="mt-3 space-y-2 rounded-lg border border-foreground/10 bg-muted/30 p-3">
@@ -3150,7 +3150,7 @@ export default function Dashboard() {
                         )}
                     </div>
                     <div className="space-y-2 md:col-span-2">
-                        <Label className="text-foreground/80">Phone <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Phone <span className="text-blue-500">*</span></Label>
                         <PhoneInput defaultCountry="US" value={toPhoneInputValue(profileForm.phone) || undefined} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, phone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
                         <p className="text-xs text-muted-foreground mt-1">Choose a country before adding your phone number</p>
                     </div>
@@ -3169,16 +3169,16 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-foreground/10">
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Company Name <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Company Name <span className="text-blue-500">*</span></Label>
                         <Input value={profileForm.companyName} onChange={e => setProfileForm({ ...profileForm, companyName: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" />
                         <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Company Website <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Company Website <span className="text-blue-500">*</span></Label>
                         <Input value={profileForm.companyWebsite} onChange={e => setProfileForm({ ...profileForm, companyWebsite: e.target.value })} className="bg-foreground/5 border-foreground/10 h-11" placeholder="https://" />
                     </div>
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Business Phone <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Business Phone <span className="text-blue-500">*</span></Label>
                         <PhoneInput defaultCountry="US" value={toPhoneInputValue(profileForm.businessPhone) || undefined} onChange={(value) => setProfileForm((prev: any) => ({ ...prev, businessPhone: value || '' }))} className="flex h-11 w-full rounded-md border border-foreground/10 bg-foreground/5 px-3 py-2 text-sm text-foreground" />
                         <p className="text-xs text-muted-foreground mt-1">Choose a country before adding your phone number</p>
                     </div>
@@ -3272,7 +3272,7 @@ export default function Dashboard() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 border-t border-foreground/10">
                     <div className="space-y-2">
-                        <Label className="text-foreground/80">Company Profile <span className="text-red-400">*</span></Label>
+                        <Label className="text-foreground/80">Company Profile <span className="text-blue-500">*</span></Label>
                         <Textarea
                             value={profileForm.companyProfile}
                             onChange={e => setProfileForm({ ...profileForm, companyProfile: e.target.value.slice(0, COMPANY_PROFILE_MAX_LENGTH) })}
@@ -3283,7 +3283,7 @@ export default function Dashboard() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-2">
-                            <Label className="text-foreground/80">Business Headquarters (Country) <span className="text-red-400">*</span></Label>
+                            <Label className="text-foreground/80">Business Headquarters (Country) <span className="text-blue-500">*</span></Label>
                             <Select value={profileForm.businessCountry} onValueChange={(val) => setProfileForm({ ...profileForm, businessCountry: val })}>
                                 <SelectTrigger className="w-full bg-foreground/5 border-foreground/10 h-10 text-sm">
                                     <SelectValue placeholder="Select country" />
@@ -3296,7 +3296,7 @@ export default function Dashboard() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label className="text-foreground/80">Full Business Address <span className="text-red-400">*</span></Label>
+                            <Label className="text-foreground/80">Full Business Address <span className="text-blue-500">*</span></Label>
                             <Textarea
                                 value={profileForm.businessAddress}
                                 onChange={e => setProfileForm({ ...profileForm, businessAddress: e.target.value })}
@@ -4213,16 +4213,16 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             <h3 className="text-sm font-bold text-foreground">Event Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
-                                    <Label>Event Name <span className="text-red-400">*</span></Label>
+                                    <Label>Event Name <span className="text-blue-500">*</span></Label>
                                     <Input value={eventName} onChange={(e) => setEventName(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
                                     <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <Label>Event Link <span className="text-red-400">*</span></Label>
+                                    <Label>Event Link <span className="text-blue-500">*</span></Label>
                                     <Input type="url" value={eventLink} onChange={(e) => setEventLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
                                 </div>
                                 <div>
-                                    <Label>Start Date <span className="text-red-400">*</span></Label>
+                                    <Label>Start Date <span className="text-blue-500">*</span></Label>
                                     <Input
                                         type="date"
                                         value={startDate}
@@ -4240,7 +4240,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     />
                                 </div>
                                 <div>
-                                    <Label>End Date <span className="text-red-400">*</span></Label>
+                                    <Label>End Date <span className="text-blue-500">*</span></Label>
                                     <Input
                                         type="date"
                                         value={endDate}
@@ -4263,7 +4263,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     )}
                                 </div>
                                 <div>
-                                    <Label>Country <span className="text-red-400">*</span></Label>
+                                    <Label>Country <span className="text-blue-500">*</span></Label>
                                     <Select value={eventCountry} onValueChange={setEventCountry}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1 h-11"><SelectValue placeholder="Select country" /></SelectTrigger>
                                         <SelectContent className="max-h-60">
@@ -4274,16 +4274,16 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     </Select>
                                 </div>
                                 <div>
-                                    <Label>State / Province / Region <span className="text-red-400">*</span></Label>
+                                    <Label>State / Province / Region <span className="text-blue-500">*</span></Label>
                                     <Input value={eventStateRegion} onChange={(e) => setEventStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
                                 </div>
                                 <div>
-                                    <Label>City / Town <span className="text-red-400">*</span></Label>
+                                    <Label>City / Town <span className="text-blue-500">*</span></Label>
                                     <Input value={eventCity} onChange={(e) => setEventCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1 h-11" />
                                 </div>
                                 <div className="md:col-span-2 grid grid-cols-1 lg:grid-cols-2 gap-4">
                                     <div>
-                                        <Label>Agenda Highlights <span className="text-red-400">*</span></Label>
+                                        <Label>Agenda Highlights <span className="text-blue-500">*</span></Label>
                                         <Textarea
                                             value={agendaHighlights}
                                             onChange={(e) => setAgendaHighlights(e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX))}
@@ -4292,7 +4292,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         <p className="text-xs text-right text-muted-foreground mt-1">{agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label>Full Agenda (PDF) <span className="text-red-400">*</span></Label>
+                                        <Label>Full Agenda (PDF) <span className="text-blue-500">*</span></Label>
                                         {!eventAgendaPdfFile && !agendaPdfUrl && (
                                             <Input
                                                 type="file"
@@ -4330,7 +4330,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     </div>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <Label>Event Profile <span className="text-red-400">*</span></Label>
+                                    <Label>Event Profile <span className="text-blue-500">*</span></Label>
                                     <Textarea value={eventProfile} onChange={(e) => setEventProfile(e.target.value.slice(0, 500))} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
                                     <p className="text-xs text-right text-muted-foreground mt-1">{eventProfile.length}/500</p>
                                 </div>
@@ -4342,17 +4342,17 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                             <h3 className="text-sm font-bold text-foreground">Job Details</h3>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div className="md:col-span-2">
-                                    <Label>Job Title <span className="text-red-400">*</span></Label>
+                                    <Label>Job Title <span className="text-blue-500">*</span></Label>
                                     <Input value={jobTitle} onChange={(e) => setJobTitle(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" />
                                     <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                 </div>
                                 <div className="md:col-span-2">
-                                    <Label>Job Summary <span className="text-red-400">*</span></Label>
+                                    <Label>Job Summary <span className="text-blue-500">*</span></Label>
                                     <Textarea value={jobSummary} onChange={(e) => setJobSummary(e.target.value.slice(0, 500))} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
                                     <p className={`text-xs text-right mt-1 ${jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobSummary.length}/500</p>
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
-                                    <Label>Full Job Description (PDF) <span className="text-red-400">*</span></Label>
+                                    <Label>Full Job Description (PDF) <span className="text-blue-500">*</span></Label>
                                     {!jobPdfFile && !jobDescriptionPdfUrl && (
                                         <Input
                                             type="file"
@@ -4396,7 +4396,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div><Label>Job Type <span className="text-red-400">*</span></Label>
+                                <div><Label>Job Type <span className="text-blue-500">*</span></Label>
                                     <Select value={jobType} onValueChange={setJobType}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select type" /></SelectTrigger>
                                         <SelectContent>
@@ -4404,7 +4404,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div><Label>Country <span className="text-red-400">*</span></Label>
+                                <div><Label>Country <span className="text-blue-500">*</span></Label>
                                     <Select value={jobCountry} onValueChange={setJobCountry}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select country" /></SelectTrigger>
                                         <SelectContent>
@@ -4412,8 +4412,8 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div><Label>State / Province / Region <span className="text-red-400">*</span></Label><Input value={jobStateRegion} onChange={(e) => setJobStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
-                                <div><Label>City / Town <span className="text-red-400">*</span></Label><Input value={jobCity} onChange={(e) => setJobCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>State / Province / Region <span className="text-blue-500">*</span></Label><Input value={jobStateRegion} onChange={(e) => setJobStateRegion(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div><Label>City / Town <span className="text-blue-500">*</span></Label><Input value={jobCity} onChange={(e) => setJobCity(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
                                 <div><Label>Education</Label>
                                     <Select value={education} onValueChange={setEducation}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
@@ -4434,7 +4434,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div><Label>Work Model <span className="text-red-400">*</span></Label>
+                                <div><Label>Work Model <span className="text-blue-500">*</span></Label>
                                     <Select value={workModel} onValueChange={setWorkModel}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
                                         <SelectContent>
@@ -4444,7 +4444,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div className="md:col-span-2"><Label>Position Link (Apply URL) <span className="text-red-400">*</span></Label><Input type="url" value={positionLink} onChange={(e) => setPositionLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
+                                <div className="md:col-span-2"><Label>Position Link (Apply URL) <span className="text-blue-500">*</span></Label><Input type="url" value={positionLink} onChange={(e) => setPositionLink(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
                                 <div><Label>Application Deadline</Label><Input type="date" value={applicationDeadline} onChange={(e) => setApplicationDeadline(e.target.value)} className="bg-foreground/5 border-foreground/10 mt-1" /></div>
                             </div>
                         </div>

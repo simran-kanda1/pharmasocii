@@ -207,7 +207,7 @@ export default function MemberRegister() {
           className="space-y-4"
         >
           <div className="space-y-2">
-            <Label htmlFor="name">Full Name *</Label>
+            <Label htmlFor="name">Full Name <span className="text-blue-500">*</span></Label>
             <Input
               id="name"
               value={form.name}
@@ -217,7 +217,7 @@ export default function MemberRegister() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="userName">Username *</Label>
+            <Label htmlFor="userName">Username <span className="text-blue-500">*</span></Label>
             <Input
               id="userName"
               value={form.userName}
@@ -230,7 +230,7 @@ export default function MemberRegister() {
             <p className={`text-[11px] text-right mt-1 ${form.userName.length >= 15 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/15</p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="email">Email *</Label>
+            <Label htmlFor="email">Email <span className="text-blue-500">*</span></Label>
             <Input
               id="email"
               type="email"
@@ -261,7 +261,7 @@ export default function MemberRegister() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="industry">Industry *</Label>
+              <Label htmlFor="industry">Industry <span className="text-blue-500">*</span></Label>
               <Input
                 id="industry"
                 value={form.industry}
@@ -297,7 +297,7 @@ export default function MemberRegister() {
             <p className={`text-[11px] text-right mt-1 ${form.aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.aboutMe.length}/25</p>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password *</Label>
+            <Label htmlFor="password">Password <span className="text-blue-500">*</span></Label>
             <div className="relative">
               <Input
                 id="password"
@@ -323,7 +323,7 @@ export default function MemberRegister() {
             </ul>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="confirmPassword">Confirm Password *</Label>
+            <Label htmlFor="confirmPassword">Confirm Password <span className="text-blue-500">*</span></Label>
             <div className="relative">
               <Input
                 id="confirmPassword"

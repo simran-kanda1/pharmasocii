@@ -437,7 +437,7 @@ export function AdminAddCategory({
                   {/* Group selection */}
                   <div className="space-y-2">
                     <Label className="text-slate-700 font-medium flex items-center justify-between">
-                      <span>Target Group (Parent Directory) <span className="text-rose-500">*</span></span>
+                      <span>Target Group (Parent Directory) <span className="text-blue-500">*</span></span>
                       <span className="text-xs text-slate-400">e.g. Business Offerings, Consulting, Events, Jobs</span>
                     </Label>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
@@ -465,7 +465,7 @@ export function AdminAddCategory({
                   {isCustomGroup && (
                     <div className="space-y-2 pt-2">
                       <Label className="text-slate-700 font-medium">
-                        Custom Group Name <span className="text-rose-500">*</span>
+                        Custom Group Name <span className="text-blue-500">*</span>
                       </Label>
                       <Input
                         placeholder="Enter custom group name"
@@ -480,7 +480,7 @@ export function AdminAddCategory({
                   {/* Mode Toggle: New vs Existing Category */}
                   <div className="pt-3 border-t border-slate-100">
                     <Label className="text-slate-700 font-medium mb-2.5 block">
-                      Category Action <span className="text-rose-500">*</span>
+                      Category Action <span className="text-blue-500">*</span>
                     </Label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <label
@@ -537,7 +537,7 @@ export function AdminAddCategory({
                   {mode === "new" ? (
                     <div className="space-y-2 pt-2">
                       <Label className="text-slate-700 font-medium">
-                        New Category Name <span className="text-rose-500">*</span>
+                        New Category Name <span className="text-blue-500">*</span>
                       </Label>
                       <Input
                         required
@@ -550,7 +550,7 @@ export function AdminAddCategory({
                   ) : (
                     <div className="space-y-2 pt-2">
                       <Label className="text-slate-700 font-medium">
-                        Select Existing Category in {activeGroupName} <span className="text-rose-500">*</span>
+                        Select Existing Category in {activeGroupName} <span className="text-blue-500">*</span>
                       </Label>
                       {existingCategoriesInGroup.length === 0 ? (
                         <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800">

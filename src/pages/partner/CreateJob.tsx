@@ -110,19 +110,19 @@ export default function CreateJob() {
                         <form onSubmit={handleSubmit} className="space-y-8">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3 md:col-span-2">
-                                    <Label htmlFor="jobTitle" className="text-foreground/80">Job Title *</Label>
+                                    <Label htmlFor="jobTitle" className="text-foreground/80">Job Title <span className="text-blue-500">*</span></Label>
                                     <Input id="jobTitle" required placeholder="e.g. Senior Bioinformatics Scientist" value={formData.jobTitle} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="industry" className="text-foreground/80">Industry / Field *</Label>
+                                    <Label htmlFor="industry" className="text-foreground/80">Industry / Field <span className="text-blue-500">*</span></Label>
                                     <Input id="industry" required placeholder="e.g. Data Science, Oncology" value={formData.industry} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="experienceLevel" className="text-foreground/80">Experience Level *</Label>
+                                    <Label htmlFor="experienceLevel" className="text-foreground/80">Experience Level <span className="text-blue-500">*</span></Label>
                                     <Input id="experienceLevel" required placeholder="e.g. Entry, Mid-Level, Director" value={formData.experienceLevel} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="jobtype" className="text-foreground/80">Job Type *</Label>
+                                    <Label htmlFor="jobtype" className="text-foreground/80">Job Type <span className="text-blue-500">*</span></Label>
                                     <select id="jobtype" required value={formData.jobtype} onChange={handleChange} className="flex h-12 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
                                         <option value="" disabled>Select type</option>
                                         <option value="Full-Time">Full-Time</option>
@@ -132,7 +132,7 @@ export default function CreateJob() {
                                     </select>
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="workModel" className="text-foreground/80">Work Model *</Label>
+                                    <Label htmlFor="workModel" className="text-foreground/80">Work Model <span className="text-blue-500">*</span></Label>
                                     <select id="workModel" required value={formData.workModel} onChange={handleChange} className="flex h-12 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50">
                                         <option value="" disabled>Select model</option>
                                         <option value="On-site">On-site</option>
@@ -141,7 +141,7 @@ export default function CreateJob() {
                                     </select>
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="country" className="text-foreground/80">Country *</Label>
+                                    <Label htmlFor="country" className="text-foreground/80">Country <span className="text-blue-500">*</span></Label>
                                     <Input id="country" required placeholder="e.g. United States" value={formData.country} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
@@ -153,7 +153,7 @@ export default function CreateJob() {
                                     <Input id="city" placeholder="e.g. San Francisco" value={formData.city} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3">
-                                    <Label htmlFor="positionLink" className="text-foreground/80">Application / Position Link *</Label>
+                                    <Label htmlFor="positionLink" className="text-foreground/80">Application / Position Link <span className="text-blue-500">*</span></Label>
                                     <Input id="positionLink" type="url" required placeholder="https://example.com/apply" value={formData.positionLink} onChange={handleChange} className="h-12 bg-muted/40 border-foreground/10 text-foreground" />
                                 </div>
                                 <div className="space-y-3 md:col-span-2">

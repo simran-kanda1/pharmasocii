@@ -902,7 +902,7 @@ export default function AddListing() {
                         <CardContent className="p-6 space-y-6">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3">
-                                    <Label>Payment Plan <span className="text-red-400">*</span></Label>
+                                    <Label>Payment Plan <span className="text-blue-500">*</span></Label>
                                     <Select value={plan} onValueChange={val => {
                                         setPlan(val);
                                         setSelectedCategories([]); setSelectedSubcategories([]); setSelectedSubSubcategories([]);
@@ -998,7 +998,7 @@ export default function AddListing() {
                                             </div>
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                 <Label>
-                                                    Service Country(ies) <span className="text-red-400">*</span> :
+                                                    Service Country(ies) <span className="text-blue-500">*</span> :
                                                     <span className="ml-2 text-sm font-normal text-muted-foreground">
                                                         Selected {selectedCountries.length} of {currentLimits.maxCountries === -1 ? "Unlimited" : currentLimits.maxCountries}
                                                     </span>
@@ -1026,7 +1026,7 @@ export default function AddListing() {
                                         </div>
                                         <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                             <Label>
-                                                Country(ies) <span className="text-red-400">*</span> :
+                                                Country(ies) <span className="text-blue-500">*</span> :
                                                 <span className="ml-2 text-sm font-normal text-muted-foreground">
                                                     Selected {selectedCountries.length} of {currentLimits.maxCountries === -1 ? "Unlimited" : currentLimits.maxCountries}
                                                 </span>
@@ -1043,16 +1043,16 @@ export default function AddListing() {
                                 {dbGroup === "events" && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Event Name <span className="text-red-400">*</span></Label>
+                                            <Label>Event Name <span className="text-blue-500">*</span></Label>
                                             <Input value={eventData.eventName} onChange={e => setEventData(prev => ({ ...prev, eventName: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Event Link <span className="text-red-400">*</span></Label>
+                                            <Label>Event Link <span className="text-blue-500">*</span></Label>
                                             <Input type="url" placeholder="https://" value={eventData.eventLink} onChange={e => setEventData(prev => ({ ...prev, eventLink: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Start Date <span className="text-red-400">*</span></Label>
+                                            <Label>Start Date <span className="text-blue-500">*</span></Label>
                                             <Input
                                                 type="date"
                                                 value={eventData.startDate}
@@ -1070,7 +1070,7 @@ export default function AddListing() {
                                             />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>{plan === "basic_event" ? "Event Date" : "End Date"} <span className="text-red-400">*</span></Label>
+                                            <Label>{plan === "basic_event" ? "Event Date" : "End Date"} <span className="text-blue-500">*</span></Label>
                                             <Input
                                                 type="date"
                                                 value={eventData.endDate}
@@ -1093,7 +1093,7 @@ export default function AddListing() {
                                             )}
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Country <span className="text-red-400">*</span></Label>
+                                            <Label>Country <span className="text-blue-500">*</span></Label>
                                             <Select value={eventData.eventCountry} onValueChange={val => setEventData(prev => ({ ...prev, eventCountry: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10 max-h-60">
@@ -1102,17 +1102,17 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>State / Province / Region <span className="text-red-400">*</span></Label>
+                                            <Label>State / Province / Region <span className="text-blue-500">*</span></Label>
                                             <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>City / Town <span className="text-red-400">*</span></Label>
+                                            <Label>City / Town <span className="text-blue-500">*</span></Label>
                                             <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
                                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                 <div className="space-y-2">
-                                                    <Label>Agenda Highlights <span className="text-red-400">*</span> </Label>
+                                                    <Label>Agenda Highlights <span className="text-blue-500">*</span> </Label>
                                                     <Textarea
                                                         value={eventData.agendaHighlights}
                                                         onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX) }))}
@@ -1123,7 +1123,7 @@ export default function AddListing() {
                                                     <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                                 </div>
                                                 <div className="space-y-2">
-                                                    <Label>Full Agenda (PDF) <span className="text-red-400">*</span></Label>
+                                                    <Label>Full Agenda (PDF) <span className="text-blue-500">*</span></Label>
                                                     {!eventAgendaPdfFile && !eventData.agendaPdfUrl && (
                                                             <Input
                                                                 type="file"
@@ -1160,7 +1160,7 @@ export default function AddListing() {
                                             </div>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Event Profile <span className="text-red-400">*</span></Label>
+                                            <Label>Event Profile <span className="text-blue-500">*</span></Label>
                                             <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value.slice(0, 500) }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
                                             <p className="text-xs text-right text-muted-foreground mt-1">{eventData.eventProfile.length}/500</p>
                                         </div>
@@ -1171,17 +1171,17 @@ export default function AddListing() {
                                 {dbGroup === "jobs" && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Job Title <span className="text-red-400">*</span></Label>
+                                            <Label>Job Title <span className="text-blue-500">*</span></Label>
                                             <Input value={jobData.jobTitle} onChange={e => setJobData(prev => ({ ...prev, jobTitle: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                             <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Job Summary <span className="text-red-400">*</span></Label>
+                                            <Label>Job Summary <span className="text-blue-500">*</span></Label>
                                             <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" />
                                             <p className={`text-xs text-right ${jobData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobData.jobSummary.length}/500</p>
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Full Job Description (PDF) <span className="text-red-400">*</span></Label>
+                                            <Label>Full Job Description (PDF) <span className="text-blue-500">*</span></Label>
                                             {!jobPdfFile && !jobData.jobDescriptionPdfUrl && (
                                                     <Input
                                                         type="file"
@@ -1216,7 +1216,7 @@ export default function AddListing() {
                                                 )}
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Industry <span className="text-red-400">*</span></Label>
+                                            <Label>Industry <span className="text-blue-500">*</span></Label>
                                             <Select value={jobData.industry} onValueChange={val => setJobData(prev => ({ ...prev, industry: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select industry" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10 max-h-60">
@@ -1227,7 +1227,7 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Job Type <span className="text-red-400">*</span></Label>
+                                            <Label>Job Type <span className="text-blue-500">*</span></Label>
                                             <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select job type" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10">
@@ -1238,7 +1238,7 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Experience Level <span className="text-red-400">*</span></Label>
+                                            <Label>Experience Level <span className="text-blue-500">*</span></Label>
                                             <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select experience level" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10">
@@ -1249,7 +1249,7 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Work Model <span className="text-red-400">*</span></Label>
+                                            <Label>Work Model <span className="text-blue-500">*</span></Label>
                                             <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select work model" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10">
@@ -1260,7 +1260,7 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Education <span className="text-red-400">*</span></Label>
+                                            <Label>Education <span className="text-blue-500">*</span></Label>
                                             <Select value={jobData.education} onValueChange={val => setJobData(prev => ({ ...prev, education: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select education" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10">
@@ -1275,11 +1275,11 @@ export default function AddListing() {
                                             <Input type="date" value={jobData.applicationDeadline} onChange={e => setJobData(prev => ({ ...prev, applicationDeadline: e.target.value }))} className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2 md:col-span-2">
-                                            <Label>Position Link (Apply) <span className="text-red-400">*</span></Label>
+                                            <Label>Position Link (Apply) <span className="text-blue-500">*</span></Label>
                                             <Input type="url" placeholder="https://" value={jobData.positionLink} onChange={e => setJobData(prev => ({ ...prev, positionLink: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>Country <span className="text-red-400">*</span></Label>
+                                            <Label>Country <span className="text-blue-500">*</span></Label>
                                             <Select value={jobData.jobCountry} onValueChange={val => setJobData(prev => ({ ...prev, jobCountry: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10 max-h-60">
@@ -1288,11 +1288,11 @@ export default function AddListing() {
                                             </Select>
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>State / Province / Region <span className="text-red-400">*</span></Label>
+                                            <Label>State / Province / Region <span className="text-blue-500">*</span></Label>
                                             <Input value={jobData.stateRegion} onChange={e => setJobData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
                                         <div className="space-y-2">
-                                            <Label>City / Town <span className="text-red-400">*</span></Label>
+                                            <Label>City / Town <span className="text-blue-500">*</span></Label>
                                             <Input value={jobData.city} onChange={e => setJobData(prev => ({ ...prev, city: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                         </div>
                                     </div>
@@ -1302,7 +1302,7 @@ export default function AddListing() {
                                 <div className="pt-6 border-t border-foreground/10">
                                     <div className="flex items-center justify-between mb-4">
                                         <div>
-                                            <Label className="text-base font-semibold">Categories <span className="text-red-400">*</span></Label>
+                                            <Label className="text-base font-semibold">Categories <span className="text-blue-500">*</span></Label>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>

@@ -164,22 +164,22 @@ export default function PartnerRegister() {
                         className="space-y-5 text-left relative z-10 text-foreground/90"
                     >
                         <div className="space-y-1.5">
-                            <Label htmlFor="firstName" className="text-foreground/80">First Name *</Label>
+                            <Label htmlFor="firstName" className="text-foreground/80">First Name <span className="text-blue-500">*</span></Label>
                             <Input id="firstName" value={formData.firstName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="lastName" className="text-foreground/80">Last Name *</Label>
+                            <Label htmlFor="lastName" className="text-foreground/80">Last Name <span className="text-blue-500">*</span></Label>
                             <Input id="lastName" value={formData.lastName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="email" className="text-foreground/80">Email *</Label>
+                            <Label htmlFor="email" className="text-foreground/80">Email <span className="text-blue-500">*</span></Label>
                             <Input id="email" type="email" value={formData.email} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="password" className="text-foreground/80">Password *</Label>
+                            <Label htmlFor="password" className="text-foreground/80">Password <span className="text-blue-500">*</span></Label>
                             <div className="relative">
                                 <Input
                                     id="password"
@@ -208,7 +208,7 @@ export default function PartnerRegister() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="confirmPassword" className="text-foreground/80">Confirm Password *</Label>
+                            <Label htmlFor="confirmPassword" className="text-foreground/80">Confirm Password <span className="text-blue-500">*</span></Label>
                             <div className="relative">
                                 <Input
                                     id="confirmPassword"
@@ -231,7 +231,7 @@ export default function PartnerRegister() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="phone" className="text-foreground/80">Phone Number *</Label>
+                            <Label htmlFor="phone" className="text-foreground/80">Phone Number <span className="text-blue-500">*</span></Label>
                             <PhoneInput
                                 id="phone"
                                 defaultCountry="US"
@@ -243,7 +243,7 @@ export default function PartnerRegister() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="companyName" className="text-foreground/80">Company Name *</Label>
+                            <Label htmlFor="companyName" className="text-foreground/80">Company Name <span className="text-blue-500">*</span></Label>
                             <Input id="companyName" value={formData.companyName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                             <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                         </div>
@@ -254,17 +254,17 @@ export default function PartnerRegister() {
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altFirstName" className="text-foreground/80">First Name *</Label>
+                            <Label htmlFor="altFirstName" className="text-foreground/80">First Name <span className="text-blue-500">*</span></Label>
                             <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altLastName" className="text-foreground/80">Last Name *</Label>
+                            <Label htmlFor="altLastName" className="text-foreground/80">Last Name <span className="text-blue-500">*</span></Label>
                             <Input id="altLastName" value={formData.altLastName} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 
                         <div className="space-y-1.5">
-                            <Label htmlFor="altEmail" className="text-foreground/80">Email *</Label>
+                            <Label htmlFor="altEmail" className="text-foreground/80">Email <span className="text-blue-500">*</span></Label>
                             <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} required className="bg-foreground/5 border-foreground/10 text-foreground focus-visible:ring-primary/50" />
                         </div>
 

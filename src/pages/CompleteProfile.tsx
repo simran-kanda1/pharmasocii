@@ -1016,19 +1016,19 @@ export default function CompleteProfile() {
                             </CardHeader>
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <Label htmlFor="firstName">First Name *</Label>
+                                    <Label htmlFor="firstName">First Name <span className="text-blue-500">*</span></Label>
                                     <Input id="firstName" value={formData.firstName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="lastName">Last Name *</Label>
+                                    <Label htmlFor="lastName">Last Name <span className="text-blue-500">*</span></Label>
                                     <Input id="lastName" value={formData.lastName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="email">Email *</Label>
+                                    <Label htmlFor="email">Email <span className="text-blue-500">*</span></Label>
                                     <Input id="email" type="email" value={formData.email} onChange={handleChange} required className="bg-muted/40 border-foreground/10" disabled={!!auth.currentUser} />
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="phone">Phone *</Label>
+                                    <Label htmlFor="phone">Phone <span className="text-blue-500">*</span></Label>
                                     <PhoneInput id="phone" defaultCountry="US" value={toPhoneInputValue(formData.phone) || undefined}
                                         onChange={(value) => setFormData(prev => ({ ...prev, phone: value || '' }))}
                                         className="flex h-10 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm" />
@@ -1036,15 +1036,15 @@ export default function CompleteProfile() {
                                 </div>
                                 <div className="space-y-2 pt-4 border-t border-foreground/10 md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-2">
-                                        <Label htmlFor="altFirstName">First Name *</Label>
+                                        <Label htmlFor="altFirstName">First Name <span className="text-blue-500">*</span></Label>
                                         <Input id="altFirstName" value={formData.altFirstName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="altLastName">Last Name *</Label>
+                                        <Label htmlFor="altLastName">Last Name <span className="text-blue-500">*</span></Label>
                                         <Input id="altLastName" value={formData.altLastName} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                     <div className="space-y-2 md:col-span-2">
-                                        <Label htmlFor="altEmail">Email *</Label>
+                                        <Label htmlFor="altEmail">Email <span className="text-blue-500">*</span></Label>
                                         <Input id="altEmail" type="email" value={formData.altEmail} onChange={handleChange} required className="bg-muted/40 border-foreground/10" />
                                     </div>
                                 </div>
@@ -1059,16 +1059,16 @@ export default function CompleteProfile() {
                             </CardHeader>
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <Label htmlFor="companyName">Company Name *</Label>
+                                    <Label htmlFor="companyName">Company Name <span className="text-blue-500">*</span></Label>
                                     <div className="relative"><Building className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="companyName" value={formData.companyName} onChange={handleChange} required className="pl-9 bg-muted/40 border-foreground/10" /></div>
                                     <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="companyWebsite">Company Website *</Label>
+                                    <Label htmlFor="companyWebsite">Company Website <span className="text-blue-500">*</span></Label>
                                     <div className="relative"><Globe className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" /><Input id="companyWebsite" type="url" placeholder="https://" value={formData.companyWebsite} onChange={handleChange} required className="pl-9 bg-muted/40 border-foreground/10" /></div>
                                 </div>
                                 <div className="space-y-2">
-                                    <Label htmlFor="businessPhone">Business Phone *</Label>
+                                    <Label htmlFor="businessPhone">Business Phone <span className="text-blue-500">*</span></Label>
                                     <PhoneInput id="businessPhone" defaultCountry="US" value={toPhoneInputValue(formData.businessPhone) || undefined}
                                         onChange={(value) => setFormData(prev => ({ ...prev, businessPhone: value || '' }))}
                                         className="flex h-10 w-full rounded-md border border-foreground/10 bg-muted/40 px-3 py-2 text-sm" />
@@ -1163,13 +1163,13 @@ export default function CompleteProfile() {
                                 </div>
 
                                 <div className="space-y-2 md:col-span-1">
-                                    <Label htmlFor="companyProfile">Company Profile *</Label>
+                                    <Label htmlFor="companyProfile">Company Profile <span className="text-blue-500">*</span></Label>
                                     <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} maxLength={COMPANY_PROFILE_MAX_LENGTH} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
                                     <p className={`text-xs text-right ${formData.companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
                                 </div>
                                 <div className="space-y-4 md:col-span-1">
                                     <div className="space-y-2">
-                                        <Label htmlFor="businessCountry">Business Headquarters (Country) *</Label>
+                                        <Label htmlFor="businessCountry">Business Headquarters (Country) <span className="text-blue-500">*</span></Label>
                                         <Select value={formData.businessCountry} onValueChange={(val) => handleSelectChange("businessCountry", val)} required>
                                             <SelectTrigger className="w-full h-10 bg-muted/40 border-foreground/10 text-sm">
                                                 <SelectValue placeholder="Select country" />
@@ -1182,7 +1182,7 @@ export default function CompleteProfile() {
                                         </Select>
                                     </div>
                                     <div className="space-y-2">
-                                        <Label htmlFor="businessAddress">Full Business Address *</Label>
+                                        <Label htmlFor="businessAddress">Full Business Address <span className="text-blue-500">*</span></Label>
                                         <Textarea id="businessAddress" value={formData.businessAddress} onChange={handleChange} required className="h-[104px] bg-muted/40 border-foreground/10 resize-none text-sm font-normal" placeholder={"123 Science Way\nSuite 100\nSan Francisco, CA 94107"} />
                                     </div>
                                 </div>
@@ -1193,7 +1193,7 @@ export default function CompleteProfile() {
                         <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
                                 <div className="space-y-3">
-                                    <Label>Select Group <span className="text-red-400">*</span></Label>
+                                    <Label>Select Group <span className="text-blue-500">*</span></Label>
                                     <Select value={formData.group} onValueChange={(val) => handleSelectChange("group", val)} required>
                                         <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select group" /></SelectTrigger>
                                         <SelectContent className="bg-background border-foreground/10">
@@ -1206,7 +1206,7 @@ export default function CompleteProfile() {
                                 </div>
 
                                 <div className="space-y-3">
-                                    <Label>Payment Plan <span className="text-red-400">*</span></Label>
+                                    <Label>Payment Plan <span className="text-blue-500">*</span></Label>
                                     <Select value={formData.plan} onValueChange={(val) => handleSelectChange("plan", val)} required disabled={!formData.group}>
                                         <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder={formData.group ? "Select plan" : "Select a group first"} /></SelectTrigger>
                                         <SelectContent className="bg-background border-foreground/10">
@@ -1320,7 +1320,7 @@ export default function CompleteProfile() {
                                                 </div>
                                                 <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                     <Label>
-                                                        Service Country(ies) <span className="text-red-400">*</span> :
+                                                        Service Country(ies) <span className="text-blue-500">*</span> :
                                                         <span className="ml-2 text-sm font-normal text-muted-foreground">
                                                             Selected {selectedCountries.length} of {currentLimits.maxCountries === -1 ? "Unlimited" : currentLimits.maxCountries}
                                                         </span>
@@ -1354,7 +1354,7 @@ export default function CompleteProfile() {
                                             </div>
                                             <div className="space-y-2" onClick={e => e.stopPropagation()}>
                                                 <Label>
-                                                    Country(ies) <span className="text-red-400">*</span> :
+                                                    Country(ies) <span className="text-blue-500">*</span> :
                                                     <span className="ml-2 text-sm font-normal text-muted-foreground">
                                                         Selected {selectedCountries.length} of {currentLimits.maxCountries === -1 ? "Unlimited" : currentLimits.maxCountries}
                                                     </span>
@@ -1374,16 +1374,16 @@ export default function CompleteProfile() {
                                     {formData.group === "events" && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Event Name <span className="text-red-400">*</span></Label>
+                                                <Label>Event Name <span className="text-blue-500">*</span></Label>
                                                 <Input value={eventData.eventName} onChange={e => setEventData(prev => ({ ...prev, eventName: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                                 <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Event Link <span className="text-red-400">*</span></Label>
+                                                <Label>Event Link <span className="text-blue-500">*</span></Label>
                                                 <Input type="url" placeholder="https://" value={eventData.eventLink} onChange={e => setEventData(prev => ({ ...prev, eventLink: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Start Date <span className="text-red-400">*</span></Label>
+                                                <Label>Start Date <span className="text-blue-500">*</span></Label>
                                                 <Input
                                                     type="date"
                                                     value={eventData.startDate}
@@ -1401,7 +1401,7 @@ export default function CompleteProfile() {
                                                 />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>{formData.plan === "basic_event" ? "Event Date" : "End Date"} <span className="text-red-400">*</span></Label>
+                                                <Label>{formData.plan === "basic_event" ? "Event Date" : "End Date"} <span className="text-blue-500">*</span></Label>
                                                 <Input
                                                     type="date"
                                                     value={eventData.endDate}
@@ -1424,7 +1424,7 @@ export default function CompleteProfile() {
                                                 )}
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Country <span className="text-red-400">*</span></Label>
+                                                <Label>Country <span className="text-blue-500">*</span></Label>
                                                 <Select value={eventData.eventCountry} onValueChange={val => setEventData(prev => ({ ...prev, eventCountry: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10 max-h-60">
@@ -1433,17 +1433,17 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>State / Province / Region <span className="text-red-400">*</span></Label>
+                                                <Label>State / Province / Region <span className="text-blue-500">*</span></Label>
                                                 <Input value={eventData.stateRegion} onChange={e => setEventData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>City / Town <span className="text-red-400">*</span></Label>
+                                                <Label>City / Town <span className="text-blue-500">*</span></Label>
                                                 <Input value={eventData.city} onChange={e => setEventData(prev => ({ ...prev, city: e.target.value }))} required className="h-12 bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
                                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                                     <div className="space-y-2">
-                                                        <Label>Agenda Highlights <span className="text-red-400">*</span> </Label>
+                                                        <Label>Agenda Highlights <span className="text-blue-500">*</span> </Label>
                                                         <Textarea
                                                             value={eventData.agendaHighlights}
                                                             onChange={e => setEventData(prev => ({ ...prev, agendaHighlights: e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX) }))}
@@ -1454,7 +1454,7 @@ export default function CompleteProfile() {
                                                         <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <Label>Full Agenda (PDF) <span className="text-red-400">*</span></Label>
+                                                        <Label>Full Agenda (PDF) <span className="text-blue-500">*</span></Label>
                                                         {!eventAgendaPdfFile && !eventData.agendaPdfUrl && (
                                                             <Input
                                                                 type="file"
@@ -1491,7 +1491,7 @@ export default function CompleteProfile() {
                                                 </div>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Event Profile <span className="text-red-400">*</span></Label>
+                                                <Label>Event Profile <span className="text-blue-500">*</span></Label>
                                                 <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value.slice(0, 500) }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
                                                 <p className="text-xs text-right text-muted-foreground mt-1">{eventData.eventProfile.length}/500</p>
                                             </div>
@@ -1502,17 +1502,17 @@ export default function CompleteProfile() {
                                     {formData.group === "jobs" && (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Job Title <span className="text-red-400">*</span></Label>
+                                                <Label>Job Title <span className="text-blue-500">*</span></Label>
                                                 <Input value={jobData.jobTitle} onChange={e => setJobData(prev => ({ ...prev, jobTitle: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                                 <p className="text-xs text-muted-foreground mt-1">Original capitalization preserved.</p>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Job Summary <span className="text-red-400">*</span></Label>
+                                                <Label>Job Summary <span className="text-blue-500">*</span></Label>
                                                 <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" />
                                                 <p className={`text-xs text-right ${jobData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobData.jobSummary.length}/500</p>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Full Job Description (PDF) <span className="text-red-400">*</span></Label>
+                                                <Label>Full Job Description (PDF) <span className="text-blue-500">*</span></Label>
                                                 {!jobPdfFile && !jobData.jobDescriptionPdfUrl && (
                                                     <Input
                                                         type="file"
@@ -1547,7 +1547,7 @@ export default function CompleteProfile() {
                                                 )}
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Industry <span className="text-red-400">*</span></Label>
+                                                <Label>Industry <span className="text-blue-500">*</span></Label>
                                                 <Select value={jobData.industry} onValueChange={val => setJobData(prev => ({ ...prev, industry: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select industry" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10 max-h-60">
@@ -1558,7 +1558,7 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Job Type <span className="text-red-400">*</span></Label>
+                                                <Label>Job Type <span className="text-blue-500">*</span></Label>
                                                 <Select value={jobData.positionType} onValueChange={val => setJobData(prev => ({ ...prev, positionType: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select job type" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10">
@@ -1569,7 +1569,7 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Experience Level <span className="text-red-400">*</span></Label>
+                                                <Label>Experience Level <span className="text-blue-500">*</span></Label>
                                                 <Select value={jobData.experienceLevel} onValueChange={val => setJobData(prev => ({ ...prev, experienceLevel: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select experience level" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10">
@@ -1580,7 +1580,7 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Work Model <span className="text-red-400">*</span></Label>
+                                                <Label>Work Model <span className="text-blue-500">*</span></Label>
                                                 <Select value={jobData.workModel} onValueChange={val => setJobData(prev => ({ ...prev, workModel: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select work model" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10">
@@ -1591,7 +1591,7 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Education <span className="text-red-400">*</span></Label>
+                                                <Label>Education <span className="text-blue-500">*</span></Label>
                                                 <Select value={jobData.education} onValueChange={val => setJobData(prev => ({ ...prev, education: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select education" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10">
@@ -1606,11 +1606,11 @@ export default function CompleteProfile() {
                                                 <Input type="date" value={jobData.applicationDeadline} onChange={e => setJobData(prev => ({ ...prev, applicationDeadline: e.target.value }))} className="bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
-                                                <Label>Position Link (Apply) <span className="text-red-400">*</span></Label>
+                                                <Label>Position Link (Apply) <span className="text-blue-500">*</span></Label>
                                                 <Input type="url" placeholder="https://" value={jobData.positionLink} onChange={e => setJobData(prev => ({ ...prev, positionLink: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>Country <span className="text-red-400">*</span></Label>
+                                                <Label>Country <span className="text-blue-500">*</span></Label>
                                                 <Select value={jobData.jobCountry} onValueChange={val => setJobData(prev => ({ ...prev, jobCountry: val }))}>
                                                     <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select country" /></SelectTrigger>
                                                     <SelectContent className="bg-background border-foreground/10 max-h-60">
@@ -1619,11 +1619,11 @@ export default function CompleteProfile() {
                                                 </Select>
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>State / Province / Region <span className="text-red-400">*</span></Label>
+                                                <Label>State / Province / Region <span className="text-blue-500">*</span></Label>
                                                 <Input value={jobData.stateRegion} onChange={e => setJobData(prev => ({ ...prev, stateRegion: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                             </div>
                                             <div className="space-y-2">
-                                                <Label>City / Town <span className="text-red-400">*</span></Label>
+                                                <Label>City / Town <span className="text-blue-500">*</span></Label>
                                                 <Input value={jobData.city} onChange={e => setJobData(prev => ({ ...prev, city: e.target.value }))} required className="bg-muted/40 border-foreground/10" />
                                             </div>
                                         </div>
@@ -1634,7 +1634,7 @@ export default function CompleteProfile() {
                                         <div className="flex items-center justify-between mb-4">
                                             <div>
                                                 <Label className="text-base font-semibold">
-                                                    Category(ies) <span className="text-red-400">*</span>
+                                                    Category(ies) <span className="text-blue-500">*</span>
                                                 </Label>
                                                 <p className="text-xs text-muted-foreground mt-1">Select categories from the lowest level. Parent categories expand when clicked.</p>
                                             </div>

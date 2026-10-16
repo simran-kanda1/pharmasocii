@@ -403,7 +403,7 @@ export function AdminContactPanel() {
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label className="text-xs font-semibold uppercase tracking-wider text-slate-600 block mb-1">
-                                            Department Name <span className="text-red-500">*</span>
+                                            Department Name <span className="text-blue-500">*</span>
                                         </label>
                                         <Input
                                             value={dept.title}
@@ -416,7 +416,7 @@ export function AdminContactPanel() {
                                     <div>
                                         <label className="text-xs font-semibold uppercase tracking-wider text-slate-600 block mb-1 flex items-center gap-1.5">
                                             <Mail className="w-3.5 h-3.5 text-primary" />
-                                            Email Address <span className="text-red-500">*</span>
+                                            Email Address <span className="text-blue-500">*</span>
                                         </label>
                                         <Input
                                             type="email"

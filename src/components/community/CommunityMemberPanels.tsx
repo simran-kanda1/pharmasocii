@@ -558,15 +558,15 @@ export function CommunityMemberPanels({
           }}
         >
           <div className="space-y-2">
-            <Label>Full name*</Label>
+            <Label>Full name <span className="text-blue-500">*</span></Label>
             <Input value={name} disabled className="bg-muted/40" />
           </div>
           <div className="space-y-2">
-            <Label>Username*</Label>
+            <Label>Username <span className="text-blue-500">*</span></Label>
             <Input value={userName} disabled className="bg-muted/40" />
           </div>
           <div className="space-y-2">
-            <Label>Email*</Label>
+            <Label>Email <span className="text-blue-500">*</span></Label>
             <Input value={email} disabled className="bg-muted/40" />
           </div>
 
@@ -587,7 +587,7 @@ export function CommunityMemberPanels({
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="industry">Industry*</Label>
+              <Label htmlFor="industry">Industry <span className="text-blue-500">*</span></Label>
               <Input
                 id="industry"
                 value={industry}
@@ -684,7 +684,7 @@ export function CommunityMemberPanels({
             }}
           >
             <div className="space-y-2">
-              <Label htmlFor="current-password">Current password*</Label>
+              <Label htmlFor="current-password">Current password <span className="text-blue-500">*</span></Label>
               <div className="relative">
                 <Input
                   id="current-password"
@@ -705,7 +705,7 @@ export function CommunityMemberPanels({
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="new-password">New password*</Label>
+              <Label htmlFor="new-password">New password <span className="text-blue-500">*</span></Label>
               <div className="relative">
                 <Input
                   id="new-password"
@@ -732,7 +732,7 @@ export function CommunityMemberPanels({
               </ul>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm-password">Confirm new password*</Label>
+              <Label htmlFor="confirm-password">Confirm new password <span className="text-blue-500">*</span></Label>
               <div className="relative">
                 <Input
                   id="confirm-password"

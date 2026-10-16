@@ -141,7 +141,7 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
         }}
       >
         <div className="space-y-2">
-          <Label>Name *</Label>
+          <Label>Name <span className="text-blue-500">*</span></Label>
           <Input value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div className="space-y-2">
@@ -195,7 +195,7 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
           <Input value={institution} onChange={(e) => setInstitution(e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Industry *</Label>
+          <Label>Industry <span className="text-blue-500">*</span></Label>
           <Input value={industry} onChange={(e) => setIndustry(e.target.value)} />
         </div>
         <div className="space-y-2">

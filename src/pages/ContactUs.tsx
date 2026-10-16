@@ -268,7 +268,7 @@ export default function ContactUs() {
                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div>
                                         <label className="text-xs font-semibold uppercase tracking-wider text-foreground/80 block mb-1.5">
-                                            Your Name <span className="text-red-500">*</span>
+                                            Your Name <span className="text-blue-500">*</span>
                                         </label>
                                         <Input
                                             required
@@ -280,7 +280,7 @@ export default function ContactUs() {
                                     </div>
                                     <div>
                                         <label className="text-xs font-semibold uppercase tracking-wider text-foreground/80 block mb-1.5">
-                                            Email Address <span className="text-red-500">*</span>
+                                            Email Address <span className="text-blue-500">*</span>
                                         </label>
                                         <Input
                                             required
@@ -325,7 +325,7 @@ export default function ContactUs() {
 
                                 <div>
                                     <label className="text-xs font-semibold uppercase tracking-wider text-foreground/80 block mb-1.5">
-                                        Your Message <span className="text-red-500">*</span>
+                                        Your Message <span className="text-blue-500">*</span>
                                     </label>
                                     <Textarea
                                         required
