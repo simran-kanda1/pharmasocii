@@ -4599,13 +4599,7 @@ function FeaturedPlansTab({
   onDeletePlan: (plan: FeaturedPlanOption, groupName: string) => void;
   onTogglePlanStatus: (plan: FeaturedPlanOption, groupName: string) => void;
 }) {
-  const purchaseCountByFeature = useMemo(() => {
-    return featuredPlans.reduce((acc, feature) => {
-      const id = (feature.featureId || feature.featureName || "unknown").toLowerCase();
-      acc[id] = (acc[id] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-  }, [featuredPlans]);
+
 
   const recentPurchases = useMemo(() => {
     return featuredPlans.slice(0, 12).map((feature) => {
@@ -4632,10 +4626,6 @@ function FeaturedPlansTab({
               <h4 className="font-semibold text-slate-800">{group.service}</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {group.options.map((option) => {
-                  const pCount =
-                    purchaseCountByFeature[option.id.toLowerCase()] ||
-                    purchaseCountByFeature[option.label.toLowerCase()] ||
-                    0;
                   const isActive = option.status !== "Inactive";
 
                   return (
@@ -4694,16 +4684,9 @@ function FeaturedPlansTab({
                         })}
                       </p>
                       <p className="text-sm text-slate-700">For : {option.durationDays || 30} days</p>
-                      <p className="text-sm text-slate-700">
-                        Number of Country : {option.countryLimit === -1 ? "Unlimited" : (option.countryLimit ?? 1)}
-                      </p>
-                      <p className="text-sm text-slate-700">
-                        Number of Category : {option.categoryLimit === -1 ? "Unlimited" : (option.categoryLimit ?? 1)}
-                      </p>
                       {option.description && (
                         <p className="text-xs text-slate-500 line-clamp-2 italic pt-1">{option.description}</p>
                       )}
-                      <p className="text-xs text-slate-400 pt-1">Purchased: {pCount}</p>
                     </div>
                   );
                 })}

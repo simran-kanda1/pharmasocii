@@ -286,25 +286,6 @@ export function AdminAddFeaturedPlan({ initialPlan, initialGroup, onCancel, onSu
               />
             </div>
 
-            <div className="grid grid-cols-[200px_1fr] items-center gap-4">
-              <Label className="text-slate-600 font-medium">Number of Countries</Label>
-              <Input
-                type="number"
-                placeholder="e.g. 1, 5, or -1 for unlimited"
-                value={formData.numberOfCountry}
-                onChange={(e) => handleChange("numberOfCountry", e.target.value)}
-              />
-            </div>
-
-            <div className="grid grid-cols-[200px_1fr] items-center gap-4">
-              <Label className="text-slate-600 font-medium">Number of Categories</Label>
-              <Input
-                type="number"
-                placeholder="e.g. 2, 5, or -1 for unlimited"
-                value={formData.numberOfCategory}
-                onChange={(e) => handleChange("numberOfCategory", e.target.value)}
-              />
-            </div>
 
             <div className="grid grid-cols-[200px_1fr] items-center gap-4 border-t pt-6">
               <Label className="text-slate-600 font-medium">Status</Label>
