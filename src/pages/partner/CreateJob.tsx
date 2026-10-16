@@ -161,39 +161,42 @@ export default function CreateJob() {
                                     <Textarea id="jobSummary" placeholder="Provide a brief summary of the role and responsibilities..." value={formData.jobSummary} onChange={(e) => setFormData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} className="min-h-[120px] bg-muted/40 border-foreground/10 text-foreground" />
                                     <p className={`text-xs text-right ${formData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.jobSummary.length}/500</p>
                                 </div>
-                                <div className="pt-6 border-t border-foreground/10 space-y-4 md:col-span-2">
-                                    <div className="flex items-center justify-between">
-                                        <Label className="text-base font-semibold">Company representative(s) (Optional)</Label>
+                                <div className="bg-muted/20 p-5 md:p-6 rounded-2xl border border-foreground/10 space-y-4 md:col-span-2">
+                                    <div className="flex items-center justify-between border-b pb-3 border-foreground/10">
+                                        <Label className="text-base md:text-lg font-bold text-foreground">Company representative(s) <span className="text-xs font-normal text-muted-foreground">(Optional)</span></Label>
                                         <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
                                     </div>
+                                    {companyRepresentatives.length === 0 && (
+                                        <p className="text-xs text-muted-foreground">Optional: Add representatives who can be contacted directly by members.</p>
+                                    )}
                                     <div className="space-y-3">
                                         {companyRepresentatives.map((rep, index) => (
-                                            <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3 relative">
+                                            <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center bg-background p-3 rounded-xl border border-foreground/10 shadow-sm">
                                                 <Input
                                                     value={rep.firstName}
                                                     onChange={(e) => updateRepresentative(index, "firstName", e.target.value)}
                                                     placeholder="First name"
-                                                    className="bg-muted/40 border-foreground/10"
+                                                    className="bg-muted/30 border-foreground/10"
                                                 />
                                                 <Input
                                                     value={rep.lastName}
                                                     onChange={(e) => updateRepresentative(index, "lastName", e.target.value)}
                                                     placeholder="Last name"
-                                                    className="bg-muted/40 border-foreground/10"
+                                                    className="bg-muted/30 border-foreground/10"
                                                 />
-                                                <div className="relative">
+                                                <div className="flex gap-2 items-center">
                                                     <Input
                                                         type="email"
                                                         value={rep.email}
                                                         onChange={(e) => updateRepresentative(index, "email", e.target.value)}
                                                         placeholder="Email address"
-                                                        className="bg-muted/40 border-foreground/10 pr-10"
+                                                        className="bg-muted/30 border-foreground/10 flex-1"
                                                     />
                                                     <Button
                                                         type="button"
                                                         variant="ghost"
                                                         size="sm"
-                                                        className="absolute right-1 top-1/2 -translate-y-1/2 h-8 w-8 p-0 text-muted-foreground hover:text-red-500 hover:bg-transparent"
+                                                        className="shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 h-9 w-9 p-0"
                                                         onClick={() => removeRepresentative(index)}
                                                     >
                                                         ✕

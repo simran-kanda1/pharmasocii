@@ -183,14 +183,19 @@ export default function CompleteProfile() {
                         .filter(Boolean) as CompanyRepresentative[];
                     const allSuggestions = [...partnerDocReps, ...listingReps, ...(altRep ? [altRep] : [])];
                     const seen = new Set<string>();
-                    setAvailableRepresentatives(
-                        allSuggestions.filter((rep) => {
-                            const key = representativeKey(rep);
-                            if (seen.has(key)) return false;
-                            seen.add(key);
-                            return true;
-                        })
-                    );
+                    const uniqueSuggestions = allSuggestions.filter((rep) => {
+                        const key = representativeKey(rep);
+                        if (seen.has(key)) return false;
+                        seen.add(key);
+                        return true;
+                    });
+                    setAvailableRepresentatives(uniqueSuggestions);
+
+                    if (partnerDocReps.length > 0) {
+                        setCompanyRepresentatives(partnerDocReps);
+                    } else if (uniqueSuggestions.length > 0) {
+                        setCompanyRepresentatives(uniqueSuggestions);
+                    }
                 }
             }
         };
@@ -1645,58 +1650,73 @@ export default function CompleteProfile() {
                                         </div>
                                     </div>
 
-                                    <div className="pt-6 border-t border-foreground/10 space-y-4">
-                                        <div className="flex items-center justify-between">
-                                            <Label className="text-base font-semibold">Company Representative(s)</Label>
-                                            <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add Representative</Button>
+                                    <div className="bg-muted/20 p-5 md:p-6 rounded-2xl border border-foreground/10 space-y-4">
+                                        <div className="flex items-center justify-between border-b pb-3 border-foreground/10">
+                                            <Label className="text-base md:text-lg font-bold text-foreground">Company representative(s)</Label>
+                                            <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
                                         </div>
+                                        {companyRepresentatives.length === 0 && (
+                                            <p className="text-xs text-muted-foreground">Optional: Add representatives who can be contacted directly by members.</p>
+                                        )}
                                         {availableRepresentatives.length > 0 && (
-                                            <div className="space-y-2">
-                                                <div className="flex flex-wrap gap-2">
-                                                    {availableRepresentatives.map((rep) => (
-                                                        <Button
-                                                            key={representativeKey(rep)}
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => addRepresentativeFromSaved(rep)}
-                                                        >
-                                                            {rep.firstName} {rep.lastName} - {rep.email}
-                                                        </Button>
-                                                    ))}
-                                                </div>
+                                            <div className="space-y-1.5">
+                                                {availableRepresentatives.some(rep => !companyRepresentatives.some(c => representativeKey(c) === representativeKey(rep))) && (
+                                                    <>
+                                                        <p className="text-xs text-muted-foreground font-medium">Saved representatives (click to add):</p>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {availableRepresentatives.map((rep) => {
+                                                                const isAlreadyAdded = companyRepresentatives.some(
+                                                                    (c) => representativeKey(c) === representativeKey(rep)
+                                                                );
+                                                                if (isAlreadyAdded) return null;
+                                                                return (
+                                                                    <Button
+                                                                        key={representativeKey(rep)}
+                                                                        type="button"
+                                                                        variant="outline"
+                                                                        size="sm"
+                                                                        className="h-8 text-xs bg-background/80 hover:bg-background border-foreground/15 shadow-sm"
+                                                                        onClick={() => addRepresentativeFromSaved(rep)}
+                                                                    >
+                                                                        + {rep.firstName} {rep.lastName} ({rep.email})
+                                                                    </Button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </>
+                                                )}
                                             </div>
                                         )}
 
                                         <div className="space-y-3">
                                             {companyRepresentatives.map((rep, index) => (
-                                                <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                                <div key={index} className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center bg-background p-3 rounded-xl border border-foreground/10 shadow-sm">
                                                     <Input
                                                         value={rep.firstName}
                                                         onChange={(e) => updateRepresentative(index, "firstName", e.target.value)}
-                                                        placeholder="First Name"
-                                                        className="bg-muted/40 border-foreground/10"
+                                                        placeholder="First name"
+                                                        className="bg-muted/30 border-foreground/10"
                                                     />
                                                     <Input
                                                         value={rep.lastName}
                                                         onChange={(e) => updateRepresentative(index, "lastName", e.target.value)}
-                                                        placeholder="Last Name"
-                                                        className="bg-muted/40 border-foreground/10"
+                                                        placeholder="Last name"
+                                                        className="bg-muted/30 border-foreground/10"
                                                     />
-                                                    <div className="flex gap-2">
+                                                    <div className="flex gap-2 items-center">
                                                         <Input
                                                             type="email"
                                                             value={rep.email}
                                                             onChange={(e) => updateRepresentative(index, "email", e.target.value)}
                                                             placeholder="Email"
-                                                            className="bg-muted/40 border-foreground/10"
+                                                            className="bg-muted/30 border-foreground/10 flex-1"
                                                         />
                                                         <Button
                                                             type="button"
                                                             variant="ghost"
                                                             size="sm"
                                                             onClick={() => removeRepresentative(index)}
-                                                            className="shrink-0"
+                                                            className="shrink-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 h-9 w-9 p-0"
                                                         >
                                                             <X className="w-4 h-4" />
                                                         </Button>
