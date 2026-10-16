@@ -2889,8 +2889,8 @@ export default function Dashboard() {
 
                                                 return (
                                                     <li key={plan.id} className="text-sm text-foreground">
-                                                        <span className="font-medium">{partnerData.businessName || "Unnamed Business"}</span>
-                                                        <span className="text-muted-foreground"> — {groupLabel} · {tierLabel}</span>
+                                                        <span className="font-medium">{groupLabel}</span>
+                                                        <span className="text-muted-foreground"> · {tierLabel}</span>
                                                     </li>
                                                 );
                                             })}
