@@ -2873,13 +2873,9 @@ export default function Dashboard() {
                     {/* Business Information */}
                     <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md shadow-xl">
                         <CardHeader className="pb-4 border-b border-foreground/10">
-                            <CardTitle className="text-xl flex items-center gap-2"><Building className="w-5 h-5 text-primary" /> Business Information</CardTitle>
+                            <CardTitle className="text-xl flex items-center gap-2"><Building className="w-5 h-5 text-primary" /> {partnerData.businessName || "Business Information"}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 pt-6">
-                            <div>
-                                <p className="text-xs font-medium text-muted-foreground tracking-wider mb-1">Company Name</p>
-                                <p className="text-base text-foreground font-semibold">{partnerData.businessName}</p>
-                            </div>
                             <div className="grid grid-cols-1 gap-4 bg-muted/40 p-4 rounded-lg border border-foreground/10">
                                 {livePlansSorted.length > 0 ? (
                                     <div>
@@ -2914,12 +2910,14 @@ export default function Dashboard() {
                                 )}
                             </div>
                             <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
-                                <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1 flex items-center gap-1.5">
-                                    <FileText className="w-3.5 h-3.5 text-muted-foreground" /> Business Tax ID
+                                <p className="text-xs font-semibold text-muted-foreground tracking-wider flex items-center gap-1.5">
+                                    <FileText className="w-3.5 h-3.5 text-muted-foreground" /> Business Tax ID {!partnerData.VAT_ABN_EIN_businessId && <span className="font-normal text-muted-foreground">(to be added)</span>}
                                 </p>
-                                <p className={`text-xs ${partnerData.VAT_ABN_EIN_businessId ? "text-foreground font-medium" : "text-muted-foreground"}`}>
-                                    {partnerData.VAT_ABN_EIN_businessId || "To be added"}
-                                </p>
+                                {partnerData.VAT_ABN_EIN_businessId && (
+                                    <p className="text-xs text-foreground font-medium mt-1">
+                                        {partnerData.VAT_ABN_EIN_businessId}
+                                    </p>
+                                )}
                             </div>
                         </CardContent>
                     </Card>
