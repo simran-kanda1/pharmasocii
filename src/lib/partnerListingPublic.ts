@@ -213,6 +213,7 @@ export function resolveSpotlightPlacement(item: Record<string, unknown>): string
 /** Spotlight stays visible until its paid/access window ends. */
 export function spotlightDisplayActive(item: Record<string, unknown>): boolean {
     if (item.active === false) return false;
+    if (item.isFeatured === false) return false;
     const status = String(item.status || "").trim().toLowerCase();
     if (status === "cancelled" || status === "canceled" || status === "expired" || status === "inactive") {
         return false;

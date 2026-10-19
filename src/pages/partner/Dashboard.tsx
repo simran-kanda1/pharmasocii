@@ -1114,7 +1114,7 @@ export default function Dashboard() {
                         (err) => console.warn("Dashboard plans snapshot:", err?.message || err),
                     );
 
-                    const featuresQ = query(collection(docRef, "featuresCollection"), where("active", "==", true));
+                    const featuresQ = collection(docRef, "featuresCollection");
                     onSnapshot(
                         featuresQ,
                         (snap) => {
@@ -2539,13 +2539,59 @@ export default function Dashboard() {
                 effectiveSpotlightTier > 0 &&
                 !spotlightCancelPending;
             const isEnding = Boolean(plan.cancelAtPeriodEnd) && !isPast;
+
+            const rawListingAddon = getSpotlightAddonTierId(linkedListing);
+            const listingDocId = plan.listingId || linkedListing?.id;
+            const pastFeatureDoc = listingDocId
+                ? partnerFeatures.find((f: any) => f.listingId === listingDocId && f.featureId)
+                : null;
+            const pastFeatureTx = listingDocId
+                ? formattedTransactions.find((t: any) => t.listingId === listingDocId && (t.featureId || t.type === "feature"))
+                : null;
+
+            const resolvedSpotlightId =
+                standaloneSpotlightId ||
+                effectiveSpotlightId ||
+                plan.spotlightFeatureId ||
+                plan.featurePlan ||
+                plan.featureId ||
+                plan.selectedAddon ||
+                includedPlanFeature ||
+                rawListingAddon ||
+                linkedListing?.selectedAddon ||
+                linkedListing?.featuredPlacement ||
+                linkedListing?.lastSelectedAddon ||
+                linkedListing?.featureSpotlightId ||
+                pastFeatureDoc?.featureId ||
+                pastFeatureTx?.featureId ||
+                null;
+
+            const spotlightLabel = (() => {
+                const s = String(
+                    resolvedSpotlightId ||
+                    (pastFeatureTx?.planDisplay ? pastFeatureTx.planDisplay.toLowerCase() : "")
+                ).toLowerCase().trim();
+                if (s === "home_page" || s.includes("home page")) return "Home Page Spotlight";
+                if (s === "landing_page" || s.includes("landing page")) return "Landing Page Spotlight";
+                if (s === "both" || s.includes("both")) return "Both (Module & Home Page)";
+                const matched = dynamicFeaturePlans.find((f: any) => f.id === s) || FEATURE_PLANS.find((f: any) => f.id === s);
+                if (matched?.label) return matched.label;
+                if (s && s !== "spotlight" && s !== "feature") {
+                    return s.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) + " Spotlight";
+                }
+                return "Spotlight";
+            })();
+
             const hadLinkedFeature = Boolean(
+                resolvedSpotlightId ||
                 plan.spotlightEndsWithPlan ||
                 includedPlanFeature ||
                 hasFeature ||
                 hasStandaloneAddon ||
                 spotlightCancelPending ||
-                (linkedListing?.selectedAddon && linkedListing.selectedAddon !== "none"),
+                (linkedListing?.selectedAddon && linkedListing.selectedAddon !== "none") ||
+                pastFeatureDoc ||
+                pastFeatureTx
             );
             // Stop date is the feature's own end, shortened only when the plan ends sooner.
             let featureStop = (spotlightCancelPending || isPast)
@@ -2596,13 +2642,13 @@ export default function Dashboard() {
                                 {isEnding && !isPast && (
                                     <p className="text-xs mt-1 mb-1" style={{ color: '#78350f' }}>
                                         {featureEndsWithPlan
-                                            ? `Plan and feature end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the plan end date"}.`
+                                            ? `Plan and ${spotlightLabel.toLowerCase().includes("spotlight") || spotlightLabel.toLowerCase().includes("both") ? spotlightLabel : `${spotlightLabel} spotlight`} end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the plan end date"}.`
                                             : `Plan scheduled to end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the end of your billing period"}. It will not renew.`}
                                     </p>
                                 )}
-                                {isPast && hadLinkedFeature && (
+                                {(isPast || spotlightAccessEnded) && hadLinkedFeature && !hasStandaloneAddon && (
                                     <p className="text-sm text-muted-foreground mt-2">
-                                        Spotlight ended on {(
+                                        {spotlightLabel} ended on {(
                                             displayFeatureEndsOn && renewalDate && displayFeatureEndsOn.getTime() < renewalDate.getTime()
                                                 ? featureStopLastPaidDay
                                                 : lastPaidDay
@@ -2643,7 +2689,7 @@ export default function Dashboard() {
                                     <div className="mt-4 pt-4 border-t border-foreground/10">
                                         <div className="flex items-center gap-3 mb-1 flex-wrap">
                                             <h5 className="text-lg font-bold text-foreground">
-                                                {standaloneSpotlightPlan?.label || "Spotlight add-on"}
+                                                {standaloneSpotlightPlan?.label || spotlightLabel || "Spotlight add-on"}
                                             </h5>
                                         </div>
                                         <p className="text-sm text-muted-foreground mb-1">
@@ -2651,7 +2697,7 @@ export default function Dashboard() {
                                         </p>
                                         {spotlightCancelPending && !featureEndsWithPlan && (
                                             <p className="text-xs mt-1 mb-2" style={{ color: '#78350f' }}>
-                                                Spotlight add-on scheduled to end on {featureStopLastPaidDay?.toLocaleDateString() || "the end of your paid period"}. It will not renew.
+                                                {spotlightLabel || "Spotlight add-on"} scheduled to end on {featureStopLastPaidDay?.toLocaleDateString() || "the end of your paid period"}. It will not renew.
                                             </p>
                                         )}
                                         <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">

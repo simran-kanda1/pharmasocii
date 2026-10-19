@@ -1090,8 +1090,6 @@ function isSpotlightCancelPending(listingData) {
 function listingSpotlightClearPatch() {
     const fv = admin.firestore.FieldValue;
     return {
-        selectedAddon: fv.delete(),
-        featuredPlacement: fv.delete(),
         isFeatured: false,
         featureSpotlightCancelPending: fv.delete(),
         featureSpotlightCancelScope: fv.delete(),
@@ -2484,8 +2482,6 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
             const listingUpdateOnEndFull = {
                 active: false,
                 status: "Cancelled",
-                selectedAddon: admin.firestore.FieldValue.delete(),
-                featuredPlacement: admin.firestore.FieldValue.delete(),
                 isFeatured: false,
                 featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
                 featureSpotlightCancelScope: admin.firestore.FieldValue.delete(),
@@ -7402,7 +7398,10 @@ app.post("/api/cancel-plan", async (req, res) => {
                 if (spotlightCascade.linkedFeatureId) {
                     linkedFeatureId = spotlightCascade.linkedFeatureId;
                 }
-                await planRef.set({ spotlightEndsWithPlan: true }, { merge: true });
+                await planRef.set({
+                    spotlightEndsWithPlan: true,
+                    ...(linkedFeatureId ? { spotlightFeatureId: linkedFeatureId } : {}),
+                }, { merge: true });
             }
 
             // Events/Jobs included spotlight ends with the plan at period end — do not strip early.

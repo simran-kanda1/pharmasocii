@@ -10,8 +10,6 @@ export async function cleanupExpiredSpotlights() {
     const now = admin.firestore.Timestamp.now();
 
     const listingClearPayload = () => ({
-        selectedAddon: fv.delete(),
-        featuredPlacement: fv.delete(),
         isFeatured: false,
         featureSpotlightCancelPending: fv.delete(),
         featureSpotlightAccessEnd: fv.delete(),
@@ -102,8 +100,6 @@ export async function cleanupExpiredSpotlights() {
                 if (partnerId) {
                     await db.collection("partnersCollection").doc(partnerId).set({
                         isFeatured: false,
-                        selectedAddon: fv.delete(),
-                        featuredPlacement: fv.delete(),
                     }, { merge: true });
                 }
             }

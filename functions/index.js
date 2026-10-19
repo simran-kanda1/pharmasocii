@@ -33,8 +33,6 @@ const db = admin.firestore();
 const FieldValue = admin.firestore.FieldValue;
 
 const listingClearPayload = () => ({
-    selectedAddon: FieldValue.delete(),
-    featuredPlacement: FieldValue.delete(),
     isFeatured: false,
     featureSpotlightCancelPending: FieldValue.delete(),
     featureSpotlightAccessEnd: FieldValue.delete(),

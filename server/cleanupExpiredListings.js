@@ -103,8 +103,6 @@ export async function cleanupExpiredListings(options = {}) {
     const listingUpdateOnEnd = {
         active: false,
         status: "Cancelled",
-        selectedAddon: fv.delete(),
-        featuredPlacement: fv.delete(),
         isFeatured: false,
         featureSpotlightCancelPending: fv.delete(),
         featureSpotlightCancelScope: fv.delete(),
