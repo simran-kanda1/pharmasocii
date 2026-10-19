@@ -7245,7 +7245,7 @@ app.post("/api/cancel-plan", async (req, res) => {
         if (cancelFeatureOnly) {
             if (isEventOrJobPlanId(plan.planId) || isEventOrJobCollection(plan.collectionName)) {
                 return res.status(400).json({
-                    error: "Event and job spotlights are included in the plan and cannot be cancelled separately.",
+                    error: "Event and job features are included in the plan and cannot be cancelled separately.",
                 });
             }
             if (!plan.listingId || !plan.collectionName) {
@@ -7262,7 +7262,7 @@ app.post("/api/cancel-plan", async (req, res) => {
             const listingData = listingSnap.data() || {};
             if (isSpotlightCancelPending(listingData)) {
                 return res.status(409).json({
-                    error: "Spotlight add-on cancellation is already scheduled for this listing.",
+                    error: "Feature add-on cancellation is already scheduled for this listing.",
                 });
             }
 
@@ -7275,7 +7275,7 @@ app.post("/api/cancel-plan", async (req, res) => {
             linkedFeatureId = spotlightCtx.linkedFeatureId;
             if (!linkedFeatureId || !spotlightCtx.hasPaidStandalone) {
                 return res.status(400).json({
-                    error: "No active standalone spotlight add-on found for this listing.",
+                    error: "No active standalone feature add-on found for this listing.",
                 });
             }
 
@@ -7413,7 +7413,7 @@ app.post("/api/cancel-plan", async (req, res) => {
             partnerId,
             action: cancelScope === "feature" ? "FEATURE_CANCELLED" : "PLAN_CANCELLED",
             details: cancelScope === "feature"
-                ? `Spotlight feature (${linkedFeatureId || "add-on"}) scheduled to end.`
+                ? `Feature (${linkedFeatureId || "add-on"}) scheduled to end.`
                 : `Listing plan scheduled to end.`,
             category: "billing",
             performedBy: "partner",
@@ -7586,7 +7586,7 @@ app.post("/api/verify-payment", async (req, res) => {
             await logAudit({
                 partnerId,
                 action: "FEATURE_UPGRADED",
-                details: `Spotlight upgraded to ${upgradeFeatureId.replace(/_/g, " ")}.`,
+                details: `Feature upgraded to ${upgradeFeatureId.replace(/_/g, " ")}.`,
                 category: "listing",
                 metadata: {
                     featureId: upgradeFeatureId,

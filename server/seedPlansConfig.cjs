@@ -111,7 +111,7 @@ const seedData = {
                         "Add representative(s) for direct communication",
                         "Option to highlight certifications",
                         "Optional BSL (Biosafety Level) disclosure",
-                        "Extra Feature: Homepage spotlight for increased visibility"
+                        "Extra Feature: Homepage feature for increased visibility"
                     ],
                     isFeatured: false,
                     maxCategories: -1,
@@ -186,7 +186,7 @@ const seedData = {
                     yearlyMonthlyPrice: 1250,
                     yearlyTotalPrice: 15000,
                     features: [
-                        "Extra Feature: Landing page spotlight for increased visibility",
+                        "Extra Feature: Landing page feature for increased visibility",
                         "Event profile",
                         "Agenda highlights (500 chars) + full agenda PDF",
                         "Multi-day event dates",
@@ -212,7 +212,7 @@ const seedData = {
                     yearlyMonthlyPrice: 1450,
                     yearlyTotalPrice: 17400,
                     features: [
-                        "Extra Feature: Home page spotlight for maximum visibility",
+                        "Extra Feature: Home page feature for maximum visibility",
                         "Event profile",
                         "Agenda highlights (500 chars) + full agenda PDF",
                         "Multi-day event dates",
@@ -270,7 +270,7 @@ const seedData = {
                     yearlyMonthlyPrice: 800,
                     yearlyTotalPrice: 9600,
                     features: [
-                        "Extra Feature: Landing page spotlight for increased visibility",
+                        "Extra Feature: Landing page feature for increased visibility",
                         "Position title for quick search",
                         "Job description outlining key responsibilities",
                         "Company profile to showcase your brand and attract top talent",
@@ -295,7 +295,7 @@ const seedData = {
                     yearlyMonthlyPrice: 1000,
                     yearlyTotalPrice: 12000,
                     features: [
-                        "Extra Feature: Home page spotlight for maximum visibility",
+                        "Extra Feature: Home page feature for maximum visibility",
                         "Position title for quick search",
                         "Job description outlining key responsibilities",
                         "Company profile to showcase your brand and attract top talent",

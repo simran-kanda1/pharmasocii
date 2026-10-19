@@ -90,11 +90,11 @@ const PLAN_LIMITS: Record<string, PlanLimits> = {
 const EVENT_JOB_PLAN_DETAILS: Record<string, string[]> = {
   basic_event: ["Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Event date (single day)", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
   standard_event: ["Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-  premium_event: ["Extra Feature: Landing page spotlight for increased visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
-  premium_plus_event: ["Extra Feature: Home page spotlight for maximum visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
+  premium_event: ["Extra Feature: Landing page feature for increased visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
+  premium_plus_event: ["Extra Feature: Home page feature for maximum visibility", "Event profile", "Agenda highlights (500 chars) + full agenda PDF", "Multi-day event dates", "Event location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"],
   standard_job: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
-  premium_job: ["Extra Feature: Landing page spotlight for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
-  premium_plus_job: ["Extra Feature: Home page spotlight for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
+  premium_job: ["Extra Feature: Landing page feature for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
+  premium_plus_job: ["Extra Feature: Home page feature for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"],
 };
 
 const BSL_LEVELS = ["1", "2", "3", "4"];
@@ -171,9 +171,9 @@ const TRIAL_PERIOD_OPTIONS = [
 
 const FEATURE_OPTIONS = [
   { value: "none", label: "No Feature" },
-  { value: "home_page", label: "Home Page Spotlight (Monthly)" },
-  { value: "landing_page", label: "Landing Page Spotlight (Monthly)" },
-  { value: "both", label: "Landing + Home Page Spotlight (Monthly)" },
+  { value: "home_page", label: "Home Page Feature (Monthly)" },
+  { value: "landing_page", label: "Landing Page Feature (Monthly)" },
+  { value: "both", label: "Landing + Home Page Feature (Monthly)" },
 ];
 
 export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
@@ -1370,7 +1370,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 </Select>
                 <p className="text-[11px] text-slate-500 mt-2">
                   {groupKey !== "events" && groupKey !== "jobs" 
-                    ? "Sets the trial duration for both the plan and featured spotlight. The profile expires when the trial ends."
+                    ? "Sets the trial duration for both the plan and featured placement. The profile expires when the trial ends."
                     : "Limits the plan duration. The profile expires when the trial ends."}
                 </p>
               </div>
@@ -1386,7 +1386,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                       {dynamicFeatureOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
-                  <p className="text-[11px] text-slate-500 mt-2">Assign a featured spotlight plan to the partner manually.</p>
+                  <p className="text-[11px] text-slate-500 mt-2">Assign a featured plan to the partner manually.</p>
                 </div>
               )}
 

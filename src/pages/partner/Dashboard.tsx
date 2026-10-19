@@ -90,12 +90,12 @@ const PLAN_CONFIGS: Record<string, PlanConfig> = {
     // Events
     basic_event: { label: "Basic", subtitle: "Single day conference/event", price: "$500.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Agenda highlights + full agenda PDF", "Event date", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
     standard_event: { label: "Standard", subtitle: "Multi day conference/event", price: "$850.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
-    premium_event: { label: "Premium", subtitle: "Event listing + landing page spotlight", price: "$1,250.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page spotlight for increased visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
-    premium_plus_event: { label: "Premium Plus", subtitle: "Event listing + home page spotlight", price: "$1,450.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page spotlight for maximum visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    premium_event: { label: "Premium", subtitle: "Event listing + landing page feature", price: "$1,250.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page feature for increased visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    premium_plus_event: { label: "Premium Plus", subtitle: "Event listing + home page feature", price: "$1,450.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page feature for maximum visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
     // Jobs
     standard_job: { label: "Standard", subtitle: "Job posting", price: "$400.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
-    premium_job: { label: "Premium", subtitle: "Job posting & landing page spotlight", price: "$800.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page spotlight for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
-    premium_plus_job: { label: "Premium Plus", subtitle: "Job posting + home page spotlight", price: "$1,000.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page spotlight for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
+    premium_job: { label: "Premium", subtitle: "Job posting & landing page feature", price: "$800.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page feature for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
+    premium_plus_job: { label: "Premium Plus", subtitle: "Job posting + home page feature", price: "$1,000.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page feature for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
 };
 
 const PLAN_UPGRADE_TIER_ORDER: Record<string, number> = {
@@ -160,8 +160,8 @@ function getAvailablePlanUpgradeIds(
 }
 
 const FEATURE_PLANS = [
-    { id: "landing_page", label: "Landing Page Spotlight", description: "Featured on the category landing page for increased visibility", price: "$700.00", numericPrice: 700, durationDays: 30, countryLimit: 5, categoryLimit: 5, icon: Star },
-    { id: "home_page", label: "Home Page Spotlight", description: "Featured on the home page for maximum brand visibility", price: "$1,000.00", numericPrice: 1000, durationDays: 30, countryLimit: 1, categoryLimit: 2, icon: Crown },
+    { id: "landing_page", label: "Landing Page Feature", description: "Featured on the category landing page for increased visibility", price: "$700.00", numericPrice: 700, durationDays: 30, countryLimit: 5, categoryLimit: 5, icon: Star },
+    { id: "home_page", label: "Home Page Feature", description: "Featured on the home page for maximum brand visibility", price: "$1,000.00", numericPrice: 1000, durationDays: 30, countryLimit: 1, categoryLimit: 2, icon: Crown },
     { id: "both", label: "Both (Module & Home Page)", description: "Featured on both the category landing page and the home page", price: "$1,500.00", numericPrice: 1500, durationDays: 30, countryLimit: 5, categoryLimit: 2, icon: Star },
 ];
 
@@ -925,7 +925,7 @@ export default function Dashboard() {
                     const data = await res.json().catch(() => null);
                     if (!res.ok || data?.success === false) {
                         sessionStorage.removeItem(processedKey);
-                        window.alert(data?.error || data?.message || "The spotlight payment could not be saved. Refresh and try again before buying another.");
+                        window.alert(data?.error || data?.message || "The feature payment could not be saved. Refresh and try again before buying another.");
                         return;
                     }
                     window.history.replaceState({}, document.title, "/partner/dashboard");
@@ -934,7 +934,7 @@ export default function Dashboard() {
                 .catch((err) => {
                     console.error("Feature verification failed:", err);
                     sessionStorage.removeItem(processedKey);
-                    window.alert("The spotlight payment could not be saved. Refresh and try again before buying another.");
+                    window.alert("The feature payment could not be saved. Refresh and try again before buying another.");
                 });
         } else if (featureStatus === "success") {
             window.history.replaceState({}, document.title, "/partner/dashboard");
@@ -1600,7 +1600,7 @@ export default function Dashboard() {
                 const linkedListing = getLinkedListingForPlan(activeListingPlan);
                 if (isSpotlightCancelPendingForPlan(activeListingPlan, linkedListing)) {
                     throw new Error(
-                        "This spotlight add-on is already scheduled to end. You can purchase again after the current paid period ends.",
+                        "This feature add-on is already scheduled to end. You can purchase again after the current paid period ends.",
                     );
                 }
                 const origin = window.location.origin;
@@ -1970,8 +1970,8 @@ export default function Dashboard() {
                         setSelectedPlanForAction(null);
                         alert(
                             selectedPlanForAction.cancelAtPeriodEnd
-                                ? "This spotlight ends with the plan. It is already scheduled to end."
-                                : "This spotlight add-on is already scheduled to end.",
+                                ? "This feature ends with the plan. It is already scheduled to end."
+                                : "This feature add-on is already scheduled to end.",
                         );
                         window.location.reload();
                         return;
@@ -2029,8 +2029,8 @@ export default function Dashboard() {
 
                 const successText =
                     cancelScope === "feature"
-                        ? "Spotlight add-on scheduled to end at the close of your paid period. It will not renew."
-                        : "Your plan and any linked spotlight are scheduled to end at the close of your billing period.";
+                        ? "Feature add-on scheduled to end at the close of your paid period. It will not renew."
+                        : "Your plan and any linked feature are scheduled to end at the close of your billing period.";
                 setPendingUpgradePlanId(null);
                 setShowCancelModal(false);
                 setSelectedPlanForAction(null);
@@ -2057,7 +2057,7 @@ export default function Dashboard() {
                 const linkedListing = getLinkedListingForPlan(selectedPlanForAction);
                 if (linkedListing && isSpotlightCancelPendingForPlan(selectedPlanForAction, linkedListing)) {
                     throw new Error(
-                        "This spotlight add-on is already scheduled to end. You can purchase again after the current paid period ends.",
+                        "This feature add-on is already scheduled to end. You can purchase again after the current paid period ends.",
                     );
                 }
                 const origin = window.location.origin;
@@ -2268,14 +2268,14 @@ export default function Dashboard() {
                                 <>
                                     <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
                                         <h2 className="text-xl font-bold text-foreground">
-                                            {globalModalUpgradeTargets.length > 0 ? "Upgrade spotlight" : "Add Feature Plan"}
+                                            {globalModalUpgradeTargets.length > 0 ? "Upgrade feature" : "Add Feature Plan"}
                                         </h2>
                                         <button type="button" onClick={() => { setShowFeatureModal(false); setSelectedFeaturePlan(""); }} className="text-muted-foreground hover:text-foreground p-1"><X className="w-5 h-5" /></button>
                                     </div>
                                     <div className="p-6 space-y-4">
                                         <p className="text-muted-foreground text-sm mb-2">
                                             {globalModalUpgradeTargets.length > 0
-                                                ? "Move up to a higher spotlight tier. You pay only the difference in price."
+                                                ? "Move up to a higher feature tier. You pay only the difference in price."
                                                 : "Get extra visibility by being featured on the category page or the home page. Select a plan below:"}
                                         </p>
                                         {dynamicFeaturePlans.filter((fp) =>
@@ -2571,15 +2571,15 @@ export default function Dashboard() {
                     resolvedSpotlightId ||
                     (pastFeatureTx?.planDisplay ? pastFeatureTx.planDisplay.toLowerCase() : "")
                 ).toLowerCase().trim();
-                if (s === "home_page" || s.includes("home page")) return "Home Page Spotlight";
-                if (s === "landing_page" || s.includes("landing page")) return "Landing Page Spotlight";
+                if (s === "home_page" || s.includes("home page")) return "Home Page Feature";
+                if (s === "landing_page" || s.includes("landing page")) return "Landing Page Feature";
                 if (s === "both" || s.includes("both")) return "Both (Module & Home Page)";
                 const matched = dynamicFeaturePlans.find((f: any) => f.id === s) || FEATURE_PLANS.find((f: any) => f.id === s);
                 if (matched?.label) return matched.label;
                 if (s && s !== "spotlight" && s !== "feature") {
-                    return s.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) + " Spotlight";
+                    return s.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase()) + " Feature";
                 }
-                return "Spotlight";
+                return "Feature";
             })();
 
             const hadLinkedFeature = Boolean(
@@ -2642,7 +2642,7 @@ export default function Dashboard() {
                                 {isEnding && !isPast && (
                                     <p className="text-xs mt-1 mb-1" style={{ color: '#78350f' }}>
                                         {featureEndsWithPlan
-                                            ? `Plan and ${spotlightLabel.toLowerCase().includes("spotlight") || spotlightLabel.toLowerCase().includes("both") ? spotlightLabel : `${spotlightLabel} spotlight`} end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the plan end date"}.`
+                                            ? `Plan and ${spotlightLabel.toLowerCase().includes("feature") || spotlightLabel.toLowerCase().includes("both") ? spotlightLabel : `${spotlightLabel} feature`} end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the plan end date"}.`
                                             : `Plan scheduled to end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the end of your billing period"}. It will not renew.`}
                                     </p>
                                 )}
@@ -2689,15 +2689,15 @@ export default function Dashboard() {
                                     <div className="mt-4 pt-4 border-t border-foreground/10">
                                         <div className="flex items-center gap-3 mb-1 flex-wrap">
                                             <h5 className="text-lg font-bold text-foreground">
-                                                {standaloneSpotlightPlan?.label || spotlightLabel || "Spotlight add-on"}
+                                                {standaloneSpotlightPlan?.label || spotlightLabel || "Feature add-on"}
                                             </h5>
                                         </div>
                                         <p className="text-sm text-muted-foreground mb-1">
-                                            Spotlight Add-on Subscription
+                                            Feature Add-on Subscription
                                         </p>
                                         {spotlightCancelPending && !featureEndsWithPlan && (
                                             <p className="text-xs mt-1 mb-2" style={{ color: '#78350f' }}>
-                                                {spotlightLabel || "Spotlight add-on"} scheduled to end on {featureStopLastPaidDay?.toLocaleDateString() || "the end of your paid period"}. It will not renew.
+                                                {spotlightLabel || "Feature add-on"} scheduled to end on {featureStopLastPaidDay?.toLocaleDateString() || "the end of your paid period"}. It will not renew.
                                             </p>
                                         )}
                                         <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
@@ -2783,7 +2783,7 @@ export default function Dashboard() {
                                             setShowAddFeatureModal(true);
                                         }}
                                     >
-                                        Add spotlight
+                                        Add feature
                                     </Button>
                                 )}
                                 {canUpgradeFeature && linkedListing && (
@@ -2799,7 +2799,7 @@ export default function Dashboard() {
                                             setShowUpgradeFeatureModal(true);
                                         }}
                                     >
-                                        Upgrade spotlight
+                                        Upgrade feature
                                     </Button>
                                 )}
                                 {(() => {
@@ -2833,12 +2833,12 @@ export default function Dashboard() {
                             <div className="pt-3 border-t border-foreground/10">
                                 <p className="text-sm text-foreground">
                                     {includedPlanFeature && !hasStandaloneAddon
-                                        ? `Included: ${includedPlanFeature === "home_page" ? "Home page" : "Landing page"} spotlight`
-                                        : `${featureEndsWithPlan || spotlightCancelPending ? "Spotlight" : "Active spotlight"}: ${dynamicFeaturePlans.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label || (effectiveSpotlightId === "home_page" ? "Home Page Spotlight" : effectiveSpotlightId === "landing_page" ? "Landing Page Spotlight" : "Spotlight add-on")}`}
+                                        ? `Included: ${includedPlanFeature === "home_page" ? "Home page" : "Landing page"} feature`
+                                        : `${featureEndsWithPlan || spotlightCancelPending ? "Feature" : "Active feature"}: ${dynamicFeaturePlans.find((f) => f.id === (effectiveSpotlightId || linkedListing?.selectedAddon))?.label || (effectiveSpotlightId === "home_page" ? "Home Page Feature" : effectiveSpotlightId === "landing_page" ? "Landing Page Feature" : "Feature add-on")}`}
                                 </p>
                                 {spotlightCancelPending && !featureEndsWithPlan && displayFeatureEndsOn && (
                                     <p className="text-xs mt-1" style={{ color: '#78350f' }}>
-                                        Spotlight add-on scheduled to end on {featureStopLastPaidDay?.toLocaleDateString() || "the end of your paid period"}.
+                                        Feature add-on scheduled to end on {featureStopLastPaidDay?.toLocaleDateString() || "the end of your paid period"}.
                                         It will not renew; you can purchase again after that date.
                                     </p>
                                 )}
@@ -4994,7 +4994,7 @@ function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, o
                                                         {config.label}
                                                         {config.featurePlan && (
                                                             <Badge className="bg-primary/20 text-primary border-primary/30 text-[10px]">
-                                                                Includes {config.featurePlan === "home_page" ? "Home Page" : "Landing Page"} Spotlight
+                                                                Includes {config.featurePlan === "home_page" ? "Home Page" : "Landing Page"} Feature
                                                             </Badge>
                                                         )}
                                                     </p>
@@ -5099,7 +5099,7 @@ function CancelPlanModal({
                     linkedListing?.featuredPlacement ||
                     ""
                 ).trim()
-        )?.label || "Spotlight add-on";
+        )?.label || "Feature add-on";
 
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
@@ -5118,7 +5118,7 @@ function CancelPlanModal({
                     {hasBoth ? (
                         <>
                             <p className="text-sm text-foreground">
-                                You have an active <span className="font-semibold">spotlight add-on</span> on this listing, plus your <span className="font-semibold">{planConfig?.label || "Standard"}</span> plan. Choose what to cancel.
+                                You have an active <span className="font-semibold">feature add-on</span> on this listing, plus your <span className="font-semibold">{planConfig?.label || "Standard"}</span> plan. Choose what to cancel.
                             </p>
 
                             <div className="space-y-3 pt-1">
@@ -5132,7 +5132,7 @@ function CancelPlanModal({
                                     }`}
                                 >
                                     <p className="font-semibold text-foreground text-sm">
-                                        Cancel Spotlight Add-on Only
+                                        Cancel Feature Add-on Only
                                     </p>
                                     <p className="text-xs text-muted-foreground mt-0.5">
                                         Your plan keeps billing until you cancel it separately.
@@ -5152,16 +5152,16 @@ function CancelPlanModal({
                                         Cancel Plan
                                     </p>
                                     <p className="text-xs text-muted-foreground mt-0.5">
-                                        Also stops the spotlight. If it renews after the plan, it ends on the plan date. If it renews sooner, it keeps its own end date and does not renew.
+                                        Also ends any associated feature. If feature renewal date is after the plan, it will end on the plan date.
                                     </p>
                                 </button>
                             </div>
                         </>
                     ) : (
                         <p className="text-base text-foreground">
-                            Cancel your <span className="font-semibold">{isFeatureCancel ? spotlightLabel : (planConfig?.label || "listing")}</span> {isFeatureCancel ? "spotlight add-on" : "plan subscription"}?
+                            Cancel your <span className="font-semibold">{isFeatureCancel ? spotlightLabel : (planConfig?.label || "listing")}</span> {isFeatureCancel ? "feature add-on" : "plan subscription"}?
                             {!isFeatureCancel ? (
-                                <> Cancelling the plan also stops any linked spotlight. A spotlight that renews later ends on the plan date. A spotlight that renews sooner keeps that earlier date and does not renew.</>
+                                <> Cancelling the plan also ends any associated feature. If feature renewal date is after the plan, it will end on the plan date.</>
                             ) : null}
                         </p>
                     )}
@@ -5170,7 +5170,7 @@ function CancelPlanModal({
                         <p className="text-sm text-foreground">
                             {isFeatureCancel ? (
                                 <>
-                                    Spotlight stays active until{" "}
+                                    Feature stays active until{" "}
                                     <span className="font-semibold">
                                         {spotlightEnd?.toLocaleDateString() || "the end of your paid period"}
                                     </span>
@@ -5182,7 +5182,7 @@ function CancelPlanModal({
                                     <span className="font-semibold">
                                         {billingEnd?.toLocaleDateString() || "the end of your billing period"}
                                     </span>
-                                    . The spotlight ends on{" "}
+                                    . The feature ends on{" "}
                                     <span className="font-semibold">
                                         {featureNaturalEnd?.toLocaleDateString()}
                                     </span>{" "}
@@ -5222,7 +5222,7 @@ function CancelPlanModal({
                         {processing
                             ? "Cancelling..."
                             : isFeatureCancel
-                                ? "Cancel Spotlight"
+                                ? "Cancel Feature"
                                 : "Cancel Plan"}
                     </Button>
                 </div>
@@ -5254,7 +5254,7 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans
                 <div className="px-6 py-5 border-b border-foreground/10 flex items-center justify-between">
                     <div>
                         <h2 className="text-xl font-bold text-foreground">
-                            Upgrade Spotlight
+                            Upgrade Feature
                         </h2>
                     </div>
                     <button type="button" onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
@@ -5274,7 +5274,7 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans
                         ) : null}
                     </p>
                     {targets.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">You are already on the highest spotlight tier.</p>
+                        <p className="text-sm text-muted-foreground">You are already on the highest feature tier.</p>
                     ) : (
                         <div className="space-y-3">
                             {targets.map((fp) => {

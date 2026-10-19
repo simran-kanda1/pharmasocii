@@ -392,7 +392,7 @@ export function PartnerPlanHistoryModal({
               <Card className="bg-slate-50/70 border-slate-200 shadow-none">
                 <CardContent className="p-3.5">
                   <p className="text-xs font-medium text-slate-500">
-                    Features & Spotlights
+                    Features
                   </p>
                   <p className="text-sm font-bold text-slate-900 mt-1">
                     <span className="text-amber-700">{activeFeaturesCount} active</span>
@@ -536,12 +536,12 @@ export function PartnerPlanHistoryModal({
                 )}
               </TabsContent>
 
-              {/* TAB 2: FEATURES & SPOTLIGHTS */}
+              {/* TAB 2: FEATURES */}
               <TabsContent value="features" className="space-y-3 focus-visible:outline-none">
                 {partnerFeaturesList.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                    <p className="font-semibold text-slate-700">No feature spotlights recorded</p>
-                    <p className="text-xs text-slate-500 mt-1">This partner has not purchased or been granted any feature spotlights.</p>
+                    <p className="font-semibold text-slate-700">No features recorded</p>
+                    <p className="text-xs text-slate-500 mt-1">This partner has not purchased or been granted any features.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -558,7 +558,7 @@ export function PartnerPlanHistoryModal({
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="font-bold text-slate-900 text-base">
-                                  {feat.featureName || feat.featureId || "Feature Spotlight"}
+                                  {feat.featureName || feat.featureId || "Feature"}
                                 </h3>
                                 {isTrial && (
                                   <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[11px]">
@@ -614,7 +614,7 @@ export function PartnerPlanHistoryModal({
                           <TableHead>Group</TableHead>
                           <TableHead>Categories</TableHead>
                           <TableHead>Listing Status</TableHead>
-                          <TableHead>Feature Spotlight</TableHead>
+                          <TableHead>Feature Plan</TableHead>
                           <TableHead>Created</TableHead>
                           <TableHead className="pr-4 text-right">View</TableHead>
                         </TableRow>

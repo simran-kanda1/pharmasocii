@@ -1567,7 +1567,7 @@ export default function AdminDashboard() {
       }
 
       const actionMsg = hasFeature 
-        ? `Trial & feature spotlight extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`
+        ? `Trial & feature extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`
         : `Trial extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`;
 
       await logActivity({
@@ -1691,7 +1691,7 @@ export default function AdminDashboard() {
 
   const cancelTrial = async () => {
     if (!selectedPartner || !(selectedPartner as any).createdByAdmin) return;
-    if (!window.confirm("Are you sure you want to cancel this partner's trial? Their plan and feature spotlight will be deactivated immediately.")) return;
+    if (!window.confirm("Are you sure you want to cancel this partner's trial? Their plan and feature will be deactivated immediately.")) return;
     try {
       const now = new Date();
 
@@ -1815,13 +1815,13 @@ export default function AdminDashboard() {
         partnerId: selectedPartner.id,
         partnerName: selectedPartner.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
-        details: `Trial, plan, and feature spotlight cancelled immediately by admin: ${adminEmail}`,
+        details: `Trial, plan, and feature cancelled immediately by admin: ${adminEmail}`,
         category: "admin",
         performedBy: "admin",
         metadata: { adminEmail, cancelledAt: now, performedBy: "admin" }
       });
 
-      alert("Trial, plan, and feature spotlight cancelled successfully.");
+      alert("Trial, plan, and feature cancelled successfully.");
     } catch (err: any) {
       console.error("Error cancelling trial:", err);
       alert("Failed to cancel trial: " + err.message);
@@ -3300,7 +3300,7 @@ export default function AdminDashboard() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-sm text-slate-600">
-                    Audit logs, account registrations, profile updates, listings, plans, upgrades, feature spotlights, and cancellations for partners.
+                    Audit logs, account registrations, profile updates, listings, plans, upgrades, features, and cancellations for partners.
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

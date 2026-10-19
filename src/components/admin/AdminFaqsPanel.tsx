@@ -76,14 +76,14 @@ const DEFAULT_FAQS = [
     },
     {
         category: "Feature Plans",
-        question: "What are Feature / Spotlight Plans?",
-        answer: "Spotlight add-ons and Premium Plus plans highlight your organization with prominent placement on the homepage and top category carousels for maximum visibility.",
+        question: "What are Feature Plans?",
+        answer: "Feature add-ons and Premium Plus plans highlight your organization with prominent placement on the homepage and top category carousels for maximum visibility.",
         order: 6
     },
     {
         category: "Feature Plans",
-        question: "How do I add a spotlight feature to my listing?",
-        answer: "You can purchase or upgrade to a spotlight feature directly from your partner dashboard on any active listing.",
+        question: "How do I add a feature to my listing?",
+        answer: "You can purchase or upgrade to a feature directly from your partner dashboard on any active listing.",
         order: 7
     },
     {
