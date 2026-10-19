@@ -416,7 +416,7 @@ export default function CompleteProfile() {
             if (plan.stripeYearlyId && groupConfig.hasAnnualToggle) {
                 options.push({
                     value: plan.stripeYearlyId,
-                    label: `${plan.badge} (Annual) - $${plan.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    label: `${plan.badge} (Yearly) - $${plan.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 });
             }
         }

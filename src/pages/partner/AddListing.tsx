@@ -472,7 +472,7 @@ export default function AddListing() {
             if (p.stripeYearlyId && groupConfig.hasAnnualToggle) {
                 options.push({
                     value: p.stripeYearlyId,
-                    label: `${p.badge} (Annual) - $${p.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    label: `${p.badge} (Yearly) - $${p.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                 });
             }
         }

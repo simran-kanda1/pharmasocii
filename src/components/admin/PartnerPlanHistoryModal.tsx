@@ -491,7 +491,7 @@ export function PartnerPlanHistoryModal({
                               <div>
                                 <span className="text-slate-400 block mb-0.5">Billing Interval</span>
                                 <span className="font-medium text-slate-800 capitalize">
-                                  {plan.billingInterval || plan.interval || (typeof plan.planName === "string" && plan.planName.toLowerCase().includes("yr") ? "Annual" : "Monthly")}
+                                  {plan.billingInterval === "annual" ? "Yearly" : (plan.billingInterval || plan.interval || (typeof plan.planName === "string" && plan.planName.toLowerCase().includes("yr") ? "Yearly" : "Monthly"))}
                                 </span>
                               </div>
                               <div>

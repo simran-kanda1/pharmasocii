@@ -374,7 +374,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           if (plan.stripeYearlyId && groupConfig.hasAnnualToggle) {
             options.push({
               value: plan.stripeYearlyId,
-              label: `${plan.badge} (Annual) - $${plan.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+              label: `${plan.badge} (Yearly) - $${plan.yearlyTotalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
             });
           }
         }
@@ -389,10 +389,10 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           { value: 'standard_mo', label: 'Standard (Monthly) - $200.00' },
           { value: 'premium_mo', label: 'Premium (Monthly) - $400.00' },
           { value: 'premium_plus_mo', label: 'Premium Plus (Monthly) - $1,000.00' },
-          { value: 'basic_yr', label: 'Basic (Annual) - $1,080.00' },
-          { value: 'standard_yr', label: 'Standard (Annual) - $2,184.00' },
-          { value: 'premium_yr', label: 'Premium (Annual) - $4,320.00' },
-          { value: 'premium_plus_yr', label: 'Premium Plus (Annual) - $10,800.00' },
+          { value: 'basic_yr', label: 'Basic (Yearly) - $1,080.00' },
+          { value: 'standard_yr', label: 'Standard (Yearly) - $2,184.00' },
+          { value: 'premium_yr', label: 'Premium (Yearly) - $4,320.00' },
+          { value: 'premium_plus_yr', label: 'Premium Plus (Yearly) - $10,800.00' },
         ];
       case 'events':
         return [
