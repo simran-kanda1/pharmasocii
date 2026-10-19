@@ -67,13 +67,35 @@ function cleanTitleCase(str: string): string {
         .join(" ");
 }
 
-function cleanPlanCycle(str: string): string {
-    const s = str
-        .replace(/\bYr\b/g, "Yearly")
-        .replace(/\bMo\b/g, "Monthly")
-        .replace(/\byr\b/g, "Yearly")
-        .replace(/\bmo\b/g, "Monthly");
-    return cleanTitleCase(s);
+function sanitizePlanName(str: string): string {
+    if (!str) return "";
+    let s = str.trim();
+
+    // Preserve special feature name
+    if (/\bboth\b/i.test(s) && /\bmodule\b/i.test(s)) {
+        return "Both (Module & Home Page)";
+    }
+
+    // Convert Annual/Yr to Yearly
+    s = s.replace(/\bAnnual\b/gi, "Yearly");
+    s = s.replace(/\bYr\b/g, "Yearly").replace(/\byr\b/g, "Yearly");
+
+    // Remove Spotlight (case-insensitive)
+    s = s.replace(/\bSpotlight\b/gi, "");
+
+    // Remove Job or Event (e.g. Premium Job -> Premium, Standard Event -> Standard)
+    s = s.replace(/\b(Jobs?|Events?)\b/gi, "");
+
+    // Remove Monthly / Mo (plans are monthly by default, keep Yearly)
+    s = s.replace(/\b(Monthly|Mo)\b/gi, "");
+
+    // Clean up underscores if any
+    s = s.replace(/_/g, " ");
+
+    // Normalize spacing and title-case
+    s = cleanTitleCase(s);
+
+    return s.replace(/\s+/g, " ").trim();
 }
 
 function formatCleanPlanName(
@@ -86,31 +108,38 @@ function formatCleanPlanName(
     if (type === "feature" || featureId) {
         const f = (featureId || "").toLowerCase();
         // Prefer explicit featureId — never infer from description substrings first.
-        // "Both (Module & Home Page)" contains "Home Page" and used to mislabel Both upgrades.
         if (f === "both") return "Both (Module & Home Page)";
-        if (f === "home_page") return "Home Page Spotlight";
-        if (f === "landing_page") return "Landing Page Spotlight";
-        if (f) return `${cleanTitleCase(f.replace(/_/g, " "))} Spotlight`;
+        if (f === "home_page") return "Home Page";
+        if (f === "landing_page") return "Landing Page";
+        if (f) {
+            const sanitized = sanitizePlanName(f);
+            if (sanitized) return sanitized;
+        }
 
-        const desc = String(rawDesc || "");
+        const desc = String(planName || rawDesc || "");
         if (/\bboth\b/i.test(desc)) return "Both (Module & Home Page)";
-        if (/landing page/i.test(desc)) return "Landing Page Spotlight";
-        if (/home page/i.test(desc)) return "Home Page Spotlight";
-        return "Spotlight Feature";
+        if (/landing page/i.test(desc)) return "Landing Page";
+        if (/home page/i.test(desc)) return "Home Page";
+        const sanitized = sanitizePlanName(desc);
+        if (sanitized) return sanitized;
+        return "Feature";
     }
 
     if (planName && typeof planName === "string" && planName.trim()) {
-        const pn = planName.trim();
-        if (!/^(Plan|Feature):/i.test(pn)) {
-            return cleanPlanCycle(pn);
+        const pn = planName.trim().replace(/^(Plan|Feature):\s*/i, "");
+        if (/\bboth\b/i.test(pn)) {
+            return "Both (Module & Home Page)";
+        }
+        const sanitized = sanitizePlanName(pn);
+        if (sanitized) {
+            return sanitized;
         }
     }
 
     if (planId) {
         const p = planId.toLowerCase();
         const isYearly = p.endsWith("_yr") || p.endsWith("_yearly") || p.includes("year");
-        const isMonthly = p.endsWith("_mo") || p.endsWith("_monthly") || p.includes("month");
-        const cycle = isYearly ? "Yearly" : isMonthly ? "Monthly" : "";
+        const cycle = isYearly ? "Yearly" : "";
 
         const baseTier = p
             .replace(/_yr$/, "")
@@ -119,25 +148,22 @@ function formatCleanPlanName(
             .replace(/_monthly$/, "");
 
         let tierLabel = "";
-        if (baseTier === "basic_event") tierLabel = "Basic Event";
-        else if (baseTier === "standard_event") tierLabel = "Standard Event";
-        else if (baseTier === "premium_event") tierLabel = "Premium Event";
-        else if (baseTier === "premium_plus_event") tierLabel = "Premium Plus Event";
-        else if (baseTier === "basic_job") tierLabel = "Basic Job";
-        else if (baseTier === "standard_job") tierLabel = "Standard Job";
-        else if (baseTier === "premium_job") tierLabel = "Premium Job";
-        else if (baseTier === "premium_plus_job") tierLabel = "Premium Plus Job";
-        else if (baseTier === "premium_plus") tierLabel = "Premium Plus";
-        else if (baseTier === "premium") tierLabel = "Premium";
-        else if (baseTier === "standard") tierLabel = "Standard";
-        else if (baseTier === "basic") tierLabel = "Basic";
+        if (baseTier === "basic_event" || baseTier === "basic_job" || baseTier === "basic") tierLabel = "Basic";
+        else if (baseTier === "standard_event" || baseTier === "standard_job" || baseTier === "standard") tierLabel = "Standard";
+        else if (baseTier === "premium_event" || baseTier === "premium_job" || baseTier === "premium") tierLabel = "Premium";
+        else if (baseTier === "premium_plus_event" || baseTier === "premium_plus_job" || baseTier === "premium_plus") tierLabel = "Premium Plus";
         else if (baseTier === "enterprise") tierLabel = "Enterprise";
-        else tierLabel = cleanTitleCase(baseTier.replace(/_/g, " "));
+        else if (baseTier === "home_page") tierLabel = "Home Page";
+        else if (baseTier === "landing_page") tierLabel = "Landing Page";
+        else if (baseTier === "both") tierLabel = "Both (Module & Home Page)";
+        else {
+            tierLabel = sanitizePlanName(baseTier);
+        }
 
-        if (cycle && !tierLabel.toLowerCase().includes(cycle.toLowerCase())) {
+        if (cycle && !tierLabel.toLowerCase().includes("yearly")) {
             return `${tierLabel} ${cycle}`;
         }
-        return tierLabel;
+        return tierLabel || "Standard";
     }
 
     if (rawDesc && typeof rawDesc === "string" && rawDesc.trim()) {
@@ -145,11 +171,17 @@ function formatCleanPlanName(
             .replace(/^Plan upgrade:\s*/i, "")
             .replace(/\(prorated\)/i, "")
             .replace(/^Spotlight:\s*/i, "")
+            .replace(/^Plan renewal:\s*/i, "")
+            .replace(/^Spotlight renewal:\s*/i, "")
             .trim();
-        if (cleaned) return cleanPlanCycle(cleaned);
+        if (/\bboth\b/i.test(cleaned)) {
+            return "Both (Module & Home Page)";
+        }
+        const sanitized = sanitizePlanName(cleaned);
+        if (sanitized) return sanitized;
     }
 
-    return "Standard Monthly";
+    return "Standard";
 }
 
 function formatCleanEvent(
@@ -176,7 +208,7 @@ function formatCleanDescription(type: string, planId: string | null, featureId: 
         const trimmed = rawDesc.trim();
         // Prefer explicit upgrade / spotlight copy written by the billing server.
         if (/spotlight upgrade|plan upgrade|spotlight:|plan renewal|spotlight renewal/i.test(trimmed)) {
-            return trimmed;
+            return trimmed.replace(/\bSpotlight\b/gi, "Feature").replace(/Feature upgrade/gi, "Upgrade");
         }
         const stripped = trimmed.replace(/^(Plan|Feature):\s*/i, "").trim();
         if (stripped && !stripped.toLowerCase().startsWith("plan") && !stripped.toLowerCase().startsWith("feature")) {
@@ -189,42 +221,39 @@ function formatCleanDescription(type: string, planId: string | null, featureId: 
             f === "landing_page" ? "Landing Page"
             : f === "home_page" ? "Home Page"
             : f === "both" ? "Both (Module & Home Page)"
-            : f ? cleanTitleCase(f.replace(/_/g, " "))
-            : "Spotlight Feature";
+            : f ? cleanTitleCase(f.replace(/spotlight/gi, "").replace(/_/g, " "))
+            : "Feature";
         const prev = (previousFeatureId || "").toLowerCase();
         if (isUpgrade || prev) {
             const prevLabel =
                 prev === "landing_page" ? "Landing Page"
                 : prev === "home_page" ? "Home Page"
                 : prev === "both" ? "Both (Module & Home Page)"
-                : prev ? cleanTitleCase(prev.replace(/_/g, " "))
-                : "Previous Spotlight";
-            return `Spotlight upgrade: ${prevLabel} → ${featureLabel} (prorated)`;
+                : prev ? cleanTitleCase(prev.replace(/spotlight/gi, "").replace(/_/g, " "))
+                : "Previous Feature";
+            return `Upgrade: ${prevLabel} → ${featureLabel} (prorated)`;
         }
-        return `Spotlight: ${featureLabel}`;
+        return featureLabel;
     }
     if (planId) {
-        const p = planId.toLowerCase().replace(/_mo$/, "");
+        const p = planId.toLowerCase().replace(/_mo$/, "").replace(/_yr$/, "");
         const planLabel =
-            p === "basic_event" ? "Basic Event"
-            : p === "standard_job" ? "Standard Job"
-            : p === "basic_job" ? "Basic Job"
+            p === "basic_event" || p === "basic_job" || p === "basic" ? "Basic"
+            : p === "standard_job" || p === "standard_event" || p === "standard" ? "Standard"
             : p === "premium_plus" || p === "premium_plus_event" || p === "premium_plus_job" ? "Premium Plus"
             : p === "premium" || p === "premium_event" || p === "premium_job" ? "Premium"
-            : p === "standard" ? "Standard"
-            : p === "basic" ? "Basic"
             : p === "enterprise" ? "Enterprise"
-            : cleanTitleCase(p.replace(/_/g, " "));
+            : cleanTitleCase(p.replace(/_event$/, "").replace(/_job$/, "").replace(/_/g, " "));
         if (isUpgrade || previousPlanId) {
-            const from = String(previousPlanId || "").toLowerCase().replace(/_mo$/, "");
+            const from = String(previousPlanId || "").toLowerCase().replace(/_mo$/, "").replace(/_yr$/, "");
             const fromLabel = from
-                ? cleanTitleCase(from.replace(/_/g, " "))
+                ? cleanTitleCase(from.replace(/_event$/, "").replace(/_job$/, "").replace(/_/g, " "))
                 : "Previous Plan";
             return `Plan upgrade: ${fromLabel} → ${planLabel} (prorated)`;
         }
         return planLabel;
     }
-    return type === "feature" ? "Spotlight Feature" : "Listing Plan";
+    return type === "feature" ? "Feature" : "Listing Plan";
 }
 
 function resolveCleanGroup(t: Record<string, unknown>, collectionName: string | null, planId: string | null): string {

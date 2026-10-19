@@ -3367,6 +3367,7 @@ export default function Dashboard() {
         const filteredTxns = txns.filter(t => {
             const matchesSearch = !txnSearch || 
                 t.description.toLowerCase().includes(txnSearch.toLowerCase()) || 
+                (t.planDisplay || "").toLowerCase().includes(txnSearch.toLowerCase()) ||
                 (t.group || "").toLowerCase().includes(txnSearch.toLowerCase()) ||
                 t.typeLabel.toLowerCase().includes(txnSearch.toLowerCase());
             

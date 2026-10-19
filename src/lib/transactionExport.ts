@@ -216,7 +216,7 @@ export function downloadSingleTransactionInvoicePdf(
     let rightY = 64;
     doc.text(`Group: ${row.group || "Business Offerings"}`, pageWidth / 2 + 5, rightY);
     rightY += 5;
-    doc.text(`Plan / Service: ${row.description}`, pageWidth / 2 + 5, rightY);
+    doc.text(`Plan / Service: ${row.planDisplay || row.description}`, pageWidth / 2 + 5, rightY);
     rightY += 5;
     if (row.upgradeFor || row.targetTitle) {
         doc.text(`Upgrade / Item For: ${row.upgradeFor || row.targetTitle}`, pageWidth / 2 + 5, rightY);
@@ -239,7 +239,7 @@ export function downloadSingleTransactionInvoicePdf(
     const startTableY = Math.max(leftY, rightY) + 6;
     const tableBody = [
         [
-            row.description,
+            row.planDisplay || row.description,
             row.group || "—",
             row.upgradeFor || row.targetTitle || "Primary Listing",
             row.typeLabel,
