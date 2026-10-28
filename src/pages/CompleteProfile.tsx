@@ -1165,7 +1165,7 @@ export default function CompleteProfile() {
                                 <div className="space-y-2 md:col-span-1">
                                     <Label htmlFor="companyProfile">Company Profile <span className="text-blue-500">*</span></Label>
                                     <Textarea id="companyProfile" value={formData.companyProfile} onChange={handleChange} maxLength={COMPANY_PROFILE_MAX_LENGTH} required className="h-40 bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Briefly describe your company's mission and offerings..." />
-                                    <p className={`text-xs text-right ${formData.companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
+                                    <p className={`text-xs text-right ${formData.companyProfile.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{formData.companyProfile.length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
                                 </div>
                                 <div className="space-y-4 md:col-span-1">
                                     <div className="space-y-2">
@@ -1451,7 +1451,7 @@ export default function CompleteProfile() {
                                                             className="min-h-[120px] bg-muted/40 border-foreground/10 resize-none text-sm"
                                                             placeholder="Short summary of sessions, themes, and speakers…"
                                                         />
-                                                        <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
+                                                        <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                                     </div>
                                                     <div className="space-y-2">
                                                         <Label>Full Agenda (PDF) <span className="text-blue-500">*</span></Label>
@@ -1493,7 +1493,7 @@ export default function CompleteProfile() {
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Event Profile <span className="text-blue-500">*</span></Label>
                                                 <Textarea value={eventData.eventProfile} onChange={e => setEventData(prev => ({ ...prev, eventProfile: e.target.value.slice(0, 500) }))} required className="min-h-[160px] bg-muted/40 border-foreground/10 resize-none text-sm" placeholder="Describe the event and audience…" />
-                                                <p className="text-xs text-right text-muted-foreground mt-1">{eventData.eventProfile.length}/500</p>
+                                                <p className={`text-xs text-right mt-1 ${eventData.eventProfile.length >= 500 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{eventData.eventProfile.length}/500</p>
                                             </div>
                                         </div>
                                     )}
@@ -1509,7 +1509,7 @@ export default function CompleteProfile() {
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Job Summary <span className="text-blue-500">*</span></Label>
                                                 <Textarea value={jobData.jobSummary} onChange={e => setJobData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} required className="h-28 bg-muted/40 border-foreground/10 resize-none text-sm" />
-                                                <p className={`text-xs text-right ${jobData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobData.jobSummary.length}/500</p>
+                                                <p className={`text-xs text-right ${jobData.jobSummary.length >= 500 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{jobData.jobSummary.length}/500</p>
                                             </div>
                                             <div className="space-y-2 md:col-span-2">
                                                 <Label>Full Job Description (PDF) <span className="text-blue-500">*</span></Label>

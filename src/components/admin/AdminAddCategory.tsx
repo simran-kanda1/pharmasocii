@@ -765,7 +765,7 @@ export function AdminAddCategory({
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label className="text-slate-700 font-medium text-xs">Meta Description</Label>
-                      <span className={`text-[11px] ${metaDescription.length >= 160 ? "text-rose-500 font-bold" : "text-slate-400"}`}>
+                      <span className={`text-[11px] ${metaDescription.length >= 160 ? "text-blue-500 font-bold" : "text-slate-400"}`}>
                         {metaDescription.length}/160 characters
                       </span>
                     </div>

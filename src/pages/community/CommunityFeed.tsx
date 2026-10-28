@@ -431,8 +431,8 @@ export default function CommunityFeed() {
   const composerBlock = canCompose ? (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden dark:border-foreground/15 dark:bg-card">
       <div className="bg-primary text-primary-foreground px-4 py-3 flex items-center gap-3">
-        <Avatar className="h-9 w-9 shrink-0">
-          <AvatarFallback className="bg-white/20 text-white text-xs font-semibold">{profileInitials}</AvatarFallback>
+        <Avatar className="h-10 w-10 shrink-0">
+          <AvatarFallback className="bg-white/20 text-white text-sm font-semibold">{profileInitials}</AvatarFallback>
         </Avatar>
         <button
           type="button"

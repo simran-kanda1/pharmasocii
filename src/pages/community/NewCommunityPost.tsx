@@ -191,7 +191,7 @@ export default function NewCommunityPost() {
         <div className="space-y-2">
           <div className="flex justify-between items-center">
             <Label htmlFor="title">Title</Label>
-            <span className={`text-xs ${title.length >= POST_TITLE_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{title.length}/{POST_TITLE_MAX}</span>
+            <span className={`text-xs ${title.length >= POST_TITLE_MAX ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{title.length}/{POST_TITLE_MAX}</span>
           </div>
           <Input
             id="title"
@@ -213,10 +213,13 @@ export default function NewCommunityPost() {
             className="bg-foreground/5 border-foreground/10"
             required
           />
-          <p className={`text-xs text-right ${text.length >= POST_BODY_MAX ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{text.length}/{POST_BODY_MAX}</p>
+          <p className={`text-xs text-right ${text.length >= POST_BODY_MAX ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{text.length}/{POST_BODY_MAX}</p>
         </div>
 
-        <CountryMultiSelect value={countries} onChange={setCountries} max={POST_COUNTRIES_MAX} />
+        <div className="space-y-2">
+          <Label>Select countries</Label>
+          <CountryMultiSelect value={countries} onChange={setCountries} max={POST_COUNTRIES_MAX} />
+        </div>
 
         <div className="space-y-2">
           <Label htmlFor="links">External links (optional, one per line, max {EXTERNAL_LINKS_MAX})</Label>

@@ -109,7 +109,7 @@ export function PostCard({
   const currentUserId = auth.currentUser?.uid;
   const isAuthor = Boolean(post.authorId && currentUserId && post.authorId === currentUserId);
   const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
-  const isEditable = isAuthor && hoursSinceCreation <= 6;
+  const isEditable = isAuthor && hoursSinceCreation <= 1;
 
   const { segments } = formatCategoryPlain(
     categoryDoc,
@@ -163,7 +163,7 @@ export function PostCard({
     <article className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow dark:border-foreground/15 dark:bg-card">
       <div className="p-4 sm:p-5">
         <div className="flex gap-3">
-          <Avatar className="h-11 w-11 shrink-0 rounded-full">
+          <Avatar className="h-10 w-10 shrink-0 rounded-full">
             <AvatarImage src="" alt="" />
             <AvatarFallback className="bg-slate-800 text-white text-sm font-semibold dark:bg-primary">
               {initials}
@@ -189,7 +189,7 @@ export function PostCard({
                       e.stopPropagation();
                       onEdit();
                     }}
-                    title="Edit post (available for 6 hours after posting)"
+                    title="Edit post (available for 1 hour after posting)"
                     aria-label="Edit post"
                   >
                     <Pencil className="h-4 w-4" />

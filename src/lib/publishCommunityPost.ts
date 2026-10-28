@@ -145,7 +145,7 @@ export async function updateCommunityPost(params: {
 
   const createdTime = postData.createdAt?.toDate?.() || new Date();
   const diffHours = (Date.now() - createdTime.getTime()) / (1000 * 60 * 60);
-  if (diffHours > 6) throw new Error("Posts can only be edited for up to 6 hours after posting.");
+  if (diffHours > 1) throw new Error("Posts can only be edited for up to 1 hour after posting.");
 
   const { mainCategories, subCategories, subSubCategories } = selectionToPostFields(
     params.categoryDoc,

@@ -227,7 +227,7 @@ export default function MemberRegister() {
               maxLength={15}
               className="bg-foreground/5 border-foreground/10"
             />
-            <p className={`text-[11px] text-right mt-1 ${form.userName.length >= 15 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/15</p>
+            <p className={`text-[11px] text-right mt-1 ${form.userName.length >= 15 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{form.userName.length}/15</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email <span className="text-blue-500">*</span></Label>
@@ -294,7 +294,7 @@ export default function MemberRegister() {
               placeholder="e.g. Clinical Pharmacist"
               className="bg-foreground/5 border-foreground/10"
             />
-            <p className={`text-[11px] text-right mt-1 ${form.aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{form.aboutMe.length}/25</p>
+            <p className={`text-[11px] text-right mt-1 ${form.aboutMe.length >= 25 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{form.aboutMe.length}/25</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Password <span className="text-blue-500">*</span></Label>

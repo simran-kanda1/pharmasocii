@@ -60,7 +60,7 @@ export const DEFAULT_CONTACT_CONFIG: ContactConfig = {
             title: "Partner Support",
             email: "partners@pharmasocii.com",
             phone: "",
-            description: "Partner listing management, premium subscriptions, spotlight plans, and business collaborations.",
+            description: "Partner listing management, premium subscriptions, featured plans, and business collaborations.",
             hours: "Mon – Fri: 9:00 AM – 6:00 PM EST",
             icon: "Handshake"
         },

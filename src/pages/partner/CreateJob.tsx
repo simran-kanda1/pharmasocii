@@ -159,7 +159,7 @@ export default function CreateJob() {
                                 <div className="space-y-3 md:col-span-2">
                                     <Label htmlFor="jobSummary" className="text-foreground/80">Job Summary</Label>
                                     <Textarea id="jobSummary" placeholder="Provide a brief summary of the role and responsibilities..." value={formData.jobSummary} onChange={(e) => setFormData(prev => ({ ...prev, jobSummary: e.target.value.slice(0, 500) }))} className="min-h-[120px] bg-muted/40 border-foreground/10 text-foreground" />
-                                    <p className={`text-xs text-right ${formData.jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{formData.jobSummary.length}/500</p>
+                                    <p className={`text-xs text-right ${formData.jobSummary.length >= 500 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{formData.jobSummary.length}/500</p>
                                 </div>
                                 <div className="bg-muted/20 p-5 md:p-6 rounded-2xl border border-foreground/10 space-y-4 md:col-span-2">
                                     <div className="flex items-center justify-between border-b pb-3 border-foreground/10">

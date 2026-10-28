@@ -238,12 +238,11 @@ export function CommunityMemberPanels({
       if (myPostsSearch.trim()) {
         const s = myPostsSearch.toLowerCase().trim();
         const matchTitle = String(p.title || "").toLowerCase().includes(s);
-        const matchText = String(p.text || "").toLowerCase().includes(s);
         const matchMain = (p.mainCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchSub = (p.subCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchSubSub = (p.subSubCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchCountry = (p.countries || []).some((c) => String(c).toLowerCase().includes(s));
-        if (!matchTitle && !matchText && !matchMain && !matchSub && !matchSubSub && !matchCountry) return false;
+        if (!matchTitle && !matchMain && !matchSub && !matchSubSub && !matchCountry) return false;
       }
       return true;
     });
@@ -266,12 +265,11 @@ export function CommunityMemberPanels({
       if (savedPostsSearch.trim()) {
         const s = savedPostsSearch.toLowerCase().trim();
         const matchTitle = String(p.title || "").toLowerCase().includes(s);
-        const matchText = String(p.text || "").toLowerCase().includes(s);
         const matchMain = (p.mainCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchSub = (p.subCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchSubSub = (p.subSubCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchCountry = (p.countries || []).some((c) => String(c).toLowerCase().includes(s));
-        if (!matchTitle && !matchText && !matchMain && !matchSub && !matchSubSub && !matchCountry) return false;
+        if (!matchTitle && !matchMain && !matchSub && !matchSubSub && !matchCountry) return false;
       }
       return true;
     });
@@ -391,7 +389,7 @@ export function CommunityMemberPanels({
                   filteredSavedPosts.map((p) =>
                     p.unavailable ? (
                       <div key={p.id} className="border rounded-lg p-3 text-sm text-muted-foreground">
-                        Saved post temporarily unavailable
+                        No longer available. This content may have been removed following community moderation.
                       </div>
                     ) : (
                       <PostCard key={p.id} {...postCardProps(p)} />
@@ -408,7 +406,9 @@ export function CommunityMemberPanels({
                   filteredSavedComments.map((c) => (
                     <div key={c.commentId} className="border rounded-lg p-3 text-sm">
                       {c.unavailable ? (
-                        <p className="text-muted-foreground">Saved comment temporarily unavailable</p>
+                        <p className="text-muted-foreground">
+                          No longer available. This content may have been removed following community moderation.
+                        </p>
                       ) : (
                         <>
                           <p className="line-clamp-2">{c.preview}</p>
@@ -610,7 +610,7 @@ export function CommunityMemberPanels({
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label htmlFor="aboutMe">Tagline (About me tagline)</Label>
-              <span className={`text-[11px] ${aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{aboutMe.length}/25</span>
+              <span className={`text-[11px] ${aboutMe.length >= 25 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{aboutMe.length}/25</span>
             </div>
             <Input
               id="aboutMe"

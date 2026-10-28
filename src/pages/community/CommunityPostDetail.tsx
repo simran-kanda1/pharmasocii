@@ -562,7 +562,7 @@ export default function CommunityPostDetail() {
 
   const isAuthor = Boolean(postAuthorId && user?.uid && postAuthorId === user.uid);
   const hoursSinceCreation = (Date.now() - created.getTime()) / (1000 * 60 * 60);
-  const isEditable = isAuthor && hoursSinceCreation <= 6;
+  const isEditable = isAuthor && hoursSinceCreation <= 1;
 
   return (
     <div className="container mx-auto px-4 py-10 max-w-3xl">
@@ -594,7 +594,7 @@ export default function CommunityPostDetail() {
               <CommunityIconAction
                 label="Edit"
                 icon={Pencil}
-                title="Edit post (available for 6 hours after posting)"
+                title="Edit post (available for 1 hour after posting)"
                 onClick={() => setEditOpen(true)}
               />
             )}
@@ -975,7 +975,7 @@ function CommentComposer({
       />
       {canEngage && (
         <div className="flex justify-end mt-1">
-          <span className={`text-[11px] ${commentText.length >= maxLen ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>
+          <span className={`text-[11px] ${commentText.length >= maxLen ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>
             {commentText.length}/{maxLen}
           </span>
         </div>

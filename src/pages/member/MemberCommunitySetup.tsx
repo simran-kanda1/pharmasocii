@@ -176,7 +176,7 @@ export default function MemberCommunitySetup() {
           <div className="space-y-2">
             <div className="flex justify-between items-center">
               <Label htmlFor="userName">Username</Label>
-              <span className={`text-[11px] ${userName.length >= 15 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{userName.length}/15</span>
+              <span className={`text-[11px] ${userName.length >= 15 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{userName.length}/15</span>
             </div>
             <Input
               id="userName"
@@ -245,7 +245,7 @@ export default function MemberCommunitySetup() {
               placeholder="e.g. Clinical Pharmacist"
               className="bg-foreground/5 border-foreground/10"
             />
-            <p className={`text-[11px] text-right mt-1 ${aboutMe.length >= 25 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{aboutMe.length}/25</p>
+            <p className={`text-[11px] text-right mt-1 ${aboutMe.length >= 25 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{aboutMe.length}/25</p>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <Button type="submit" className="w-full" disabled={saving}>

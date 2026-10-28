@@ -1273,7 +1273,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <div>
                 <Label className="text-slate-600 font-medium">Short Company Profile Text <span className="text-blue-500">*</span></Label>
                 <Textarea value={formData.profileHtml} onChange={(e) => handleChange("profileHtml", e.target.value)} maxLength={COMPANY_PROFILE_MAX_LENGTH} className="mt-1.5 bg-white border-slate-200 resize-none h-[120px] text-sm" placeholder="Briefly describe your company's mission and offerings..." />
-                <p className={`text-[11px] mt-1 ${formData.profileHtml.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-slate-400'}`}>{formData.profileHtml.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
+                <p className={`text-[11px] mt-1 ${formData.profileHtml.length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-blue-500 font-bold' : 'text-slate-400'}`}>{formData.profileHtml.length}/{COMPANY_PROFILE_MAX_LENGTH} characters</p>
               </div>
             </div>
 
@@ -1594,7 +1594,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                           className="min-h-[120px] bg-white border-slate-200 resize-none text-sm"
                           placeholder="Short summary of sessions, themes, and speakers…"
                         />
-                        <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-red-500 font-bold' : 'text-slate-400'}`}>
+                        <p className={`text-xs text-right ${eventData.agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-blue-500 font-bold' : 'text-slate-400'}`}>
                           {eventData.agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}
                         </p>
                       </div>
@@ -1646,7 +1646,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                       className="min-h-[140px] bg-white border-slate-200 resize-none text-sm"
                       placeholder="Describe the event and audience…"
                     />
-                    <p className={`text-xs text-right mt-1 ${eventData.eventProfile.length >= EVENT_PROFILE_MAX ? 'text-red-500 font-bold' : 'text-slate-400'}`}>
+                    <p className={`text-xs text-right mt-1 ${eventData.eventProfile.length >= EVENT_PROFILE_MAX ? 'text-blue-500 font-bold' : 'text-slate-400'}`}>
                       {eventData.eventProfile.length}/{EVENT_PROFILE_MAX}
                     </p>
                   </div>
@@ -1672,7 +1672,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                       className="min-h-[120px] bg-white border-slate-200 resize-none text-sm"
                       placeholder="Provide a summary of key duties, expectations..."
                     />
-                    <p className={`text-xs text-right mt-1 ${jobData.jobSummary.length >= JOB_SUMMARY_MAX ? 'text-red-500 font-bold' : 'text-slate-400'}`}>
+                    <p className={`text-xs text-right mt-1 ${jobData.jobSummary.length >= JOB_SUMMARY_MAX ? 'text-blue-500 font-bold' : 'text-slate-400'}`}>
                       {jobData.jobSummary.length}/{JOB_SUMMARY_MAX}
                     </p>
                   </div>

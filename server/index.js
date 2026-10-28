@@ -6569,7 +6569,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
         if (await isKnownSpotlightAddonSubscriptionId(effectiveSubscriptionId, null, partnerId)) {
             return res.status(400).json({
                 error:
-                    "This upgrade targeted a spotlight add-on subscription instead of the listing plan. Refresh the dashboard and try again.",
+                    "This upgrade targeted a feature add-on subscription instead of the listing plan. Refresh the dashboard and try again.",
             });
         }
 
@@ -6650,7 +6650,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 if (await isKnownSpotlightAddonSubscriptionId(resolvedSubscription.id, resolvedSubscription, partnerId)) {
                     return res.status(400).json({
                         error:
-                            "Could not resolve the listing plan subscription for upgrade (spotlight add-on matched instead). Refresh and try again.",
+                            "Could not resolve the listing plan subscription for upgrade (feature add-on matched instead). Refresh and try again.",
                     });
                 }
                 subscription = resolvedSubscription;
@@ -6868,7 +6868,7 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                 });
                 return res.status(400).json({
                     error:
-                        "Could not match this listing to the correct plan subscription (a spotlight add-on may have been selected). Refresh the dashboard and try again.",
+                        "Could not match this listing to the correct plan subscription (a feature add-on may have been selected). Refresh the dashboard and try again.",
                 });
             }
 

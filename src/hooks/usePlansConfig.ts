@@ -193,7 +193,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                 {
                     id: "premium_event",
                     badge: "Premium",
-                    subtitle: "Event listing + landing page spotlight",
+                    subtitle: "Event listing + landing page feature",
                     monthlyPrice: 1250,
                     yearlyMonthlyPrice: 1250,
                     yearlyTotalPrice: 1250,
@@ -203,7 +203,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     tierRank: 3,
                     isFeatured: false,
                     features: [
-                        "Extra Feature: Landing page spotlight for increased visibility",
+                        "Extra Feature: Landing page feature for increased visibility",
                         "Event profile",
                         "Agenda highlights + full agenda PDF",
                         "Event dates",
@@ -218,7 +218,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                 {
                     id: "premium_plus_event",
                     badge: "Premium Plus",
-                    subtitle: "Event listing + home page spotlight",
+                    subtitle: "Event listing + home page feature",
                     monthlyPrice: 1450,
                     yearlyMonthlyPrice: 1450,
                     yearlyTotalPrice: 1450,
@@ -228,7 +228,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     tierRank: 4,
                     isFeatured: true,
                     features: [
-                        "Extra Feature: Home page spotlight for maximum visibility",
+                        "Extra Feature: Home page feature for maximum visibility",
                         "Event profile",
                         "Agenda highlights + full agenda PDF",
                         "Event dates",
@@ -274,7 +274,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                 {
                     id: "premium_job",
                     badge: "Premium",
-                    subtitle: "Job posting & landing page spotlight",
+                    subtitle: "Job posting & landing page feature",
                     monthlyPrice: 800,
                     yearlyMonthlyPrice: 800,
                     yearlyTotalPrice: 800,
@@ -284,7 +284,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     tierRank: 2,
                     isFeatured: false,
                     features: [
-                        "Extra Feature: Landing page spotlight for increased visibility",
+                        "Extra Feature: Landing page feature for increased visibility",
                         "Position title for quick search",
                         "Job description outlining key responsibilities",
                         "Company profile to showcase your brand and attract top talent",
@@ -298,7 +298,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                 {
                     id: "premium_plus_job",
                     badge: "Premium Plus",
-                    subtitle: "Job posting + home page spotlight",
+                    subtitle: "Job posting + home page feature",
                     monthlyPrice: 1000,
                     yearlyMonthlyPrice: 1000,
                     yearlyTotalPrice: 1000,
@@ -308,7 +308,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     tierRank: 3,
                     isFeatured: true,
                     features: [
-                        "Extra Feature: Home page spotlight for maximum visibility",
+                        "Extra Feature: Home page feature for maximum visibility",
                         "Position title for quick search",
                         "Job description outlining key responsibilities",
                         "Company profile to showcase your brand and attract top talent",

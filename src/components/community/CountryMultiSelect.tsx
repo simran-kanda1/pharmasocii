@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { MapPin, ChevronDown } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { getAllCommunityCountries } from "@/lib/communityCountries";
 import { POST_COUNTRIES_MAX } from "@/lib/community";
 import { cn } from "@/lib/utils";
@@ -40,7 +39,6 @@ export function CountryMultiSelect({ value, onChange, max = POST_COUNTRIES_MAX }
 
   return (
     <div className="space-y-2">
-      <Label>Countries (optional, max {max})</Label>
       <Button
         type="button"
         variant="outline"
@@ -49,7 +47,7 @@ export function CountryMultiSelect({ value, onChange, max = POST_COUNTRIES_MAX }
       >
         <span className="flex items-center gap-2 truncate text-muted-foreground">
           <MapPin className="h-4 w-4 shrink-0" />
-          {sortedDisplay.length ? sortedDisplay.join(", ") : "Select Country(ies)"}
+          {sortedDisplay.length ? sortedDisplay.join(", ") : ""}
         </span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 opacity-50", open && "rotate-180")} />
       </Button>
@@ -76,7 +74,7 @@ export function CountryMultiSelect({ value, onChange, max = POST_COUNTRIES_MAX }
           </div>
         </div>
       )}
-      <p className="text-xs text-muted-foreground">{value.length}/{max} selected</p>
+      <p className="text-xs text-muted-foreground text-right">{value.length}/{max} selected</p>
     </div>
   );
 }

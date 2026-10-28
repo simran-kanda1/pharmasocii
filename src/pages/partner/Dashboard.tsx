@@ -2155,6 +2155,31 @@ export default function Dashboard() {
             const existing = byListing.get(key);
             byListing.set(key, existing ? preferPlan(existing, plan) : plan);
         }
+
+        // Include any approved active listing that does not have an active plan mapped
+        for (const offering of offerings) {
+            if (offering.status !== "Approved" || offering.active === false) continue;
+            const listingGroup = inferListingGroup(offering);
+            const col = offering.__col || (listingGroup === "business_offerings" ? "businessOfferingsCollection" : listingGroup === "consulting" ? "consultingServicesCollection" : listingGroup === "events" ? "eventsCollection" : "jobsCollection");
+            const key = `${col}:${offering.id}`;
+            if (!byListing.has(key)) {
+                const planId = offering.selectedPlan || offering.planId || offering.tier;
+                if (planId) {
+                    const synthPlan = {
+                        id: `listing_synth_${offering.id}`,
+                        planId,
+                        active: true,
+                        listingId: offering.id,
+                        collectionName: col,
+                        selectedGroup: listingGroup,
+                        billingPeriodEnd: offering.billingPeriodEnd || offering.paidThrough || null,
+                        stripeSubscriptionId: offering.stripeSubscriptionId || null,
+                    };
+                    byListing.set(key, synthPlan);
+                }
+            }
+        }
+
         return [...byListing.values(), ...solo];
     })();
     const livePlans = plansForCards.filter(isPlanBillingLive);
@@ -2166,8 +2191,6 @@ export default function Dashboard() {
 
     const isApproved = partnerData.partnerStatus !== "Disabled";
     const displayName = partnerData.primaryName || "Partner";
-    const currentPlan = dynamicPlanConfigs[partnerData.selectedPlan] || PLAN_CONFIGS[partnerData.selectedPlan] || null;
-    const currentGroup = partnerData.selectedGroup || "";
     const businessOfferingLock = getGroupPlanLock(activePlans, "business_offerings");
     const consultingLock = getGroupPlanLock(activePlans, "consulting");
 
@@ -2284,7 +2307,6 @@ export default function Dashboard() {
                                                 : globalModalPurchaseTargets.includes(fp.id),
                                         ).map(fp => {
                                             const isSelected = selectedFeaturePlan === fp.id;
-                                            const IconComponent = (fp as any).icon || Star;
                                             const alreadyHasExact =
                                                 getEffectiveSpotlightTier(listingForGlobalFeatureModal, liveListingPlanForFeatures?.planId) >=
                                                 (FEATURE_SPOTLIGHT_TIER[fp.id] || 0) &&
@@ -2299,39 +2321,24 @@ export default function Dashboard() {
                                                 <button key={fp.id} type="button" disabled={disabled} onClick={() => setSelectedFeaturePlan(fp.id)}
                                                     className={`w-full text-left p-4 rounded-xl border-2 transition-all ${disabled ? "border-foreground/10 opacity-50 cursor-not-allowed" : isSelected ? "border-primary bg-primary/5" : "border-foreground/10 hover:border-foreground/20 bg-foreground/5"}`}>
                                                     <div className="flex items-center justify-between gap-4">
-                                                        <div className="flex items-start gap-3">
-                                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
-                                                                <IconComponent className="w-5 h-5" />
-                                                            </div>
-                                                            <div>
-                                                                <p className="font-semibold text-foreground flex items-center gap-2">
-                                                                    {fp.label}
-                                                                    {alreadyHasExact && <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/30 text-[10px]">Active</Badge>}
-                                                                    {isValidUpgradeChoice && globalModalAddonTier && (
-                                                                        <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">Upgrade</Badge>
-                                                                    )}
-                                                                </p>
-                                                                {(fp as any).description && (
-                                                                    <p className="text-xs text-muted-foreground mt-0.5">{(fp as any).description}</p>
+                                                        <div>
+                                                            <p className="font-semibold text-foreground flex items-center gap-2">
+                                                                {fp.label}
+                                                                {alreadyHasExact && <Badge variant="outline" className="bg-green-500/10 text-green-700 border-green-500/30 text-[10px]">Active</Badge>}
+                                                                {isValidUpgradeChoice && globalModalAddonTier && (
+                                                                    <Badge variant="outline" className="text-[10px] border-primary/40 text-primary">Upgrade</Badge>
                                                                 )}
-                                                                <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                                                                    {(fp as any).durationDays && (
-                                                                        <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
-                                                                            <Calendar className="w-3.5 h-3.5 text-primary" />
-                                                                            Duration: {(fp as any).durationDays} days
-                                                                        </span>
-                                                                    )}
-                                                                    {(fp as any).countryLimit !== undefined && (fp as any).countryLimit > 0 && (
-                                                                        <span>
-                                                                            Countries: {(fp as any).countryLimit === -1 ? "Unlimited" : (fp as any).countryLimit}
-                                                                        </span>
-                                                                    )}
-                                                                    {(fp as any).categoryLimit !== undefined && (fp as any).categoryLimit > 0 && (
-                                                                        <span>
-                                                                            Categories: {(fp as any).categoryLimit === -1 ? "Unlimited" : (fp as any).categoryLimit}
-                                                                        </span>
-                                                                    )}
-                                                                </div>
+                                                            </p>
+                                                            {(fp as any).description && (
+                                                                <p className="text-xs text-muted-foreground mt-0.5">{(fp as any).description}</p>
+                                                            )}
+                                                            <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                                                {(fp as any).durationDays && (
+                                                                    <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
+                                                                        <Calendar className="w-3.5 h-3.5 text-primary" />
+                                                                        Duration: {(fp as any).durationDays} days
+                                                                    </span>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <div className="text-right shrink-0">
@@ -2926,12 +2933,30 @@ export default function Dashboard() {
                         </CardHeader>
                         <CardContent className="space-y-4 pt-6">
                             <div className="grid grid-cols-1 gap-4 bg-muted/40 p-4 rounded-lg border border-foreground/10">
-                                {livePlansSorted.length > 0 ? (
+                                {livePlansSorted.length === 1 ? (
+                                    (() => {
+                                        const singlePlan = livePlansSorted[0];
+                                        const planConfig = dynamicPlanConfigs[singlePlan.planId] || PLAN_CONFIGS[singlePlan.planId];
+                                        const groupLabel = formatPlanGroupLabel(inferPlanGroup(singlePlan));
+                                        const tierLabel = formatPlanTierLabel(singlePlan, planConfig);
+                                        return (
+                                            <div className="grid grid-cols-2 gap-6">
+                                                <div>
+                                                    <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Group</p>
+                                                    <p className="text-foreground font-medium capitalize">{groupLabel || "N/A"}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Plan</p>
+                                                    <p className="text-foreground font-medium">{tierLabel || "N/A"}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })()
+                                ) : livePlansSorted.length > 1 ? (
                                     <div>
-                                        <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-2">Active Plans</p>
+                                        <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-2">Active Plans ({livePlansSorted.length})</p>
                                         <ul className="space-y-2">
                                             {livePlansSorted.map((plan) => {
-
                                                 const planConfig = dynamicPlanConfigs[plan.planId] || PLAN_CONFIGS[plan.planId];
                                                 const groupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
                                                 const tierLabel = formatPlanTierLabel(plan, planConfig);
@@ -2945,15 +2970,37 @@ export default function Dashboard() {
                                             })}
                                         </ul>
                                     </div>
+                                ) : pendingPaymentListings.length > 0 ? (
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Group</p>
+                                            <p className="text-foreground font-medium capitalize">{formatPlanGroupLabel(inferListingGroup(pendingPaymentListings[0]))}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Plan</p>
+                                            <p className="text-amber-500 font-medium">Pending Payment</p>
+                                        </div>
+                                    </div>
+                                ) : expiredPlans.length > 0 ? (
+                                    <div className="grid grid-cols-2 gap-6">
+                                        <div>
+                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Group</p>
+                                            <p className="text-foreground font-medium capitalize">{formatPlanGroupLabel(inferPlanGroup(expiredPlans[0]))}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Plan</p>
+                                            <p className="text-muted-foreground font-medium">None (Expired / Cancelled)</p>
+                                        </div>
+                                    </div>
                                 ) : (
                                     <div className="grid grid-cols-2 gap-6">
                                         <div>
                                             <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Group</p>
-                                            <p className="text-foreground font-medium capitalize">{currentGroup.replace(/_/g, " ") || "N/A"}</p>
+                                            <p className="text-muted-foreground font-medium">None</p>
                                         </div>
                                         <div>
                                             <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Plan</p>
-                                            <p className="text-foreground font-medium">{currentPlan?.label || "N/A"}</p>
+                                            <p className="text-muted-foreground font-medium">No Active Plan</p>
                                         </div>
                                     </div>
                                 )}
@@ -2979,16 +3026,28 @@ export default function Dashboard() {
                         <CardContent className="space-y-4 pt-6">
                             <div>
                                 <p className="text-xs font-medium text-muted-foreground tracking-wider mb-1">Primary Representative</p>
-                                <p className="text-base text-foreground font-normal">{partnerData.primaryName}</p>
+                                <p className="text-base text-foreground font-normal">
+                                    {partnerData.primaryName || `${partnerData.firstName || ""} ${partnerData.lastName || ""}`.trim() || partnerData.name || "N/A"}
+                                </p>
                             </div>
                             <div className="space-y-4">
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-muted/40 border border-foreground/10 flex items-center justify-center"><Mail className="w-4 h-4 text-foreground" /></div>
-                                    <div><p className="text-xs font-medium text-muted-foreground tracking-wider">Email</p><p className="text-foreground font-medium">{partnerData.primaryEmail}</p></div>
+                                    <div>
+                                        <p className="text-xs font-medium text-muted-foreground tracking-wider">Email</p>
+                                        <p className="text-foreground font-medium">
+                                            {partnerData.primaryEmail || partnerData.email || partnerData.billingEmail || "N/A"}
+                                        </p>
+                                    </div>
                                 </div>
                                 <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-full bg-muted/40 border border-foreground/10 flex items-center justify-center"><Phone className="w-4 h-4 text-foreground" /></div>
-                                    <div><p className="text-xs font-medium text-muted-foreground tracking-wider">Phone</p><p className="text-foreground font-medium">{partnerData.phoneNumber || partnerData.businessPhoneNumber || "N/A"}</p></div>
+                                    <div>
+                                        <p className="text-xs font-medium text-muted-foreground tracking-wider">Phone</p>
+                                        <p className="text-foreground font-medium">
+                                            {partnerData.phoneNumber || partnerData.businessPhoneNumber || partnerData.phone || "N/A"}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
                         </CardContent>
@@ -3328,7 +3387,7 @@ export default function Dashboard() {
                             className={`h-40 bg-foreground/5 resize-none text-sm border-foreground/10`}
                             placeholder="Briefly describe your company's mission and offerings..."
                         />
-                        <p className={`text-xs text-right ${(profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
+                        <p className={`text-xs text-right ${(profileForm.companyProfile || "").length >= COMPANY_PROFILE_MAX_LENGTH ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{(profileForm.companyProfile || "").length}/{COMPANY_PROFILE_MAX_LENGTH}</p>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-2">
@@ -4339,7 +4398,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                             onChange={(e) => setAgendaHighlights(e.target.value.slice(0, AGENDA_HIGHLIGHTS_MAX))}
                                             className="bg-foreground/5 border-foreground/10 mt-1 min-h-[100px]"
                                         />
-                                        <p className="text-xs text-right text-muted-foreground mt-1">{agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
+                                        <p className={`text-xs text-right mt-1 ${agendaHighlights.length >= AGENDA_HIGHLIGHTS_MAX ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{agendaHighlights.length}/{AGENDA_HIGHLIGHTS_MAX}</p>
                                     </div>
                                     <div className="space-y-2">
                                         <Label>Full Agenda (PDF) <span className="text-blue-500">*</span></Label>
@@ -4382,7 +4441,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 <div className="md:col-span-2">
                                     <Label>Event Profile <span className="text-blue-500">*</span></Label>
                                     <Textarea value={eventProfile} onChange={(e) => setEventProfile(e.target.value.slice(0, 500))} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
-                                    <p className="text-xs text-right text-muted-foreground mt-1">{eventProfile.length}/500</p>
+                                    <p className={`text-xs text-right mt-1 ${eventProfile.length >= 500 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{eventProfile.length}/500</p>
                                 </div>
                             </div>
                         </div>
@@ -4399,7 +4458,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 <div className="md:col-span-2">
                                     <Label>Job Summary <span className="text-blue-500">*</span></Label>
                                     <Textarea value={jobSummary} onChange={(e) => setJobSummary(e.target.value.slice(0, 500))} className="bg-foreground/5 border-foreground/10 mt-1 min-h-[80px]" />
-                                    <p className={`text-xs text-right mt-1 ${jobSummary.length >= 500 ? 'text-red-500 font-bold' : 'text-muted-foreground'}`}>{jobSummary.length}/500</p>
+                                    <p className={`text-xs text-right mt-1 ${jobSummary.length >= 500 ? 'text-blue-500 font-bold' : 'text-muted-foreground'}`}>{jobSummary.length}/500</p>
                                 </div>
                                 <div className="md:col-span-2 space-y-2">
                                     <Label>Full Job Description (PDF) <span className="text-blue-500">*</span></Label>
@@ -4438,7 +4497,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     )}
                                     {jobPdfUploadError && <p className="text-xs text-red-500">{jobPdfUploadError}</p>}
                                 </div>
-                                <div><Label>Industry</Label>
+                                <div><Label>Industry <span className="text-blue-500">*</span></Label>
                                     <Select value={industry} onValueChange={setIndustry}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select industry" /></SelectTrigger>
                                         <SelectContent>
@@ -4474,7 +4533,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </SelectContent>
                                     </Select>
                                 </div>
-                                <div><Label>Experience Level</Label>
+                                <div><Label>Experience Level <span className="text-blue-500">*</span></Label>
                                     <Select value={experienceLevel} onValueChange={setExperienceLevel}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select" /></SelectTrigger>
                                         <SelectContent>
@@ -4774,6 +4833,20 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 setEventAgendaPdfUploadError("");
                             }
                             if (listingGroup === "jobs") {
+                                if (
+                                    !industry.trim() ||
+                                    !experienceLevel.trim() ||
+                                    !jobTitle.trim() ||
+                                    !jobSummary.trim() ||
+                                    !jobType.trim() ||
+                                    !jobCountry.trim() ||
+                                    !jobStateRegion.trim() ||
+                                    !jobCity.trim() ||
+                                    !workModel.trim() ||
+                                    !positionLink.trim()
+                                ) {
+                                    return;
+                                }
                                 if (jobPdfFile) {
                                     if (!auth.currentUser) {
                                         setJobPdfUploadError("You must be signed in to upload.");
@@ -5101,6 +5174,18 @@ function CancelPlanModal({
                 ).trim()
         )?.label || "Feature add-on";
 
+    const isJobOrEvent =
+        isEventOrJobListing(plan?.planId, linkedListing) ||
+        plan?.collectionName === "jobsCollection" ||
+        plan?.collectionName === "eventsCollection" ||
+        linkedListing?.selectedGroup === "events" ||
+        linkedListing?.selectedGroup === "jobs";
+    const hasPurchasedFeatureAddon = Boolean(
+        !isJobOrEvent &&
+        hasStandaloneSpotlightAddon(linkedListing, plan?.planId) &&
+        !isSpotlightAccessEnded(linkedListing)
+    );
+
     return (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-background rounded-2xl border border-foreground/10 w-full max-w-md shadow-2xl overflow-hidden">
@@ -5160,9 +5245,9 @@ function CancelPlanModal({
                     ) : (
                         <p className="text-base text-foreground">
                             Cancel your <span className="font-semibold">{isFeatureCancel ? spotlightLabel : (planConfig?.label || "listing")}</span> {isFeatureCancel ? "feature add-on" : "plan subscription"}?
-                            {!isFeatureCancel ? (
-                                <> Cancelling the plan also ends any associated feature. If feature renewal date is after the plan, it will end on the plan date.</>
-                            ) : null}
+                            {!isFeatureCancel && hasPurchasedFeatureAddon && (
+                                <> Also ends any associated feature. If feature renewal date is after the plan, it will end on the plan date.</>
+                            )}
                         </p>
                     )}
 
@@ -5176,25 +5261,35 @@ function CancelPlanModal({
                                     </span>
                                     , then won&apos;t renew. You&apos;ll see a &quot;Scheduled to end&quot; tag until that date.
                                 </>
-                            ) : featureEndsBeforePlan ? (
-                                <>
-                                    Your plan stays active until{" "}
-                                    <span className="font-semibold">
-                                        {billingEnd?.toLocaleDateString() || "the end of your billing period"}
-                                    </span>
-                                    . The feature ends on{" "}
-                                    <span className="font-semibold">
-                                        {featureNaturalEnd?.toLocaleDateString()}
-                                    </span>{" "}
-                                    and will not renew. The plan stays listed until its own end date.
-                                </>
+                            ) : hasPurchasedFeatureAddon ? (
+                                featureEndsBeforePlan ? (
+                                    <>
+                                        Your plan stays active until{" "}
+                                        <span className="font-semibold">
+                                            {billingEnd?.toLocaleDateString() || "the end of your billing period"}
+                                        </span>
+                                        . The feature ends on{" "}
+                                        <span className="font-semibold">
+                                            {featureNaturalEnd?.toLocaleDateString()}
+                                        </span>{" "}
+                                        and will not renew. The plan stays listed until its own end date.
+                                    </>
+                                ) : (
+                                    <>
+                                        Your plan stays active until{" "}
+                                        <span className="font-semibold">
+                                            {billingEnd?.toLocaleDateString() || "the end of your billing period"}
+                                        </span>
+                                        . Plan and feature end on that date. After that, access tied to this plan ends unless you purchase again.
+                                    </>
+                                )
                             ) : (
                                 <>
                                     Your plan stays active until{" "}
                                     <span className="font-semibold">
                                         {billingEnd?.toLocaleDateString() || "the end of your billing period"}
                                     </span>
-                                    . Plan and feature end on that date. After that, access tied to this plan ends unless you purchase again.
+                                    . After that, access tied to this plan ends unless you purchase again.
                                 </>
                             )}
                         </p>
@@ -5279,7 +5374,6 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans
                         <div className="space-y-3">
                             {targets.map((fp) => {
                                 const isSelected = selectedFeature === fp.id;
-                                const IconComponent = fp.icon || Star;
                                 return (
                                     <button
                                         key={fp.id}
@@ -5291,33 +5385,18 @@ function UpgradeFeaturePlanModal({ currentAddonId, planId, listing, featurePlans
                                             }`}
                                     >
                                         <div className="flex items-center justify-between gap-4">
-                                            <div className="flex items-start gap-3">
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
-                                                    <IconComponent className="w-5 h-5" />
-                                                </div>
-                                                <div>
-                                                    <p className="font-semibold text-foreground text-base">{fp.label}</p>
-                                                    {fp.description && (
-                                                        <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                            <div>
+                                                <p className="font-semibold text-foreground text-base">{fp.label}</p>
+                                                {fp.description && (
+                                                    <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                                )}
+                                                <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                                    {fp.durationDays && (
+                                                        <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
+                                                            <Calendar className="w-3.5 h-3.5 text-primary" />
+                                                            Duration: {fp.durationDays} days
+                                                        </span>
                                                     )}
-                                                    <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                                                        {fp.durationDays && (
-                                                            <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
-                                                                <Calendar className="w-3.5 h-3.5 text-primary" />
-                                                                Duration: {fp.durationDays} days
-                                                            </span>
-                                                        )}
-                                                        {fp.countryLimit !== undefined && fp.countryLimit > 0 && (
-                                                            <span>
-                                                                Countries: {fp.countryLimit === -1 ? "Unlimited" : fp.countryLimit}
-                                                            </span>
-                                                        )}
-                                                        {fp.categoryLimit !== undefined && fp.categoryLimit > 0 && (
-                                                            <span>
-                                                                Categories: {fp.categoryLimit === -1 ? "Unlimited" : fp.categoryLimit}
-                                                            </span>
-                                                        )}
-                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="text-right shrink-0">
@@ -5378,7 +5457,6 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
                     <div className="space-y-3">
                         {featurePlans.map(fp => {
                             const isSelected = selectedFeature === fp.id;
-                            const IconComponent = fp.icon || Star;
                             return (
                                 <button
                                     key={fp.id}
@@ -5389,33 +5467,18 @@ function AddFeaturePlanModal({ featurePlans, onClose, onPurchase, processing }: 
                                         }`}
                                 >
                                     <div className="flex items-center justify-between gap-4">
-                                        <div className="flex items-start gap-3">
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${isSelected ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary"}`}>
-                                                <IconComponent className="w-5 h-5" />
-                                            </div>
-                                            <div>
-                                                <p className="font-semibold text-foreground text-base">{fp.label}</p>
-                                                {fp.description && (
-                                                    <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                        <div>
+                                            <p className="font-semibold text-foreground text-base">{fp.label}</p>
+                                            {fp.description && (
+                                                <p className="text-xs text-muted-foreground mt-0.5">{fp.description}</p>
+                                            )}
+                                            <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                                {fp.durationDays && (
+                                                    <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
+                                                        <Calendar className="w-3.5 h-3.5 text-primary" />
+                                                        Duration: {fp.durationDays} days
+                                                    </span>
                                                 )}
-                                                <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                                                    {fp.durationDays && (
-                                                        <span className="inline-flex items-center gap-1 font-medium text-foreground/80">
-                                                            <Calendar className="w-3.5 h-3.5 text-primary" />
-                                                            Duration: {fp.durationDays} days
-                                                        </span>
-                                                    )}
-                                                    {fp.countryLimit !== undefined && fp.countryLimit > 0 && (
-                                                        <span>
-                                                            Countries: {fp.countryLimit === -1 ? "Unlimited" : fp.countryLimit}
-                                                        </span>
-                                                    )}
-                                                    {fp.categoryLimit !== undefined && fp.categoryLimit > 0 && (
-                                                        <span>
-                                                            Categories: {fp.categoryLimit === -1 ? "Unlimited" : fp.categoryLimit}
-                                                        </span>
-                                                    )}
-                                                </div>
                                             </div>
                                         </div>
                                         <div className="text-right shrink-0">
