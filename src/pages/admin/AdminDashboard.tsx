@@ -2341,11 +2341,13 @@ export default function AdminDashboard() {
       category: string;
       subcategory: string;
       subSubcategory: string;
+      isParent?: boolean;
       status?: string;
       imageUrl?: string;
       metaDescription?: string;
       metaKeywords?: string;
       description?: string;
+      subEntries?: any[];
     }> = [];
 
     const defaultImg = "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80";
@@ -2359,11 +2361,27 @@ export default function AdminDashboard() {
           catMeta.isDeleted === true ||
           catMeta.deleted === true;
 
-        if (isCatInactive && (!Array.isArray(subEntries) || subEntries.length === 0)) return;
+        const hasSubcategories = Array.isArray(subEntries) && subEntries.length > 0;
+        const subCount = hasSubcategories ? subEntries.length : 0;
 
-        let pushedForCategory = 0;
+        // 1. ALWAYS push the Parent Category row
+        rows.push({
+          id: catMeta.id,
+          group,
+          category,
+          subcategory: hasSubcategories ? "— (Parent Category)" : "—",
+          subSubcategory: hasSubcategories ? `${subCount} subcategor${subCount === 1 ? "y" : "ies"}` : "—",
+          isParent: true,
+          status: isCatInactive ? "Inactive" : (catMeta.status || "Active"),
+          imageUrl: catMeta.imageUrl || defaultImg,
+          metaDescription: catMeta.metaDescription || "",
+          metaKeywords: catMeta.metaKeywords || "",
+          description: catMeta.description || "",
+          subEntries: hasSubcategories ? subEntries : [],
+        });
 
-        if (Array.isArray(subEntries) && subEntries.length > 0) {
+        // 2. If it has subcategories, also push rows for each individual subcategory
+        if (hasSubcategories) {
           subEntries.forEach((sub: any) => {
             if (typeof sub === "string") {
               const specificSubMeta = categoryMetadataMap[`${groupKey}:${category}:${sub}`];
@@ -2376,14 +2394,14 @@ export default function AdminDashboard() {
               if (isSubInactive) return;
 
               const subMeta = specificSubMeta || catMeta;
-              pushedForCategory++;
               rows.push({
                 id: subMeta.id || catMeta.id,
                 group,
                 category,
                 subcategory: sub,
-                subSubcategory: "-",
-                status: specificSubMeta?.status || catMeta.status || "Active",
+                subSubcategory: "—",
+                isParent: false,
+                status: isCatInactive ? "Inactive" : (specificSubMeta?.status || catMeta.status || "Active"),
                 imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
                 metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
                 metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
@@ -2391,11 +2409,12 @@ export default function AdminDashboard() {
               });
               return;
             }
+
             const subLabel = sub.label || "-";
             const subSubs =
               Array.isArray(sub.subSubcategories) && sub.subSubcategories.length > 0
                 ? sub.subSubcategories.join(", ")
-                : "-";
+                : "—";
             const specificSubMeta = categoryMetadataMap[`${groupKey}:${category}:${subLabel}`];
             const isSubInactive = specificSubMeta && (
               (specificSubMeta.status || "").toLowerCase() === "inactive" ||
@@ -2406,34 +2425,19 @@ export default function AdminDashboard() {
             if (isSubInactive) return;
 
             const subMeta = specificSubMeta || catMeta;
-            pushedForCategory++;
             rows.push({
               id: subMeta.id || catMeta.id,
               group,
               category,
               subcategory: subLabel,
               subSubcategory: subSubs,
-              status: specificSubMeta?.status || catMeta.status || "Active",
+              isParent: false,
+              status: isCatInactive ? "Inactive" : (specificSubMeta?.status || catMeta.status || "Active"),
               imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
               metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
               metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
               description: subMeta.description || catMeta.description || "",
             });
-          });
-        }
-
-        if (pushedForCategory === 0) {
-          rows.push({
-            id: catMeta.id,
-            group,
-            category,
-            subcategory: "-",
-            subSubcategory: "-",
-            status: catMeta.status || "Active",
-            imageUrl: catMeta.imageUrl || defaultImg,
-            metaDescription: catMeta.metaDescription || "",
-            metaKeywords: catMeta.metaKeywords || "",
-            description: catMeta.description || "",
           });
         }
       });
@@ -2444,6 +2448,8 @@ export default function AdminDashboard() {
       if (gComp !== 0) return gComp;
       const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
       if (cComp !== 0) return cComp;
+      if (a.isParent && !b.isParent) return -1;
+      if (!a.isParent && b.isParent) return 1;
       const sComp = (a.subcategory || "").localeCompare(b.subcategory || "", undefined, { sensitivity: "base" });
       if (sComp !== 0) return sComp;
       return (a.subSubcategory || "").localeCompare(b.subSubcategory || "", undefined, { sensitivity: "base" });
@@ -2483,8 +2489,10 @@ export default function AdminDashboard() {
       // 1. Exact match on subcategory (e.g. "Patient Support") -> 1,000,000
       if (sub === cleanQuery || (meaningfulPhrase && sub === meaningfulPhrase)) return 1000000;
 
-      // 2. Exact match on category (e.g. "Clinical Research") -> 900,000
-      if (cat === cleanQuery || (meaningfulPhrase && cat === meaningfulPhrase)) return 900000;
+      // 2. Exact match on category (e.g. "Clinical Research") -> 950,000 for parent, 900,000 for sub
+      if (cat === cleanQuery || (meaningfulPhrase && cat === meaningfulPhrase)) {
+        return row.isParent ? 950000 : 900000;
+      }
 
       // 3. Exact match on an individual sub-subcategory (e.g. "Adventitious Agents") -> 800,000
       if (subSubItems.includes(cleanQuery) || (meaningfulPhrase && subSubItems.includes(meaningfulPhrase))) return 800000;
@@ -2492,8 +2500,10 @@ export default function AdminDashboard() {
       // 4. Subcategory starts with query -> 700,000
       if (sub.startsWith(cleanQuery) || (meaningfulPhrase && sub.startsWith(meaningfulPhrase))) return 700000;
 
-      // 5. Category starts with query -> 600,000
-      if (cat.startsWith(cleanQuery) || (meaningfulPhrase && cat.startsWith(meaningfulPhrase))) return 600000;
+      // 5. Category starts with query -> 650,000 for parent, 600,000 for sub
+      if (cat.startsWith(cleanQuery) || (meaningfulPhrase && cat.startsWith(meaningfulPhrase))) {
+        return row.isParent ? 650000 : 600000;
+      }
 
       // 6. Any individual sub-subcategory starts with query -> 500,000
       if (subSubItems.some((item) => item.startsWith(cleanQuery) || (meaningfulPhrase && item.startsWith(meaningfulPhrase)))) return 500000;
@@ -2501,8 +2511,10 @@ export default function AdminDashboard() {
       // 7. Subcategory contains exact query phrase -> 400,000
       if (sub.includes(cleanQuery) || (meaningfulPhrase && sub.includes(meaningfulPhrase))) return 400000;
 
-      // 8. Category contains exact query phrase -> 300,000
-      if (cat.includes(cleanQuery) || (meaningfulPhrase && cat.includes(meaningfulPhrase))) return 300000;
+      // 8. Category contains exact query phrase -> 350,000 for parent, 300,000 for sub
+      if (cat.includes(cleanQuery) || (meaningfulPhrase && cat.includes(meaningfulPhrase))) {
+        return row.isParent ? 350000 : 300000;
+      }
 
       // 9. Sub-subcategory string contains exact query phrase -> 200,000
       if (subSub.includes(cleanQuery) || (meaningfulPhrase && subSub.includes(meaningfulPhrase))) return 200000;
@@ -2564,6 +2576,8 @@ export default function AdminDashboard() {
 
       const cComp = (a.category || "").localeCompare(b.category || "", undefined, { sensitivity: "base" });
       if (cComp !== 0) return cComp;
+      if (a.isParent && !b.isParent) return -1;
+      if (!a.isParent && b.isParent) return 1;
       const sComp = (a.subcategory || "").localeCompare(b.subcategory || "", undefined, { sensitivity: "base" });
       if (sComp !== 0) return sComp;
       return (a.subSubcategory || "").localeCompare(b.subSubcategory || "", undefined, { sensitivity: "base" });
@@ -4805,15 +4819,26 @@ function CategoryBreakdownTable({
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
 
   const handleDeleteCategory = async (row: any) => {
-    const isSubSub = row.subSubcategory && row.subSubcategory !== "-";
-    const isSub = row.subcategory && row.subcategory !== "-";
-    const displayName = isSubSub
-      ? `${row.category} → ${row.subcategory} → ${row.subSubcategory}`
-      : isSub
-      ? `${row.category} → ${row.subcategory}`
-      : row.category;
+    const isParentRow = Boolean(
+      row.isParent ||
+      row.subcategory === "— (Parent Category)" ||
+      row.subcategory === "—" ||
+      row.subcategory === "-" ||
+      !row.subcategory
+    );
 
-    if (!window.confirm(`Are you sure you want to delete "${displayName}" from ${row.group}?`)) {
+    const isSubSub = !isParentRow && row.subSubcategory && row.subSubcategory !== "-" && row.subSubcategory !== "—";
+    const isSub = !isParentRow && row.subcategory && row.subcategory !== "-" && row.subcategory !== "—";
+
+    const confirmMessage = isParentRow
+      ? `Are you sure you want to delete the entire category "${row.category}" and all its subcategories from ${row.group}? This will permanently remove it from the directory.`
+      : isSubSub
+      ? `Are you sure you want to delete "${row.category} → ${row.subcategory} → ${row.subSubcategory}" from ${row.group}?`
+      : isSub
+      ? `Are you sure you want to delete "${row.category} → ${row.subcategory}" from ${row.group}?`
+      : `Are you sure you want to delete "${row.category}" from ${row.group}?`;
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
@@ -4833,8 +4858,8 @@ function CategoryBreakdownTable({
         parentCategory: row.group,
         category: row.category,
         categoryName: row.category,
-        subcategory: row.subcategory === "-" ? "" : (row.subcategory || ""),
-        subSubcategory: row.subSubcategory === "-" ? "" : (row.subSubcategory || ""),
+        subcategory: isParentRow ? "" : (row.subcategory === "-" || row.subcategory === "—" ? "" : (row.subcategory || "")),
+        subSubcategory: isParentRow ? "" : (row.subSubcategory === "-" || row.subSubcategory === "—" ? "" : (row.subSubcategory || "")),
         status: "Inactive",
         isDeleted: true,
         deleted: true,
@@ -4847,6 +4872,22 @@ function CategoryBreakdownTable({
         try {
           await setDoc(doc(db, "categoriesCollection", canonicalId), deletePayload, { merge: true });
         } catch (_) {}
+      }
+
+      if (isParentRow) {
+        await setDoc(doc(db, "categoriesCollection", `${canonicalId}_all`), deletePayload, { merge: true }).catch(() => {});
+        if (Array.isArray(row.subEntries) && row.subEntries.length > 0) {
+          for (const sub of row.subEntries) {
+            const subLabel = typeof sub === "string" ? sub : sub?.label;
+            if (!subLabel) continue;
+            const subCanonicalId = buildCategoryDocId(row.group, row.category, subLabel);
+            await setDoc(
+              doc(db, "categoriesCollection", subCanonicalId),
+              { ...deletePayload, subcategory: subLabel, subSubcategory: "" },
+              { merge: true }
+            ).catch(() => {});
+          }
+        }
       }
     } catch (err: any) {
       console.error("Error deleting category:", err);
@@ -4912,11 +4953,40 @@ function CategoryBreakdownTable({
                   const rowKey = `${row.group}__${row.category}__${row.subcategory}__${row.subSubcategory}`;
                   const isDeleting = deletingKey === rowKey;
                   return (
-                    <TableRow key={rowKey}>
-                      <TableCell className="pl-6 font-medium">{row.group}</TableCell>
-                      <TableCell>{row.category}</TableCell>
-                      <TableCell>{row.subcategory}</TableCell>
-                      <TableCell>{row.subSubcategory}</TableCell>
+                    <TableRow
+                      key={rowKey}
+                      className={
+                        row.isParent
+                          ? "bg-slate-50/80 hover:bg-slate-100/70 border-t border-slate-200 transition-colors"
+                          : "hover:bg-slate-50/50 transition-colors"
+                      }
+                    >
+                      <TableCell className="pl-6 font-medium text-slate-800">{row.group}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-1.5">
+                          {!row.isParent && <span className="text-slate-400 text-xs pl-2 font-mono">↳</span>}
+                          <span className={row.isParent ? "font-semibold text-slate-900" : "text-slate-600"}>
+                            {row.category}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {row.isParent ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                            Parent Category
+                          </span>
+                        ) : (
+                          <span className="text-slate-800 font-medium">{row.subcategory}</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {row.isParent ? (
+                          <span className="text-xs text-slate-500 italic">{row.subSubcategory}</span>
+                        ) : (
+                          <span className="text-slate-600">{row.subSubcategory}</span>
+                        )}
+                      </TableCell>
                       <TableCell>
                         <Badge className={row.status === "Inactive" ? "bg-slate-100 text-slate-600 border-slate-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}>
                           {row.status || "Active"}
