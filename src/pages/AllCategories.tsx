@@ -371,21 +371,17 @@ export default function AllCategories() {
             : Array.isArray(item.subSubcategories)
                 ? item.subSubcategories
                 : [];
-        const itemCategories: string[] = Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0
-            ? item.selectedCategoriesDisplay
-            : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0
-                ? item.selectedCategories
-            : Array.isArray(item.categories) && item.categories.length > 0
-                ? item.categories
-                : item.category
-                    ? [item.category]
-                    : item.consultingCategory
-                        ? [item.consultingCategory]
-                        : item.eventCategory
-                            ? [item.eventCategory]
-                            : item.jobCategory
-                                ? [item.jobCategory]
-                                : [];
+        const rawCategoriesList: string[] = [
+            ...(Array.isArray(item.selectedCategoriesDisplay) ? item.selectedCategoriesDisplay : []),
+            ...(Array.isArray(item.selectedCategories) ? item.selectedCategories : []),
+            ...(Array.isArray(item.categories) ? item.categories : []),
+            ...(typeof item.categories === "string" ? item.categories.split(",").map((s: string) => s.trim()) : []),
+            ...(typeof item.category === "string" ? [item.category] : []),
+            ...(typeof item.consultingCategory === "string" ? [item.consultingCategory] : []),
+            ...(typeof item.eventCategory === "string" ? [item.eventCategory] : []),
+            ...(typeof item.jobCategory === "string" ? [item.jobCategory] : []),
+        ].filter(Boolean);
+        const itemCategories: string[] = Array.from(new Set(rawCategoriesList));
 
         if (searchQuery.trim()) {
             const searchTerms = searchQuery.split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
@@ -395,14 +391,20 @@ export default function AllCategories() {
                 item.businessName?.toLowerCase().includes(q) ||
                 item.primaryName?.toLowerCase().includes(q) ||
                 item.eventName?.toLowerCase().includes(q) ||
+                item.title?.toLowerCase().includes(q) ||
+                item.name?.toLowerCase().includes(q) ||
                 item.jobTitle?.toLowerCase().includes(q) ||
                 item.category?.toLowerCase().includes(q) ||
+                item.eventCategory?.toLowerCase().includes(q) ||
                 item.businessCountry?.toLowerCase().includes(q) ||
                 item.eventCountry?.toLowerCase().includes(q) ||
                 item.jobCountry?.toLowerCase().includes(q) ||
                 item.location?.toLowerCase().includes(q) ||
                 item.city?.toLowerCase().includes(q) ||
+                item.eventCity?.toLowerCase().includes(q) ||
                 item.state?.toLowerCase().includes(q) ||
+                item.stateRegion?.toLowerCase().includes(q) ||
+                item.eventStateRegion?.toLowerCase().includes(q) ||
                 item.jobtype?.toLowerCase().includes(q) ||
                 item.workModel?.toLowerCase().includes(q) ||
                 item.experienceLevel?.toLowerCase().includes(q) ||
@@ -411,10 +413,7 @@ export default function AllCategories() {
                     item.serviceCountries.some((c: string) =>
                         c.toLowerCase().includes(q)
                     )) ||
-                (Array.isArray(item.categories) &&
-                    item.categories.some((c: string) =>
-                        c.toLowerCase().includes(q)
-                    )) ||
+                itemCategories.some((c: string) => c.toLowerCase().includes(q)) ||
                 (Array.isArray(item.certifications) ? 
                     item.certifications.some((c: string) => c.toLowerCase().includes(q)) : 
                     (item.certifications || "").toLowerCase().includes(q)) ||
@@ -508,11 +507,27 @@ export default function AllCategories() {
         return true;
     });
 
-    if (sortBy === "default") {
+    if (sortBy !== "recent") {
         filteredBusinesses.sort((a, b) => {
-            const titleA = currentTab === "business" ? a.businessName : currentTab === "consulting" ? (a.primaryName || a.businessName || a.companyName || "") : currentTab === "events" ? a.eventName : a.jobTitle;
-            const titleB = currentTab === "business" ? b.businessName : currentTab === "consulting" ? (b.primaryName || b.businessName || b.companyName || "") : currentTab === "events" ? b.eventName : b.jobTitle;
-            return String(titleA || "").localeCompare(String(titleB || ""));
+            const titleA = (
+                currentTab === "business"
+                    ? (a.businessName || a.companyName || a.primaryName || a.title || "")
+                    : currentTab === "consulting"
+                        ? (a.primaryName || a.businessName || a.companyName || a.title || "")
+                        : currentTab === "events"
+                            ? (a.eventName || a.title || a.name || "")
+                            : (a.jobTitle || a.title || a.positionTitle || "")
+            ).trim();
+            const titleB = (
+                currentTab === "business"
+                    ? (b.businessName || b.companyName || b.primaryName || b.title || "")
+                    : currentTab === "consulting"
+                        ? (b.primaryName || b.businessName || b.companyName || b.title || "")
+                        : currentTab === "events"
+                            ? (b.eventName || b.title || b.name || "")
+                            : (b.jobTitle || b.title || b.positionTitle || "")
+            ).trim();
+            return titleA.localeCompare(titleB, undefined, { sensitivity: "base", numeric: true });
         });
     }
 
@@ -657,7 +672,7 @@ export default function AllCategories() {
                             />
                         ) : (
                             <Input
-                                placeholder={currentTab === "business" ? "Search by company name, certification, country, or category" : currentTab === "consulting" ? "Search by company name, country, or category" : currentTab === "events" ? "Search by event name, country, or category" : "Search by job title, location, job type, country, or category"}
+                                placeholder={currentTab === "business" ? "Search by company name, certification, country, or category" : currentTab === "consulting" ? "Search by company name, country, or category" : currentTab === "events" ? "Search by event name, city, or category" : "Search by job title, location, job type, country, or category"}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
@@ -876,7 +891,7 @@ export default function AllCategories() {
                                 <>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
                                     {paginatedBusinesses.map((item) => {
-                                        const rawTitle = currentTab === "business" ? item.businessName : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? item.eventName : item.jobTitle;
+                                        const rawTitle = currentTab === "business" ? (item.businessName || item.companyName || item.primaryName) : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? (item.eventName || item.title || item.name) : (item.jobTitle || item.title);
                                         const title = rawTitle || "";
                                         const bslDisplay = Array.isArray(item.bioSafetyLevel) ? [...item.bioSafetyLevel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ") : item.bioSafetyLevel;
                                         const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : formatJobLocation(item.city, item.stateRegion || item.state);
