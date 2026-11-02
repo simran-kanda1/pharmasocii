@@ -32,46 +32,47 @@ export function CookieConsentBanner() {
     if (!isVisible) return null;
 
     return (
-        <div
+        <aside
             role="region"
             aria-label="Cookie consent banner"
-            className="fixed bottom-0 inset-x-0 z-50 p-4 md:p-6 transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
+            className="fixed bottom-4 left-4 z-50 max-w-sm w-[calc(100vw-2rem)] sm:w-96 transition-all duration-300 animate-in fade-in slide-in-from-bottom-5"
         >
-            <div className="container mx-auto max-w-6xl bg-card/95 backdrop-blur-lg border border-foreground/15 rounded-3xl p-6 md:p-7 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                <div className="flex items-start gap-4 flex-1">
-                    <div className="w-10 h-10 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 mt-0.5 text-primary">
-                        <Cookie className="w-5 h-5" />
+            <div className="bg-card/95 backdrop-blur-lg border border-foreground/15 rounded-2xl p-4 sm:p-5 shadow-2xl flex flex-col gap-3">
+                <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0 text-primary">
+                        <Cookie className="w-4 h-4" />
                     </div>
-                    <div className="space-y-1.5 max-w-3xl">
-                        <h4 className="text-base md:text-lg font-bold text-foreground flex items-center gap-2">
-                            We value your privacy
-                        </h4>
-                        <p className="text-sm text-muted-foreground leading-relaxed">
-                            We use essential cookies and analytics cookies to understand traffic and improve performance. No advertising or tracking cookies are used. You can accept or reject all cookies, or read more in our{" "}
-                            <Link to="/privacy" className="text-primary underline underline-offset-4 hover:text-primary/80 font-medium">
-                                Privacy Policy
-                            </Link>.
-                        </p>
-                    </div>
+                    <h4 className="text-sm font-bold text-foreground">
+                        We value your privacy
+                    </h4>
                 </div>
 
-                <div className="flex items-center gap-3 w-full md:w-auto shrink-0 justify-end">
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                    We use essential cookies and analytics cookies to understand traffic and improve performance. No advertising or tracking cookies are used. You can accept or reject all cookies, or read more in our{" "}
+                    <Link to="/privacy" className="text-primary underline underline-offset-2 hover:text-primary/80 font-medium">
+                        Privacy Policy
+                    </Link>.
+                </p>
+
+                <div className="flex items-center gap-2.5 pt-1">
                     <Button
                         variant="outline"
+                        size="sm"
                         onClick={handleRejectAll}
-                        className="flex-1 md:flex-none px-6 py-2.5 h-11 rounded-xl text-sm font-semibold border-foreground/20 hover:bg-foreground/5 transition-colors"
+                        className="flex-1 h-9 rounded-xl text-xs font-semibold border-foreground/20 hover:bg-foreground/5 transition-colors"
                     >
                         Reject All
                     </Button>
                     <Button
                         variant="default"
+                        size="sm"
                         onClick={handleAcceptAll}
-                        className="flex-1 md:flex-none px-7 py-2.5 h-11 rounded-xl text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-md transition-all"
+                        className="flex-1 h-9 rounded-xl text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm transition-all"
                     >
                         Accept All
                     </Button>
                 </div>
             </div>
-        </div>
+        </aside>
     );
 }
