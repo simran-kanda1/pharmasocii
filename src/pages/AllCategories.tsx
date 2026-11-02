@@ -401,11 +401,15 @@ export default function AllCategories() {
                 item.jobCountry?.toLowerCase().includes(q) ||
                 item.location?.toLowerCase().includes(q) ||
                 item.city?.toLowerCase().includes(q) ||
+                item.jobCity?.toLowerCase().includes(q) ||
                 item.eventCity?.toLowerCase().includes(q) ||
                 item.state?.toLowerCase().includes(q) ||
                 item.stateRegion?.toLowerCase().includes(q) ||
+                item.jobStateRegion?.toLowerCase().includes(q) ||
                 item.eventStateRegion?.toLowerCase().includes(q) ||
                 item.jobtype?.toLowerCase().includes(q) ||
+                item.positionType?.toLowerCase().includes(q) ||
+                item.positionTitle?.toLowerCase().includes(q) ||
                 item.workModel?.toLowerCase().includes(q) ||
                 item.experienceLevel?.toLowerCase().includes(q) ||
                 item.industry?.toLowerCase().includes(q) ||
@@ -672,7 +676,7 @@ export default function AllCategories() {
                             />
                         ) : (
                             <Input
-                                placeholder={currentTab === "business" ? "Search by company name, certification, country, or category" : currentTab === "consulting" ? "Search by company name, country, or category" : currentTab === "events" ? "Search by event name, city, or category" : "Search by job title, location, job type, country, or category"}
+                                placeholder={currentTab === "business" ? "Search by company name, certification, country, or category" : currentTab === "consulting" ? "Search by company name, country, or category" : currentTab === "events" ? "Search by event name, city, or category" : "Search by job title, city, job type, country, or category"}
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="pl-12 py-6 text-lg rounded-2xl border-foreground/10 bg-background shadow-sm w-full"
@@ -894,7 +898,7 @@ export default function AllCategories() {
                                         const rawTitle = currentTab === "business" ? (item.businessName || item.companyName || item.primaryName) : currentTab === "consulting" ? (item.primaryName || item.businessName || item.companyName || "Consulting Listing") : currentTab === "events" ? (item.eventName || item.title || item.name) : (item.jobTitle || item.title);
                                         const title = rawTitle || "";
                                         const bslDisplay = Array.isArray(item.bioSafetyLevel) ? [...item.bioSafetyLevel].sort((a, b) => String(a).localeCompare(String(b), undefined, { numeric: true })).join(", ") : item.bioSafetyLevel;
-                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : formatJobLocation(item.city, item.stateRegion || item.state);
+                                        const topLabel = currentTab === "business" ? (bslDisplay && bslDisplay !== "N/A" ? `BSL: ${bslDisplay}` : null) : currentTab === "consulting" ? `Location: ${item.businessCountry || "N/A"}` : currentTab === "events" ? `Date: ${item.startDate || "TBA"}` : (item.businessName || toTitleCase(item.jobtype || "Job Opening"));
                                         const certsRawArray = Array.isArray(item.certifications)
                                             ? item.certifications.flatMap((c: any) => typeof c === 'string' ? c.split(',').map((s: string) => s.trim()) : [c])
                                             : (typeof item.certifications === 'string'
@@ -907,9 +911,13 @@ export default function AllCategories() {
                                             ? (certsDisplay ? certsDisplay : null)
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
                                                 : currentTab === "events" ? formatEventLocation(item.city || item.eventCity, item.stateRegion || item.state || item.eventStateRegion)
-                                                    : `${item.businessName || "Company"} • ${toTitleCase(item.jobtype || "Role")}`;
+                                                    : formatJobLocation(item.city || item.jobCity, item.stateRegion || item.state || item.jobStateRegion);
 
-                                        const hasFooterInfo = currentTab !== "consulting" && Boolean(topLabel || bottomLabel);
+                                        const hasFooterInfo = currentTab !== "consulting" && Boolean(
+                                            currentTab === "jobs"
+                                                ? (item.businessName || item.jobtype || formatJobLocation(item.city || item.jobCity, item.stateRegion || item.state || item.jobStateRegion))
+                                                : (topLabel || bottomLabel)
+                                        );
 
                                         return (
                                             <Link
@@ -923,9 +931,31 @@ export default function AllCategories() {
                                                     <h3 className="text-xl font-bold group-hover:text-primary transition-colors line-clamp-3">{title}</h3>
                                                 </div>
                                                 {hasFooterInfo && (
-                                                    <div className="p-4 bg-muted/40 flex flex-col items-center justify-center h-24 border-t border-foreground/10">
-                                                        {topLabel && <div className="text-xs font-semibold text-foreground tracking-wider mb-1">{topLabel}</div>}
-                                                        {bottomLabel && <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>}
+                                                    <div className="p-3 bg-muted/40 flex flex-col items-center justify-center h-24 border-t border-foreground/10 text-center">
+                                                        {currentTab === "jobs" ? (
+                                                            <>
+                                                                {item.businessName && (
+                                                                    <div className="text-xs font-semibold text-foreground tracking-wider line-clamp-1 mb-0.5">
+                                                                        {item.businessName}
+                                                                    </div>
+                                                                )}
+                                                                {item.jobtype && (
+                                                                    <div className={`text-xs line-clamp-1 mb-0.5 ${item.businessName ? "text-muted-foreground" : "font-semibold text-foreground tracking-wider"}`}>
+                                                                        {toTitleCase(item.jobtype)}
+                                                                    </div>
+                                                                )}
+                                                                {formatJobLocation(item.city || item.jobCity, item.stateRegion || item.state || item.jobStateRegion) && (
+                                                                    <div className="text-xs text-muted-foreground line-clamp-1">
+                                                                        {formatJobLocation(item.city || item.jobCity, item.stateRegion || item.state || item.jobStateRegion)}
+                                                                    </div>
+                                                                )}
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                {topLabel && <div className="text-xs font-semibold text-foreground tracking-wider mb-1">{topLabel}</div>}
+                                                                {bottomLabel && <div className="text-xs text-muted-foreground line-clamp-1">{bottomLabel}</div>}
+                                                            </>
+                                                        )}
                                                     </div>
                                                 )}
                                             </Link>

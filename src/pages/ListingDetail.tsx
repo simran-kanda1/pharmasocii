@@ -485,7 +485,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Clock className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Job type</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Job Type</p>
                                                     <p className="text-sm font-semibold text-foreground">{jobTypeLabel}</p>
                                                 </div>
                                             </div>
@@ -494,7 +494,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Calendar className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Apply by</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Apply By</p>
                                                     <p className="text-sm font-semibold text-foreground">{jobDeadlineFormatted}</p>
                                                 </div>
                                             </div>
@@ -503,7 +503,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Work model</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Work Model</p>
                                                     <p className="text-sm font-semibold text-foreground">{item.workModel}</p>
                                                 </div>
                                             </div>
@@ -521,7 +521,7 @@ export default function ListingDetail() {
                                             <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10">
                                                 <ShieldCheck className="w-5 h-5 text-primary shrink-0 mt-0.5" />
                                                 <div>
-                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Experience level</p>
+                                                    <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-0.5">Experience Level</p>
                                                     <p className="text-sm font-semibold text-foreground">{item.experienceLevel}</p>
                                                 </div>
                                             </div>
@@ -684,7 +684,7 @@ export default function ListingDetail() {
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10 flex flex-wrap items-center justify-between gap-4">
                                 <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
-                                    <FileText className="w-5 h-5 text-primary" /> Full job description
+                                    <FileText className="w-5 h-5 text-primary" /> Full Job Description
                                 </h3>
                                 <Button asChild variant="outline" size="sm" className="rounded-full">
                                     <a href={item.jobDescriptionPdfUrl} target="_blank" rel="noopener noreferrer">
