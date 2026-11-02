@@ -1280,11 +1280,11 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
             {/* Representative lists */}
             <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 space-y-4">
               <div className="flex items-center justify-between border-b pb-3 border-slate-100">
-                <Label className="text-lg font-bold text-slate-800">Company representative(s)</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
+                <Label className="text-lg font-bold text-slate-800">Company Representative(s)</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add Representative</Button>
               </div>
               {companyRepresentatives.length === 0 && (
-                <p className="text-xs text-slate-400">Optional: Add representatives who can be contacted directly by members.</p>
+                <p className="text-xs text-slate-400">Optional: Add representatives who can be contacted directly.</p>
               )}
               <div className="space-y-3">
                 {companyRepresentatives.map((rep, index) => (

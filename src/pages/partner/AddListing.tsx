@@ -1317,11 +1317,11 @@ export default function AddListing() {
 
                                 <div className="bg-muted/20 p-5 md:p-6 rounded-2xl border border-foreground/10 space-y-4">
                                     <div className="flex items-center justify-between border-b pb-3 border-foreground/10">
-                                        <Label className="text-base md:text-lg font-bold text-foreground">Company representative(s)</Label>
-                                        <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add representative</Button>
+                                        <Label className="text-base md:text-lg font-bold text-foreground">Company Representative(s)</Label>
+                                        <Button type="button" variant="outline" size="sm" onClick={addRepresentative}>Add Representative</Button>
                                     </div>
                                     {companyRepresentatives.length === 0 && (
-                                        <p className="text-xs text-muted-foreground">Optional: Add representatives who can be contacted directly by members.</p>
+                                        <p className="text-xs text-muted-foreground">Optional: Add representatives who can be contacted directly.</p>
                                     )}
                                     {availableRepresentatives.length > 0 && (
                                         <div className="space-y-1.5">
