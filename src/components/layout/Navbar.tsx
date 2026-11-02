@@ -92,21 +92,21 @@ export default function Navbar() {
                             <DropdownMenuTrigger className="flex items-center gap-1 text-sm font-medium hover:text-primary transition-colors text-muted-foreground outline-none">
                                 Explore <ChevronDown className="h-4 w-4" />
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="min-w-[14rem] bg-background border-foreground/10 shadow-2xl">
-                                <DropdownMenuItem asChild className="cursor-pointer">
+                            <DropdownMenuContent align="start" className="min-w-[15rem] p-1.5 bg-background border-foreground/10 shadow-2xl rounded-xl">
+                                <DropdownMenuItem asChild className="cursor-pointer p-2.5 rounded-lg focus:bg-primary/10">
                                     <Link to="/all-categories/business">Business Offerings</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/consulting">Consulting</Link>
+                                <DropdownMenuItem asChild className="cursor-pointer p-2.5 rounded-lg focus:bg-primary/10">
+                                    <Link to="/all-categories/consulting">Consulting Services</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="cursor-pointer">
+                                <DropdownMenuItem asChild className="cursor-pointer p-2.5 rounded-lg focus:bg-primary/10">
                                     <Link to="/all-categories/events">Events</Link>
                                 </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="cursor-pointer">
-                                    <Link to="/all-categories/compliance">Global Health Authority Sites</Link>
-                                </DropdownMenuItem>
-                                <DropdownMenuItem asChild className="cursor-pointer">
+                                <DropdownMenuItem asChild className="cursor-pointer p-2.5 rounded-lg focus:bg-primary/10">
                                     <Link to="/all-categories/jobs">Jobs</Link>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem asChild className="cursor-pointer p-2.5 rounded-lg focus:bg-primary/10">
+                                    <Link to="/all-categories/compliance">Global Health Authority Sites</Link>
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -154,11 +154,11 @@ export default function Navbar() {
                                     </Button>
                                     <div className="absolute top-[100%] right-0 pt-2 w-32 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
                                         <div className="bg-background border border-foreground/10 shadow-2xl rounded-md flex flex-col p-1">
-                                            <Link to="/login?type=partner" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
-                                                Partner
-                                            </Link>
                                             <Link to="/member/login" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
                                                 Member
+                                            </Link>
+                                            <Link to="/login?type=partner" className="px-3 py-2 text-sm font-medium hover:bg-primary/10 hover:text-primary rounded-sm transition-colors w-full text-left">
+                                                Partner
                                             </Link>
                                         </div>
                                     </div>
@@ -222,7 +222,7 @@ export default function Navbar() {
                                             </SheetClose>
                                             <SheetClose asChild>
                                                 <Link to="/all-categories/consulting" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
-                                                    Consulting
+                                                    Consulting Services
                                                 </Link>
                                             </SheetClose>
                                             <SheetClose asChild>
@@ -231,13 +231,13 @@ export default function Navbar() {
                                                 </Link>
                                             </SheetClose>
                                             <SheetClose asChild>
-                                                <Link to="/all-categories/compliance" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
-                                                    Global Health Authority Sites
+                                                <Link to="/all-categories/jobs" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
+                                                    Jobs
                                                 </Link>
                                             </SheetClose>
                                             <SheetClose asChild>
-                                                <Link to="/all-categories/jobs" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
-                                                    Jobs
+                                                <Link to="/all-categories/compliance" className="text-sm py-1.5 px-3 rounded-md text-muted-foreground hover:text-foreground hover:bg-foreground/5 transition-colors">
+                                                    Global Health Authority Sites
                                                 </Link>
                                             </SheetClose>
                                         </div>
@@ -270,12 +270,12 @@ export default function Navbar() {
                                         <div className="grid grid-cols-2 gap-2">
                                             <SheetClose asChild>
                                                 <Button asChild variant="outline" className="w-full justify-center">
-                                                    <Link to="/login?type=partner">Partner Login</Link>
+                                                    <Link to="/member/login">Member Login</Link>
                                                 </Button>
                                             </SheetClose>
                                             <SheetClose asChild>
                                                 <Button asChild variant="outline" className="w-full justify-center">
-                                                    <Link to="/member/login">Member Login</Link>
+                                                    <Link to="/login?type=partner">Partner Login</Link>
                                                 </Button>
                                             </SheetClose>
                                         </div>

@@ -212,8 +212,8 @@ export default function Home() {
                             { title: 'Business Offerings', link: '/all-categories/business' },
                             { title: 'Consulting Services', link: '/all-categories/consulting' },
                             { title: 'Events/Conferences', link: '/all-categories/events' },
-                            { title: 'Global Health Authority Sites', link: '/all-categories/compliance' },
                             { title: 'Jobs', link: '/all-categories/jobs' },
+                            { title: 'Global Health Authority Sites', link: '/all-categories/compliance' },
                             { title: 'Community', link: '/community' },
                         ].map((cat, i) => (
                             <Link to={cat.link} key={i} className="h-full">
