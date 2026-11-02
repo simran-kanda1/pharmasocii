@@ -82,6 +82,7 @@ export function PostCard({
   onEdit,
   hideContent = false,
   hideTimestamp = false,
+  hideAuthor = false,
 }: {
   post: PostCardPost;
   categoryDoc: CommunityCategoryDoc | null;
@@ -100,6 +101,7 @@ export function PostCard({
   onEdit?: () => void;
   hideContent?: boolean;
   hideTimestamp?: boolean;
+  hideAuthor?: boolean;
 }) {
   const beforeOpenPost = () => {
     if (rememberFeedScroll) saveCommunityFeedScroll(post.id);
@@ -162,7 +164,59 @@ export function PostCard({
   return (
     <article className="rounded-xl border border-slate-200/80 bg-white shadow-sm overflow-hidden hover:shadow-md transition-shadow dark:border-foreground/15 dark:bg-card">
       <div className="p-4 sm:p-5">
-        <div className="flex gap-3">
+        {hideAuthor ? (
+          <div>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                {categoryLine ? (
+                  <p className="text-xs text-muted-foreground leading-relaxed line-clamp-2">{categoryLine}</p>
+                ) : null}
+                {post.countries && post.countries.length > 0 ? (
+                  <p className="text-xs text-muted-foreground mt-1 font-medium">{post.countries.join(", ")}</p>
+                ) : null}
+              </div>
+              <div className="ml-auto flex items-center gap-1 shrink-0">
+                {!hideTimestamp && (
+                  <span className="text-xs text-muted-foreground">{formatRelativeTime(created)}</span>
+                )}
+                {isEditable && onEdit && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onEdit();
+                    }}
+                    title="Edit post (available for 1 hour after posting)"
+                    aria-label="Edit post"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                )}
+                {!showActionBar && canSave && onToggleSave && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onToggleSave();
+                    }}
+                    aria-label={saved ? "Unsave" : "Save"}
+                  >
+                    <Bookmark className={cn("h-4 w-4", saved && "fill-current")} />
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex gap-3">
           <Avatar className="h-10 w-10 shrink-0 rounded-full">
             <AvatarImage src="" alt="" />
             <AvatarFallback className="bg-slate-800 text-white text-sm font-semibold dark:bg-primary">
@@ -220,8 +274,9 @@ export function PostCard({
             ) : null}
           </div>
         </div>
+        )}
 
-        <Link {...postLinkProps} className="block group mt-4">
+        <Link {...postLinkProps} className="block group mt-3">
           <h2 className="text-lg font-bold text-foreground leading-snug group-hover:text-primary transition-colors">
             {post.title}
           </h2>

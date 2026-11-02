@@ -260,6 +260,7 @@ export default function Home() {
                                     showActionBar={false}
                                     hideContent={true}
                                     hideTimestamp={true}
+                                    hideAuthor={true}
                                 />
                             ))
                         )}
