@@ -344,16 +344,14 @@ export default function Home() {
                                             <span className="text-xs font-semibold text-muted-foreground tracking-widest">{month}</span>
                                             <span className="text-2xl font-extrabold text-foreground">{day}</span>
                                         </div>
-                                        <div className="flex flex-col p-4 w-full">
-                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-1.5 gap-2 sm:gap-4">
-                                                <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 truncate">
+                                        <div className="flex flex-col p-4 w-full h-full">
+                                            <div className="flex items-center justify-end mb-1 w-full">
+                                                <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 truncate max-w-full">
                                                     <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{formatEventLocation(evt.city, evt.stateRegion || evt.state)}</span>
                                                 </div>
                                             </div>
-                                            <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{evt.eventName || ""}</h3>
-                                            <div className="mt-auto pt-2 border-t border-foreground/10 flex items-center justify-between text-muted-foreground group-hover:text-foreground font-medium text-xs w-full transition-colors">
-                                                <span>View Event</span>
-                                                <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                            <div className="flex-1 flex items-center justify-center text-center px-2">
+                                                <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-snug text-center">{evt.eventName || ""}</h3>
                                             </div>
                                         </div>
                                     </Link>
@@ -378,18 +376,16 @@ export default function Home() {
                         <AutoCarousel speed={50} direction="right" innerClassName="gap-6 px-3 py-4">
                             {featuredJobs.map((job, i) => (
                                 <Link to={`/listing/jobs/${job.id}`} target="_blank" rel="noopener noreferrer" key={`job-${job.id}-${i}`} className="flex flex-col p-5 bg-background border border-foreground/10 rounded-2xl shadow-sm hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group min-w-[340px] max-w-[340px] h-[150px] shrink-0">
-                                    <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center justify-between mb-2 w-full">
                                         <div className="text-[11px] font-medium text-muted-foreground tracking-wider border border-foreground/15 bg-foreground/5 rounded-full px-2.5 py-0.5 w-fit">
                                             {job.workModel || "Job Opening"}
                                         </div>
-                                        <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5">
-                                            <MapPin className="w-3 h-3" /> {formatJobLocation(job.city, job.stateRegion || job.state)}
+                                        <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 truncate ml-auto">
+                                            <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{formatJobLocation(job.city, job.stateRegion || job.state)}</span>
                                         </div>
                                     </div>
-                                    <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-1 mb-2 leading-tight">{job.jobTitle || ""}</h3>
-                                    <div className="mt-auto pt-3 border-t border-foreground/10 flex items-center justify-between text-muted-foreground group-hover:text-foreground font-medium text-xs w-full transition-colors">
-                                        <span>View Job</span>
-                                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                    <div className="flex-1 flex items-center justify-center text-center px-2">
+                                        <h3 className="text-base font-bold text-foreground group-hover:text-primary transition-colors line-clamp-2 leading-snug text-center">{job.jobTitle || ""}</h3>
                                     </div>
                                 </Link>
                             ))}
