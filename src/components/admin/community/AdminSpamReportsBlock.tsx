@@ -12,12 +12,21 @@ type Props = {
   showCommentLink?: boolean;
 };
 
+function byNewest(reports: AdminSpamReportRow[]) {
+  return [...reports].sort((a, b) => {
+    const ta = a.createdAt?.toDate?.()?.getTime?.() ?? 0;
+    const tb = b.createdAt?.toDate?.()?.getTime?.() ?? 0;
+    return tb - ta;
+  });
+}
+
 export function AdminSpamReportsBlock({ reports, loading, showCommentLink }: Props) {
+  const ordered = useMemo(() => byNewest(reports), [reports]);
   const summary = useMemo(() => {
-    const post = reports.filter((r) => r.targetType === "post").length;
-    const comment = reports.filter((r) => r.targetType === "comment").length;
-    return { post, comment, total: reports.length };
-  }, [reports]);
+    const post = ordered.filter((r) => r.targetType === "post").length;
+    const comment = ordered.filter((r) => r.targetType === "comment").length;
+    return { post, comment, total: ordered.length };
+  }, [ordered]);
 
   return (
     <div className="border-t px-4 py-6 space-y-6">
@@ -51,7 +60,7 @@ export function AdminSpamReportsBlock({ reports, loading, showCommentLink }: Pro
         <h3 className="text-sm font-semibold mb-3">All Reports</h3>
         {loading ? (
           <p className="text-sm text-muted-foreground">Loading reports…</p>
-        ) : reports.length === 0 ? (
+        ) : ordered.length === 0 ? (
           <p className="text-sm text-muted-foreground">No reports found.</p>
         ) : (
           <Table>
@@ -64,7 +73,7 @@ export function AdminSpamReportsBlock({ reports, loading, showCommentLink }: Pro
               </TableRow>
             </TableHeader>
             <TableBody>
-              {reports.map((r) => (
+              {ordered.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>{r.reporterLabel}</TableCell>
                   <TableCell className="max-w-md">{r.reason}</TableCell>
@@ -101,8 +110,9 @@ export function AdminPostReportsCell({
   reports: AdminSpamReportRow[];
   loading?: boolean;
 }) {
+  const ordered = byNewest(reports.filter((r) => r.targetType !== "comment"));
   if (loading) return <span className="text-muted-foreground">Loading…</span>;
-  if (reports.length === 0) return <span className="text-muted-foreground">No reports found.</span>;
+  if (ordered.length === 0) return <span className="text-muted-foreground">No reports on this post.</span>;
   return (
     <Table>
       <TableHeader>
@@ -113,7 +123,7 @@ export function AdminPostReportsCell({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {reports.map((r) => (
+        {ordered.map((r) => (
           <TableRow key={r.id}>
             <TableCell>{r.reporterLabel}</TableCell>
             <TableCell>{r.reason}</TableCell>

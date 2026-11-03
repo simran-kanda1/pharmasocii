@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { signInWithEmailAndPassword, signOut } from "firebase/auth";
 import { auth, db } from "@/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { requestVerificationEmail } from "@/lib/adminCommunityCallables";
 
 export default function Login() {
@@ -41,6 +41,11 @@ export default function Login() {
                     navigate("/partner/complete-profile");
                 }
             } else if (memberDoc.exists()) {
+                try {
+                    await updateDoc(doc(db, "membersCollection", user.uid), { lastLoginAt: serverTimestamp() });
+                } catch (loginStampErr) {
+                    console.warn("Could not record last login:", loginStampErr);
+                }
                 if (!user.emailVerified) {
                     setError("Please verify your email for active participation in the community. Check your inbox or click resend below.");
                     setUnverifiedUser(true);

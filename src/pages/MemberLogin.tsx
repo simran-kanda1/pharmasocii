@@ -10,7 +10,7 @@ import {
   signInWithEmailAndPassword,
   onAuthStateChanged,
 } from "firebase/auth";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { requestVerificationEmail } from "@/lib/adminCommunityCallables";
 import { logMemberActivity } from "@/lib/auditLogger";
 
@@ -70,6 +70,11 @@ export default function MemberLogin() {
       await cred.user.reload();
       const u = cred.user;
       await syncVerifiedFlag(u.uid, u.emailVerified);
+      try {
+        await updateDoc(doc(db, "membersCollection", u.uid), { lastLoginAt: serverTimestamp() });
+      } catch (loginStampErr) {
+        console.warn("Could not record last login:", loginStampErr);
+      }
 
       const memberSnap = await getDoc(doc(db, "membersCollection", u.uid));
       if (!memberSnap.exists()) {

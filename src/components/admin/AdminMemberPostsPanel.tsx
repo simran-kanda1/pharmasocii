@@ -14,12 +14,11 @@ import {
 import { AdminPostListTable } from "@/components/admin/community/AdminPostListTable";
 import { AdminConfirmDialog } from "@/components/admin/community/AdminConfirmDialog";
 import { AdminPostDetailPage } from "@/components/admin/community/AdminPostDetailPage";
-import { AdminPostEditPage } from "@/components/admin/community/AdminPostEditPage";
 import { AdminTablePagination } from "@/components/admin/AdminTablePagination";
 
 const PAGE_SIZES = [10, 25, 50] as const;
 
-type Screen = { type: "list" } | { type: "view"; id: string } | { type: "edit"; id: string };
+type Screen = { type: "list" } | { type: "view"; id: string };
 
 export function AdminMemberPostsPanel() {
   const [rows, setRows] = useState<AdminPostRow[]>([]);
@@ -103,19 +102,8 @@ export function AdminMemberPostsPanel() {
       <AdminPostDetailPage
         postId={screen.id}
         onBack={() => setScreen({ type: "list" })}
-        onEdit={() => setScreen({ type: "edit", id: screen.id })}
-      />
-    );
-  }
-
-  if (screen.type === "edit") {
-    return (
-      <AdminPostEditPage
-        postId={screen.id}
-        onBack={() => setScreen({ type: "view", id: screen.id })}
-        onSaved={() => {
+        onStatusChanged={() => {
           void load();
-          setScreen({ type: "view", id: screen.id });
         }}
       />
     );
@@ -158,7 +146,6 @@ export function AdminMemberPostsPanel() {
         pageSize={pageSize}
         busy={busy}
         onView={(id) => setScreen({ type: "view", id })}
-        onEdit={(id) => setScreen({ type: "edit", id })}
         onDelete={(p) => setArchiveTarget(p)}
       />
 

@@ -39,13 +39,15 @@ export function isPlanBillingLive(plan: Record<string, unknown>): boolean {
         return false;
     }
 
+    // Stripe still billing. A stored period end in the past is a missed webhook or a
+    // test clock behind wall time, not a cancellation.
+    if (["active", "trialing"].includes(stripeStatus)) {
+        return true;
+    }
+
     const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
     if (end && end.getTime() < Date.now()) {
         return false;
-    }
-
-    if (["active", "trialing"].includes(stripeStatus)) {
-        return true;
     }
 
     if (plan?.isTrial || plan?.source === "admin_granted" || Boolean(plan?.createdByAdmin)) {
@@ -210,6 +212,31 @@ export function resolveSpotlightPlacement(item: Record<string, unknown>): string
     return "";
 }
 
+/**
+ * Paid-through is behind wall clock, but the partner did not cancel and the
+ * listing still has the feature. Test clocks and a delayed Stripe webhook look
+ * like this. It is not an ended feature.
+ */
+export function isSpotlightRenewalPending(item: Record<string, unknown> | null | undefined): boolean {
+    if (!item) return false;
+    if (item.active === false) return false;
+    if (item.isFeatured === false) return false;
+    if (item.endedForNonpayment === true) return false;
+    const status = String(item.status || "").trim().toLowerCase();
+    if (status === "cancelled" || status === "canceled" || status === "expired" || status === "inactive") {
+        return false;
+    }
+    if (item.featureSpotlightCancelPending === true) return false;
+    const addon = String(item.selectedAddon || item.featuredPlacement || "").trim();
+    const subId = String(item.featureSpotlightStripeSubscriptionId || "").trim();
+    if ((!addon || addon === "none") && !subId) return false;
+    const end =
+        toDateValue(item.featureSpotlightAccessEnd) ||
+        toDateValue(item.featureSpotlightPaidThrough);
+    if (!end) return false;
+    return end.getTime() < Date.now();
+}
+
 /** Spotlight stays visible until its paid/access window ends. */
 export function spotlightDisplayActive(item: Record<string, unknown>): boolean {
     if (item.active === false) return false;
@@ -218,11 +245,12 @@ export function spotlightDisplayActive(item: Record<string, unknown>): boolean {
     if (status === "cancelled" || status === "canceled" || status === "expired" || status === "inactive") {
         return false;
     }
+    if (isSpotlightRenewalPending(item)) return true;
     const cancelEnd =
         toDateValue(item.featureSpotlightAccessEnd) ||
         toDateValue(item.featureSpotlightPaidThrough);
-    // Once the paid window is over, treat as inactive so repurchase unlocks
-    // (even if cancel-pending cleanup lagged or fields were left behind).
+    // A cancel that already reached its end date can be purchased again.
+    // A still-live renewal whose timestamp is stale is handled above.
     if (cancelEnd && cancelEnd.getTime() < Date.now()) {
         return false;
     }

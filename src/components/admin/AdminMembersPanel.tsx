@@ -191,12 +191,13 @@ export function AdminMembersPanel() {
               <TableHead>Name</TableHead>
               <TableHead>Username</TableHead>
               <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
               <TableHead>Country</TableHead>
               <TableHead>Institution</TableHead>
               <TableHead>Industry</TableHead>
+              <TableHead>Tagline</TableHead>
               <TableHead>Posts</TableHead>
-              <TableHead>Spam</TableHead>
+              <TableHead>Spam cycle</TableHead>
+              <TableHead>Lifetime spams</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Verified</TableHead>
               <TableHead>Joined</TableHead>
@@ -209,13 +210,13 @@ export function AdminMembersPanel() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={17} className="text-muted-foreground">
+                <TableCell colSpan={18} className="text-muted-foreground">
                   Loading…
                 </TableCell>
               </TableRow>
             ) : pageRows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={17} className="text-muted-foreground">
+                <TableCell colSpan={18} className="text-muted-foreground">
                   No community members found.
                 </TableCell>
               </TableRow>
@@ -226,16 +227,13 @@ export function AdminMembersPanel() {
                   <TableCell>{m.name || "—"}</TableCell>
                   <TableCell>{m.userName || "—"}</TableCell>
                   <TableCell className="max-w-[140px] truncate">{m.email || "—"}</TableCell>
-                  <TableCell>{m.phone || "—"}</TableCell>
                   <TableCell>{m.country || "—"}</TableCell>
                   <TableCell>{m.institution || "—"}</TableCell>
                   <TableCell>{m.industry || "—"}</TableCell>
+                  <TableCell className="max-w-[140px] truncate">{m.aboutMe || "—"}</TableCell>
                   <TableCell>{m.postCount}</TableCell>
-                  <TableCell>
-                    <span title={`Active cycle ${m.spamActiveReportCount ?? 0}/3 · lifetime ${m.spamTotalReportCount ?? 0}`}>
-                      {m.spamActiveReportCount ?? 0}/3
-                    </span>
-                  </TableCell>
+                  <TableCell>{m.spamActiveReportCount ?? 0}/3</TableCell>
+                  <TableCell>{m.spamTotalReportCount ?? 0}</TableCell>
                   <TableCell>{statusBadge(m.accountStatus)}</TableCell>
                   <TableCell>{m.emailVerified ? "Yes" : "No"}</TableCell>
                   <TableCell>{formatAdminDate(m.createdAt?.toDate?.())}</TableCell>

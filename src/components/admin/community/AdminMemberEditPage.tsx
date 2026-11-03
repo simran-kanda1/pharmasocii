@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { loadMemberDetail, type AdminMemberDetail } from "@/lib/adminCommunityData";
-import { adminSetMemberStatus } from "@/lib/adminCommunityCallables";
+import { adminSetMemberStatus, adminUpdateMemberProfile } from "@/lib/adminCommunityCallables";
 
 type Props = {
   memberId: string;
@@ -31,6 +31,7 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
   const [institution, setInstitution] = useState("");
   const [industry, setIndustry] = useState("");
   const [bio, setBio] = useState("");
+  const [aboutMe, setAboutMe] = useState("");
   const [status, setStatus] = useState<"active" | "spam_blocked" | "admin_hold">("active");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
@@ -46,6 +47,7 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
         setInstitution(m.institution || "");
         setIndustry(m.industry || "");
         setBio(m.userBio || "");
+        setAboutMe(m.aboutMe || "");
         setStatus((m.accountStatus as typeof status) || "active");
       }
     })();
@@ -62,14 +64,33 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
     setBusy(true);
     setMsg("");
     try {
-      await updateDoc(doc(db, "membersCollection", memberId), {
+      const profile = {
+        userId: memberId,
         name: name.trim(),
         phone: phone.trim(),
         country: country.trim(),
         institution: institution.trim(),
         industry: industry.trim(),
         userBio: bio.trim(),
-      });
+        aboutMe: aboutMe.trim().slice(0, 25),
+      };
+      try {
+        await adminUpdateMemberProfile(profile);
+      } catch (profileErr) {
+        const code = typeof profileErr === "object" && profileErr && "code" in profileErr
+          ? String((profileErr as { code: string }).code)
+          : "";
+        if (code !== "functions/not-found" && code !== "functions/unavailable") throw profileErr;
+        await updateDoc(doc(db, "membersCollection", memberId), {
+          name: profile.name,
+          phone: profile.phone,
+          country: profile.country,
+          institution: profile.institution,
+          industry: profile.industry,
+          userBio: profile.userBio,
+          aboutMe: profile.aboutMe,
+        });
+      }
       const prevStatus = member.accountStatus || "active";
       if (status !== prevStatus) {
         await adminSetMemberStatus({
@@ -197,6 +218,10 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
         <div className="space-y-2">
           <Label>Industry <span className="text-blue-500">*</span></Label>
           <Input value={industry} onChange={(e) => setIndustry(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Tagline</Label>
+          <Input value={aboutMe} maxLength={25} onChange={(e) => setAboutMe(e.target.value.slice(0, 25))} />
         </div>
         <div className="space-y-2">
           <Label>About Me</Label>
