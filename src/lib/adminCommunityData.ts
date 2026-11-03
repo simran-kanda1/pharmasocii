@@ -20,6 +20,7 @@ export type AdminMemberRow = {
   country?: string;
   institution?: string;
   industry?: string;
+  aboutMe?: string;
   accountStatus?: string;
   emailVerified?: boolean;
   spamActiveReportCount?: number;
@@ -112,6 +113,15 @@ async function buildPostCountByAuthor(): Promise<Map<string, number>> {
   return counts;
 }
 
+function textField(data: { [key: string]: any } | undefined, keys: string[]): string | undefined {
+  if (!data) return undefined;
+  for (const key of keys) {
+    const value = data[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
 function memberLabel(data: Record<string, unknown> | undefined, fallbackId?: string) {
   if (!data) return fallbackId || "—";
   const userName = data.userName as string | undefined;
@@ -133,13 +143,14 @@ export async function loadCommunityMembers(): Promise<AdminMemberRow[]> {
       return {
         id: d.id,
         userId: (data.userId as string) || d.id,
-        name: data.name as string | undefined,
+        name: textField(data, ["name", "fullName", "displayName"]),
         userName: data.userName as string | undefined,
         email: data.email as string | undefined,
-        phone: (data.phone as string | undefined) || (data.phoneNumber as string | undefined),
-        country: data.country as string | undefined,
-        institution: (data.institution as string | undefined) || (data.instit as string | undefined),
-        industry: data.industry as string | undefined,
+        phone: textField(data, ["phone", "phoneNumber"]),
+        country: textField(data, ["country", "countryName"]),
+        institution: textField(data, ["institution", "instit", "company", "organization"]),
+        industry: textField(data, ["industry"]),
+        aboutMe: textField(data, ["aboutMe", "tagline"]),
         accountStatus: (data.accountStatus as string | undefined) || "active",
         emailVerified: Boolean(data.emailVerified),
         spamActiveReportCount: data.spamActiveReportCount as number | undefined,
@@ -149,7 +160,7 @@ export async function loadCommunityMembers(): Promise<AdminMemberRow[]> {
         createdAt: data.createdAt as { toDate: () => Date } | undefined,
         lastLoginAt: (data.lastLoginAt as { toDate: () => Date } | undefined) ||
           (data.lastLogin as { toDate: () => Date } | undefined),
-        postCount: postCounts.get(d.id) || 0,
+        postCount: postCounts.get((data.userId as string) || d.id) || postCounts.get(d.id) || 0,
       };
     });
 }
@@ -296,7 +307,13 @@ export async function loadSpamReportsForAuthor(authorId: string): Promise<AdminS
     getDocs(query(collection(db, "spamReportsCollection"), where("targetAuthorId", "==", authorId), limit(200))),
     loadMemberMap(),
   ]);
-  return reportSnap.docs.map((d) => {
+  return reportSnap.docs
+    .sort((a, b) => {
+      const ta = a.data().createdAt?.toMillis?.() ?? 0;
+      const tb = b.data().createdAt?.toMillis?.() ?? 0;
+      return tb - ta;
+    })
+    .map((d) => {
     const data = d.data();
     const rep = reporterDisplay(data.reporterId as string | undefined, memberById);
     return {
@@ -319,6 +336,7 @@ export async function loadSpamReportsForPost(postId: string): Promise<AdminSpamR
     loadMemberMap(),
   ]);
   return reportSnap.docs
+    .filter((d) => d.data().targetType !== "comment")
     .sort((a, b) => {
       const ta = a.data().createdAt?.toMillis?.() ?? 0;
       const tb = b.data().createdAt?.toMillis?.() ?? 0;
@@ -329,7 +347,7 @@ export async function loadSpamReportsForPost(postId: string): Promise<AdminSpamR
       const rep = reporterDisplay(data.reporterId as string | undefined, memberById);
       return {
         id: d.id,
-        targetType: (data.targetType as "post" | "comment") || "post",
+        targetType: "post" as const,
         reporterLabel: rep.label,
         reporterUserName: rep.userName,
         reporterName: rep.name,
@@ -349,14 +367,15 @@ export async function loadMemberDetail(memberId: string): Promise<AdminMemberDet
   return {
     id: snap.id,
     userId: (data.userId as string) || snap.id,
-    name: data.name as string | undefined,
+    name: textField(data, ["name", "fullName", "displayName"]),
     userName: data.userName as string | undefined,
     email: data.email as string | undefined,
-    phone: (data.phone as string | undefined) || (data.phoneNumber as string | undefined),
-    country: data.country as string | undefined,
-    institution: (data.institution as string | undefined) || (data.instit as string | undefined),
-    industry: data.industry as string | undefined,
-    userBio: data.userBio as string | undefined,
+    phone: textField(data, ["phone", "phoneNumber"]),
+    country: textField(data, ["country", "countryName"]),
+    institution: textField(data, ["institution", "instit", "company", "organization"]),
+    industry: textField(data, ["industry"]),
+    userBio: textField(data, ["userBio", "bio", "about"]),
+    aboutMe: textField(data, ["aboutMe", "tagline"]),
     accountStatus: (data.accountStatus as string | undefined) || "active",
     emailVerified: Boolean(data.emailVerified),
     spamActiveReportCount: data.spamActiveReportCount as number | undefined,
@@ -366,7 +385,7 @@ export async function loadMemberDetail(memberId: string): Promise<AdminMemberDet
     createdAt: data.createdAt as { toDate: () => Date } | undefined,
     lastLoginAt: (data.lastLoginAt as { toDate: () => Date } | undefined) ||
       (data.lastLogin as { toDate: () => Date } | undefined),
-    postCount: postCounts.get(snap.id) || 0,
+    postCount: postCounts.get((data.userId as string) || snap.id) || postCounts.get(snap.id) || 0,
   };
 }
 

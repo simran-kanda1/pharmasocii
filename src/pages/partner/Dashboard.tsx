@@ -21,7 +21,7 @@ import { normalizeServiceCountriesToArray } from "@/lib/utils";
 import { uploadJobDescriptionPdf, uploadEventAgendaPdf, validateJobDescriptionPdf } from "@/lib/jobDescriptionUpload";
 import { uploadCompanyLogo, validateCompanyLogo } from "@/lib/companyLogoUpload";
 import { getFriendlyErrorMessage } from "@/lib/errorHandler";
-import { isSpotlightAccessEnded } from "@/lib/partnerListingPublic";
+import { isSpotlightAccessEnded, isSpotlightRenewalPending } from "@/lib/partnerListingPublic";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
     LayoutDashboard, User, KeyRound, Receipt, LogOut, Download, FileSpreadsheet, FileText, Info,
@@ -396,13 +396,15 @@ const isPlanBillingLive = (plan: any): boolean => {
         return false;
     }
 
+    // A stored period end behind wall clock is a test clock or a missed renewal
+    // webhook. Stripe status active means the partner did not cancel.
+    if (["active", "trialing"].includes(stripeStatus)) {
+        return true;
+    }
+
     const end = getPlanPeriodEndDate(plan);
     if (end && end.getTime() < Date.now()) {
         return false;
-    }
-
-    if (["active", "trialing"].includes(stripeStatus)) {
-        return true;
     }
 
     if (plan?.isTrial || plan?.source === "admin_granted" || Boolean(plan?.createdByAdmin)) {
@@ -524,50 +526,50 @@ export default function Dashboard() {
 
     // Auto-heal any listing marked as pending_payment that corresponds to an active plan in planCollection
     useEffect(() => {
-        if (!auth.currentUser || activePlans.length === 0 || offerings.length === 0) return;
-        const livePlans = activePlans.filter((p) => p.active !== false);
-        if (livePlans.length === 0) return;
+        if (!auth.currentUser || offerings.length === 0) return;
 
         offerings.forEach(async (offering) => {
             const listingGroup = inferListingGroup(offering);
             const col = offering.__col || (listingGroup === "business_offerings" ? "businessOfferingsCollection" : listingGroup === "consulting" ? "consultingServicesCollection" : listingGroup === "events" ? "eventsCollection" : "jobsCollection");
             const source = offering.__source || "partner";
 
-            if (offering.status === "pending_payment") {
-                // Find matching active plan by explicit listingId OR by group for single-plan groups
-                const matchingPlan = livePlans.find((p) => {
-                    if (p.listingId && p.listingId === offering.id) return true;
-                    const planGroup = inferPlanGroup(p);
-                    if (planGroup && listingGroup && planGroup === listingGroup && (listingGroup === "business_offerings" || listingGroup === "consulting")) {
-                        return true;
+            const plansForThisListing = activePlans.filter((p) => p.listingId && p.listingId === offering.id);
+            const paidPlanForListing = plansForThisListing.find((p) =>
+                isPlanBillingLive(p) && (p.stripeSubscriptionId || p.billingPeriodEnd || p.source === "admin_granted" || p.isTrial)
+            );
+
+            if (offering.status === "pending_payment" && paidPlanForListing) {
+                try {
+                    const listingPatch = { status: "Approved", active: true };
+                    if (source === "partner" || col === "businessOfferingsCollection") {
+                        await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), listingPatch);
+                    } else {
+                        await updateDoc(doc(db, col, offering.id), listingPatch);
                     }
-                    return false;
-                });
+                    setOfferings((prev) =>
+                        prev.map((o) => (o.id === offering.id ? { ...o, status: "Approved", active: true } : o))
+                    );
+                } catch (e) {
+                    console.error("Error auto-healing paid listing:", e);
+                }
+            }
 
-                if (matchingPlan) {
-                    try {
-                        const listingPatch = { status: "Approved", active: true };
-
-                        if (source === "partner" || col === "businessOfferingsCollection") {
-                            await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), listingPatch);
-                        } else {
-                            await updateDoc(doc(db, col, offering.id), listingPatch);
-                        }
-
-                        // Also link plan to listing if missing
-                        if (!matchingPlan.listingId && matchingPlan.id) {
-                            try {
-                                const planRef = doc(db, "partnersCollection", auth.currentUser!.uid, "planCollection", matchingPlan.id);
-                                await updateDoc(planRef, { listingId: offering.id, collectionName: col });
-                            } catch (_) {}
-                        }
-
-                        setOfferings((prev) =>
-                            prev.map((o) => (o.id === offering.id ? { ...o, status: "Approved", active: true } : o))
-                        );
-                    } catch (e) {
-                        console.error("Error auto-healing paid listing:", e);
+            // Unpaid drafts were marked Approved whenever any other business or consulting plan
+            // was still active. They then looked like purchased plans with no dates.
+            const looksApproved = offering.status === "Approved" || offering.status === "Active";
+            if (looksApproved && !offering.stripeSubscriptionId && plansForThisListing.length === 0) {
+                try {
+                    const listingPatch = { status: "pending_payment", active: false };
+                    if (source === "partner" || col === "businessOfferingsCollection") {
+                        await updateDoc(doc(db, "partnersCollection", auth.currentUser!.uid, col, offering.id), listingPatch);
+                    } else {
+                        await updateDoc(doc(db, col, offering.id), listingPatch);
                     }
+                    setOfferings((prev) =>
+                        prev.map((o) => (o.id === offering.id ? { ...o, status: "pending_payment", active: false } : o))
+                    );
+                } catch (e) {
+                    console.error("Error returning unpaid listing to draft:", e);
                 }
             }
 
@@ -2499,6 +2501,7 @@ export default function Dashboard() {
             const lastPaidDay = getInclusivePeriodLastDay(periodEnd);
             const cancelledAt = toDateValue(plan.cancelledAt);
             const linkedListing = getLinkedListingForPlan(plan);
+            const spotlightRenewalPending = isSpotlightRenewalPending(linkedListing);
             const spotlightAccessEnded = isSpotlightAccessEnded(linkedListing);
             const hasFeature = !spotlightAccessEnded && linkedListing?.selectedAddon && linkedListing?.selectedAddon !== "" && linkedListing?.selectedAddon !== "none";
             const includedPlanFeature = planConfig?.featurePlan;
@@ -2539,7 +2542,8 @@ export default function Dashboard() {
                 purchaseTargets.length > 0 &&
                 isFeatureEligiblePlan(plan) &&
                 effectiveSpotlightTier === 0 &&
-                !spotlightCancelPending;
+                !spotlightCancelPending &&
+                !spotlightRenewalPending;
             const canUpgradeFeature =
                 upgradeTargets.length > 0 &&
                 isFeatureEligiblePlan(plan) &&
@@ -2550,7 +2554,13 @@ export default function Dashboard() {
             const rawListingAddon = getSpotlightAddonTierId(linkedListing);
             const listingDocId = plan.listingId || linkedListing?.id;
             const pastFeatureDoc = listingDocId
-                ? partnerFeatures.find((f: any) => f.listingId === listingDocId && f.featureId)
+                ? partnerFeatures
+                    .filter((f: any) =>
+                        f.listingId === listingDocId &&
+                        f.featureId &&
+                        (!plan.collectionName || !f.collectionName || f.collectionName === plan.collectionName)
+                    )
+                    .sort((a: any, b: any) => (toDateValue(b.accessThrough)?.getTime() || 0) - (toDateValue(a.accessThrough)?.getTime() || 0))[0]
                 : null;
             const pastFeatureTx = listingDocId
                 ? formattedTransactions.find((t: any) => t.listingId === listingDocId && (t.featureId || t.type === "feature"))
@@ -2646,6 +2656,11 @@ export default function Dashboard() {
                                 {listingName && planSummaryParts.length > 0 && (
                                     <p className="text-sm text-muted-foreground mb-1">{planSummaryParts.join(" · ")}</p>
                                 )}
+                                {!isPast && !isEnding && periodEnd && periodEnd.getTime() < Date.now() && (
+                                    <p className="text-xs mt-1 mb-1 text-muted-foreground">
+                                        Renewal is processing. These dates update when billing confirms the next period. This plan was not cancelled.
+                                    </p>
+                                )}
                                 {isEnding && !isPast && (
                                     <p className="text-xs mt-1 mb-1" style={{ color: '#78350f' }}>
                                         {featureEndsWithPlan
@@ -2653,15 +2668,32 @@ export default function Dashboard() {
                                             : `Plan scheduled to end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the end of your billing period"}. It will not renew.`}
                                     </p>
                                 )}
-                                {(isPast || spotlightAccessEnded) && hadLinkedFeature && !hasStandaloneAddon && (
-                                    <p className="text-sm text-muted-foreground mt-2">
-                                        {spotlightLabel} ended on {(
-                                            displayFeatureEndsOn && renewalDate && displayFeatureEndsOn.getTime() < renewalDate.getTime()
-                                                ? featureStopLastPaidDay
-                                                : lastPaidDay
-                                        )?.toLocaleDateString() || "the plan end date"}.
-                                    </p>
-                                )}
+                                {(() => {
+                                    const featureOwnedEnd =
+                                        featureAccessEnd ||
+                                        featurePaidThrough ||
+                                        toDateValue(pastFeatureDoc?.accessThrough);
+                                    const featureOwnedLastDay = getInclusivePeriodLastDay(featureOwnedEnd);
+                                    const listingHadThisFeature = Boolean(
+                                        rawListingAddon ||
+                                        pastFeatureDoc ||
+                                        linkedListing?.featureSpotlightStripeSubscriptionId
+                                    );
+                                    if (
+                                        !featureOwnedLastDay ||
+                                        !listingHadThisFeature ||
+                                        hasStandaloneAddon ||
+                                        spotlightRenewalPending ||
+                                        (!isPast && !spotlightAccessEnded)
+                                    ) {
+                                        return null;
+                                    }
+                                    return (
+                                        <p className="text-sm text-muted-foreground mt-2">
+                                            {spotlightLabel} ended on {featureOwnedLastDay.toLocaleDateString()}.
+                                        </p>
+                                    );
+                                })()}
                                 <div className="flex flex-wrap items-start gap-x-8 gap-y-3 mt-3">
                                     <div className="min-w-[180px]">
                                         <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
@@ -2683,7 +2715,9 @@ export default function Dashboard() {
                                         <div className="min-w-[140px]">
                                             <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Cancelled On</p>
                                             <p className="text-sm text-foreground font-medium">
-                                                {cancelledAt ? cancelledAt.toLocaleDateString() : "N/A"}
+                                                {plan.endedForNonpayment
+                                                    ? "Payment failed"
+                                                    : (cancelledAt ? cancelledAt.toLocaleDateString() : "N/A")}
                                             </p>
                                         </div>
                                     )}
@@ -2847,6 +2881,11 @@ export default function Dashboard() {
                                     <p className="text-xs mt-1" style={{ color: '#78350f' }}>
                                         Feature add-on scheduled to end on {featureStopLastPaidDay?.toLocaleDateString() || "the end of your paid period"}.
                                         It will not renew; you can purchase again after that date.
+                                    </p>
+                                )}
+                                {spotlightRenewalPending && !spotlightCancelPending && (
+                                    <p className="text-xs mt-1 text-muted-foreground">
+                                        Renewal is processing. This feature was not cancelled, and Add feature stays unavailable until billing confirms the next period.
                                     </p>
                                 )}
                             </div>

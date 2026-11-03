@@ -1,4 +1,7 @@
 import { useEffect, useState } from "react";
+import { auth } from "@/firebase";
+import { logActivity } from "@/lib/auditLogger";
+import { adminArchivePost, adminRestorePost } from "@/lib/adminCommunityCallables";
 import { AdminDetailChrome } from "@/components/admin/community/AdminDetailChrome";
 import { AdminAttributeTable } from "@/components/admin/community/AdminAttributeTable";
 import { AdminPostReportsCell } from "@/components/admin/community/AdminSpamReportsBlock";
@@ -11,13 +14,12 @@ import {
 } from "@/lib/adminCommunityData";
 import { formatAdminDate } from "@/lib/formatAdminDate";
 import { formatPostCategoriesDisplay } from "@/lib/adminCommunityDisplay";
-import { Button } from "@/components/ui/button";
 
 type Props = {
   postId: string;
   archived?: boolean;
   onBack: () => void;
-  onEdit?: () => void;
+  onStatusChanged?: () => void;
   backLabel?: string;
 };
 
@@ -25,12 +27,14 @@ export function AdminPostDetailPage({
   postId,
   archived,
   onBack,
-  onEdit,
+  onStatusChanged,
   backLabel = "Back To Posts",
 }: Props) {
   const [post, setPost] = useState<AdminPostDetail | null>(null);
   const [reports, setReports] = useState<AdminSpamReportRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [statusBusy, setStatusBusy] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
   const [descExpanded, setDescExpanded] = useState(false);
 
   useEffect(() => {
@@ -45,6 +49,37 @@ export function AdminPostDetailPage({
       }
     })();
   }, [postId]);
+
+  const changeStatus = async (nextActive: boolean) => {
+    if (!post || statusBusy) return;
+    setStatusBusy(true);
+    setStatusMsg("");
+    try {
+      if (nextActive) await adminRestorePost(postId);
+      else await adminArchivePost(postId, "admin_deactivate");
+      const u = auth.currentUser;
+      if (u) {
+        await logActivity({
+          partnerId: u.uid,
+          partnerName: u.email || "Admin",
+          action: nextActive ? "POST_RESTORED" : "POST_ARCHIVED",
+          details: `${nextActive ? "Activated" : "Deactivated"} post ${postId}`,
+          category: "admin",
+          performedBy: "admin",
+          metadata: { scope: "community_posts", adminEmail: u.email, postId },
+        });
+      }
+      const refreshed = await loadPostDetail(postId);
+      setPost(refreshed);
+      onStatusChanged?.();
+      setStatusMsg(nextActive ? "Post is active." : "Post is inactive.");
+    } catch (e) {
+      console.error(e);
+      setStatusMsg("Could not change post status.");
+    } finally {
+      setStatusBusy(false);
+    }
+  };
 
   if (loading && !post) return <p className="text-sm text-muted-foreground">Loading post…</p>;
   if (!post) return <p className="text-sm text-muted-foreground">Post not found.</p>;
@@ -109,23 +144,32 @@ export function AdminPostDetailPage({
               </span>
             ),
           },
-          { label: "Post status", value: post.archived || archived ? "Archived" : "Active" },
+          {
+            label: "Post status",
+            value: (
+              <div className="space-y-1">
+                <select
+                  className="h-9 rounded-md border bg-white px-2 text-sm"
+                  value={post.archived || archived ? "inactive" : "active"}
+                  disabled={statusBusy}
+                  onChange={(e) => void changeStatus(e.target.value === "active")}
+                >
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+                {statusMsg ? <p className="text-xs text-muted-foreground">{statusMsg}</p> : null}
+              </div>
+            ),
+          },
           { label: "Archive date", value: formatAdminDate(post.archivedAt?.toDate?.()) },
           { label: "Created", value: formatAdminDate(post.createdAt?.toDate?.()) },
-          { label: "Spam report count", value: String(post.spamReportCount ?? 0) },
+          { label: "Spam report count", value: String(reports.filter((r) => r.targetType !== "comment").length) },
           {
             label: "Reports",
             value: <AdminPostReportsCell reports={reports} loading={loading} />,
           },
         ]}
       />
-      {onEdit && (
-        <div className="px-4 pb-4">
-          <Button type="button" variant="outline" size="sm" onClick={onEdit}>
-            Edit post
-          </Button>
-        </div>
-      )}
     </AdminDetailChrome>
   );
 }

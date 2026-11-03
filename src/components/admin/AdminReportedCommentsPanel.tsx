@@ -89,7 +89,7 @@ export function AdminReportedCommentsPanel() {
           partnerId: u.uid,
           partnerName: u.email || "Admin",
           action: row.commentArchived ? "COMMENT_ACTIVATED" : "COMMENT_DEACTIVATED",
-          details: `${row.commentArchived ? "Activated" : "Deactivated"} comment ${row.commentId}`,
+          details: `${row.commentArchived ? "Reactivated comment and its replies" : "Deactivated comment"} ${row.commentId}`,
           category: "admin",
           performedBy: "admin",
           metadata: {

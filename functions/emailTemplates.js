@@ -207,25 +207,25 @@ const templates = {
         subject: () => "Notice of reported content (1st report)",
         text: () => {
             return wrapText(
-                "One of your recent posts or comments on the Pharma SocII Community was reported by a member.\n\n" +
+                "One of your recent posts, comments, and/or replies on the Pharma SocII Community was reported by a member.\n\n" +
                     "No action has been taken against your account. This notice is so you can review your content " +
                     "against our Community Guidelines.\n\n" +
                     "What happens next:\n" +
-                    "- A post or comment is removed after three reports on that item.\n" +
-                    "- An account is paused after three total reports across posts or comments.\n\n" +
+                    "- A post, comment, or reply is removed after three reports on that item.\n" +
+                    "- An account is paused after three total reports across posts, comments and/or replies.\n\n" +
                     "Thank you for helping keep the community professional.\n\n" +
                     "Pharma SocII Community Team",
             );
         },
         html: () => {
             return wrapHtml(
-                `<p>One of your recent posts or comments on the Pharma SocII Community was reported by a member.</p>` +
+                `<p>One of your recent posts, comments, and/or replies on the Pharma SocII Community was reported by a member.</p>` +
                     `<p>No action has been taken against your account. This notice is so you can review your content ` +
                     `against our Community Guidelines.</p>` +
                     `<p><b>What happens next:</b></p>` +
                     `<ul>` +
-                    `<li>A post or comment is removed after three reports on that item.</li>` +
-                    `<li>An account is paused after three total reports across posts or comments.</li>` +
+                    `<li>A post, comment, or reply is removed after three reports on that item.</li>` +
+                    `<li>An account is paused after three total reports across posts, comments and/or replies.</li>` +
                     `</ul>` +
                     `<p>Thank you for helping keep the community professional.</p>` +
                     `<p>Pharma SocII Community Team</p>`,
@@ -236,23 +236,23 @@ const templates = {
         subject: () => "Second notice regarding reported content",
         text: () => {
             return wrapText(
-                "This is a follow-up about your recent post or comment on the Pharma SocII Community.\n\n" +
-                    "Your content has now been reported twice.\n\n" +
+                "This is a follow-up about your recent post, comment or reply on the Pharma SocII Community.\n\n" +
+                    "Your post, comment or reply has now been reported twice.\n\n" +
                     "Reminder:\n" +
-                    "- A post or comment is removed after three reports on that item.\n" +
-                    "- An account is paused after three total reports across posts or comments.\n\n" +
+                    "- A post, comment, or reply is removed after three reports on that item.\n" +
+                    "- An account is paused after three total reports across posts, comments and/or replies.\n\n" +
                     "Please review our Community Guidelines.\n\n" +
                     "Pharma SocII Community Team",
             );
         },
         html: () => {
             return wrapHtml(
-                `<p>This is a follow-up about your recent post or comment on the Pharma SocII Community.</p>` +
-                    `<p>Your content has now been reported twice.</p>` +
+                `<p>This is a follow-up about your recent post, comment or reply on the Pharma SocII Community.</p>` +
+                    `<p>Your post, comment or reply has now been reported twice.</p>` +
                     `<p><b>Reminder:</b></p>` +
                     `<ul>` +
-                    `<li>A post or comment is removed after three reports on that item.</li>` +
-                    `<li>An account is paused after three total reports across posts or comments.</li>` +
+                    `<li>A post, comment, or reply is removed after three reports on that item.</li>` +
+                    `<li>An account is paused after three total reports across posts, comments and/or replies.</li>` +
                     `</ul>` +
                     `<p>Please review our Community Guidelines.</p>` +
                     `<p>Pharma SocII Community Team</p>`,
@@ -263,7 +263,7 @@ const templates = {
         subject: () => "Community guidelines notice: account status update",
         text: () => {
             return wrapText(
-                "Your Pharma SocII Community account has accumulated three total reports across posts and/or comments.\n\n" +
+                "Your Pharma SocII Community account has accumulated three total reports across posts, comments and/or replies.\n\n" +
                     "In accordance with our Community Guidelines, if your account is active it will be placed in " +
                     "read-only mode for 30 days. You can still view content; posting and commenting will be unavailable " +
                     "until reactivation.\n\n" +
@@ -273,7 +273,7 @@ const templates = {
         },
         html: () => {
             return wrapHtml(
-                `<p>Your Pharma SocII Community account has accumulated three total reports across posts and/or comments.</p>` +
+                `<p>Your Pharma SocII Community account has accumulated three total reports across posts, comments and/or replies.</p>` +
                     `<p>In accordance with our Community Guidelines, if your account is active it will be placed in ` +
                     `<b>read-only mode for 30 days</b>. You can still view content; posting and commenting will be unavailable ` +
                     `until reactivation.</p>` +

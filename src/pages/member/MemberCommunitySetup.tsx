@@ -8,6 +8,7 @@ import { auth, db } from "@/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { ensureVerificationPending } from "@/lib/ensureVerificationPending";
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
+import { logMemberActivity } from "@/lib/auditLogger";
 import { normalizeUserNameKey } from "@/lib/community";
 import { getAllCommunityCountries } from "@/lib/communityCountries";
 
@@ -125,6 +126,20 @@ export default function MemberCommunitySetup() {
           aboutMe: aboutMe.trim(),
         });
       });
+
+      try {
+        await logMemberActivity({
+          memberId: user.uid,
+          memberName: name.trim() || `@${userName.trim()}`,
+          action: "MEMBER_REGISTERED",
+          details: `Community profile created (@${userName.trim()}, ${user.email})`,
+          category: "community",
+          performedBy: "member",
+          metadata: { email: user.email, userName: userName.trim(), country },
+        });
+      } catch (logErr) {
+        console.warn("Failed to log member registration activity:", logErr);
+      }
 
       if (!user.emailVerified) {
         await ensureVerificationPending();

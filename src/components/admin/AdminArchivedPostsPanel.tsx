@@ -13,12 +13,11 @@ import {
 } from "@/components/ui/select";
 import { AdminPostListTable } from "@/components/admin/community/AdminPostListTable";
 import { AdminPostDetailPage } from "@/components/admin/community/AdminPostDetailPage";
-import { AdminPostEditPage } from "@/components/admin/community/AdminPostEditPage";
 import { AdminTablePagination } from "@/components/admin/AdminTablePagination";
 
 const PAGE_SIZES = [10, 25, 50] as const;
 
-type Screen = { type: "list" } | { type: "view"; id: string } | { type: "edit"; id: string };
+type Screen = { type: "list" } | { type: "view"; id: string };
 
 export function AdminArchivedPostsPanel() {
   const [rows, setRows] = useState<AdminPostRow[]>([]);
@@ -96,20 +95,8 @@ export function AdminArchivedPostsPanel() {
         postId={screen.id}
         archived
         onBack={() => setScreen({ type: "list" })}
-        onEdit={() => setScreen({ type: "edit", id: screen.id })}
-        backLabel="Back To Archive Posts"
-      />
-    );
-  }
-
-  if (screen.type === "edit") {
-    return (
-      <AdminPostEditPage
-        postId={screen.id}
-        onBack={() => setScreen({ type: "view", id: screen.id })}
-        onSaved={() => {
+        onStatusChanged={() => {
           void load();
-          setScreen({ type: "view", id: screen.id });
         }}
         backLabel="Back To Archive Posts"
       />
@@ -154,7 +141,6 @@ export function AdminArchivedPostsPanel() {
         busy={busy}
         onActivate={activate}
         onView={(id) => setScreen({ type: "view", id })}
-        onEdit={(id) => setScreen({ type: "edit", id })}
       />
 
       <AdminTablePagination

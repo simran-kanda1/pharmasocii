@@ -1325,12 +1325,13 @@ async function reconcileStaleSpotlightOnListing({
     const windowOver = Boolean(paidEnd && paidEnd.getTime() <= Date.now());
 
     let featureSubLive = false;
+    let featureSubStatus = "";
     let featureSubPeriodEnd = null;
     if (featureSubId) {
         try {
             const sub = await stripe.subscriptions.retrieve(featureSubId);
-            const status = String(sub?.status || "").toLowerCase();
-            featureSubLive = ["active", "trialing", "past_due", "unpaid"].includes(status);
+            featureSubStatus = String(sub?.status || "").toLowerCase();
+            featureSubLive = ["active", "trialing", "past_due", "unpaid"].includes(featureSubStatus);
             if (sub?.current_period_end) featureSubPeriodEnd = new Date(sub.current_period_end * 1000);
         } catch (_) {
             featureSubLive = false;
@@ -1362,6 +1363,12 @@ async function reconcileStaleSpotlightOnListing({
     // Cancel still pending inside paid window — leave alone (UI shows scheduled to end).
     if (isSpotlightCancelPending(listingData) && !windowOver && featureSubLive && !stripeWindowClosed) {
         return { cleared: false, listingData, reason: "cancel_pending_live" };
+    }
+
+    // Active/trialing with a period end already behind wall clock is a renewal, a test
+    // clock, or a webhook delay. Cancelling here is what made a live feature look ended.
+    if (featureSubLive && featureSubId && stripeWindowClosed && ["active", "trialing"].includes(featureSubStatus)) {
+        return { cleared: false, listingData, reason: "renewal_pending" };
     }
 
     // Paid window is over in Stripe as well. Stop the leftover subscription so it cannot bill again,
@@ -2451,15 +2458,17 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
             const subscription = event.data.object;
             const updatedStatus = String(subscription.status || "").toLowerCase();
             console.log(`🔄 Subscription updated: ${subscription.id} (status: ${subscription.status})`);
-            if (["past_due", "unpaid"].includes(updatedStatus)) {
-                try {
-                    await endFailedRenewalAccess(subscription.id);
-                } catch (failedRenewalErr) {
-                    console.warn("   ⚠ Failed renewal access removal:", failedRenewalErr?.message || failedRenewalErr);
-                }
-            }
+            // Do not cancel on past_due here. Test clocks and Stripe retries flip to past_due
+            // before a renewal invoice is paid. A real failed charge still ends access via invoice.payment_failed.
             if (isSpotlightAddonSubscription(subscription) || await isKnownSpotlightAddonSubscriptionId(subscription.id, subscription)) {
                 console.log(`   ℹ Spotlight add-on subscription updated: ${subscription.id}`);
+                if (["active", "trialing"].includes(updatedStatus)) {
+                    try {
+                        await syncSpotlightRenewalPeriodFromStripeSubscription(subscription);
+                    } catch (spotlightSyncErr) {
+                        console.warn("   ⚠ Spotlight renewal sync failed:", spotlightSyncErr?.message || spotlightSyncErr);
+                    }
+                }
                 if (!["past_due", "unpaid"].includes(updatedStatus)) {
                     try {
                         await syncSpotlightCancelFromStripeSubscription(subscription);
@@ -3134,6 +3143,59 @@ async function isKnownSpotlightAddonSubscriptionId(subscriptionId, subscription 
     if (subscription && isSpotlightAddonSubscription(subscription)) return true;
     const docs = await findSpotlightAddonFeatureDocs(subscriptionId, partnerId);
     return docs.length > 0;
+}
+
+/**
+ * Write Stripe's current period onto a spotlight that is still billing.
+ * Test clocks and a missed invoice.paid leave Firestore dates in the past while
+ * the subscription is active. That used to look like the feature was cancelled.
+ */
+async function syncSpotlightRenewalPeriodFromStripeSubscription(subscription) {
+    if (!subscription?.id || !subscription.current_period_end) return;
+    const status = String(subscription.status || "").toLowerCase();
+    if (!["active", "trialing"].includes(status)) return;
+    if (subscription.cancel_at_period_end || subscription.cancel_at) return;
+
+    const periodEnd = new Date(subscription.current_period_end * 1000);
+    const periodStart = subscription.current_period_start
+        ? new Date(subscription.current_period_start * 1000)
+        : null;
+    const featureDocs = await findSpotlightAddonFeatureDocs(subscription.id);
+    for (const fDoc of featureDocs) {
+        const fd = fDoc.data() || {};
+        const partnerId = partnerIdFromPartnersPlanRef(fDoc.ref);
+        await fDoc.ref.set(
+            {
+                active: true,
+                accessThrough: periodEnd,
+                ...(periodStart ? { billingPeriodStart: periodStart } : {}),
+                cancelPending: admin.firestore.FieldValue.delete(),
+            },
+            { merge: true },
+        );
+        if (!partnerId || !fd.listingId || !fd.collectionName || !fd.featureId) continue;
+        const listingRef = await resolveListingDocRef(partnerId, fd.collectionName, fd.listingId);
+        const listingSnap = listingRef ? await listingRef.get() : null;
+        const listingData = listingSnap?.exists ? listingSnap.data() || {} : {};
+        const currentFeatureSubId = toStripeSubscriptionId(listingData.featureSpotlightStripeSubscriptionId);
+        if (currentFeatureSubId && currentFeatureSubId !== subscription.id) continue;
+        const listingStatus = String(listingData.status || "").trim().toLowerCase();
+        if (listingData.active === false || ["cancelled", "canceled", "expired", "inactive"].includes(listingStatus)) {
+            continue;
+        }
+        await applyListingPatchEverywhere(partnerId, fd.collectionName, fd.listingId, {
+            selectedAddon: fd.featureId,
+            featuredPlacement: fd.featureId,
+            isFeatured: true,
+            featureSpotlightPaidThrough: periodEnd,
+            featureSpotlightBillingPeriodStart: periodStart || admin.firestore.FieldValue.delete(),
+            featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
+            featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
+            featureSpotlightCancelScope: admin.firestore.FieldValue.delete(),
+            featureSpotlightStripeSubscriptionId: subscription.id,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+    }
 }
 
 /**
@@ -4292,13 +4354,22 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
     const subId = toStripeSubscriptionId(subscriptionInput?.id || subscriptionInput);
     if (!subId) return { updatedPlans: 0, updatedListings: 0, subscriptionId: null };
 
-    if (await isKnownSpotlightAddonSubscriptionId(subId, subscriptionInput)) {
-        const spotlightStatus = String(subscriptionInput?.status || "").toLowerCase();
-        if (["past_due", "unpaid"].includes(spotlightStatus)) {
+    if (await isKnownSpotlightAddonSubscriptionId(subId, subscriptionInput, options.partnerId || null)) {
+        let spotlightSub = subscriptionInput;
+        if (!spotlightSub?.current_period_end || typeof spotlightSub?.status !== "string") {
             try {
-                await endFailedRenewalAccess(subId);
+                spotlightSub = await stripe.subscriptions.retrieve(subId);
             } catch (err) {
-                console.warn("sync spotlight failed renewal:", err?.message || err);
+                console.warn("sync spotlight retrieve:", err?.message || err);
+                return { updatedPlans: 0, updatedListings: 0, subscriptionId: subId, error: err?.message || "retrieve failed" };
+            }
+        }
+        const spotlightStatus = String(spotlightSub?.status || "").toLowerCase();
+        if (["active", "trialing"].includes(spotlightStatus)) {
+            try {
+                await syncSpotlightRenewalPeriodFromStripeSubscription(spotlightSub);
+            } catch (err) {
+                console.warn("sync spotlight renewal period:", err?.message || err);
             }
         }
         return { updatedPlans: 0, updatedListings: 0, subscriptionId: subId, skipped: "spotlight_addon" };
@@ -4864,6 +4935,15 @@ async function syncPartnerPlansFromStripe(partnerId, options = {}) {
         const subId = toStripeSubscriptionId(planDoc.data()?.stripeSubscriptionId);
         if (subId) subIds.add(subId);
     }
+    const featSnap = await db.collection("partnersCollection")
+        .doc(partnerId)
+        .collection("featuresCollection")
+        .get()
+        .catch(() => ({ docs: [] }));
+    for (const featDoc of featSnap.docs || []) {
+        const subId = toStripeSubscriptionId(featDoc.data()?.stripeSubscriptionId);
+        if (subId) subIds.add(subId);
+    }
 
     let synced = 0;
     const results = [];
@@ -5008,9 +5088,23 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
                 .where("stripeCustomerId", "==", custId)
                 .where("active", "==", true)
                 .get();
-            if (!fallbackSnap.empty) {
-                effectivePlanSnap = fallbackSnap;
-                console.warn(`   ✓ Found ${fallbackSnap.size} active plan(s) via stripeCustomerId ${custId}; fixing stripeSubscriptionId.`);
+            const metaListingId = String(invoiceSubscription?.metadata?.listingId || "");
+            const metaCollection = String(invoiceSubscription?.metadata?.collectionName || "");
+            let candidates = fallbackSnap.docs;
+            if (metaListingId) {
+                candidates = candidates.filter((planDoc) => {
+                    const planData = planDoc.data() || {};
+                    if (planData.listingId && planData.listingId !== metaListingId) return false;
+                    if (metaCollection && planData.collectionName && planData.collectionName !== metaCollection) return false;
+                    return true;
+                });
+            }
+            // One paid invoice must not rewrite every active plan on the customer.
+            if (candidates.length === 1) {
+                effectivePlanSnap = { empty: false, docs: candidates, size: 1 };
+                console.warn(`   ✓ Matched 1 active plan via stripeCustomerId ${custId}; fixing stripeSubscriptionId.`);
+            } else if (candidates.length > 1) {
+                console.warn(`   ⚠ Skipped customer fallback for ${subscriptionId}; ${candidates.length} active plans would all be rewritten.`);
             }
         }
     }

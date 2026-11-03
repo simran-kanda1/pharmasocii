@@ -21,7 +21,7 @@ type Props = {
   archived?: boolean;
   busy?: boolean;
   onView: (postId: string) => void;
-  onEdit: (postId: string) => void;
+  onEdit?: (postId: string) => void;
   onDelete?: (post: AdminPostRow) => void;
   onActivate?: (postId: string) => void;
 };
@@ -127,7 +127,7 @@ export function AdminPostListTable({
                     <AdminRowActions
                       disabled={busy}
                       onView={() => onView(p.id)}
-                      onEdit={() => onEdit(p.id)}
+                      onEdit={onEdit ? () => onEdit(p.id) : undefined}
                       onDelete={onDelete ? () => onDelete(p) : undefined}
                     />
                   </div>

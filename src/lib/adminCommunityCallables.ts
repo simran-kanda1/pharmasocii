@@ -30,6 +30,20 @@ export async function adminArchiveComment(postId: string, commentId: string, rea
   return fn({ postId, commentId, reason });
 }
 
+export async function adminUpdateMemberProfile(params: {
+  userId: string;
+  name: string;
+  phone?: string;
+  country?: string;
+  institution?: string;
+  industry: string;
+  userBio?: string;
+  aboutMe?: string;
+}) {
+  const fn = httpsCallable<typeof params, { ok: boolean }>(fns, "adminUpdateMemberProfile");
+  return fn(params);
+}
+
 export async function adminSetMemberStatus(params: {
   userId: string;
   status: "active" | "spam_blocked" | "admin_hold";

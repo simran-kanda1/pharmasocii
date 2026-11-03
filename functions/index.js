@@ -856,6 +856,8 @@ exports.onSpamReportCreated = onDocumentCreated(
                 spamTotalReportCount: (data.spamTotalReportCount || 0) + 1,
             };
             if (active === SPAM_THRESHOLD) {
+                update.lastStatusChangeBy = "system";
+                update.lastStatusChangeReason = "spam_threshold";
                 const blockStartedAt = reportCreatedAt;
                 const blockedUntil = computeSpamBlockEnd(blockStartedAt);
                 update.accountStatus = "spam_blocked";
@@ -913,6 +915,8 @@ exports.releaseExpiredSpamBlocks = onSchedule(
                 spamActiveReportCount: 0,
                 spamBlockUntil: FieldValue.delete(),
                 spamBlockStartedAt: FieldValue.delete(),
+                lastStatusChangeBy: "system",
+                lastStatusChangeReason: "spam_block_expired",
             });
             // Reactivation email is sent by onMemberAccountStatusUpdated.
             n += 1;
@@ -933,6 +937,37 @@ exports.onMemberAccountStatusUpdated = onDocumentUpdated(
         const userId = event.params.userId;
         if (normalizeMemberAccountStatus(before.accountStatus) === normalizeMemberAccountStatus(after.accountStatus)) {
             return;
+        }
+        if (after.lastStatusChangeBy !== "admin") {
+            const memberName = after.name || after.userName || userId;
+            const reason = after.lastStatusChangeReason || "system";
+            const reasonText =
+                reason === "spam_threshold"
+                    ? "spam reports reached the block threshold"
+                    : reason === "spam_block_expired"
+                        ? "the spam block period ended"
+                        : "a system rule";
+            try {
+                await db.collection("auditLogs").add({
+                    partnerId: userId,
+                    partnerName: memberName,
+                    action: "MEMBER_STATUS_CHANGED",
+                    details: `Account status changed from "${before.accountStatus || "active"}" to "${after.accountStatus || "active"}" by system (${reasonText}).`,
+                    category: "community",
+                    performedBy: "system",
+                    metadata: {
+                        role: "member",
+                        scope: "community_members",
+                        prevStatus: before.accountStatus || "active",
+                        newStatus: after.accountStatus || "active",
+                        email: after.email || null,
+                        reason,
+                    },
+                    timestamp: FieldValue.serverTimestamp(),
+                });
+            } catch (auditErr) {
+                console.error("member status audit log failed", userId, auditErr);
+            }
         }
         try {
             const result = await sendMemberStatusTransitionEmails(
@@ -1095,7 +1130,11 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     const allowed = ["active", "spam_blocked", "admin_hold"];
     if (!allowed.includes(status)) throw new HttpsError("invalid-argument", "Invalid status.");
     const memberRef = db.collection("membersCollection").doc(userId);
-    const update = { accountStatus: status };
+    const update = {
+        accountStatus: status,
+        lastStatusChangeBy: "admin",
+        lastStatusChangeReason: "admin",
+    };
     if (status === "active") {
         update.spamBlockUntil = FieldValue.delete();
         update.spamBlockStartedAt = FieldValue.delete();
@@ -1112,6 +1151,32 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     if (reason) update.adminHoldReason = reason;
     await memberRef.update(update);
     // Pause / hold / reactivate emails are sent by onMemberAccountStatusUpdated.
+    return { ok: true };
+});
+
+/** Admin profile edits. Client rules keep name locked for the member; this bypasses that. */
+exports.adminUpdateMemberProfile = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
+    await assertAdmin(request.auth.uid);
+    const { userId, name, phone, country, institution, industry, userBio, aboutMe } = request.data || {};
+    if (!userId) throw new HttpsError("invalid-argument", "userId required.");
+    const nextName = String(name || "").trim();
+    const nextIndustry = String(industry || "").trim();
+    if (!nextName || !nextIndustry) {
+        throw new HttpsError("invalid-argument", "Name and industry are required.");
+    }
+    const memberRef = db.collection("membersCollection").doc(userId);
+    const snap = await memberRef.get();
+    if (!snap.exists) throw new HttpsError("not-found", "Member not found.");
+    await memberRef.update({
+        name: nextName,
+        phone: String(phone || "").trim(),
+        country: String(country || "").trim(),
+        institution: String(institution || "").trim(),
+        industry: nextIndustry,
+        userBio: String(userBio || "").trim(),
+        aboutMe: String(aboutMe || "").trim().slice(0, 25),
+    });
     return { ok: true };
 });
 
