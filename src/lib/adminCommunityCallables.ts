@@ -85,3 +85,24 @@ export async function adminApproveMemberVerification(userId: string) {
   );
   return fn({ userId });
 }
+
+export type PendingVerificationRow = {
+  id: string;
+  userId: string;
+  userEmail?: string | null;
+  userName?: string | null;
+  status?: string | null;
+  verifyLink?: string | null;
+  linkError?: string | null;
+  source?: string | null;
+  updatedAtMs?: number | null;
+};
+
+/** Accounts that still need an activation email. Verified accounts are removed. */
+export async function adminListPendingVerifications() {
+  const fn = httpsCallable<Record<string, never>, { rows: PendingVerificationRow[] }>(
+    fns,
+    "adminListPendingVerifications",
+  );
+  return fn({});
+}

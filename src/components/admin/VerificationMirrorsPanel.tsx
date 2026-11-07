@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   adminApproveMemberVerification,
+  adminListPendingVerifications,
   adminRefreshVerificationLink,
 } from "@/lib/adminCommunityCallables";
 
@@ -18,8 +19,15 @@ type PendingRow = {
   linkError?: string;
   source?: string;
   updatedAt?: { toDate: () => Date };
+  updatedAtMs?: number | null;
   createdAt?: { toDate: () => Date };
 };
+
+function rowUpdatedLabel(row: PendingRow) {
+  if (row.updatedAt?.toDate) return row.updatedAt.toDate().toLocaleString();
+  if (row.updatedAtMs) return new Date(row.updatedAtMs).toLocaleString();
+  return "—";
+}
 
 function statusLabel(status?: string) {
   switch (status) {
@@ -50,9 +58,31 @@ export function VerificationMirrorsPanel() {
     setLoading(true);
     setLoadError(null);
     try {
-      const q = query(collection(db, "pendingVerifications"), orderBy("updatedAt", "desc"), limit(30));
+      try {
+        const res = await adminListPendingVerifications();
+        setRows((res.data.rows || []) as PendingRow[]);
+        return;
+      } catch (callableErr) {
+        console.warn("adminListPendingVerifications unavailable, using queue filter", callableErr);
+      }
+      const q = query(collection(db, "pendingVerifications"), orderBy("updatedAt", "desc"), limit(80));
       const snap = await getDocs(q);
-      setRows(snap.docs.map((d) => ({ id: d.id, ...d.data() } as PendingRow)));
+      const loaded = snap.docs.map((d) => ({ id: d.id, ...d.data() } as PendingRow));
+      const verifiedIds = new Set<string>();
+      await Promise.all(
+        loaded.map(async (row) => {
+          const uid = row.userId || row.id;
+          if (row.status === "verified" || row.status === "admin_approved") {
+            verifiedIds.add(uid);
+            return;
+          }
+          const memberSnap = await getDoc(doc(db, "membersCollection", uid));
+          if (memberSnap.exists() && memberSnap.data()?.emailVerified === true) {
+            verifiedIds.add(uid);
+          }
+        }),
+      );
+      setRows(loaded.filter((row) => !verifiedIds.has(row.userId || row.id)));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error(e);
@@ -109,8 +139,8 @@ export function VerificationMirrorsPanel() {
         <div>
           <CardTitle className="text-base">Member email verification (admin)</CardTitle>
           <CardDescription>
-            Every community signup is queued here (mimics verification flow). Generate the Firebase link, copy it
-            for the member, or approve manually for testing.
+            Members who have not activated their account. Generate the link or approve them here. The row
+            disappears once the account is verified.
           </CardDescription>
         </div>
         <Button
@@ -153,8 +183,7 @@ export function VerificationMirrorsPanel() {
                         {r.userName ? `@${r.userName}` : "Member"} · {r.userEmail || "—"}
                       </p>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {statusLabel(r.status)} · {r.source || "—"} ·{" "}
-                        {r.updatedAt?.toDate ? r.updatedAt.toDate().toLocaleString() : "—"}
+                        {statusLabel(r.status)} · {r.source || "—"} · {rowUpdatedLabel(r)}
                       </p>
                       {r.linkError && (
                         <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">{r.linkError}</p>
@@ -208,11 +237,6 @@ export function VerificationMirrorsPanel() {
               );
             })}
           </ul>
-        )}
-        {rows.length > activeRows.length && (
-          <p className="text-xs text-muted-foreground mt-3">
-            {rows.length - activeRows.length} completed verification(s) hidden.
-          </p>
         )}
       </CardContent>
     </Card>

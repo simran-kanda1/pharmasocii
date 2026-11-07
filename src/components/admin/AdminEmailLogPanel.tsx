@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, limit, orderBy, query } from "firebase/firestore";
 import { db } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { adminListPendingVerifications } from "@/lib/adminCommunityCallables";
 
 type EmailRow = {
   id: string;
@@ -17,6 +18,7 @@ type EmailRow = {
 
 type ActivationLinkRow = {
   id: string;
+  userId?: string;
   userEmail?: string;
   verifyLink?: string;
   source?: string;
@@ -37,11 +39,41 @@ export function AdminEmailLogPanel() {
       try {
         const [eSnap, mSnap] = await Promise.all([
           getDocs(query(collection(db, "emailLogCollection"), orderBy("createdAt", "desc"), limit(30))),
-          getDocs(query(collection(db, "verificationMirrors"), orderBy("createdAt", "desc"), limit(15))),
+          getDocs(query(collection(db, "verificationMirrors"), orderBy("createdAt", "desc"), limit(50))),
         ]);
         if (cancelled) return;
         setEmails(eSnap.docs.map((d) => ({ id: d.id, ...d.data() } as EmailRow)));
-        setActivationLinks(mSnap.docs.map((d) => ({ id: d.id, ...d.data() } as ActivationLinkRow)));
+        const links = mSnap.docs.map((d) => ({ id: d.id, ...d.data() } as ActivationLinkRow));
+        let unverifiedEmails = new Set<string>();
+        let unverifiedIds = new Set<string>();
+        let usedQueue = false;
+        try {
+          const pending = await adminListPendingVerifications();
+          usedQueue = true;
+          for (const row of pending.data.rows || []) {
+            if (row.userEmail) unverifiedEmails.add(row.userEmail.trim().toLowerCase());
+            if (row.userId) unverifiedIds.add(row.userId);
+          }
+        } catch (queueErr) {
+          console.warn("Could not load unverified activation queue", queueErr);
+        }
+        const visible: ActivationLinkRow[] = [];
+        for (const link of links) {
+          const email = (link.userEmail || "").trim().toLowerCase();
+          const uid = link.userId || "";
+          if (usedQueue) {
+            const stillPending = (email && unverifiedEmails.has(email)) || (uid && unverifiedIds.has(uid));
+            if (stillPending) visible.push(link);
+            continue;
+          }
+          if (uid) {
+            const memberSnap = await getDoc(doc(db, "membersCollection", uid));
+            if (memberSnap.exists() && memberSnap.data()?.emailVerified === true) continue;
+          }
+          visible.push(link);
+        }
+        if (cancelled) return;
+        setActivationLinks(visible);
       } catch (e) {
         console.error(e);
       } finally {
@@ -104,13 +136,15 @@ export function AdminEmailLogPanel() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Activation links</CardTitle>
-          <CardDescription>Account activation / email verification links (member sign-up / resend).</CardDescription>
+          <CardDescription>
+            Activation links for accounts that are not verified yet. A link drops off this list once the account is activated.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : activationLinks.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No activation links yet.</p>
+            <p className="text-sm text-muted-foreground">No activation links for unverified accounts.</p>
           ) : (
             <ul className="space-y-3 max-h-80 overflow-y-auto">
               {activationLinks.map((row) => (
