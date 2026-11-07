@@ -89,21 +89,21 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // Testing: server-written copies of email verification links (admin reads only).
+    // Testing: server-written copies of email verification links (admin reads/writes).
     match /verificationMirrors/{docId} {
       allow read: if isAdmin();
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
-    // Admin queue: one doc per member awaiting email verification (server writes only).
+    // Admin queue: one doc per member awaiting email verification (server/admin writes).
     match /pendingVerifications/{userId} {
       allow read: if isAdmin();
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     match /emailLogCollection/{docId} {
       allow read: if isAdmin();
-      allow write: if false;
+      allow write: if isAdmin();
     }
 
     // Partner transactional email queue (Admin SDK / Cloud Functions only).

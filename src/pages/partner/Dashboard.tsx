@@ -2971,78 +2971,22 @@ export default function Dashboard() {
                             <CardTitle className="text-xl flex items-center gap-2"><Building className="w-5 h-5 text-primary" /> {partnerData.businessName || "Business Information"}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 pt-6">
-                            <div className="grid grid-cols-1 gap-4 bg-muted/40 p-4 rounded-lg border border-foreground/10">
-                                {livePlansSorted.length === 1 ? (
-                                    (() => {
-                                        const singlePlan = livePlansSorted[0];
-                                        const planConfig = dynamicPlanConfigs[singlePlan.planId] || PLAN_CONFIGS[singlePlan.planId];
-                                        const groupLabel = formatPlanGroupLabel(inferPlanGroup(singlePlan));
-                                        const tierLabel = formatPlanTierLabel(singlePlan, planConfig);
-                                        return (
-                                            <div className="grid grid-cols-2 gap-6">
-                                                <div>
-                                                    <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Group</p>
-                                                    <p className="text-foreground font-medium capitalize">{groupLabel || "N/A"}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Plan</p>
-                                                    <p className="text-foreground font-medium">{tierLabel || "N/A"}</p>
-                                                </div>
-                                            </div>
-                                        );
-                                    })()
-                                ) : livePlansSorted.length > 1 ? (
-                                    <div>
-                                        <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-2">Active Plans ({livePlansSorted.length})</p>
-                                        <ul className="space-y-2">
-                                            {livePlansSorted.map((plan) => {
-                                                const planConfig = dynamicPlanConfigs[plan.planId] || PLAN_CONFIGS[plan.planId];
-                                                const groupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
-                                                const tierLabel = formatPlanTierLabel(plan, planConfig);
-
-                                                return (
-                                                    <li key={plan.id} className="text-sm text-foreground">
-                                                        <span className="font-medium">{groupLabel}</span>
-                                                        <span className="text-muted-foreground"> · {tierLabel}</span>
-                                                    </li>
-                                                );
-                                            })}
-                                        </ul>
-                                    </div>
-                                ) : pendingPaymentListings.length > 0 ? (
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Group</p>
-                                            <p className="text-foreground font-medium capitalize">{formatPlanGroupLabel(inferListingGroup(pendingPaymentListings[0]))}</p>
+                            <div className="grid grid-cols-1 gap-2 bg-muted/40 p-4 rounded-lg border border-foreground/10">
+                                <div className="grid grid-cols-2 gap-6">
+                                    <p className="text-xs font-semibold text-muted-foreground tracking-wider">Group</p>
+                                    <p className="text-xs font-semibold text-muted-foreground tracking-wider">Plan</p>
+                                </div>
+                                {livePlansSorted.map((plan) => {
+                                    const planConfig = dynamicPlanConfigs[plan.planId] || PLAN_CONFIGS[plan.planId];
+                                    const groupLabel = formatPlanGroupLabel(inferPlanGroup(plan));
+                                    const tierLabel = formatPlanTierLabel(plan, planConfig);
+                                    return (
+                                        <div key={plan.id} className="grid grid-cols-2 gap-6">
+                                            <p className="text-foreground font-medium capitalize">{groupLabel || "N/A"}</p>
+                                            <p className="text-foreground font-medium">{tierLabel || "N/A"}</p>
                                         </div>
-                                        <div>
-                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Plan</p>
-                                            <p className="text-amber-500 font-medium">Pending Payment</p>
-                                        </div>
-                                    </div>
-                                ) : expiredPlans.length > 0 ? (
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Group</p>
-                                            <p className="text-foreground font-medium capitalize">{formatPlanGroupLabel(inferPlanGroup(expiredPlans[0]))}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Plan</p>
-                                            <p className="text-muted-foreground font-medium">None (Expired / Cancelled)</p>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="grid grid-cols-2 gap-6">
-                                        <div>
-                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Group</p>
-                                            <p className="text-muted-foreground font-medium">None</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs font-semibold text-muted-foreground tracking-wider mb-1">Plan</p>
-                                            <p className="text-muted-foreground font-medium">No Active Plan</p>
-                                        </div>
-                                    </div>
-                                )}
+                                    );
+                                })}
                             </div>
                             <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
                                 <p className="text-xs font-semibold text-muted-foreground tracking-wider flex items-center gap-1.5">

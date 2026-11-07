@@ -11,8 +11,17 @@ export type AuditLogAction =
     | "CATEGORY_DELETED"
     | "PAYMENT_SUCCESS"
     | "PAYMENT_FAILED"
-    | "FEATURE_ADDED"
+    | "PAYMENT_PENDING"
+    | "SUBSCRIPTION_PURCHASED"
+    | "SUBSCRIPTION_UPGRADED"
+    | "PLAN_UPGRADED"
+    | "PLAN_RENEWED"
+    | "PLAN_CANCELLED"
     | "SUBSCRIPTION_CANCELLED"
+    | "FEATURE_ADDED"
+    | "FEATURE_UPGRADED"
+    | "FEATURE_RENEWED"
+    | "FEATURE_CANCELLED"
     | "ADMIN_ACTION"
     | "MEMBER_REGISTERED"
     | "MEMBER_LOGIN"
@@ -35,7 +44,7 @@ export interface AuditLogData {
     action: AuditLogAction;
     details: string;
     category: "account" | "billing" | "listing" | "admin" | "community";
-    performedBy?: "admin" | "partner" | "member" | "system";
+    performedBy?: "admin" | "partner" | "member" | "system" | "stripe";
     metadata?: any;
 }
 

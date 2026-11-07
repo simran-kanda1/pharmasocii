@@ -133,7 +133,15 @@ const INACTIVE_LISTING_STATUSES = new Set([
     "canceled",
     "expired",
     "inactive",
+    "disabled",
     "rejected",
+    "incomplete payment",
+    "incomplete_payment",
+    "payment error",
+    "payment_error",
+    "past_due",
+    "pending payment",
+    "pending_payment",
 ]);
 
 /** Field-level visibility (active flag and explicit status). */

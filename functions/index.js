@@ -1453,9 +1453,10 @@ exports.adminApproveMemberVerification = onCall(
         await assertAdmin(request.auth.uid);
         const { userId } = request.data || {};
         if (!userId) throw new HttpsError("invalid-argument", "userId required.");
-        await admin.auth().updateUser(userId, { emailVerified: true });
+        const userRecord = await admin.auth().updateUser(userId, { emailVerified: true });
         const memberRef = db.collection("membersCollection").doc(userId);
         const memberSnap = await memberRef.get();
+        const userEmail = (userRecord?.email || memberSnap.data()?.email || "").trim();
         if (memberSnap.exists) {
             await memberRef.update({ emailVerified: true });
         }
@@ -1464,6 +1465,16 @@ exports.adminApproveMemberVerification = onCall(
             verifyLink: FieldValue.delete(),
             linkError: FieldValue.delete(),
         });
+        if (userEmail) {
+            const mirrorsByEmail = await db.collection("verificationMirrors").where("userEmail", "==", userEmail).get().catch(() => ({ docs: [] }));
+            for (const mDoc of mirrorsByEmail.docs) {
+                await mDoc.ref.delete().catch(() => {});
+            }
+            const logsByEmail = await db.collection("emailLogCollection").where("toEmail", "==", userEmail).get().catch(() => ({ docs: [] }));
+            for (const eDoc of logsByEmail.docs) {
+                await eDoc.ref.delete().catch(() => {});
+            }
+        }
         return { ok: true };
     }
 );

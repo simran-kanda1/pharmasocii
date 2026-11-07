@@ -1110,6 +1110,7 @@ function listingEndedForNonpaymentPatch() {
         ...listingSpotlightClearPatch(),
         active: false,
         status: "Cancelled",
+        endedForNonpayment: true,
         stripeSubscriptionId: fv.delete(),
     };
 }
@@ -1248,6 +1249,15 @@ async function clearFailedSpotlightAccess(subscriptionId, subscription = null) {
     const targets = [];
     for (const fDoc of featureDocs) {
         const fd = fDoc.data() || {};
+        await fDoc.ref.set(
+            {
+                active: false,
+                endedForNonpayment: true,
+                status: "Incomplete Payment",
+                deactivatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+            { merge: true },
+        );
         const partnerId = partnerIdFromPartnersPlanRef(fDoc.ref);
         if (!partnerId || !fd.listingId || !fd.collectionName) continue;
         const key = `${partnerId}:${fd.collectionName}:${fd.listingId}`;
@@ -2091,6 +2101,9 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     .where("listingId", "==", (upgradeListingId || null))
                     .limit(1)
                     .get();
+                const previousPlanIdFromDoc = !planSnap.empty
+                    ? (planSnap.docs[0].data()?.planId || session.metadata?.fromPlanId || null)
+                    : (session.metadata?.fromPlanId || null);
                 if (!planSnap.empty) {
                     await planSnap.docs[0].ref.set({
                         planId: newPlanId,
@@ -2114,10 +2127,16 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     action: "PLAN_UPGRADED",
                     details: `Plan upgraded to ${newPlanId.replace(/_/g, " ")} after Stripe payment.`,
                     category: "billing",
+                    performedBy: "partner",
                     metadata: {
                         subscriptionId: upgradedSubscription.id,
                         sessionId: session.id,
                         planId: newPlanId,
+                        fromPlanId: previousPlanIdFromDoc,
+                        listingId: upgradeListingId || null,
+                        collectionName: upgradeCollectionName || null,
+                        group: group || null,
+                        paymentStatus: "Complete",
                     },
                 });
                 const upgradeTxnResult = await createUpgradeTransactionIfMissing({
@@ -2164,10 +2183,15 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     action: "FEATURE_UPGRADED",
                     details: `Spotlight upgraded to ${upgradeFeatureId.replace(/_/g, " ")} after Stripe payment.`,
                     category: "listing",
+                    performedBy: "partner",
                     metadata: {
                         featureId: upgradeFeatureId,
                         previousFeatureId: session.metadata?.previousFeatureId || null,
+                        listingId: upgradeListingId || null,
+                        collectionName: upgradeCollectionName || null,
+                        group: session.metadata?.group || group || null,
                         sessionId: session.id,
+                        paymentStatus: "Complete",
                     },
                 });
                 const existingFeatureUpgradeTxn = await db.collection("transactionsCollection")
@@ -2244,9 +2268,16 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                             ? `Spotlight upgraded to ${featureId.replace(/_/g, " ")}.`
                             : `New feature added: ${featureId.replace(/_/g, " ")}.`,
                     category: "listing",
+                    performedBy: "partner",
                     metadata: {
                         featureId,
                         previousFeatureId: session.metadata?.previousFeatureId || null,
+                        listingId: listingId || null,
+                        listingName: detailSource?.eventName || detailSource?.jobTitle || detailSource?.businessName || null,
+                        collectionName: resolvedCollectionName || null,
+                        group: group || null,
+                        sessionId: session.id,
+                        paymentStatus: "Complete",
                     },
                 });
             } else if (listingId && resolvedCollectionName) {
@@ -2419,17 +2450,26 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 console.log(`   ℹ Transaction already exists for session ${session.id}`);
             }
 
-            await logAudit({
-                partnerId,
-                action: "PAYMENT_SUCCESS",
-                details: `Payment of ${transactionData.amount} ${transactionData.currency.toUpperCase()} successful for session: ${session.id}`,
-                category: "billing",
-                metadata: {
-                    sessionId: session.id,
-                    type: transactionData.type,
-                    planId: transactionData.planId
-                }
-            });
+            if (!featureId) {
+                await logAudit({
+                    partnerId,
+                    action: "SUBSCRIPTION_PURCHASED",
+                    details: "Initial Listing",
+                    category: "billing",
+                    performedBy: "partner",
+                    metadata: {
+                        sessionId: session.id,
+                        subscriptionId: toStripeSubscriptionId(session.subscription) || null,
+                        type: transactionData.type,
+                        planId: transactionData.planId,
+                        group: group || null,
+                        listingId: listingId || null,
+                        listingName: detailSource?.eventName || detailSource?.jobTitle || detailSource?.businessName || null,
+                        collectionName: resolvedCollectionName || null,
+                        paymentStatus: "Complete",
+                    }
+                });
+            }
 
             if (partnerId) {
                 const paidKind =
@@ -2623,22 +2663,38 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                     }
                 }
                 const pSnap = await pDoc.ref.collection("planCollection").where("stripeSubscriptionId", "==", subscription.id).get();
+                let hadUnscheduledPlanEnd = false;
+                let endedPlanContext = null;
                 for (const pPlan of pSnap.docs) {
+                    const pData = pPlan.data() || {};
+                    if (!pData.cancelAtPeriodEnd) {
+                        hadUnscheduledPlanEnd = true;
+                    }
+                    endedPlanContext = endedPlanContext || pData;
                     await pPlan.ref.update({
                         active: false,
-                        cancelAtPeriodEnd: false,
+                        ...(pData.cancelAtPeriodEnd ? { cancelAtPeriodEnd: true } : { cancelAtPeriodEnd: false }),
                         expiredAt: admin.firestore.FieldValue.serverTimestamp(),
                     });
                 }
 
-                await logAudit({
-                    partnerId: pDoc.id,
-                    action: "SUBSCRIPTION_CANCELLED",
-                    details: `Subscription ${subscription.id} cancelled.`,
-                    category: "billing",
-                    performedBy: "partner",
-                    metadata: { subscriptionId: subscription.id }
-                });
+                if (!pSnap.empty && hadUnscheduledPlanEnd) {
+                    await logAudit({
+                        partnerId: pDoc.id,
+                        action: "PLAN_CANCELLED",
+                        details: "N/A",
+                        category: "billing",
+                        performedBy: "partner",
+                        metadata: {
+                            subscriptionId: subscription.id,
+                            planId: endedPlanContext?.planId || null,
+                            listingId: endedPlanContext?.listingId || null,
+                            collectionName: endedPlanContext?.collectionName || null,
+                            group: endedPlanContext?.group || null,
+                            paymentStatus: "N/A",
+                        }
+                    });
+                }
             }
             break;
         }
@@ -2655,13 +2711,22 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 partnerSnap.docs.forEach((p) => partnerIds.add(p.id));
             }
 
-            if (partnerIds.size === 0 && subscriptionId) {
+            let failedSubContext = {};
+            if (subscriptionId) {
                 const planSnap = await db.collectionGroup("planCollection")
                     .where("stripeSubscriptionId", "==", subscriptionId)
-                    .get();
+                    .get()
+                    .catch(() => ({ docs: [] }));
                 planSnap.docs.forEach((p) => {
                     const partnerId = partnerIdFromPartnersPlanRef(p.ref);
                     if (partnerId) partnerIds.add(partnerId);
+                    const d = p.data() || {};
+                    failedSubContext = {
+                        planId: d.planId || failedSubContext.planId || null,
+                        listingId: d.listingId || failedSubContext.listingId || null,
+                        collectionName: d.collectionName || failedSubContext.collectionName || null,
+                        group: d.group || failedSubContext.group || null,
+                    };
                 });
                 const featSnap = await db.collectionGroup("featuresCollection")
                     .where("stripeSubscriptionId", "==", subscriptionId)
@@ -2673,6 +2738,14 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 featSnap.docs.forEach((p) => {
                     const partnerId = partnerIdFromPartnersPlanRef(p.ref);
                     if (partnerId) partnerIds.add(partnerId);
+                    const d = p.data() || {};
+                    failedSubContext = {
+                        ...failedSubContext,
+                        featureId: d.featureId || failedSubContext.featureId || null,
+                        listingId: d.listingId || failedSubContext.listingId || null,
+                        collectionName: d.collectionName || failedSubContext.collectionName || null,
+                        group: d.group || failedSubContext.group || null,
+                    };
                 });
             }
 
@@ -2680,13 +2753,16 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 await logAudit({
                     partnerId,
                     action: "PAYMENT_FAILED",
-                    details: `Invoice payment failed for $${(invoice.amount_due || 0) / 100}.`,
+                    details: "N/A",
                     category: "billing",
+                    performedBy: "stripe",
                     metadata: {
                         invoiceId: invoice.id,
                         amountDue: (invoice.amount_due || 0) / 100,
                         subscriptionId: subscriptionId || null,
                         billingReason: invoice.billing_reason || null,
+                        paymentStatus: "Payment Failed",
+                        ...failedSubContext,
                     }
                 });
             }
@@ -3566,6 +3642,18 @@ async function finalizeSpotlightAddonPurchaseWrites({
         .where("sessionId", "==", session.id)
         .limit(1)
         .get();
+    let targetFeatureDoc = !existingFeature.empty ? existingFeature.docs[0] : null;
+    if (!targetFeatureDoc && listingId) {
+        const byListing = await partnerRef
+            .collection("featuresCollection")
+            .where("listingId", "==", listingId)
+            .limit(10)
+            .get();
+        targetFeatureDoc =
+            byListing.docs.find((d) => (d.data() || {}).source === "spotlight_addon") ||
+            byListing.docs[0] ||
+            null;
+    }
     const featPayload = {
         featureId,
         featureName: featureId.replace(/_/g, " "),
@@ -3583,12 +3671,21 @@ async function finalizeSpotlightAddonPurchaseWrites({
         billingPeriodStart: periodStart,
         cancelPending: false,
         cancelScope: admin.firestore.FieldValue.delete(),
+        supersededBy: admin.firestore.FieldValue.delete(),
+        supersededAt: admin.firestore.FieldValue.delete(),
+        endedForNonpayment: admin.firestore.FieldValue.delete(),
     };
-    if (existingFeature.empty) {
-        const { cancelScope: _omitCancelScope, ...createPayload } = featPayload;
+    if (!targetFeatureDoc) {
+        const {
+            cancelScope: _omitCancelScope,
+            supersededBy: _omitSupersededBy,
+            supersededAt: _omitSupersededAt,
+            endedForNonpayment: _omitEndedForNonpayment,
+            ...createPayload
+        } = featPayload;
         await partnerRef.collection("featuresCollection").add(createPayload);
     } else {
-        await existingFeature.docs[0].ref.set(featPayload, { merge: true });
+        await targetFeatureDoc.ref.set(featPayload, { merge: true });
     }
 
     if (listingId && resolvedCollectionName) {
@@ -3934,8 +4031,10 @@ async function upsertIncludedPlanFeature(partnerRef, {
     const existingDoc = byListing.docs.find((doc) => {
         const d = doc.data() || {};
         return d.collectionName === collectionName &&
-            d.featureId === featureId &&
             d.source === "included_plan";
+    }) || byListing.docs.find((doc) => {
+        const d = doc.data() || {};
+        return d.source === "included_plan";
     }) || null;
 
     const basePayload = {
@@ -4326,14 +4425,20 @@ async function tryProcessSpotlightAddonInvoicePaid({
     for (const partnerId of partnerIds) {
         await logAudit({
             partnerId,
-            action: "PAYMENT_SUCCESS",
-            details: `Spotlight subscription invoice ${invoice.id} paid (${renewalTransaction.amount} ${renewalTransaction.currency.toUpperCase()}).`,
+            action: "FEATURE_RENEWED",
+            details: "Feature renewals",
             category: "billing",
+            performedBy: "system",
             metadata: {
                 invoiceId: invoice.id,
                 subscriptionId,
                 billingReason,
                 featureId: primaryCtx?.featureId || null,
+                listingId: primaryCtx?.listingId || null,
+                listingName: detailSource?.eventName || detailSource?.jobTitle || detailSource?.businessName || null,
+                collectionName: primaryCtx?.collectionName || null,
+                group: primaryCtx?.group || null,
+                paymentStatus: "Complete",
             }
         });
     }
@@ -5327,13 +5432,20 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
     for (const partnerId of partnerIds) {
         await logAudit({
             partnerId,
-            action: "PAYMENT_SUCCESS",
-            details: `Recurring invoice ${invoice.id} paid (${renewalTransaction.amount} ${renewalTransaction.currency.toUpperCase()}).`,
+            action: "PLAN_RENEWED",
+            details: "Plan renewals",
             category: "billing",
+            performedBy: "system",
             metadata: {
                 invoiceId: invoice.id,
                 subscriptionId,
-                billingReason
+                billingReason,
+                planId: primaryPlanContext?.planId || null,
+                listingId: primaryPlanContext?.listingId || null,
+                listingName: detailSource?.eventName || detailSource?.jobTitle || detailSource?.businessName || null,
+                collectionName: primaryPlanContext?.collectionName || null,
+                group: primaryPlanContext?.group || null,
+                paymentStatus: "Complete",
             }
         });
     }
@@ -6122,6 +6234,22 @@ app.post("/api/create-feature-checkout", async (req, res) => {
                     lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                 }, { merge: true });
             }
+            await logAudit({
+                partnerId,
+                action: "FEATURE_UPGRADED",
+                details: `Spotlight upgraded to ${featureId.replace(/_/g, " ")}.`,
+                category: "listing",
+                performedBy: "partner",
+                metadata: {
+                    featureId,
+                    previousFeatureId: pricing.previousFeatureId || null,
+                    listingId: listingId || null,
+                    collectionName: collectionName || null,
+                    group: group || null,
+                    noProrationCharge: true,
+                    paymentStatus: "Complete",
+                },
+            });
             return res.json({
                 success: true,
                 noCheckoutRequired: true,
@@ -7170,10 +7298,16 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                         action: "PLAN_UPGRADED",
                         details: `Plan upgraded to ${newPlanId.replace(/_/g, " ")} with no prorated payment required.`,
                         category: "billing",
+                        performedBy: "partner",
                         metadata: {
                             subscriptionId: updatedSubscription.id,
                             planId: newPlanId,
+                            fromPlanId: currentPlanId || null,
+                            listingId: listingId || null,
+                            collectionName: collectionName || null,
+                            group: req.body.group || (targetPlanDoc ? targetPlanDoc.data()?.group : null) || null,
                             noProrationCharge: true,
+                            paymentStatus: "Complete",
                         },
                     });
 
@@ -7247,10 +7381,11 @@ app.post("/api/upgrade-subscription", async (req, res) => {
                     subscriptionItemId: subscriptionItem.id,
                     newPriceId: newPrice.id,
                     newPlanId,
+                    fromPlanId: currentPlanId || "",
                     listingId: listingId || "",
                     collectionName: collectionName || "",
                     planId: newPlanId,
-                    group: "",
+                    group: req.body.group || "",
                     ...(pendingEventDates
                         ? {
                             pendingEventStartDate: pendingEventDates.startDate,
@@ -7506,16 +7641,19 @@ app.post("/api/cancel-plan", async (req, res) => {
         await logAudit({
             partnerId,
             action: cancelScope === "feature" ? "FEATURE_CANCELLED" : "PLAN_CANCELLED",
-            details: cancelScope === "feature"
-                ? `Feature (${linkedFeatureId || "add-on"}) scheduled to end.`
-                : `Listing plan scheduled to end.`,
+            details: "N/A",
             category: "billing",
             performedBy: "partner",
             metadata: {
                 cancelScope,
                 planDocId,
                 subscriptionId: plan.stripeSubscriptionId || null,
+                planId: plan.planId || null,
                 featureId: linkedFeatureId || null,
+                listingId: plan.listingId || null,
+                collectionName: plan.collectionName || null,
+                group: plan.group || inferPlanGroup(plan) || null,
+                paymentStatus: "N/A",
             },
         });
 
@@ -7677,18 +7815,6 @@ app.post("/api/verify-payment", async (req, res) => {
                 collectionName: upgradeCollectionName,
                 group: session.metadata?.group || group || null,
             });
-            await logAudit({
-                partnerId,
-                action: "FEATURE_UPGRADED",
-                details: `Feature upgraded to ${upgradeFeatureId.replace(/_/g, " ")}.`,
-                category: "listing",
-                metadata: {
-                    featureId: upgradeFeatureId,
-                    previousFeatureId: session.metadata?.previousFeatureId || null,
-                    sessionId: session.id,
-                    verifyFallback: true,
-                },
-            });
             const existingFeatureUpgradeTxn = await db.collection("transactionsCollection")
                 .where("sessionId", "==", session.id)
                 .limit(1)
@@ -7701,6 +7827,24 @@ app.post("/api/verify-payment", async (req, res) => {
                     if (listingSnap.exists) detailSource = listingSnap.data();
                 }
                 const previousFeatureId = session.metadata?.previousFeatureId || null;
+                await logAudit({
+                    partnerId,
+                    action: "FEATURE_UPGRADED",
+                    details: `Feature upgraded to ${upgradeFeatureId.replace(/_/g, " ")}.`,
+                    category: "listing",
+                    performedBy: "partner",
+                    metadata: {
+                        featureId: upgradeFeatureId,
+                        previousFeatureId,
+                        listingId: upgradeListingId,
+                        listingName: detailSource?.eventName || detailSource?.jobTitle || detailSource?.businessName || null,
+                        collectionName: upgradeCollectionName,
+                        group: session.metadata?.group || group || null,
+                        sessionId: session.id,
+                        paymentStatus: "Complete",
+                        verifyFallback: true,
+                    },
+                });
                 await db.collection("transactionsCollection").add({
                     partnerId,
                     amount: (session.amount_total || 0) / 100,
@@ -7844,19 +7988,6 @@ app.post("/api/verify-payment", async (req, res) => {
                 updated = true;
             }
 
-            await logAudit({
-                partnerId,
-                action: "PLAN_UPGRADED",
-                details: `Plan upgraded to ${newPlanId.replace(/_/g, " ")}.`,
-                category: "billing",
-                metadata: {
-                    subscriptionId: upgradedSubscription.id,
-                    sessionId: session.id,
-                    planId: newPlanId,
-                    verifyFallback: true,
-                },
-            });
-
             const upgradeTxnVerify = await createUpgradeTransactionIfMissing({
                 session,
                 partnerId,
@@ -7866,6 +7997,24 @@ app.post("/api/verify-payment", async (req, res) => {
                 group,
             });
             if (upgradeTxnVerify.created) {
+                await logAudit({
+                    partnerId,
+                    action: "PLAN_UPGRADED",
+                    details: `Plan upgraded to ${newPlanId.replace(/_/g, " ")}.`,
+                    category: "billing",
+                    performedBy: "partner",
+                    metadata: {
+                        subscriptionId: upgradedSubscription.id,
+                        sessionId: session.id,
+                        planId: newPlanId,
+                        fromPlanId: session.metadata?.fromPlanId || null,
+                        listingId: upgradeListingId || null,
+                        collectionName: upgradeCollectionName || null,
+                        group: group || null,
+                        paymentStatus: "Complete",
+                        verifyFallback: true,
+                    },
+                });
                 console.log(`   ✓ Upgrade transaction recorded via verify-payment (${session.id})`);
             } else {
                 console.log(`   ℹ verify-payment upgrade transaction: ${upgradeTxnVerify.reason}`);
@@ -8089,6 +8238,48 @@ app.post("/api/verify-payment", async (req, res) => {
                 businessName: detailSource?.businessName || "",
                 companyRepresentatives: detailSource?.companyRepresentatives || []
             });
+            if (featureId) {
+                await logAudit({
+                    partnerId,
+                    action: session.metadata?.featureUpgrade === "true" ? "FEATURE_UPGRADED" : "FEATURE_ADDED",
+                    details: session.metadata?.featureUpgrade === "true"
+                        ? `Spotlight upgraded to ${featureId.replace(/_/g, " ")}.`
+                        : `New feature added: ${featureId.replace(/_/g, " ")}.`,
+                    category: "listing",
+                    performedBy: "partner",
+                    metadata: {
+                        featureId,
+                        previousFeatureId: session.metadata?.previousFeatureId || null,
+                        listingId: listingId || null,
+                        listingName: detailSource?.eventName || detailSource?.jobTitle || detailSource?.businessName || null,
+                        collectionName: resolvedCollectionName || null,
+                        group: group || null,
+                        sessionId: session.id,
+                        paymentStatus: "Complete",
+                        verifyFallback: true,
+                    },
+                });
+            } else {
+                await logAudit({
+                    partnerId,
+                    action: "SUBSCRIPTION_PURCHASED",
+                    details: "Initial Listing",
+                    category: "billing",
+                    performedBy: "partner",
+                    metadata: {
+                        sessionId: session.id,
+                        subscriptionId: toStripeSubscriptionId(session.subscription) || null,
+                        type: "listing",
+                        planId: planId || null,
+                        group: group || null,
+                        listingId: listingId || null,
+                        listingName: detailSource?.eventName || detailSource?.jobTitle || detailSource?.businessName || null,
+                        collectionName: resolvedCollectionName || null,
+                        paymentStatus: "Complete",
+                        verifyFallback: true,
+                    },
+                });
+            }
             updated = true;
             console.log(`   ✓ Transaction record created`);
         }
@@ -8573,20 +8764,44 @@ app.post("/api/admin/create-partner", async (req, res) => {
         await logAudit({
             partnerId: uid,
             partnerName: companyName,
-            action: "LISTING_CREATED",
-            details: `New ${groupKey.replace(/_/g, ' ')} listing created: "${listingItemName}". Created by admin (${adminEmail}).`,
+            action: "SUBSCRIPTION_PURCHASED",
+            details: "Initial Listing",
             category: "listing",
             performedBy: "admin",
             metadata: {
                 adminEmail,
                 listingId: listingDocId,
+                listingName: listingItemName,
+                group: groupKey,
                 type: groupKey,
                 collectionName,
+                planId: selectedPlan || "none",
                 plan: selectedPlan || "none",
                 isFeatured: Boolean(featuredPlan && featuredPlan !== "none"),
+                paymentStatus: "Complete",
                 performedBy: "admin"
             }
         });
+        if (featuredPlan && featuredPlan !== "none") {
+            await logAudit({
+                partnerId: uid,
+                partnerName: companyName,
+                action: "FEATURE_ADDED",
+                details: "Feature added",
+                category: "listing",
+                performedBy: "admin",
+                metadata: {
+                    adminEmail,
+                    listingId: listingDocId,
+                    listingName: listingItemName,
+                    group: groupKey,
+                    collectionName,
+                    featureId: featuredPlan,
+                    paymentStatus: "Complete",
+                    performedBy: "admin",
+                }
+            });
+        }
 
         return res.json({ success: true, uid, listingId: listingDocId, collectionName });
     } catch (err) {

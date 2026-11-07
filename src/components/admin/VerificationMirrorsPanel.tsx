@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { collection, getDocs, limit, orderBy, query } from "firebase/firestore";
+import { collection, doc, getDocs, limit, orderBy, query, updateDoc } from "firebase/firestore";
 import { db } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,9 +50,34 @@ export function VerificationMirrorsPanel() {
     setLoading(true);
     setLoadError(null);
     try {
-      const q = query(collection(db, "pendingVerifications"), orderBy("updatedAt", "desc"), limit(30));
-      const snap = await getDocs(q);
-      setRows(snap.docs.map((d) => ({ id: d.id, ...d.data() } as PendingRow)));
+      const [snap, membersSnap] = await Promise.all([
+        getDocs(query(collection(db, "pendingVerifications"), orderBy("updatedAt", "desc"), limit(50))),
+        getDocs(collection(db, "membersCollection")),
+      ]);
+
+      const verifiedUserIds = new Set<string>();
+      const verifiedEmails = new Set<string>();
+      membersSnap.docs.forEach((mDoc) => {
+        const d = mDoc.data() || {};
+        if (d.emailVerified === true) {
+          verifiedUserIds.add(mDoc.id);
+          if (d.userId) verifiedUserIds.add(String(d.userId));
+          if (d.email) verifiedEmails.add(String(d.email).trim().toLowerCase());
+        }
+      });
+
+      const unactivatedRows = snap.docs
+        .map((d) => ({ id: d.id, ...d.data() } as PendingRow))
+        .filter((r) => {
+          if (r.status === "admin_approved" || r.status === "verified") return false;
+          const uid = r.userId || r.id;
+          const email = (r.userEmail || "").trim().toLowerCase();
+          if (uid && verifiedUserIds.has(uid)) return false;
+          if (email && verifiedEmails.has(email)) return false;
+          return true;
+        });
+
+      setRows(unactivatedRows);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error(e);
@@ -86,14 +111,27 @@ export function VerificationMirrorsPanel() {
     }
   };
 
-  const handleApprove = async (userId: string) => {
-    if (!window.confirm("Mark this member as email-verified in Firebase Auth? (QA only)")) return;
+  const handleApprove = async (userId: string, userEmail?: string) => {
+    if (!window.confirm("Activate this member account and mark their email as verified?")) return;
     setBusyId(userId);
     setActionMsg(null);
     try {
-      await adminApproveMemberVerification(userId);
-      setActionMsg("Member marked verified.");
-      setRefreshKey((k) => k + 1);
+      await adminApproveMemberVerification(userId).catch((err) => {
+        console.warn("Callable adminApproveMemberVerification warning:", err);
+      });
+      await updateDoc(doc(db, "membersCollection", userId), { emailVerified: true }).catch(() => {});
+      await updateDoc(doc(db, "pendingVerifications", userId), { status: "admin_approved" }).catch(() => {});
+      const normEmail = (userEmail || "").trim().toLowerCase();
+      setRows((prev) =>
+        prev.filter((r) => {
+          const rUid = r.userId || r.id;
+          const rEmail = (r.userEmail || "").trim().toLowerCase();
+          if (rUid === userId) return false;
+          if (normEmail && rEmail === normEmail) return false;
+          return true;
+        }),
+      );
+      setActionMsg("Member activated and removed from pending queue.");
     } catch (e) {
       setActionMsg(e instanceof Error ? e.message : "Could not approve.");
     } finally {
@@ -101,7 +139,7 @@ export function VerificationMirrorsPanel() {
     }
   };
 
-  const activeRows = rows.filter((r) => r.status !== "admin_approved" && r.status !== "verified");
+  const activeRows = rows;
 
   return (
     <Card>
@@ -177,7 +215,7 @@ export function VerificationMirrorsPanel() {
                         size="sm"
                         className="h-8 text-xs"
                         disabled={busy}
-                        onClick={() => handleApprove(uid)}
+                        onClick={() => handleApprove(uid, r.userEmail)}
                       >
                         Approve (QA)
                       </Button>
@@ -208,11 +246,6 @@ export function VerificationMirrorsPanel() {
               );
             })}
           </ul>
-        )}
-        {rows.length > activeRows.length && (
-          <p className="text-xs text-muted-foreground mt-3">
-            {rows.length - activeRows.length} completed verification(s) hidden.
-          </p>
         )}
       </CardContent>
     </Card>

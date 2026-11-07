@@ -773,6 +773,30 @@ export default function CompleteProfile() {
                 }
             });
 
+            const initialListingName =
+                eventData.eventName ||
+                jobData.jobTitle ||
+                formData.companyName ||
+                "Unnamed Business";
+            await logActivity({
+                partnerId: auth.currentUser.uid,
+                partnerName: formData.companyName,
+                action: "PAYMENT_PENDING",
+                details: "Pending checkout payment",
+                category: "billing",
+                performedBy: "partner",
+                metadata: {
+                    listingId: listingDoc.id,
+                    listingName: initialListingName,
+                    group: formData.group,
+                    type: formData.group,
+                    planId: formData.plan,
+                    plan: formData.plan,
+                    paymentStatus: "Pending",
+                    performedBy: "partner",
+                }
+            });
+
             // Call backend to create Stripe Checkout Session
             const origin = window.location.origin;
             const resp = await fetch(`${API_BASE_URL}/api/create-checkout-session`, {

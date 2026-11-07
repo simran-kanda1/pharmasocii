@@ -712,17 +712,28 @@ export default function AddListing() {
                 : collection(db, config.collectionName);
             const listingDoc = await addDoc(listingsRef, listingData);
 
-            // Log to Audit Trail
+            // Log to Audit Trail (Pending Payment until Stripe Checkout completes)
+            const createdListingName =
+                eventData.eventName ||
+                jobData.jobTitle ||
+                companyName ||
+                "Unnamed Business";
             await logActivity({
                 partnerId: auth.currentUser.uid,
                 partnerName: companyName || "Unnamed Business",
-                action: "LISTING_CREATED",
-                details: `New ${config.label} listing created: "${eventData.eventName || jobData.jobTitle || dbGroup.replace(/_/g, ' ')}".`,
-                category: "listing",
+                action: "PAYMENT_PENDING",
+                details: "Pending checkout payment",
+                category: "billing",
+                performedBy: "partner",
                 metadata: {
                     listingId: listingDoc.id,
+                    listingName: createdListingName,
+                    group: dbGroup,
                     type: dbGroup,
-                    plan
+                    planId: plan,
+                    plan,
+                    paymentStatus: "Pending",
+                    performedBy: "partner",
                 }
             });
 

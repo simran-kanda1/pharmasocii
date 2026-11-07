@@ -111,6 +111,13 @@ function StatusBadge({ status }: { status?: string }) {
       </Badge>
     );
   }
+  if (s === "pending payment" || s === "pending_payment") {
+    return (
+      <Badge className="bg-amber-50 text-amber-700 border-amber-200 font-medium">
+        Pending Payment
+      </Badge>
+    );
+  }
   if (s === "pending review" || s === "pending") {
     return (
       <Badge className="bg-amber-50 text-amber-700 border-amber-200 font-medium">
@@ -232,29 +239,40 @@ export function PartnerPlanHistoryModal({
       });
   }, [partnerPlans, partner?.id]);
 
-  // 2. Partner's Features (All-time)
+  // 2. Partner's Features (All-time, deduplicated by listing so upgrades keep a single feature)
   const partnerFeaturesList = useMemo(() => {
     if (!partner || !Array.isArray(featuredPlans)) return [];
-    return featuredPlans
-      .filter((f) => f && f.partnerId === partner.id)
+    const sorted = featuredPlans
+      .filter((f) => f && f.partnerId === partner.id && !f.supersededBy)
       .sort((a, b) => {
         const aTs = a.lastPaymentReceived?.seconds || a.createdAt?.seconds || 0;
         const bTs = b.lastPaymentReceived?.seconds || b.createdAt?.seconds || 0;
         return bTs - aTs;
       });
+    const byListing = new Map<string, any>();
+    sorted.forEach((f) => {
+      const key = String(f.listingId || f.id);
+      if (!byListing.has(key)) {
+        byListing.set(key, f);
+      }
+    });
+    return Array.from(byListing.values());
   }, [featuredPlans, partner?.id]);
 
-  // 3. Partner's Listings (All-time)
+  // 3. Partner's Listings (All-time paid listings; exclude unpaid Pending Payment)
   const partnerListingsList = useMemo(() => {
     if (!partner || !Array.isArray(listings)) return [];
     return listings
       .filter((l) => {
         if (!l) return false;
         const pId = l.partnerId || (typeof l.__path === "string" && l.__path.startsWith("partnersCollection/") ? l.__path.split("/")[1] : "");
-        return pId === partner.id;
+        if (pId !== partner.id) return false;
+        const insight = listingInsights && l?.id ? listingInsights[l.id] : null;
+        const status = getEffectiveListingStatus(l, insight);
+        return status !== "Pending Payment";
       })
       .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-  }, [listings, partner?.id]);
+  }, [listings, partner?.id, listingInsights]);
 
   // 4. Partner's Transactions (All-time)
   const partnerTransactionsList = useMemo(() => {
@@ -452,7 +470,10 @@ export function PartnerPlanHistoryModal({
                       const isTrial = Boolean(plan.isTrial || plan.source === "admin_granted");
                       const startFormatted = formatDate(plan.startDate || plan.createdAt);
                       const endFormatted = formatDate(plan.billingPeriodEnd || plan.accessThrough);
-                      const isExpired = Boolean(plan.billingPeriodEnd?.seconds && plan.billingPeriodEnd.seconds * 1000 < Date.now());
+                      const effectivePlanStatus = getEffectiveListingStatus(
+                        { status: plan.status, active: plan.active !== false },
+                        { plan, expiryDate: plan.billingPeriodEnd }
+                      );
 
                       return (
                         <Card key={plan.id || idx} className={`bg-white border ${isLatest ? "border-emerald-300 shadow-sm" : "border-slate-200"}`}>
@@ -472,7 +493,7 @@ export function PartnerPlanHistoryModal({
                                     Admin Trial
                                   </Badge>
                                 )}
-                                <StatusBadge status={plan.status || (isExpired ? "Expired" : "Active")} />
+                                <StatusBadge status={effectivePlanStatus} />
                               </div>
                               <div className="text-xs text-slate-500 flex items-center gap-1">
                                 <span>Plan Doc ID:</span> <CopyableText text={plan.id} label="Plan ID" />
@@ -549,8 +570,7 @@ export function PartnerPlanHistoryModal({
                       const isTrial = Boolean(feat.isTrial || feat.source === "admin_granted");
                       const startFormatted = formatDate(feat.lastPaymentReceived || feat.createdAt);
                       const endFormatted = formatDate(feat.accessThrough || feat.billingPeriodEnd);
-                      const isExpired = Boolean(feat.accessThrough?.seconds && feat.accessThrough.seconds * 1000 < Date.now());
-                      const effectiveFeatStatus = feat.status === "Disabled" ? "Disabled" : (feat.status === "Cancelled" || feat.status === "canceled") ? "Cancelled" : isExpired ? "Expired" : (feat.status || "Active");
+                      const effectiveFeatStatus = getEffectiveFeatureStatus(feat);
 
                       return (
                         <Card key={feat.id || idx} className="bg-white border border-slate-200">

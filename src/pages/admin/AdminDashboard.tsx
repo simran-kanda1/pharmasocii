@@ -163,7 +163,7 @@ type AdminTab =
   | "transactions"
   | "audit"
   | "memberAudit";
-type ListingFilter = "all" | "active" | "approved" | "cancelled" | "expired" | "incomplete_payment" | "payment_error" | "disabled" | "pending";
+type ListingFilter = "all" | "active" | "approved" | "cancelled" | "expired" | "incomplete_payment" | "payment_error" | "pending_payment" | "disabled" | "pending";
 const COMPANY_PROFILE_MAX_LENGTH = 1000;
 
 type PartnerRecord = {
@@ -760,6 +760,9 @@ const getStatusBadge = (status?: string) => {
     case "pending review":
     case "pending":
       return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Pending Review</Badge>;
+    case "pending payment":
+    case "pending_payment":
+      return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Pending Payment</Badge>;
     case "disabled":
       return <Badge className="bg-slate-200 text-slate-700 border-slate-300">Disabled</Badge>;
     case "cancelled":
@@ -892,8 +895,11 @@ export default function AdminDashboard() {
   const [adminName, setAdminName] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [communityMembers, setCommunityMembers] = useState<any[]>([]);
   const [auditSearchTerm, setAuditSearchTerm] = useState("");
-  const [auditCategoryFilter, setAuditCategoryFilter] = useState<"all" | "partner" | "listing">("all");
+  const [auditCategoryFilter, setAuditCategoryFilter] = useState<"all" | "partner" | "listing">("listing");
+  const [auditListingFilter, setAuditListingFilter] = useState<string>("all");
+  const [auditListingEventFilter, setAuditListingEventFilter] = useState<string>("all");
   const [memberAuditSearchTerm, setMemberAuditSearchTerm] = useState("");
   const [memberAuditCategoryFilter, setMemberAuditCategoryFilter] = useState<"all" | "account_created" | "password" | "status" | "post_reactivated" | "comment_reactivated">("all");
   const [settingsData, setSettingsData] = useState<AdminSettingsRecord>({
@@ -1105,9 +1111,7 @@ export default function AdminDashboard() {
           }
 
           Array.from(map.values()).forEach((data) => {
-            if (data.status !== "pending_payment") {
-              allListings.push(data as ListingRecord);
-            }
+            allListings.push(data as ListingRecord);
           });
         } catch (error) {
           console.error(`Failed to fetch ${colName}:`, error);
@@ -1128,6 +1132,12 @@ export default function AdminDashboard() {
       console.error("Failed to fetch auditLogs snapshot:", error);
     });
 
+    const unsubMembers = onSnapshot(collection(db, "membersCollection"), (snap) => {
+      setCommunityMembers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      console.error("Failed to fetch membersCollection snapshot:", error);
+    });
+
     const settingsRef = doc(db, "adminSettingsCollection", "platformSettings");
     const unsubSettings = onSnapshot(settingsRef, (settingsSnap) => {
       const settings = settingsSnap.data() as AdminSettingsRecord | undefined;
@@ -1140,6 +1150,7 @@ export default function AdminDashboard() {
       unsubPartnerPlans();
       unsubFeatured();
       unsubAudit();
+      unsubMembers();
       unsubSettings();
       clearInterval(listingsInterval);
     };
@@ -1857,15 +1868,19 @@ export default function AdminDashboard() {
   const openListingEditor = (listing: ListingRecord) => {
     setSelectedListing(listing);
 
-    // Normalize status to one of: "Active", "Expired", "Cancelled", "Incomplete Payment"
+    // Normalize status to one of: "Active", "Expired", "Cancelled", "Incomplete Payment", "Pending Payment", "Disabled"
     const effective = getEffectiveListingStatus(listing, listingInsights[listing.id]);
     let initialStatus = "Active";
-    if (effective === "Expired" || listing.status === "Expired") {
+    if (effective === "Pending Payment" || listing.status === "pending_payment" || listing.status === "Pending Payment") {
+      initialStatus = "Pending Payment";
+    } else if (effective === "Incomplete Payment" || effective === "Payment Error" || listing.status === "Incomplete Payment" || listing.status === "Payment Error" || listing.status === "past_due") {
+      initialStatus = "Incomplete Payment";
+    } else if (effective === "Disabled" || listing.status === "Disabled") {
+      initialStatus = "Disabled";
+    } else if (effective === "Expired" || listing.status === "Expired") {
       initialStatus = "Expired";
     } else if (effective === "Cancelled" || listing.status === "Cancelled" || listing.status === "Canceled") {
       initialStatus = "Cancelled";
-    } else if (effective === "Incomplete Payment" || effective === "Payment Error" || listing.status === "Incomplete Payment" || listing.status === "Payment Error" || listing.status === "past_due") {
-      initialStatus = "Incomplete Payment";
     } else {
       initialStatus = "Active";
     }
@@ -2149,22 +2164,37 @@ export default function AdminDashboard() {
     const plansByPartner = new Map<string, PartnerPlanRecord>();
     const featuresByListing = new Map<string, FeaturedPlanPurchase>();
     const featuresByPartner = new Map<string, FeaturedPlanPurchase>();
+    const partnerById = new Map<string, PartnerRecord>();
+
+    partners.forEach((p) => {
+      if (p?.id) partnerById.set(p.id, p);
+    });
 
     partnerPlans.forEach((plan) => {
-      const currentTs = (plan as any)?.startDate?.seconds || plan?.createdAt?.seconds || 0;
+      const currentTs =
+        (plan as any)?.upgradedAt?.seconds ||
+        (plan as any)?.startDate?.seconds ||
+        plan?.createdAt?.seconds ||
+        0;
 
       const listingId = (plan as any).listingId;
       if (listingId) {
         const existing = plansByListing.get(listingId);
-        const existingTs = (existing as any)?.startDate?.seconds || existing?.createdAt?.seconds || 0;
+        const existingTs =
+          (existing as any)?.upgradedAt?.seconds ||
+          (existing as any)?.startDate?.seconds ||
+          existing?.createdAt?.seconds ||
+          0;
         if (!existing || currentTs >= existingTs) {
           plansByListing.set(listingId, plan);
         }
-      }
-
-      if (plan.partnerId) {
+      } else if (plan.partnerId) {
         const existing = plansByPartner.get(plan.partnerId);
-        const existingTs = (existing as any)?.startDate?.seconds || existing?.createdAt?.seconds || 0;
+        const existingTs =
+          (existing as any)?.upgradedAt?.seconds ||
+          (existing as any)?.startDate?.seconds ||
+          existing?.createdAt?.seconds ||
+          0;
         if (!existing || currentTs >= existingTs) {
           plansByPartner.set(plan.partnerId, plan);
         }
@@ -2172,20 +2202,28 @@ export default function AdminDashboard() {
     });
 
     featuredPlans.forEach((feature) => {
-      const currentTs = (feature as any)?.lastPaymentReceived?.seconds || feature?.createdAt?.seconds || 0;
+      if ((feature as any)?.supersededBy) return;
+      const currentTs =
+        (feature as any)?.lastPaymentReceived?.seconds ||
+        feature?.createdAt?.seconds ||
+        0;
 
       const listingId = (feature as any).listingId;
       if (listingId) {
         const existing = featuresByListing.get(listingId);
-        const existingTs = (existing as any)?.lastPaymentReceived?.seconds || existing?.createdAt?.seconds || 0;
+        const existingTs =
+          (existing as any)?.lastPaymentReceived?.seconds ||
+          existing?.createdAt?.seconds ||
+          0;
         if (!existing || currentTs >= existingTs) {
           featuresByListing.set(listingId, feature);
         }
-      }
-
-      if (feature.partnerId) {
+      } else if (feature.partnerId) {
         const existing = featuresByPartner.get(feature.partnerId);
-        const existingTs = (existing as any)?.lastPaymentReceived?.seconds || existing?.createdAt?.seconds || 0;
+        const existingTs =
+          (existing as any)?.lastPaymentReceived?.seconds ||
+          existing?.createdAt?.seconds ||
+          0;
         if (!existing || currentTs >= existingTs) {
           featuresByPartner.set(feature.partnerId, feature);
         }
@@ -2196,30 +2234,150 @@ export default function AdminDashboard() {
       let partnerId = listing.partnerId;
       if (!partnerId) {
         if (listing.__col === "businessOfferingsCollection" || listing.__path.includes("partnersCollection")) {
-           partnerId = listing.__path.split("/")[1];
+          partnerId = listing.__path.split("/")[1];
         }
       }
 
-      const plan = plansByListing.get(listing.id) || (partnerId ? plansByPartner.get(partnerId) : undefined);
-      const feature = featuresByListing.get(listing.id) || (partnerId ? featuresByPartner.get(partnerId) : undefined);
+      const partner = partnerId ? partnerById.get(partnerId) : undefined;
+      const isPendingPaymentListing =
+        String(listing.status || "").trim().toLowerCase() === "pending_payment" ||
+        String(listing.status || "").trim().toLowerCase() === "pending payment";
+
+      const plan =
+        plansByListing.get(listing.id) ||
+        (!isPendingPaymentListing && partnerId ? plansByPartner.get(partnerId) : undefined);
+      const feature =
+        featuresByListing.get(listing.id) ||
+        (!isPendingPaymentListing && partnerId ? featuresByPartner.get(partnerId) : undefined);
+
+      const effectivePlanStatus = getEffectiveListingStatus(listing, { plan });
       const featureStatus = getEffectiveFeatureStatus(feature, listing);
+
+      const isPlanPaidComplete =
+        effectivePlanStatus !== "Pending Payment" &&
+        Boolean(
+          plan?.lastPaymentReceivedAt ||
+            plan?.stripeSubscriptionId ||
+            plan?.sessionId ||
+            plan?.isTrial ||
+            plan?.source === "admin_granted" ||
+            listing.lastPaymentReceivedAt ||
+            listing.stripeSubscriptionId ||
+            (listing as any).createdByAdmin ||
+            listing.status === "Approved" ||
+            listing.status === "Active" ||
+            listing.active === true
+        );
+
+      const isPlanCancelledOrExpired =
+        effectivePlanStatus === "Cancelled" ||
+        effectivePlanStatus === "Expired" ||
+        Boolean(
+          (plan as any)?.cancelAtPeriodEnd ||
+            (plan as any)?.cancelAt ||
+            (plan as any)?.canceledAt ||
+            (plan as any)?.cancelledAt
+        );
+
+      const isFeaturePaidComplete =
+        featureStatus !== "-" &&
+        featureStatus !== "Pending Payment" &&
+        Boolean(
+          feature?.lastPaymentReceived ||
+            (feature as any)?.stripeSubscriptionId ||
+            (feature as any)?.sessionId ||
+            feature?.isTrial ||
+            feature?.source === "admin_granted" ||
+            feature?.source === "included_plan" ||
+            listing.lastFeaturePaymentReceivedAt ||
+            listing.featureSpotlightPaidThrough ||
+            (listing as any).createdByAdmin
+        );
+
+      const isFeatureCancelledOrExpired =
+        featureStatus === "Cancelled" ||
+        featureStatus === "Expired" ||
+        Boolean(
+          (feature as any)?.cancelPending ||
+            (feature as any)?.cancelAtPeriodEnd ||
+            (feature as any)?.cancelAt ||
+            (feature as any)?.canceledAt ||
+            (feature as any)?.deactivatedAt ||
+            (listing as any)?.featureSpotlightCancelPending
+        );
+
+      const businessName =
+        partner?.businessName ||
+        (partner as any)?.companyName ||
+        listing.businessName ||
+        (listing as any).companyName ||
+        "Unnamed";
+
+      const isEvent = listing.__col === "eventsCollection" || listing.selectedGroup === "events";
+      const isJob = listing.__col === "jobsCollection" || listing.selectedGroup === "jobs";
+      const listingName = isEvent
+        ? listing.eventName || (listing as any).title || listing.businessName || "—"
+        : isJob
+        ? listing.jobTitle || (listing as any).title || listing.businessName || "—"
+        : (listing as any).listingTitle ||
+          (listing as any).offeringName ||
+          (listing as any).serviceName ||
+          (listing as any).title ||
+          listing.businessName ||
+          businessName ||
+          "—";
+
+      const rawFeaturePlan =
+        (listing as any)?.selectedAddon ||
+        (listing as any)?.featuredPlacement ||
+        (feature as any)?.featureName ||
+        feature?.featureId ||
+        (listing as any)?.featuredPlan ||
+        "-";
+      const featurePlanDisplay =
+        rawFeaturePlan && rawFeaturePlan !== "-" && rawFeaturePlan !== "none"
+          ? String(rawFeaturePlan).replace(/_/g, " ")
+          : "-";
 
       acc[listing.id] = {
         plan,
-        subscribedOn: (plan as any)?.startDate || plan?.createdAt || null,
-        upgradedOn: (plan as any)?.upgradedAt || null,
-        cancelledOn: (plan as any)?.cancelAt || (plan as any)?.canceledAt || null,
-        expiryDate: (plan as any)?.billingPeriodEnd || null,
+        businessName,
+        listingName,
+        subscribedOn: isPlanPaidComplete
+          ? (plan as any)?.startDate || plan?.createdAt || listing.lastPaymentReceivedAt || null
+          : null,
+        upgradedOn: isPlanPaidComplete ? (plan as any)?.upgradedAt || null : null,
+        cancelledOn: isPlanCancelledOrExpired
+          ? (plan as any)?.cancelAt ||
+            (plan as any)?.canceledAt ||
+            (plan as any)?.cancelledAt ||
+            (effectivePlanStatus === "Expired" ? (plan as any)?.billingPeriodEnd : null) ||
+            null
+          : null,
+        expiryDate: isPlanPaidComplete ? (plan as any)?.billingPeriodEnd || null : null,
         feature,
         featureStatus,
         isFeatured: featureStatus === "Active" || listing.isFeatured || feature?.active || false,
-        featurePlan: (feature as any)?.featureName || feature?.featureId || (listing as any)?.featuredPlan || (listing as any)?.selectedAddon || "-",
-        featureDate: feature?.createdAt || listing.lastFeaturePaymentReceivedAt || (feature as any)?.lastPaymentReceived || null,
-        featureCancelDate: (feature as any)?.accessThrough || (feature as any)?.cancelAt || listing.featureSpotlightPaidThrough || null,
+        featurePlan: featurePlanDisplay,
+        featureDate: isFeaturePaidComplete
+          ? (feature as any)?.lastPaymentReceived ||
+            feature?.createdAt ||
+            listing.lastFeaturePaymentReceivedAt ||
+            null
+          : null,
+        featureCancelDate: isFeatureCancelledOrExpired
+          ? (feature as any)?.cancelAt ||
+            (feature as any)?.canceledAt ||
+            (feature as any)?.accessThrough ||
+            (listing as any)?.featureSpotlightAccessEnd ||
+            (listing as any)?.featureSpotlightPaidThrough ||
+            (feature as any)?.deactivatedAt ||
+            null
+          : null,
       };
       return acc;
     }, {} as Record<string, any>);
-  }, [listings, partnerPlans, featuredPlans]);
+  }, [listings, partnerPlans, featuredPlans, partners]);
 
   const partnerInsights = useMemo(() => {
     const latestPlansByPartner = new Map<string, PartnerPlanRecord>();
@@ -2281,7 +2439,12 @@ export default function AdminDashboard() {
 
       const rawPlan = latestPlan?.planName || latestPlan?.planId || (partner as any).selectedPlan || "-";
 
-      const pListings = partnerListingsMap.get(partner.id) || [];
+      // Only count listings where payment was completed (exclude Pending Payment)
+      const pListings = (partnerListingsMap.get(partner.id) || []).filter((listing) => {
+        const insight = listingInsights[listing.id];
+        const status = getEffectiveListingStatus(listing, insight);
+        return status !== "Pending Payment";
+      });
       const totalListingsCount = pListings.length;
       const activeListings = pListings.filter((listing) => {
         const insight = listingInsights[listing.id];
@@ -2289,9 +2452,18 @@ export default function AdminDashboard() {
         return status === "Active" || status === "Approved" || status === "Extended";
       });
 
-      const pFeatures = featuredPlans.filter((f) => f.partnerId === partner.id);
-      const listingFeaturedCount = pListings.filter((l) => Boolean((l as any).isFeatured || (l as any).featureSpotlightPaidThrough || (l as any).selectedAddon || ((l as any).featureStatus && (l as any).featureStatus !== "-"))).length;
-      const totalFeaturedCount = Math.max(pFeatures.length, listingFeaturedCount);
+      // Deduplicate features per listing so feature upgrades keep the same feature count
+      const pFeaturesRaw = featuredPlans.filter((f) => f.partnerId === partner.id && !(f as any).supersededBy);
+      const uniqueFeatureKeys = new Set<string>();
+      pFeaturesRaw.forEach((f) => {
+        uniqueFeatureKeys.add(String((f as any).listingId || f.id));
+      });
+      const listingFeaturedCount = pListings.filter((l) => {
+        const insight = listingInsights[l.id];
+        const featStatus = insight?.featureStatus || getEffectiveFeatureStatus(insight?.feature, l);
+        return featStatus !== "-" && featStatus !== "Pending Payment";
+      }).length;
+      const totalFeaturedCount = Math.max(uniqueFeatureKeys.size, listingFeaturedCount);
 
       let activeFeaturedCount = 0;
       activeListings.forEach((listing) => {
@@ -2645,16 +2817,57 @@ export default function AdminDashboard() {
     URL.revokeObjectURL(url);
   };
 
+  const normalizedListingAuditRows = useMemo(() => {
+    return buildNormalizedListingAuditRows({
+      auditLogs,
+      partners,
+      listings,
+      partnerPlans,
+      featuredPlans,
+      transactions,
+    });
+  }, [auditLogs, partners, listings, partnerPlans, featuredPlans, transactions]);
+
+  const filteredListingAuditRows = useMemo(() => {
+    return normalizedListingAuditRows.filter((row) => {
+      if (auditListingFilter !== "all" && row.listingId !== auditListingFilter) {
+        return false;
+      }
+      if (auditListingEventFilter !== "all" && row.eventKind !== auditListingEventFilter) {
+        return false;
+      }
+      if (!auditSearchTerm) return true;
+      const q = auditSearchTerm.toLowerCase().trim();
+      return (
+        row.companyName.toLowerCase().includes(q) ||
+        row.listingName.toLowerCase().includes(q) ||
+        row.actionLabel.toLowerCase().includes(q) ||
+        row.grpLabel.toLowerCase().includes(q) ||
+        row.typeLabel.toLowerCase().includes(q) ||
+        row.byLabel.toLowerCase().includes(q) ||
+        row.detailsLabel.toLowerCase().includes(q) ||
+        row.paymentStatusLabel.toLowerCase().includes(q) ||
+        row.actionId.toLowerCase().includes(q) ||
+        (row.partnerId || "").toLowerCase().includes(q) ||
+        (row.listingId || "").toLowerCase().includes(q)
+      );
+    });
+  }, [normalizedListingAuditRows, auditListingFilter, auditListingEventFilter, auditSearchTerm]);
+
   const filteredPartnerLogs = useMemo(() => {
     return auditLogs
       .filter((log) => !isMemberAuditLog(log))
       .filter((log) => {
-        if (auditCategoryFilter === "partner" && !isPartnerAccountLog(log)) {
-          return false;
+        if (auditCategoryFilter === "partner") {
+          return isPartnerAccountLog(log);
         }
-        if (auditCategoryFilter === "listing" && !isListingOrBillingLog(log)) {
-          return false;
+        if (auditCategoryFilter === "listing") {
+          return isListingOrBillingLog(log);
         }
+        // For "all", only include valid partner account logs or the 10 allowed listing/billing logs
+        return isPartnerAccountLog(log) || isListingOrBillingLog(log);
+      })
+      .filter((log) => {
         if (!auditSearchTerm) return true;
         const q = auditSearchTerm.toLowerCase().trim();
         const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";
@@ -2670,21 +2883,49 @@ export default function AdminDashboard() {
   }, [auditLogs, auditCategoryFilter, auditSearchTerm]);
 
   const exportPartnerAuditLogs = (format: "csv" | "excel") => {
-    const headers = ["Timestamp", "Company / Partner", "Partner ID", "Action", "Updated By", "Details"];
-    const rows = filteredPartnerLogs.map((log) => {
-      const actor = getPartnerAuditActor(log);
-      const timeStr = log.timestamp?.seconds
-        ? new Date(log.timestamp.seconds * 1000).toLocaleString()
-        : "-";
-      return [
-        timeStr,
-        log.partnerName || "Unknown",
-        log.partnerId || "",
-        log.action || "",
-        actor.label,
-        log.details || "",
-      ];
-    });
+    const isListingView = auditCategoryFilter === "listing";
+    const headers = isListingView
+      ? [
+          "Date/Time",
+          "Company Name",
+          "Listing Name",
+          "Action",
+          "Grp",
+          "Type",
+          "By",
+          "Details",
+          "Payment Status",
+          "Action ID",
+        ]
+      : ["Timestamp", "Company / Partner", "Partner ID", "Action", "Updated By", "Details"];
+
+    const rows = isListingView
+      ? filteredListingAuditRows.map((row) => [
+          row.dateTimeStr,
+          row.companyName,
+          row.listingName,
+          row.actionLabel,
+          row.grpLabel,
+          row.typeLabel,
+          row.byLabel,
+          row.detailsLabel,
+          row.paymentStatusLabel,
+          row.actionId,
+        ])
+      : filteredPartnerLogs.map((log) => {
+          const actor = getPartnerAuditActor(log);
+          const timeStr = log.timestamp?.seconds
+            ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+            : "-";
+          return [
+            timeStr,
+            log.partnerName || "Unknown",
+            log.partnerId || "",
+            log.action || "",
+            actor.label,
+            log.details || "",
+          ];
+        });
 
     const separator = format === "excel" ? "\t" : ",";
     const escapedRows = rows.map((row) =>
@@ -2698,7 +2939,7 @@ export default function AdminDashboard() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `partner-audit-logs-${new Date().toISOString().slice(0, 10)}.${format === "excel" ? "xls" : "csv"}`;
+    link.download = `${isListingView ? "listing-audit-trail" : "partner-audit-logs"}-${new Date().toISOString().slice(0, 10)}.${format === "excel" ? "xls" : "csv"}`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2706,41 +2947,114 @@ export default function AdminDashboard() {
   };
 
   const filteredMemberLogs = useMemo(() => {
-    return auditLogs
-      .filter(isMemberAuditLog)
-      .filter((log) => {
-        const action = (log.action || "").toUpperCase();
-        const details = (log.details || "").toLowerCase();
+    const explicitMemberLogs = auditLogs.filter(isMemberAuditLog);
 
-        if (memberAuditCategoryFilter === "account_created") {
-          if (action !== "MEMBER_REGISTERED" && action !== "ACCOUNT_CREATED") return false;
-        }
-        if (memberAuditCategoryFilter === "password") {
-          if (!action.includes("PASSWORD") && !details.includes("password")) return false;
-        }
-        if (memberAuditCategoryFilter === "status") {
-          if (action !== "MEMBER_STATUS_CHANGED" && !details.includes("status changed")) return false;
-        }
-        if (memberAuditCategoryFilter === "post_reactivated") {
-          if (action !== "POST_RESTORED" && !(action.includes("POST") && (details.includes("activated") || details.includes("restored")))) return false;
-        }
-        if (memberAuditCategoryFilter === "comment_reactivated") {
-          if (action !== "COMMENT_ACTIVATED" && !(action.includes("COMMENT") && (details.includes("activated") || details.includes("restored")))) return false;
-        }
+    const registeredMemberIds = new Set<string>();
+    const statusLoggedMemberIds = new Set<string>();
+    for (const log of explicitMemberLogs) {
+      const action = (log.action || "").toUpperCase();
+      const mId = String(log.partnerId || log.memberId || log.metadata?.targetMemberId || "").trim();
+      if (!mId) continue;
+      if (action === "MEMBER_REGISTERED" || action === "ACCOUNT_CREATED") {
+        registeredMemberIds.add(mId);
+      }
+      if (action === "MEMBER_STATUS_CHANGED") {
+        statusLoggedMemberIds.add(mId);
+      }
+    }
 
-        if (!memberAuditSearchTerm) return true;
-        const q = memberAuditSearchTerm.toLowerCase().trim();
-        const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";
-        return (
-          (log.partnerName || log.memberName || "").toLowerCase().includes(q) ||
-          (log.action || "").toLowerCase().includes(q) ||
-          (log.details || "").toLowerCase().includes(q) ||
-          (log.partnerId || log.memberId || "").toLowerCase().includes(q) ||
-          (log.id || "").toLowerCase().includes(q) ||
-          metaStr.includes(q)
-        );
-      });
-  }, [auditLogs, memberAuditCategoryFilter, memberAuditSearchTerm]);
+    const synthesizedMemberLogs: any[] = [];
+    for (const m of communityMembers) {
+      const mId = String(m.userId || m.id || "").trim();
+      const userName = String(m.userName || "").trim();
+      if (!mId || userName.length < 2) continue;
+
+      const displayName = String(m.name || "").trim() || `@${userName}`;
+      const email = String(m.email || "").trim();
+
+      if (!registeredMemberIds.has(mId)) {
+        synthesizedMemberLogs.push({
+          id: `synth-member-reg-${mId}`,
+          partnerId: mId,
+          memberId: mId,
+          partnerName: displayName,
+          memberName: displayName,
+          action: "MEMBER_REGISTERED",
+          details: `New community member registered (@${userName}${email ? `, ${email}` : ""})`,
+          category: "community",
+          performedBy: "member",
+          metadata: {
+            role: "member",
+            scope: "community_members",
+            email,
+            userName,
+            country: m.country || "",
+          },
+          timestamp: m.createdAt || null,
+        });
+      }
+
+      const accStatus = String(m.accountStatus || "active").trim();
+      if (accStatus !== "active" && !statusLoggedMemberIds.has(mId)) {
+        const by = m.lastStatusChangeBy === "admin" ? "admin" : "system";
+        synthesizedMemberLogs.push({
+          id: `synth-member-status-${mId}`,
+          partnerId: mId,
+          memberId: mId,
+          partnerName: displayName,
+          memberName: displayName,
+          action: "MEMBER_STATUS_CHANGED",
+          details: `Account status changed to "${accStatus}" by ${by}.`,
+          category: by === "admin" ? "admin" : "community",
+          performedBy: by,
+          metadata: {
+            role: "member",
+            scope: "community_members",
+            email,
+            newStatus: accStatus,
+          },
+          timestamp: m.spamBlockStartedAt || m.updatedAt || m.createdAt || null,
+        });
+      }
+    }
+
+    const combined = [...explicitMemberLogs, ...synthesizedMemberLogs].sort(
+      (a, b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)
+    );
+
+    return combined.filter((log) => {
+      const action = (log.action || "").toUpperCase();
+      const details = (log.details || "").toLowerCase();
+
+      if (memberAuditCategoryFilter === "account_created") {
+        if (action !== "MEMBER_REGISTERED" && action !== "ACCOUNT_CREATED") return false;
+      }
+      if (memberAuditCategoryFilter === "password") {
+        if (!action.includes("PASSWORD") && !details.includes("password")) return false;
+      }
+      if (memberAuditCategoryFilter === "status") {
+        if (action !== "MEMBER_STATUS_CHANGED" && !details.includes("status changed")) return false;
+      }
+      if (memberAuditCategoryFilter === "post_reactivated") {
+        if (action !== "POST_RESTORED" && !(action.includes("POST") && (details.includes("activated") || details.includes("restored")))) return false;
+      }
+      if (memberAuditCategoryFilter === "comment_reactivated") {
+        if (action !== "COMMENT_ACTIVATED" && !(action.includes("COMMENT") && (details.includes("activated") || details.includes("restored")))) return false;
+      }
+
+      if (!memberAuditSearchTerm) return true;
+      const q = memberAuditSearchTerm.toLowerCase().trim();
+      const metaStr = log.metadata ? JSON.stringify(log.metadata).toLowerCase() : "";
+      return (
+        (log.partnerName || log.memberName || "").toLowerCase().includes(q) ||
+        (log.action || "").toLowerCase().includes(q) ||
+        (log.details || "").toLowerCase().includes(q) ||
+        (log.partnerId || log.memberId || "").toLowerCase().includes(q) ||
+        (log.id || "").toLowerCase().includes(q) ||
+        metaStr.includes(q)
+      );
+    });
+  }, [auditLogs, communityMembers, memberAuditCategoryFilter, memberAuditSearchTerm]);
 
   const exportMemberAuditLogs = (format: "csv" | "excel") => {
     const headers = ["Timestamp", "Member / Subject", "Member ID", "Action", "Performed By", "Details"];
@@ -2824,6 +3138,7 @@ export default function AdminDashboard() {
       cancelled: 0,
       expired: 0,
       incomplete_payment: 0,
+      pending_payment: 0,
       disabled: 0,
       pending: 0,
     };
@@ -2833,6 +3148,7 @@ export default function AdminDashboard() {
       else if (status === "Cancelled") counts.cancelled++;
       else if (status === "Expired") counts.expired++;
       else if (status === "Incomplete Payment" || status === "Payment Error") counts.incomplete_payment++;
+      else if (status === "Pending Payment") counts.pending_payment++;
       else if (status === "Disabled") counts.disabled++;
       else if (status === "Pending Review" || status === "Pending") counts.pending++;
       else counts.active++;
@@ -2842,7 +3158,8 @@ export default function AdminDashboard() {
 
   const filteredListings = useMemo(() => {
     return typeFilteredListings.filter((l) => {
-      const status = getEffectiveListingStatus(l, listingInsights[l.id]);
+      const insight = listingInsights[l.id];
+      const status = getEffectiveListingStatus(l, insight);
       if (listingFilter === "pending" && status !== "Pending Review") return false;
       if (listingFilter === "active" && status !== "Active") return false;
       if (listingFilter === "approved" && status !== "Active") return false;
@@ -2851,12 +3168,15 @@ export default function AdminDashboard() {
       if (listingFilter === "expired" && status !== "Expired") return false;
       if (listingFilter === "incomplete_payment" && status !== "Incomplete Payment") return false;
       if (listingFilter === "payment_error" && status !== "Incomplete Payment") return false;
+      if (listingFilter === "pending_payment" && status !== "Pending Payment") return false;
 
       if (!listingSearchTerm) return true;
 
       const q = listingSearchTerm.toLowerCase();
       return (
         l.businessName?.toLowerCase().includes(q) ||
+        insight?.businessName?.toLowerCase().includes(q) ||
+        insight?.listingName?.toLowerCase().includes(q) ||
         l.selectedCategories?.some((c) => c.toLowerCase().includes(q)) ||
         l.selectedPlan?.toLowerCase().includes(q) ||
         status.toLowerCase().includes(q)
@@ -3084,11 +3404,12 @@ export default function AdminDashboard() {
                   <Button variant={listingFilter === "incomplete_payment" || listingFilter === "payment_error" ? "default" : "outline"} onClick={() => setListingFilter("incomplete_payment")}>
                     <AlertTriangle className="w-4 h-4 mr-2" /> Incomplete Payment ({listingStatusCounts.incomplete_payment})
                   </Button>
-                  {listingStatusCounts.disabled > 0 && (
-                    <Button variant={listingFilter === "disabled" ? "default" : "outline"} onClick={() => setListingFilter("disabled")}>
-                      <Ban className="w-4 h-4 mr-2" /> Disabled ({listingStatusCounts.disabled})
-                    </Button>
-                  )}
+                  <Button variant={listingFilter === "pending_payment" ? "default" : "outline"} onClick={() => setListingFilter("pending_payment")}>
+                    <Clock className="w-4 h-4 mr-2" /> Pending Payment ({listingStatusCounts.pending_payment})
+                  </Button>
+                  <Button variant={listingFilter === "disabled" ? "default" : "outline"} onClick={() => setListingFilter("disabled")}>
+                    <Ban className="w-4 h-4 mr-2" /> Disabled ({listingStatusCounts.disabled})
+                  </Button>
                   {listingStatusCounts.pending > 0 && (
                     <Button variant={listingFilter === "pending" ? "default" : "outline"} onClick={() => setListingFilter("pending")}>
                       <Clock className="w-4 h-4 mr-2" /> Pending ({listingStatusCounts.pending})
@@ -3103,6 +3424,13 @@ export default function AdminDashboard() {
                 onView={openListingEditor}
                 onSetStatus={setListingStatus}
                 onSetFeatureStatus={setFeatureStatus}
+                onViewAuditTrail={(listing) => {
+                  setActiveTab("audit");
+                  setAuditCategoryFilter("listing");
+                  setAuditListingFilter(listing.id);
+                  setAuditListingEventFilter("all");
+                  setAuditSearchTerm("");
+                }}
               />
             </div>
           )}
@@ -3314,14 +3642,16 @@ export default function AdminDashboard() {
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <p className="text-sm text-slate-600">
-                    Audit logs, account registrations, profile updates, listings, plans, upgrades, features, and cancellations for partners.
+                    {auditCategoryFilter === "listing"
+                      ? "Listing audit trail — money, plans, upgrades, features, renewals, pending/failed payments, and cancellations."
+                      : "Audit logs, account registrations, profile updates, listings, plans, upgrades, features, and cancellations for partners."}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="relative w-full sm:w-72">
+                  <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <Input
-                      placeholder="Search company, ID, email, details…"
+                      placeholder="Search company, listing, ID, details…"
                       value={auditSearchTerm}
                       onChange={(e) => setAuditSearchTerm(e.target.value)}
                       className="pl-9 h-10 bg-white"
@@ -3330,14 +3660,14 @@ export default function AdminDashboard() {
                   <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
                     <button
                       type="button"
-                      onClick={() => setAuditCategoryFilter("all")}
+                      onClick={() => setAuditCategoryFilter("listing")}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        auditCategoryFilter === "all"
+                        auditCategoryFilter === "listing"
                           ? "bg-white text-slate-900 shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      All Logs
+                      Listings & Money
                     </button>
                     <button
                       type="button"
@@ -3352,14 +3682,14 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setAuditCategoryFilter("listing")}
+                      onClick={() => setAuditCategoryFilter("all")}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        auditCategoryFilter === "listing"
+                        auditCategoryFilter === "all"
                           ? "bg-white text-slate-900 shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      Listings & Money
+                      All Logs
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
@@ -3368,7 +3698,11 @@ export default function AdminDashboard() {
                       size="sm"
                       onClick={() => exportPartnerAuditLogs("csv")}
                       className="h-10 text-xs"
-                      disabled={filteredPartnerLogs.length === 0}
+                      disabled={
+                        auditCategoryFilter === "listing"
+                          ? filteredListingAuditRows.length === 0
+                          : filteredPartnerLogs.length === 0
+                      }
                     >
                       <Download className="w-3.5 h-3.5 mr-1.5" /> CSV
                     </Button>
@@ -3377,14 +3711,94 @@ export default function AdminDashboard() {
                       size="sm"
                       onClick={() => exportPartnerAuditLogs("excel")}
                       className="h-10 text-xs"
-                      disabled={filteredPartnerLogs.length === 0}
+                      disabled={
+                        auditCategoryFilter === "listing"
+                          ? filteredListingAuditRows.length === 0
+                          : filteredPartnerLogs.length === 0
+                      }
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Excel
                     </Button>
                   </div>
                 </div>
               </div>
-              <PartnerAuditLogList logs={filteredPartnerLogs} />
+
+              {auditCategoryFilter === "listing" && (
+                <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl p-3 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">Filter by Listing:</span>
+                    <select
+                      value={auditListingFilter}
+                      onChange={(e) => setAuditListingFilter(e.target.value)}
+                      className="flex h-9 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 min-w-[230px]"
+                    >
+                      <option value="all">All Listings ({listings.length})</option>
+                      {listings.map((l) => {
+                        const insight = listingInsights[l.id];
+                        const lName = insight?.listingName || l.eventName || l.jobTitle || l.businessName || "Unnamed Listing";
+                        const cName = insight?.businessName || l.businessName || "";
+                        const grp = formatAuditGroupCode(l.selectedGroup || l.__col, l.selectedPlan);
+                        return (
+                          <option key={l.__path || l.id} value={l.id}>
+                            [{grp}] {lName}{cName && cName !== lName ? ` — ${cName}` : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600 whitespace-nowrap">Event Type:</span>
+                    <select
+                      value={auditListingEventFilter}
+                      onChange={(e) => setAuditListingEventFilter(e.target.value)}
+                      className="flex h-9 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 min-w-[210px]"
+                    >
+                      <option value="all">All 10 Listing Events</option>
+                      <option value="subscription_purchased">1. Listing/Subscription Purchased (New Listing)</option>
+                      <option value="subscription_upgraded">2. Subscription Upgraded (Upgrade)</option>
+                      <option value="feature_added">3. Feature Added (F added)</option>
+                      <option value="feature_upgraded">4. Feature Upgraded (F upgraded)</option>
+                      <option value="plan_cancelled">5. Plan Cancelled (Cancelled)</option>
+                      <option value="feature_cancelled">6. Feature Cancelled (F cancelled)</option>
+                      <option value="feature_renewed">7. Feature Renewed</option>
+                      <option value="plan_renewed">8. Plan Renewed</option>
+                      <option value="payment_failed">9. Payment Failed (Stripe)</option>
+                      <option value="payment_pending">10. Payment Pending</option>
+                    </select>
+                  </div>
+
+                  {(auditListingFilter !== "all" || auditListingEventFilter !== "all" || auditSearchTerm) && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setAuditListingFilter("all");
+                        setAuditListingEventFilter("all");
+                        setAuditSearchTerm("");
+                      }}
+                      className="h-9 text-xs text-slate-600 hover:text-slate-900"
+                    >
+                      Clear Filters
+                    </Button>
+                  )}
+                </div>
+              )}
+
+              {auditCategoryFilter === "listing" ? (
+                <ListingAuditLogTable
+                  rows={filteredListingAuditRows}
+                  onSelectListing={(listingId) => {
+                    if (listingId) {
+                      setAuditListingFilter((prev) => (prev === listingId ? "all" : listingId));
+                    }
+                  }}
+                  activeListingFilter={auditListingFilter}
+                />
+              ) : (
+                <PartnerAuditLogList logs={filteredPartnerLogs} />
+              )}
             </div>
           )}
 
@@ -3962,10 +4376,11 @@ export default function AdminDashboard() {
               className="flex items-center gap-2"
               onClick={() => {
                 if (selectedListing) {
-                  const pId = selectedListing.partnerId || (selectedListing.__path?.startsWith("partnersCollection/") ? selectedListing.__path.split('/')[1] : "") || "";
                   setActiveTab("audit");
-                  setAuditCategoryFilter("all");
-                  setAuditSearchTerm(pId || selectedListing.id || selectedListing.businessName || selectedListing.eventName || selectedListing.jobTitle || "");
+                  setAuditCategoryFilter("listing");
+                  setAuditListingFilter(selectedListing.id || "all");
+                  setAuditListingEventFilter("all");
+                  setAuditSearchTerm("");
                   setListingEditorOpen(false);
                 }
               }}
@@ -4008,9 +4423,11 @@ export default function AdminDashboard() {
                       className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2"
                     >
                       <option value="Active">Active</option>
-                      <option value="Expired">Expired</option>
                       <option value="Cancelled">Cancelled</option>
+                      <option value="Expired">Expired</option>
                       <option value="Incomplete Payment">Incomplete Payment</option>
+                      <option value="Pending Payment">Pending Payment</option>
+                      <option value="Disabled">Disabled</option>
                     </select>
                   </div>
                   <Field label="Active (true or false)" value={listingEditor.active || "true"} onChange={() => {}} disabled={true} />
@@ -5050,12 +5467,14 @@ function ListingsList({
   onView,
   onSetStatus,
   onSetFeatureStatus,
+  onViewAuditTrail,
 }: {
   listings: ListingRecord[];
   listingInsights: Record<string, any>;
   onView: (listing: ListingRecord) => void;
   onSetStatus: (listing: ListingRecord, status: string, active: boolean) => void;
   onSetFeatureStatus?: (listing: ListingRecord, status: string, active: boolean) => void;
+  onViewAuditTrail?: (listing: ListingRecord) => void;
 }) {
   const topScrollRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
@@ -5192,51 +5611,55 @@ function ListingsList({
           <Table className="min-w-max">
             <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">Business</TableHead>
+                <TableHead className="pl-6">Business Name</TableHead>
+                <TableHead>Listing Name</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Plan</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Created On</TableHead>
-                <TableHead>Subscribed On</TableHead>
+                <TableHead>Plan Created Date</TableHead>
                 <TableHead>Upgraded On</TableHead>
                 <TableHead>Expiry Date</TableHead>
-                <TableHead>Cancelled On</TableHead>
+                <TableHead>Plan Cancel Date</TableHead>
                 <TableHead>Feature Status</TableHead>
-                <TableHead>Feature Plan</TableHead>
-                <TableHead>Feature Date</TableHead>
+                <TableHead>Current Feature Plan</TableHead>
+                <TableHead>Feature Created Date</TableHead>
                 <TableHead>Feature Cancel Date</TableHead>
                 <TableHead className="text-right pr-6 sticky right-0 bg-white shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">Actions</TableHead>
               </TableRow>
             </TableHeader>
           <TableBody>
             {listings.map((listing) => {
-              const effectiveStatus = getEffectiveListingStatus(listing, listingInsights[listing.id]);
+              const insight = listingInsights[listing.id];
+              const effectiveStatus = getEffectiveListingStatus(listing, insight);
+              const businessName = insight?.businessName || listing.businessName || "Unnamed";
+              const listingName = insight?.listingName || listing.eventName || listing.jobTitle || listing.businessName || "—";
               return (
                 <TableRow key={listing.__path}>
                   <TableCell className="pl-6">
-                    <p className="font-medium">{listing.businessName || "Unnamed"}</p>
-                    <p className="text-xs text-slate-500">{listing.companyWebsite || "-"}</p>
+                    <p className="font-medium">{businessName}</p>
+                  </TableCell>
+                  <TableCell>
+                    <p className="font-medium text-slate-700">{listingName}</p>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline">{getCollectionLabel(listing.__col)}</Badge>
                   </TableCell>
-                  <TableCell>{formatUserPlan(listing.selectedPlan, listingInsights[listing.id]?.plan)}</TableCell>
+                  <TableCell>{formatUserPlan(listing.selectedPlan, insight?.plan)}</TableCell>
                   <TableCell>{getStatusBadge(effectiveStatus)}</TableCell>
-                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listing.createdAt)}</TableCell>
-                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.subscribedOn)}</TableCell>
-                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.upgradedOn)}</TableCell>
-                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.expiryDate)}</TableCell>
-                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.cancelledOn)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(insight?.subscribedOn)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(insight?.upgradedOn)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(insight?.expiryDate)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(insight?.cancelledOn)}</TableCell>
                   <TableCell className="text-slate-500 text-sm whitespace-nowrap">
-                    {listingInsights[listing.id]?.featureStatus && listingInsights[listing.id]?.featureStatus !== "-" ? (
-                      getStatusBadge(listingInsights[listing.id]?.featureStatus)
+                    {insight?.featureStatus && insight?.featureStatus !== "-" ? (
+                      getStatusBadge(insight?.featureStatus)
                     ) : (
                       <span className="text-slate-400 text-xs font-mono">—</span>
                     )}
                   </TableCell>
-                  <TableCell className="text-slate-500 text-sm">{listingInsights[listing.id]?.featurePlan || "-"}</TableCell>
-                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.featureDate)}</TableCell>
-                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(listingInsights[listing.id]?.featureCancelDate)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm capitalize">{insight?.featurePlan || "-"}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(insight?.featureDate)}</TableCell>
+                  <TableCell className="text-slate-500 text-sm">{formatAdminDate(insight?.featureCancelDate)}</TableCell>
                   <TableCell className="text-right pr-6 sticky right-0 bg-white shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -5249,6 +5672,11 @@ function ListingsList({
                         <DropdownMenuItem onClick={() => onView(listing)}>
                           <Eye className="w-4 h-4 mr-2" /> View Listing
                         </DropdownMenuItem>
+                        {onViewAuditTrail && (
+                          <DropdownMenuItem onClick={() => onViewAuditTrail(listing)}>
+                            <History className="w-4 h-4 mr-2 text-blue-600" /> View Listing Audit Trail
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuSeparator />
                         <DropdownMenuLabel className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold py-1">
                           Listing Status
@@ -5256,14 +5684,20 @@ function ListingsList({
                         <DropdownMenuItem onClick={() => onSetStatus(listing, "Active", true)}>
                           <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Set to Active
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Expired", false)}>
-                          <Clock className="w-4 h-4 mr-2 text-orange-600" /> Set to Expired
-                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onSetStatus(listing, "Cancelled", false)}>
                           <XCircle className="w-4 h-4 mr-2 text-rose-600" /> Set to Cancelled
                         </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Expired", false)}>
+                          <Clock className="w-4 h-4 mr-2 text-orange-600" /> Set to Expired
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onSetStatus(listing, "Incomplete Payment", false)}>
                           <AlertTriangle className="w-4 h-4 mr-2 text-red-600" /> Set to Incomplete Payment
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Pending Payment", false)}>
+                          <Clock className="w-4 h-4 mr-2 text-amber-600" /> Set to Pending Payment
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Disabled", false)}>
+                          <Ban className="w-4 h-4 mr-2 text-slate-600" /> Set to Disabled
                         </DropdownMenuItem>
                         {onSetFeatureStatus && (
                           <>
@@ -5274,14 +5708,17 @@ function ListingsList({
                             <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Active", true)}>
                               <CheckCircle2 className="w-4 h-4 mr-2 text-emerald-600" /> Set Feature: Active
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Expired", false)}>
-                              <Clock className="w-4 h-4 mr-2 text-orange-600" /> Set Feature: Expired
-                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Cancelled", false)}>
                               <XCircle className="w-4 h-4 mr-2 text-rose-600" /> Set Feature: Cancelled
                             </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Expired", false)}>
+                              <Clock className="w-4 h-4 mr-2 text-orange-600" /> Set Feature: Expired
+                            </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Incomplete Payment", false)}>
                               <AlertTriangle className="w-4 h-4 mr-2 text-red-600" /> Set Feature: Incomplete Payment
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Pending Payment", false)}>
+                              <Clock className="w-4 h-4 mr-2 text-amber-600" /> Set Feature: Pending Payment
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Disabled", false)}>
                               <Ban className="w-4 h-4 mr-2 text-slate-600" /> Set Feature: Disabled
@@ -5773,31 +6210,768 @@ function isPartnerAccountLog(log: any): boolean {
   return false;
 }
 
-function isListingOrBillingLog(log: any): boolean {
-  const action = (log.action || "").toUpperCase();
-  const category = (log.category || "").toLowerCase();
-  const details = (log.details || "").toLowerCase();
+export type ListingAuditEventKind =
+  | "subscription_purchased"
+  | "subscription_upgraded"
+  | "feature_added"
+  | "feature_upgraded"
+  | "plan_cancelled"
+  | "feature_cancelled"
+  | "feature_renewed"
+  | "plan_renewed"
+  | "payment_failed"
+  | "payment_pending";
 
+export interface NormalizedListingAuditRow {
+  id: string;
+  rawLog: any;
+  timestampMs: number;
+  dateTimeStr: string;
+  partnerId: string;
+  companyName: string;
+  listingId: string;
+  listingName: string;
+  eventKind: ListingAuditEventKind;
+  actionLabel: string;
+  grpLabel: string;
+  typeLabel: string;
+  byLabel: "Partner" | "System" | "Stripe" | "Admin";
+  detailsLabel: string;
+  paymentStatusLabel: "Complete" | "Pending" | "Payment Failed" | "N/A";
+  actionId: string;
+}
+
+function formatAuditGroupCode(rawGroupOrCollection?: string, planId?: string): string {
+  const g = String(rawGroupOrCollection || "").toLowerCase().trim();
+  const p = String(planId || "").toLowerCase().trim();
   if (
-    action.startsWith("PAYMENT_") ||
-    action.startsWith("SUBSCRIPTION_") ||
-    action.startsWith("LISTING_") ||
-    action.startsWith("PLAN_") ||
-    action.startsWith("FEATURE_") ||
-    category === "billing" ||
-    category === "listing" ||
-    details.includes("plan") ||
-    details.includes("feature") ||
-    details.includes("spotlight") ||
-    details.includes("subscription") ||
-    details.includes("cancel") ||
-    details.includes("renew") ||
-    details.includes("invoice")
+    g === "b" ||
+    g === "business_offerings" ||
+    g === "businessofferingscollection" ||
+    g === "business" ||
+    g === "business offering" ||
+    g === "business offerings" ||
+    p.includes("_bo_")
   ) {
-    return true;
+    return "B";
+  }
+  if (
+    g === "c" ||
+    g === "consulting" ||
+    g === "consulting_services" ||
+    g === "consultingservicescollection" ||
+    g === "consultingcollection" ||
+    g === "consulting service" ||
+    g === "consulting services" ||
+    p.includes("_cs_")
+  ) {
+    return "C";
+  }
+  if (g === "job" || g === "jobs" || g === "jobscollection" || p.includes("_job")) {
+    return "Job";
+  }
+  if (g === "event" || g === "events" || g === "eventscollection" || p.includes("_event")) {
+    return "Event";
+  }
+  return "-";
+}
+
+function formatAuditFeatureType(featureId?: string): string {
+  const f = String(featureId || "").toLowerCase().trim();
+  if (!f || f === "none" || f === "-") return "-";
+  if (f.includes("both")) return "Feature Both";
+  if (f.includes("category")) return "Category Spotlight";
+  if (f.includes("homepage")) return "Homepage Spotlight";
+  return f
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function formatAuditPlanType(planId?: string, grpCode?: string): string {
+  const p = String(planId || "").toLowerCase().trim();
+  if (!p || p === "none" || p === "-") return "-";
+
+  const isYearly = p.includes("_yr") || p.includes("year") || p.includes("annual");
+  const isMonthly = p.includes("_mo") || p.includes("month");
+  const isJobOrEvent = grpCode === "Job" || grpCode === "Event" || p.includes("_job") || p.includes("_event");
+
+  if (p.includes("premium_plus") || p.includes("premium plus")) {
+    if (isYearly) return "PP Yearly";
+    if (isMonthly && !isJobOrEvent) return "PP Monthly";
+    return "Premium Plus";
+  }
+  if (p.includes("premium")) {
+    if (isYearly) return "Premium Yearly";
+    if (isMonthly && !isJobOrEvent) return "Premium Monthly";
+    return "Premium";
+  }
+  if (p.includes("standard")) {
+    if (isYearly) return "Standard Yearly";
+    if (isMonthly && !isJobOrEvent) return "Standard Monthly";
+    return "Standard";
+  }
+  if (p.includes("basic")) {
+    if (isYearly) return "Basic Yearly";
+    if (isMonthly && !isJobOrEvent) return "Basic Monthly";
+    return "Basic";
+  }
+  return formatUserPlan(planId);
+}
+
+function formatShortTierAbbrev(planId?: string): string {
+  const p = String(planId || "").toLowerCase().trim();
+  if (p.includes("premium_plus") || p.includes("premium plus")) return "PP";
+  if (p.includes("premium")) return "P";
+  if (p.includes("standard")) return "S";
+  if (p.includes("basic")) return "B";
+  return "";
+}
+
+function formatUpgradeDetailsLabel(fromPlanId?: string, toPlanId?: string): string {
+  const toP = String(toPlanId || "").toLowerCase().trim();
+  const fromP = String(fromPlanId || "").toLowerCase().trim();
+  const isYearly = toP.includes("_yr") || toP.includes("year");
+  const isMonthly = toP.includes("_mo") || toP.includes("month") || toP.includes("_job") || toP.includes("_event");
+  const intervalSuffix = isYearly ? "Yearly" : isMonthly ? "Monthly" : "";
+
+  const fromShort = formatShortTierAbbrev(fromP);
+  const toShort = formatShortTierAbbrev(toP);
+  if (fromShort && toShort && fromShort !== toShort) {
+    return `${fromShort} to ${toShort}${intervalSuffix ? ` ${intervalSuffix}` : ""}`;
+  }
+  if (toP) {
+    return `Upgraded to ${formatAuditPlanType(toP)}`;
+  }
+  return "Plan upgrade";
+}
+
+function classifyListingAuditEventKind(log: any, listingStatusRaw?: string): ListingAuditEventKind | null {
+  if (!log || isMemberAuditLog(log)) return null;
+  const action = String(log.action || "").toUpperCase().trim();
+  const details = String(log.details || "").toLowerCase();
+
+  // Strictly exclude non-money, non-cancellation actions (profile edits, listing content edits, deletions, admin toggles)
+  if (
+    action === "LISTING_UPDATED" ||
+    action === "LISTING_DELETED" ||
+    action === "ACCOUNT_CREATED" ||
+    action === "ACCOUNT_UPDATED" ||
+    action === "PASSWORD_UPDATED" ||
+    action === "CATEGORY_DELETED" ||
+    action === "ADMIN_ACTION"
+  ) {
+    return null;
   }
 
-  return false;
+  // 10. Payment Pending
+  if (action === "PAYMENT_PENDING") {
+    return "payment_pending";
+  }
+
+  // Legacy LISTING_CREATED: if listing is still pending_payment (checkout started & never finished), classify as Payment Pending;
+  // otherwise if paid/admin-created, classify as Subscription Purchased.
+  if (action === "LISTING_CREATED") {
+    const lNorm = String(listingStatusRaw || log.metadata?.paymentStatus || "").toLowerCase().trim();
+    if (lNorm === "pending_payment" || lNorm === "pending payment" || lNorm === "pending") {
+      return "payment_pending";
+    }
+    return "subscription_purchased";
+  }
+
+  // 1. Listing / Subscription Purchased
+  if (action === "SUBSCRIPTION_PURCHASED") {
+    return "subscription_purchased";
+  }
+
+  // 2. Subscription Upgraded
+  if (action === "PLAN_UPGRADED" || action === "SUBSCRIPTION_UPGRADED") {
+    return "subscription_upgraded";
+  }
+
+  // 3. Feature Added
+  if (action === "FEATURE_ADDED") {
+    return "feature_added";
+  }
+
+  // 4. Feature Upgraded
+  if (action === "FEATURE_UPGRADED") {
+    return "feature_upgraded";
+  }
+
+  // 5 & 6. Plan Cancelled / Feature Cancelled
+  if (action === "FEATURE_CANCELLED") {
+    return "feature_cancelled";
+  }
+  if (action === "PLAN_CANCELLED" || action === "SUBSCRIPTION_CANCELLED") {
+    if (log.metadata?.cancelScope === "feature" || details.includes("feature")) {
+      return "feature_cancelled";
+    }
+    return "plan_cancelled";
+  }
+
+  // 7. Feature Renewed
+  if (action === "FEATURE_RENEWED") {
+    return "feature_renewed";
+  }
+
+  // 8. Plan Renewed
+  if (action === "PLAN_RENEWED") {
+    return "plan_renewed";
+  }
+
+  // 9. Payment Failed (Stripe)
+  if (action === "PAYMENT_FAILED") {
+    return "payment_failed";
+  }
+
+  // Legacy PAYMENT_SUCCESS classification
+  if (action === "PAYMENT_SUCCESS") {
+    const isFeature =
+      Boolean(log.metadata?.featureId) ||
+      log.metadata?.type === "feature" ||
+      details.includes("spotlight");
+    const isRenewal =
+      log.metadata?.billingReason === "subscription_cycle" ||
+      details.includes("recurring invoice") ||
+      details.includes("subscription invoice");
+
+    if (isFeature && isRenewal) return "feature_renewed";
+    if (isFeature) return "feature_added";
+    if (isRenewal) return "plan_renewed";
+    return "subscription_purchased";
+  }
+
+  return null;
+}
+
+function isListingOrBillingLog(log: any): boolean {
+  return classifyListingAuditEventKind(log) !== null;
+}
+
+function buildNormalizedListingAuditRows({
+  auditLogs,
+  partners,
+  listings,
+  partnerPlans,
+  featuredPlans,
+  transactions,
+}: {
+  auditLogs: any[];
+  partners: PartnerRecord[];
+  listings: ListingRecord[];
+  partnerPlans: PartnerPlanRecord[];
+  featuredPlans: FeaturedPlanPurchase[];
+  transactions: any[];
+}): NormalizedListingAuditRow[] {
+  const partnerById = new Map<string, PartnerRecord>();
+  partners.forEach((p) => partnerById.set(p.id, p));
+
+  const listingById = new Map<string, ListingRecord>();
+  const listingsByPartnerId = new Map<string, ListingRecord[]>();
+  const listingBySubId = new Map<string, ListingRecord>();
+  listings.forEach((l) => {
+    listingById.set(l.id, l);
+    const pid =
+      l.partnerId ||
+      (l.__path?.startsWith("partnersCollection/") ? l.__path.split("/")[1] : "");
+    if (pid) {
+      const arr = listingsByPartnerId.get(pid) || [];
+      arr.push(l);
+      listingsByPartnerId.set(pid, arr);
+    }
+    if ((l as any).stripeSubscriptionId) {
+      listingBySubId.set(String((l as any).stripeSubscriptionId), l);
+    }
+    if ((l as any).featureSpotlightStripeSubscriptionId) {
+      listingBySubId.set(String((l as any).featureSpotlightStripeSubscriptionId), l);
+    }
+  });
+
+  const planById = new Map<string, PartnerPlanRecord>();
+  const planBySubId = new Map<string, PartnerPlanRecord>();
+  const plansByListingId = new Map<string, PartnerPlanRecord[]>();
+  partnerPlans.forEach((p) => {
+    planById.set(p.id, p);
+    if (p.stripeSubscriptionId) {
+      planBySubId.set(String(p.stripeSubscriptionId), p);
+    }
+    if (p.listingId) {
+      const arr = plansByListingId.get(p.listingId) || [];
+      arr.push(p);
+      plansByListingId.set(p.listingId, arr);
+    }
+  });
+
+  const featureBySubId = new Map<string, FeaturedPlanPurchase>();
+  const featuresByListingId = new Map<string, FeaturedPlanPurchase[]>();
+  featuredPlans.forEach((f) => {
+    const subId = (f as any).stripeSubscriptionId;
+    if (subId) {
+      featureBySubId.set(String(subId), f);
+    }
+    if (f.listingId) {
+      const arr = featuresByListingId.get(f.listingId) || [];
+      arr.push(f);
+      featuresByListingId.set(f.listingId, arr);
+    }
+  });
+
+  const txnBySessionId = new Map<string, any>();
+  const txnByInvoiceId = new Map<string, any>();
+  transactions.forEach((t) => {
+    if (t.sessionId) txnBySessionId.set(String(t.sessionId), t);
+    if (t.invoiceId) txnByInvoiceId.set(String(t.invoiceId), t);
+  });
+
+  // Track which sessionIds already have a specific log (so legacy duplicate PAYMENT_SUCCESS for the same sessionId is skipped)
+  const specificActionSessionIds = new Set<string>();
+  const paidListingIdsWithPurchaseLog = new Set<string>();
+  auditLogs.forEach((log) => {
+    const action = String(log.action || "").toUpperCase();
+    const sid = log.metadata?.sessionId ? String(log.metadata.sessionId) : "";
+    if (
+      sid &&
+      (action === "SUBSCRIPTION_PURCHASED" ||
+        action === "PLAN_UPGRADED" ||
+        action === "SUBSCRIPTION_UPGRADED" ||
+        action === "FEATURE_ADDED" ||
+        action === "FEATURE_UPGRADED")
+    ) {
+      specificActionSessionIds.add(sid);
+    }
+    if (action === "SUBSCRIPTION_PURCHASED" || action === "PAYMENT_SUCCESS") {
+      const txn = sid ? txnBySessionId.get(sid) : null;
+      const lid = log.metadata?.listingId || txn?.listingId || "";
+      if (lid && action === "SUBSCRIPTION_PURCHASED") {
+        paidListingIdsWithPurchaseLog.add(String(lid));
+      }
+    }
+  });
+
+  const rows: NormalizedListingAuditRow[] = [];
+
+  for (const log of auditLogs) {
+    const rawAction = String(log.action || "").toUpperCase();
+    const sid = log.metadata?.sessionId ? String(log.metadata.sessionId) : "";
+    const invId = log.metadata?.invoiceId ? String(log.metadata.invoiceId) : "";
+    const subId = log.metadata?.subscriptionId ? String(log.metadata.subscriptionId) : "";
+    const planDocId = log.metadata?.planDocId ? String(log.metadata.planDocId) : "";
+
+    // Skip duplicate legacy PAYMENT_SUCCESS when a specific action log exists for the same sessionId
+    if (rawAction === "PAYMENT_SUCCESS" && sid && specificActionSessionIds.has(sid)) {
+      continue;
+    }
+
+    const matchedTxn =
+      (sid ? txnBySessionId.get(sid) : null) ||
+      (invId ? txnByInvoiceId.get(invId) : null) ||
+      null;
+    const matchedPlan =
+      (planDocId ? planById.get(planDocId) : null) ||
+      (subId ? planBySubId.get(subId) : null) ||
+      null;
+    const matchedFeature = subId ? featureBySubId.get(subId) : null;
+
+    let resolvedListingId: string =
+      log.metadata?.listingId ||
+      matchedTxn?.listingId ||
+      matchedPlan?.listingId ||
+      matchedFeature?.listingId ||
+      "";
+
+    let matchedListing: ListingRecord | undefined = resolvedListingId
+      ? listingById.get(resolvedListingId)
+      : subId
+        ? listingBySubId.get(subId)
+        : undefined;
+
+    if (!matchedListing && log.partnerId) {
+      const partnerListings = listingsByPartnerId.get(log.partnerId) || [];
+      if (partnerListings.length === 1) {
+        matchedListing = partnerListings[0];
+        resolvedListingId = matchedListing.id;
+      } else if (partnerListings.length > 1) {
+        const targetPlan = log.metadata?.planId || log.metadata?.plan || matchedTxn?.planId || "";
+        const byPlan = targetPlan
+          ? partnerListings.find((l) => l.selectedPlan === targetPlan)
+          : undefined;
+        if (byPlan) {
+          matchedListing = byPlan;
+          resolvedListingId = byPlan.id;
+        }
+      }
+    }
+
+    if (matchedListing && !resolvedListingId) {
+      resolvedListingId = matchedListing.id;
+    }
+
+    // If a listing was paid and already has a SUBSCRIPTION_PURCHASED row, skip the pre-checkout PAYMENT_PENDING / LISTING_CREATED row for that same initial purchase
+    if (
+      (rawAction === "PAYMENT_PENDING" || rawAction === "LISTING_CREATED") &&
+      resolvedListingId &&
+      matchedListing &&
+      String(matchedListing.status || "").toLowerCase() !== "pending_payment" &&
+      String(matchedListing.status || "").toLowerCase() !== "pending payment" &&
+      paidListingIdsWithPurchaseLog.has(resolvedListingId)
+    ) {
+      continue;
+    }
+
+    const eventKind = classifyListingAuditEventKind(log, matchedListing?.status);
+    if (!eventKind) continue;
+
+    const partner = log.partnerId ? partnerById.get(log.partnerId) : undefined;
+    const companyName =
+      partner?.businessName ||
+      matchedListing?.businessName ||
+      (log.partnerName && log.partnerName !== "Unknown Partner" ? log.partnerName : "") ||
+      "-";
+
+    const rawMetaListingName = String(log.metadata?.listingName || "").trim();
+    const isGenericGroupName = ["business offerings", "consulting", "consulting services", "events", "jobs"].includes(
+      rawMetaListingName.toLowerCase(),
+    );
+    const listingName =
+      (rawMetaListingName && !isGenericGroupName ? rawMetaListingName : "") ||
+      matchedListing?.title ||
+      matchedListing?.eventName ||
+      matchedListing?.jobTitle ||
+      matchedListing?.businessName ||
+      companyName ||
+      "-";
+
+    const listingPlans = resolvedListingId ? plansByListingId.get(resolvedListingId) || [] : [];
+    const listingFeatures = resolvedListingId ? featuresByListingId.get(resolvedListingId) || [] : [];
+    const primaryListingPlan = matchedPlan || listingPlans[0] || null;
+    const primaryListingFeature = matchedFeature || listingFeatures[0] || null;
+
+    const resolvedPlanId =
+      log.metadata?.planId ||
+      log.metadata?.plan ||
+      matchedTxn?.planId ||
+      primaryListingPlan?.planId ||
+      matchedListing?.selectedPlan ||
+      "";
+    const resolvedFeatureId =
+      log.metadata?.featureId ||
+      matchedTxn?.featureId ||
+      primaryListingFeature?.featureId ||
+      (matchedListing as any)?.selectedAddon ||
+      (matchedListing as any)?.featuredPlacement ||
+      "";
+
+    const rawGroup =
+      log.metadata?.group ||
+      (log.metadata?.type !== "listing" && log.metadata?.type !== "feature" ? log.metadata?.type : "") ||
+      matchedTxn?.group ||
+      matchedListing?.selectedGroup ||
+      matchedListing?.__col ||
+      (primaryListingPlan as any)?.group ||
+      primaryListingPlan?.collectionName ||
+      "";
+    const grpLabel = formatAuditGroupCode(rawGroup, resolvedPlanId);
+
+    const isFeatureEvent =
+      eventKind === "feature_added" ||
+      eventKind === "feature_upgraded" ||
+      eventKind === "feature_cancelled" ||
+      eventKind === "feature_renewed" ||
+      (eventKind === "payment_failed" && Boolean(resolvedFeatureId && !log.metadata?.planId));
+
+    const typeLabel = isFeatureEvent
+      ? formatAuditFeatureType(resolvedFeatureId)
+      : formatAuditPlanType(resolvedPlanId, grpLabel);
+
+    // Action column label (matching Slide 1 & Slide 2)
+    let actionLabel = "Activity";
+    switch (eventKind) {
+      case "subscription_purchased":
+        actionLabel = "New Listing";
+        break;
+      case "subscription_upgraded":
+        actionLabel = "Upgrade";
+        break;
+      case "feature_added":
+        actionLabel = "Feature Added";
+        break;
+      case "feature_upgraded":
+        actionLabel = "Feature Upgrade";
+        break;
+      case "plan_cancelled":
+        actionLabel = "Cancelled";
+        break;
+      case "feature_cancelled":
+        actionLabel = "Feature Cancelled";
+        break;
+      case "feature_renewed":
+        actionLabel = "Feature Renewed";
+        break;
+      case "plan_renewed":
+        actionLabel = "Renewal";
+        break;
+      case "payment_failed":
+        actionLabel = "Payment Failed";
+        break;
+      case "payment_pending":
+        actionLabel = "Payment Pending";
+        break;
+    }
+
+    // By column (Partner | System | Stripe | Admin)
+    let byLabel: "Partner" | "System" | "Stripe" | "Admin" = "Partner";
+    const perfRaw = String(log.performedBy || log.metadata?.performedBy || "").toLowerCase();
+    if (eventKind === "payment_failed" || perfRaw === "stripe") {
+      byLabel = "Stripe";
+    } else if (
+      perfRaw === "admin" ||
+      Boolean(log.metadata?.adminEmail || log.metadata?.createdByAdmin) ||
+      String(log.details || "").toLowerCase().includes("by admin")
+    ) {
+      byLabel = "Admin";
+    } else if (
+      eventKind === "plan_renewed" ||
+      eventKind === "feature_renewed" ||
+      perfRaw === "system"
+    ) {
+      byLabel = "System";
+    } else {
+      byLabel = "Partner";
+    }
+
+    // Details column (matching Slide 2)
+    let detailsLabel = "N/A";
+    switch (eventKind) {
+      case "subscription_purchased":
+        detailsLabel = "Initial Listing";
+        break;
+      case "subscription_upgraded":
+        detailsLabel = formatUpgradeDetailsLabel(
+          log.metadata?.fromPlanId || matchedTxn?.previousPlanId,
+          resolvedPlanId,
+        );
+        break;
+      case "feature_added":
+        detailsLabel = "Feature added";
+        break;
+      case "feature_upgraded": {
+        const prevFeat = log.metadata?.previousFeatureId || matchedTxn?.previousFeatureId;
+        detailsLabel = prevFeat
+          ? `${formatAuditFeatureType(prevFeat)} to ${formatAuditFeatureType(resolvedFeatureId)}`
+          : "Feature upgrade";
+        break;
+      }
+      case "plan_renewed":
+        detailsLabel = "Plan renewals";
+        break;
+      case "feature_renewed":
+        detailsLabel = "Feature renewals";
+        break;
+      case "plan_cancelled":
+      case "feature_cancelled":
+      case "payment_failed":
+      case "payment_pending":
+        detailsLabel = "N/A";
+        break;
+    }
+
+    // Payment Status column (matching Slide 2: Complete | Pending | Payment Failed | N/A)
+    let paymentStatusLabel: "Complete" | "Pending" | "Payment Failed" | "N/A" = "Complete";
+    if (eventKind === "plan_cancelled" || eventKind === "feature_cancelled") {
+      paymentStatusLabel = "N/A";
+    } else if (eventKind === "payment_pending") {
+      paymentStatusLabel = "Pending";
+    } else if (eventKind === "payment_failed") {
+      paymentStatusLabel = "Payment Failed";
+    } else {
+      paymentStatusLabel = "Complete";
+    }
+
+    const timestampMs = log.timestamp?.seconds
+      ? log.timestamp.seconds * 1000
+      : typeof log.timestamp?.toDate === "function"
+        ? log.timestamp.toDate().getTime()
+        : 0;
+    const dateTimeStr = timestampMs ? new Date(timestampMs).toLocaleString() : "Recently";
+
+    const actionId =
+      sid ||
+      invId ||
+      subId ||
+      log.id ||
+      "-";
+
+    rows.push({
+      id: log.id || `${log.partnerId}-${timestampMs}-${eventKind}`,
+      rawLog: log,
+      timestampMs,
+      dateTimeStr,
+      partnerId: log.partnerId || "",
+      companyName,
+      listingId: resolvedListingId,
+      listingName,
+      eventKind,
+      actionLabel,
+      grpLabel,
+      typeLabel,
+      byLabel,
+      detailsLabel,
+      paymentStatusLabel,
+      actionId,
+    });
+  }
+
+  return rows;
+}
+
+function ListingAuditLogTable({
+  rows,
+  onSelectListing,
+  activeListingFilter,
+}: {
+  rows: NormalizedListingAuditRow[];
+  onSelectListing?: (listingId: string) => void;
+  activeListingFilter?: string;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
+        <History className="w-10 h-10 text-slate-300 mb-3 mx-auto" />
+        <h3 className="font-semibold">No listing audit trail entries found</h3>
+        <p className="text-sm text-slate-500">
+          Listing purchases, plan upgrades, feature additions/upgrades, renewals, pending/failed payments, and cancellations will appear here.
+        </p>
+      </div>
+    );
+  }
+
+  const getListingActionBadge = (row: NormalizedListingAuditRow) => {
+    switch (row.eventKind) {
+      case "subscription_purchased":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">{row.actionLabel}</Badge>;
+      case "subscription_upgraded":
+        return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">{row.actionLabel}</Badge>;
+      case "feature_added":
+      case "feature_upgraded":
+        return <Badge className="bg-purple-50 text-purple-700 border-purple-200">{row.actionLabel}</Badge>;
+      case "plan_cancelled":
+      case "feature_cancelled":
+        return <Badge className="bg-rose-50 text-rose-700 border-rose-200">{row.actionLabel}</Badge>;
+      case "plan_renewed":
+      case "feature_renewed":
+        return <Badge className="bg-teal-50 text-teal-700 border-teal-200">{row.actionLabel}</Badge>;
+      case "payment_failed":
+        return <Badge className="bg-red-50 text-red-700 border-red-200">{row.actionLabel}</Badge>;
+      case "payment_pending":
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">{row.actionLabel}</Badge>;
+    }
+  };
+
+  const getPaymentStatusBadge = (status: NormalizedListingAuditRow["paymentStatusLabel"]) => {
+    switch (status) {
+      case "Complete":
+        return <Badge className="bg-emerald-50 text-emerald-700 border-emerald-200">Complete</Badge>;
+      case "Pending":
+        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Pending</Badge>;
+      case "Payment Failed":
+        return <Badge className="bg-red-50 text-red-700 border-red-200">Payment Failed</Badge>;
+      case "N/A":
+      default:
+        return <span className="text-xs font-medium text-slate-500">N/A</span>;
+    }
+  };
+
+  const getByBadge = (by: NormalizedListingAuditRow["byLabel"]) => {
+    if (by === "Stripe") {
+      return <Badge className="bg-violet-50 text-violet-700 border-violet-200 font-medium text-xs">Stripe</Badge>;
+    }
+    if (by === "System") {
+      return <Badge className="bg-slate-100 text-slate-700 border-slate-200 font-medium text-xs">System</Badge>;
+    }
+    if (by === "Admin") {
+      return <Badge className="bg-purple-50 text-purple-700 border-purple-200 font-medium text-xs">Admin</Badge>;
+    }
+    return <Badge className="bg-blue-50 text-blue-700 border-blue-200 font-medium text-xs">Partner</Badge>;
+  };
+
+  return (
+    <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
+      <CardContent className="p-0">
+        <div className="overflow-x-auto admin-table-scrollbar">
+          <Table className="min-w-max">
+            <TableHeader>
+              <TableRow className="bg-slate-50/80">
+                <TableHead className="pl-6">Date/Time</TableHead>
+                <TableHead>Company Name</TableHead>
+                <TableHead>Listing Name</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Grp</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>By</TableHead>
+                <TableHead>Details</TableHead>
+                <TableHead>Payment Status</TableHead>
+                <TableHead className="text-right pr-6">Action ID</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((row) => {
+                const isFilteredListing = Boolean(activeListingFilter && activeListingFilter !== "all" && row.listingId === activeListingFilter);
+                return (
+                  <TableRow key={row.id} className="hover:bg-slate-50/60">
+                    <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
+                      {row.dateTimeStr}
+                    </TableCell>
+                    <TableCell className="font-semibold text-sm text-slate-900 whitespace-nowrap">
+                      {row.companyName}
+                    </TableCell>
+                    <TableCell className="font-medium text-sm text-slate-800 whitespace-nowrap">
+                      {row.listingId && onSelectListing ? (
+                        <button
+                          type="button"
+                          onClick={() => onSelectListing(row.listingId)}
+                          className={`text-left hover:underline cursor-pointer ${
+                            isFilteredListing ? "text-blue-700 font-semibold" : "text-slate-800 hover:text-blue-600"
+                          }`}
+                          title="Click to filter audit trail for this listing"
+                        >
+                          {row.listingName}
+                        </button>
+                      ) : (
+                        row.listingName
+                      )}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {getListingActionBadge(row)}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Badge variant="outline" className="font-semibold text-xs">
+                        {row.grpLabel}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm font-medium text-slate-700 whitespace-nowrap">
+                      {row.typeLabel}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {getByBadge(row.byLabel)}
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-600 whitespace-nowrap">
+                      {row.detailsLabel}
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      {getPaymentStatusBadge(row.paymentStatusLabel)}
+                    </TableCell>
+                    <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                      {row.actionId}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+      </CardContent>
+    </Card>
+  );
 }
 
 function getPartnerAuditActor(log: any): { label: "Admin" | "Partner" | "System"; badgeClass: string } {
@@ -6007,24 +7181,54 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
 function isMemberAuditLog(log: any): boolean {
   const action = (log.action || "").toUpperCase();
   const details = (log.details || "").toLowerCase();
+  const category = (log.category || "").toLowerCase();
+  const performedBy = (log.performedBy || log.metadata?.performedBy || "").toLowerCase();
+  const role = (log.metadata?.role || "").toLowerCase();
+  const scope = (log.metadata?.scope || "").toLowerCase();
+
+  const isExplicitMemberContext =
+    category === "community" ||
+    performedBy === "member" ||
+    role === "member" ||
+    scope === "community_members" ||
+    Boolean(log.memberId) ||
+    Boolean(log.targetMember || log.metadata?.targetMember || log.metadata?.targetMemberId) ||
+    details.includes("member");
+
+  const isExplicitPartnerContext =
+    performedBy === "partner" ||
+    performedBy === "stripe" ||
+    role === "partner" ||
+    category === "billing" ||
+    category === "listing" ||
+    details.includes("partner account") ||
+    details.includes("partner password") ||
+    details.includes("partner profile") ||
+    details.startsWith("partner ");
+
+  if (isExplicitPartnerContext) {
+    return false;
+  }
 
   // Exactly the 5 items specified in requirements:
   // 1. Account created – Member
-  if (action === "MEMBER_REGISTERED" || action === "ACCOUNT_CREATED") return true;
+  if (action === "MEMBER_REGISTERED") return true;
+  if (action === "ACCOUNT_CREATED" && isExplicitMemberContext) return true;
 
   // 2. Change in PW by who and when - Member
   if (
-    action === "PASSWORD_UPDATED" ||
-    action === "PASSWORD_RESET" ||
-    action === "PASSWORD_CHANGED" ||
-    details.includes("password changed") ||
-    details.includes("password reset")
+    isExplicitMemberContext &&
+    (action === "PASSWORD_UPDATED" ||
+      action === "PASSWORD_RESET" ||
+      action === "PASSWORD_CHANGED" ||
+      details.includes("password changed") ||
+      details.includes("password reset"))
   ) {
     return true;
   }
 
   // 3. Account status changed – system/admin/ - by who and when
-  if (action === "MEMBER_STATUS_CHANGED" || details.includes("account status changed")) {
+  if (action === "MEMBER_STATUS_CHANGED" || (isExplicitMemberContext && details.includes("account status changed"))) {
     return true;
   }
 
