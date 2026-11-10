@@ -3218,7 +3218,9 @@ export default function AdminDashboard() {
   }, [listingFilter, listingSearchTerm, typeFilteredListings, listingInsights]);
 
   const stats = {
-    totalRevenue: transactions.reduce((acc, t) => acc + (t.amount || 0), 0),
+    totalRevenue: transactions
+      .filter((t) => ["succeeded", "completed", "complete", "paid"].includes(String(t.status || "").toLowerCase()))
+      .reduce((acc, t) => acc + (t.amount || 0), 0),
     totalPartners: partners.length,
     pendingApprovals: partners.filter((p) => p.partnerStatus === "Pending").length,
     pendingListings: listingStatusCounts.pending,
@@ -3475,6 +3477,8 @@ export default function AdminDashboard() {
               listings={listings}
               partnerPlans={partnerPlans}
               featuredPlans={featuredPlans}
+              auditLogs={auditLogs}
+              listingInsights={listingInsights}
             />
           )}
 
@@ -5788,12 +5792,16 @@ function TransactionList({
   listings = [],
   partnerPlans = [],
   featuredPlans = [],
+  auditLogs = [],
+  listingInsights = {},
 }: {
   transactions: any[];
   partners?: PartnerRecord[];
   listings?: ListingRecord[];
   partnerPlans?: PartnerPlanRecord[];
   featuredPlans?: FeaturedPlanPurchase[];
+  auditLogs?: any[];
+  listingInsights?: Record<string, any>;
 }) {
   const [search, setSearch] = useState("");
 
@@ -5855,30 +5863,248 @@ function TransactionList({
     return { byId, bySubId, byPartnerGroup, normalizeGroupKey };
   }, [listings, partnerPlans, featuredPlans]);
 
-  const rows = useMemo(
-    () =>
-      transactions
-        .map((t) => {
-          const formatted = formatPartnerTransaction({ id: t.id, ...t });
-          const byIdName = formatted.listingId ? listingNameLookup.byId.get(String(formatted.listingId)) : "";
-          const bySubName = formatted.stripeSubscriptionId ? listingNameLookup.bySubId.get(String(formatted.stripeSubscriptionId)) : "";
-          let byGroupName = "";
-          if (!byIdName && !bySubName && formatted.partnerId && formatted.group) {
-            const key = `${formatted.partnerId}:${listingNameLookup.normalizeGroupKey(formatted.group)}`;
-            const candidates = listingNameLookup.byPartnerGroup.get(key) || [];
-            if (candidates.length === 1) {
-              byGroupName = candidates[0];
-            }
-          }
-          const resolvedTitle = byIdName || bySubName || byGroupName || formatted.targetTitle || null;
-          return {
-            ...formatted,
-            targetTitle: resolvedTitle,
-          };
-        })
-        .sort(sortPartnerTransactionsNewestFirst),
-    [transactions, listingNameLookup],
-  );
+  const rows = useMemo(() => {
+    const resolveTitleForRow = (formatted: PartnerTransactionRow) => {
+      const byIdName = formatted.listingId ? listingNameLookup.byId.get(String(formatted.listingId)) : "";
+      const bySubName = formatted.stripeSubscriptionId
+        ? listingNameLookup.bySubId.get(String(formatted.stripeSubscriptionId))
+        : "";
+      let byGroupName = "";
+      if (!byIdName && !bySubName && formatted.partnerId && formatted.group) {
+        const key = `${formatted.partnerId}:${listingNameLookup.normalizeGroupKey(formatted.group)}`;
+        const candidates = listingNameLookup.byPartnerGroup.get(key) || [];
+        if (candidates.length === 1) {
+          byGroupName = candidates[0];
+        }
+      }
+      return byIdName || bySubName || byGroupName || formatted.targetTitle || null;
+    };
+
+    const rawTxns = transactions.map((t) => {
+      const formatted = formatPartnerTransaction({ id: t.id, ...t });
+      return {
+        ...formatted,
+        targetTitle: resolveTitleForRow(formatted),
+      };
+    });
+
+    const knownSessionIds = new Set<string>();
+    const knownInvoiceIds = new Set<string>();
+    const paidListingIds = new Set<string>();
+    const nonCompletedListingIds = new Set<string>();
+    const nonCompletedSubIds = new Set<string>();
+
+    for (const r of rawTxns) {
+      if (r.sessionId) knownSessionIds.add(String(r.sessionId));
+      if (r.invoiceId) knownInvoiceIds.add(String(r.invoiceId));
+      const isPaid = r.statusLabel === "Completed";
+      if (r.listingId) {
+        if (isPaid) paidListingIds.add(String(r.listingId));
+        else nonCompletedListingIds.add(String(r.listingId));
+      }
+      if (!isPaid && r.stripeSubscriptionId) {
+        nonCompletedSubIds.add(String(r.stripeSubscriptionId));
+      }
+    }
+
+    const listingById = new Map<string, ListingRecord>();
+    for (const l of listings) {
+      if (l.id) listingById.set(String(l.id), l);
+    }
+
+    const syntheticRows: PartnerTransactionRow[] = [];
+
+    // 1. Include PAYMENT_FAILED and active PAYMENT_PENDING / unpaid LISTING_CREATED audit logs not already in transactionsCollection
+    for (const log of auditLogs) {
+      if (!log || isMemberAuditLog(log)) continue;
+      const action = String(log.action || "").toUpperCase().trim();
+      const meta = log.metadata || {};
+      const lid = meta.listingId ? String(meta.listingId) : "";
+      const sid = meta.sessionId ? String(meta.sessionId) : "";
+      const invId = meta.invoiceId ? String(meta.invoiceId) : "";
+      const subId = meta.subscriptionId ? String(meta.subscriptionId) : "";
+
+      const linkedListing = lid ? listingById.get(lid) : undefined;
+      const listingStatus = linkedListing
+        ? getEffectiveListingStatus(linkedListing, listingInsights[linkedListing.id])
+        : "";
+
+      const isFailedLog = action === "PAYMENT_FAILED";
+      const isPendingLog =
+        action === "PAYMENT_PENDING" ||
+        (action === "LISTING_CREATED" &&
+          (listingStatus === "Pending Payment" ||
+            String(meta.paymentStatus || "").toLowerCase().includes("pending")));
+
+      if (!isFailedLog && !isPendingLog) continue;
+      if (sid && knownSessionIds.has(sid)) continue;
+      if (invId && knownInvoiceIds.has(invId)) continue;
+      if (isPendingLog && lid && (paidListingIds.has(lid) || (listingStatus && listingStatus !== "Pending Payment"))) {
+        continue;
+      }
+
+      if (sid) knownSessionIds.add(sid);
+      if (invId) knownInvoiceIds.add(invId);
+      if (lid) nonCompletedListingIds.add(lid);
+      if (subId) nonCompletedSubIds.add(subId);
+
+      const partner = log.partnerId ? partnerMap.byId.get(String(log.partnerId)) : undefined;
+      const rawAmount =
+        typeof meta.amountDue === "number"
+          ? meta.amountDue
+          : typeof meta.amount === "number"
+            ? meta.amount
+            : 0;
+      const syntheticDoc: Record<string, unknown> & { id: string } = {
+        id: `audit-${log.id}`,
+        partnerId: log.partnerId || "",
+        createdAt: log.timestamp || linkedListing?.createdAt || null,
+        type: meta.featureId ? "feature" : "listing",
+        planId: meta.planId || meta.plan || linkedListing?.selectedPlan || null,
+        featureId: meta.featureId || (linkedListing as any)?.selectedAddon || null,
+        group: meta.group || meta.type || linkedListing?.selectedGroup || null,
+        listingId: lid || null,
+        stripeSubscriptionId: subId || null,
+        sessionId: sid || null,
+        invoiceId: invId || null,
+        amount: rawAmount,
+        currency: meta.currency || "usd",
+        status: isFailedLog ? "incomplete_payment" : "pending_payment",
+        eventType: isFailedLog && String(meta.billingReason || "") === "subscription_cycle" ? "renewal" : "initial",
+        listingTitle:
+          meta.listingName ||
+          linkedListing?.eventName ||
+          linkedListing?.jobTitle ||
+          linkedListing?.title ||
+          linkedListing?.businessName ||
+          null,
+        businessName: partner?.businessName || linkedListing?.businessName || log.partnerName || "",
+        customerEmail: partner?.primaryEmail || "",
+        primaryContact: partner?.primaryName || "",
+        description: isFailedLog
+          ? String(log.details || "").trim() && String(log.details || "").trim() !== "N/A"
+            ? String(log.details)
+            : undefined
+          : undefined,
+      };
+      const formatted = formatPartnerTransaction(syntheticDoc);
+      syntheticRows.push({
+        ...formatted,
+        targetTitle: resolveTitleForRow(formatted),
+      });
+    }
+
+    // 2. Include listings currently in Pending Payment or Incomplete Payment status if not already represented
+    for (const l of listings) {
+      if (!l?.id) continue;
+      const effStatus = getEffectiveListingStatus(l, listingInsights[l.id]);
+      if (effStatus !== "Pending Payment" && effStatus !== "Incomplete Payment") continue;
+      if (nonCompletedListingIds.has(String(l.id))) continue;
+
+      nonCompletedListingIds.add(String(l.id));
+      const pid =
+        l.partnerId ||
+        (typeof l.__path === "string" && l.__path.startsWith("partnersCollection/") ? l.__path.split("/")[1] : "");
+      const partner = pid ? partnerMap.byId.get(pid) : undefined;
+      const syntheticDoc: Record<string, unknown> & { id: string } = {
+        id: `listing-${l.id}`,
+        partnerId: pid || "",
+        createdAt: l.createdAt || l.updatedAt || null,
+        type: "listing",
+        planId: l.selectedPlan || null,
+        group: l.selectedGroup || l.__col || null,
+        listingId: l.id,
+        collectionName: l.__col || null,
+        stripeSubscriptionId: (l as any).stripeSubscriptionId || null,
+        amount: 0,
+        currency: "usd",
+        status: effStatus === "Incomplete Payment" ? "incomplete_payment" : "pending_payment",
+        eventType: "initial",
+        listingTitle: l.eventName || l.jobTitle || l.title || l.businessName || null,
+        businessName: l.businessName || partner?.businessName || "",
+        customerEmail: partner?.primaryEmail || "",
+        primaryContact: partner?.primaryName || "",
+      };
+      const formatted = formatPartnerTransaction(syntheticDoc);
+      syntheticRows.push({
+        ...formatted,
+        targetTitle: resolveTitleForRow(formatted),
+      });
+    }
+
+    // 3. Include partnerPlans / featuredPlans currently in Incomplete Payment or Pending Payment status
+    for (const pl of partnerPlans) {
+      const s = getEffectiveListingStatus(
+        { status: pl.status, active: pl.active !== false },
+        { plan: pl, expiryDate: pl.billingPeriodEnd },
+      );
+      if (s !== "Incomplete Payment" && s !== "Pending Payment") continue;
+      if (pl.listingId && nonCompletedListingIds.has(String(pl.listingId))) continue;
+      if (pl.stripeSubscriptionId && nonCompletedSubIds.has(String(pl.stripeSubscriptionId))) continue;
+      if (pl.listingId) nonCompletedListingIds.add(String(pl.listingId));
+      if (pl.stripeSubscriptionId) nonCompletedSubIds.add(String(pl.stripeSubscriptionId));
+
+      const partner = pl.partnerId ? partnerMap.byId.get(pl.partnerId) : undefined;
+      const syntheticDoc: Record<string, unknown> & { id: string } = {
+        id: `plan-${pl.id}`,
+        partnerId: pl.partnerId || "",
+        createdAt: pl.startDate || pl.createdAt || null,
+        type: "listing",
+        planId: pl.planId || null,
+        planName: pl.planName || null,
+        group: pl.group || null,
+        listingId: pl.listingId || null,
+        collectionName: pl.collectionName || null,
+        stripeSubscriptionId: pl.stripeSubscriptionId || null,
+        amount: typeof pl.price === "number" ? pl.price : 0,
+        currency: "usd",
+        status: s === "Incomplete Payment" ? "incomplete_payment" : "pending_payment",
+        eventType: "initial",
+        businessName: partner?.businessName || "",
+        customerEmail: partner?.primaryEmail || "",
+        primaryContact: partner?.primaryName || "",
+      };
+      const formatted = formatPartnerTransaction(syntheticDoc);
+      syntheticRows.push({
+        ...formatted,
+        targetTitle: resolveTitleForRow(formatted),
+      });
+    }
+
+    for (const fp of featuredPlans) {
+      const s = getEffectiveFeatureStatus(fp);
+      if (s !== "Incomplete Payment" && s !== "Pending Payment") continue;
+      const subId = (fp as any).stripeSubscriptionId;
+      if (subId && nonCompletedSubIds.has(String(subId))) continue;
+      if (subId) nonCompletedSubIds.add(String(subId));
+
+      const partner = fp.partnerId ? partnerMap.byId.get(fp.partnerId) : undefined;
+      const syntheticDoc: Record<string, unknown> & { id: string } = {
+        id: `feature-${fp.id}`,
+        partnerId: fp.partnerId || "",
+        createdAt: fp.lastPaymentReceived || fp.createdAt || null,
+        type: "feature",
+        featureId: fp.featureId || null,
+        listingId: fp.listingId || null,
+        collectionName: fp.collectionName || null,
+        stripeSubscriptionId: subId || null,
+        amount: 0,
+        currency: "usd",
+        status: s === "Incomplete Payment" ? "incomplete_payment" : "pending_payment",
+        eventType: "initial",
+        businessName: partner?.businessName || "",
+        customerEmail: partner?.primaryEmail || "",
+        primaryContact: partner?.primaryName || "",
+      };
+      const formatted = formatPartnerTransaction(syntheticDoc);
+      syntheticRows.push({
+        ...formatted,
+        targetTitle: resolveTitleForRow(formatted),
+      });
+    }
+
+    return [...rawTxns, ...syntheticRows].sort(sortPartnerTransactionsNewestFirst);
+  }, [transactions, auditLogs, listings, partnerPlans, featuredPlans, listingInsights, partnerMap, listingNameLookup]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -6027,9 +6253,9 @@ function TransactionList({
                             className={
                               t.statusLabel === "Completed"
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-medium"
-                                : t.statusLabel === "Incomplete"
+                                : t.statusLabel === "Pending Payment"
                                   ? "bg-amber-50 text-amber-700 border-amber-200 font-medium"
-                                  : "bg-rose-50 text-rose-700 border-rose-200 font-medium"
+                                  : "bg-red-50 text-red-700 border-red-200 font-medium"
                             }
                           >
                             {t.statusLabel}

@@ -2767,6 +2767,54 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 });
             }
 
+            try {
+                const existingFailedTxn = await db.collection("transactionsCollection")
+                    .where("invoiceId", "==", invoice.id).limit(1).get();
+                if (existingFailedTxn.empty) {
+                    const primaryPartnerId = Array.from(partnerIds)[0] || null;
+                    let detailSource = null;
+                    if (primaryPartnerId && failedSubContext.listingId && failedSubContext.collectionName) {
+                        const listingRef = await resolveListingDocRef(
+                            primaryPartnerId,
+                            failedSubContext.collectionName,
+                            failedSubContext.listingId
+                        );
+                        if (listingRef) {
+                            const lSnap = await listingRef.get();
+                            if (lSnap.exists) detailSource = lSnap.data();
+                        }
+                    }
+                    if (!detailSource && primaryPartnerId) {
+                        const pSnap = await db.collection("partnersCollection").doc(primaryPartnerId).get();
+                        if (pSnap.exists) detailSource = pSnap.data();
+                    }
+                    await db.collection("transactionsCollection").add({
+                        partnerId: primaryPartnerId,
+                        amount: (invoice.amount_due || 0) / 100,
+                        currency: invoice.currency || "usd",
+                        status: "incomplete_payment",
+                        type: failedSubContext.featureId ? "feature" : "listing",
+                        planId: failedSubContext.planId || null,
+                        featureId: failedSubContext.featureId || null,
+                        group: failedSubContext.group || null,
+                        listingId: failedSubContext.listingId || null,
+                        collectionName: failedSubContext.collectionName || null,
+                        listingTitle: detailSource?.eventName || detailSource?.jobTitle || detailSource?.title || detailSource?.businessName || null,
+                        businessName: detailSource?.businessName || "",
+                        customerEmail: invoice.customer_email || detailSource?.primaryEmail || "",
+                        eventType: invoice.billing_reason === "subscription_cycle" ? "renewal" : "initial",
+                        billingReason: invoice.billing_reason || null,
+                        invoiceId: invoice.id,
+                        stripeInvoiceId: invoice.id,
+                        stripeSubscriptionId: subscriptionId || null,
+                        stripeCustomerId: customerId || null,
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                }
+            } catch (failedTxnErr) {
+                console.warn("invoice.payment_failed transaction write:", failedTxnErr?.message || failedTxnErr);
+            }
+
             // Renewal only. The first checkout invoice can still be retried inside Checkout.
             if (subscriptionId && invoice.billing_reason === "subscription_cycle") {
                 try {
@@ -2774,6 +2822,54 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                 } catch (failedRenewalErr) {
                     console.error("endFailedRenewalAccess:", failedRenewalErr?.message || failedRenewalErr);
                 }
+            }
+            break;
+        }
+
+        case "checkout.session.async_payment_failed":
+        case "checkout.session.expired": {
+            const session = event.data.object;
+            const meta = session.metadata || {};
+            const partnerId = session.client_reference_id || meta.partnerId || null;
+            try {
+                const existingTxn = await db.collection("transactionsCollection")
+                    .where("sessionId", "==", session.id).limit(1).get();
+                if (existingTxn.empty) {
+                    let detailSource = null;
+                    if (partnerId && meta.listingId && meta.collectionName) {
+                        const lRef = await resolveListingDocRef(partnerId, meta.collectionName, meta.listingId);
+                        if (lRef) {
+                            const lSnap = await lRef.get();
+                            if (lSnap.exists) detailSource = lSnap.data();
+                        }
+                    }
+                    if (!detailSource && partnerId) {
+                        const pSnap = await db.collection("partnersCollection").doc(partnerId).get();
+                        if (pSnap.exists) detailSource = pSnap.data();
+                    }
+                    await db.collection("transactionsCollection").add({
+                        partnerId,
+                        amount: (session.amount_total || 0) / 100,
+                        currency: session.currency || "usd",
+                        status: "incomplete_payment",
+                        type: meta.featureId ? "feature" : "listing",
+                        planId: meta.planId || null,
+                        featureId: meta.featureId || null,
+                        group: meta.group || null,
+                        listingId: meta.listingId || null,
+                        collectionName: meta.collectionName || null,
+                        listingTitle: detailSource?.eventName || detailSource?.jobTitle || detailSource?.title || detailSource?.businessName || null,
+                        businessName: detailSource?.businessName || "",
+                        customerEmail: session.customer_details?.email || session.customer_email || detailSource?.primaryEmail || "",
+                        eventType: (meta.featureUpgrade === "true" || meta.isUpgrade === "true") ? "upgrade" : "initial",
+                        sessionId: session.id,
+                        stripeCustomerId: toStripeCustomerId(session.customer),
+                        stripeSubscriptionId: toStripeSubscriptionId(session.subscription),
+                        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+                    });
+                }
+            } catch (expiredTxnErr) {
+                console.warn(`${event.type} transaction write:`, expiredTxnErr?.message || expiredTxnErr);
             }
             break;
         }
@@ -4368,7 +4464,17 @@ async function tryProcessSpotlightAddonInvoicePaid({
     const existingInvoiceTxn = await db.collection("transactionsCollection")
         .where("invoiceId", "==", invoice.id).limit(1).get();
     if (!existingInvoiceTxn.empty) {
-        console.log(`   ℹ Transaction already exists for invoice ${invoice.id}`);
+        const existingDoc = existingInvoiceTxn.docs[0];
+        if (String(existingDoc.data()?.status || "").toLowerCase() === "succeeded") {
+            console.log(`   ℹ Transaction already exists for invoice ${invoice.id}`);
+            return;
+        }
+        await existingDoc.ref.set({
+            status: "succeeded",
+            amount: (invoice.amount_paid || invoice.amount_due || 0) / 100,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        console.log(`   ✓ Updated incomplete transaction to succeeded for invoice ${invoice.id}`);
         return;
     }
 
@@ -5378,7 +5484,17 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
     const existingInvoiceTxn = await db.collection("transactionsCollection")
         .where("invoiceId", "==", invoice.id).limit(1).get();
     if (!existingInvoiceTxn.empty) {
-        console.log(`   ℹ Transaction already exists for invoice ${invoice.id}`);
+        const existingDoc = existingInvoiceTxn.docs[0];
+        if (String(existingDoc.data()?.status || "").toLowerCase() === "succeeded") {
+            console.log(`   ℹ Transaction already exists for invoice ${invoice.id}`);
+            return;
+        }
+        await existingDoc.ref.set({
+            status: "succeeded",
+            amount: (invoice.amount_paid || invoice.amount_due || 0) / 100,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        console.log(`   ✓ Updated incomplete transaction to succeeded for invoice ${invoice.id}`);
         return;
     }
 

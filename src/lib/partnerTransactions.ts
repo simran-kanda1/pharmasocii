@@ -44,9 +44,22 @@ export type PartnerTransactionRow = {
     companyRepresentatives: CompanyRep[];
 };
 
-function firestoreDateToDate(createdAt: { seconds?: number } | null | undefined): Date | null {
-    if (!createdAt || typeof createdAt.seconds !== "number") return null;
-    return new Date(createdAt.seconds * 1000);
+function firestoreDateToDate(createdAt: unknown): Date | null {
+    if (!createdAt) return null;
+    if (createdAt instanceof Date) return isNaN(createdAt.getTime()) ? null : createdAt;
+    if (typeof createdAt === "number") return new Date(createdAt);
+    if (typeof createdAt === "string") {
+        const parsed = new Date(createdAt);
+        return isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const obj = createdAt as { seconds?: number; _seconds?: number; toDate?: () => Date };
+    if (typeof obj.toDate === "function") {
+        const d = obj.toDate();
+        return d && !isNaN(d.getTime()) ? d : null;
+    }
+    const secs = typeof obj.seconds === "number" ? obj.seconds : typeof obj._seconds === "number" ? obj._seconds : null;
+    if (secs !== null) return new Date(secs * 1000);
+    return null;
 }
 
 function formatPaddedDate(d: Date | null): string {
@@ -315,15 +328,26 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
         : Math.max(0, amountNumeric - taxAmountNumeric);
 
     const currency = String(t.currency || "usd").toUpperCase();
-    const statusRaw = String(t.status || "").toLowerCase();
+    const statusRaw = String(t.status || "").toLowerCase().trim();
     const statusLabel =
-        statusRaw === "succeeded" || statusRaw === "completed" || statusRaw === "paid"
+        statusRaw === "succeeded" || statusRaw === "completed" || statusRaw === "complete" || statusRaw === "paid"
             ? "Completed"
-            : statusRaw === "pending" || statusRaw === "requires_action" || statusRaw === "incomplete" || statusRaw === "open"
-                ? "Incomplete"
-                : statusRaw === "failed" || statusRaw === "canceled"
-                    ? "Failed"
-                    : statusRaw ? cleanTitleCase(statusRaw) : "Incomplete";
+            : statusRaw === "pending" || statusRaw === "pending_payment" || statusRaw === "pending payment" || statusRaw === "open"
+                ? "Pending Payment"
+                : statusRaw === "failed" ||
+                    statusRaw === "payment_failed" ||
+                    statusRaw === "payment failed" ||
+                    statusRaw === "incomplete" ||
+                    statusRaw === "incomplete_payment" ||
+                    statusRaw === "incomplete payment" ||
+                    statusRaw === "requires_action" ||
+                    statusRaw === "past_due" ||
+                    statusRaw === "unpaid" ||
+                    statusRaw === "expired" ||
+                    statusRaw === "canceled" ||
+                    statusRaw === "cancelled"
+                    ? "Incomplete Payment"
+                    : statusRaw ? cleanTitleCase(statusRaw.replace(/_/g, " ")) : "Incomplete Payment";
 
     const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]).map(String) : []);
     const reps = Array.isArray(t.companyRepresentatives) ? (t.companyRepresentatives as CompanyRep[]) : [];
