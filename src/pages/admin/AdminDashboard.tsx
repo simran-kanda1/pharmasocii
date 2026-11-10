@@ -897,7 +897,7 @@ export default function AdminDashboard() {
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [communityMembers, setCommunityMembers] = useState<any[]>([]);
   const [auditSearchTerm, setAuditSearchTerm] = useState("");
-  const [auditCategoryFilter, setAuditCategoryFilter] = useState<"all" | "partner" | "listing">("listing");
+  const [auditCategoryFilter, setAuditCategoryFilter] = useState<"partner" | "listing">("partner");
   const [auditListingFilter, setAuditListingFilter] = useState<string>("all");
   const [auditListingEventFilter, setAuditListingEventFilter] = useState<string>("all");
   const [memberAuditSearchTerm, setMemberAuditSearchTerm] = useState("");
@@ -3276,7 +3276,7 @@ export default function AdminDashboard() {
             <SidebarItem label="FAQs" icon={HelpCircle} active={activeTab === "faqs"} onClick={() => setActiveTab("faqs")} />
             <SidebarItem label="Contact Page" icon={Mail} active={activeTab === "contact"} onClick={() => setActiveTab("contact")} />
             <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
-            <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => setActiveTab("audit")} />
+            <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => { setActiveTab("audit"); setAuditCategoryFilter("partner"); }} />
             <p className="text-[11px] font-semibold tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
             <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
             <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
@@ -3670,31 +3670,20 @@ export default function AdminDashboard() {
                   <p className="text-sm text-slate-600">
                     {auditCategoryFilter === "listing"
                       ? "Listing audit trail — money, plans, upgrades, features, renewals, pending/failed payments, and cancellations."
-                      : "Audit logs, account registrations, profile updates, listings, plans, upgrades, features, and cancellations for partners."}
+                      : "Partner account & profile audit trail — initial profile creation, password changes, and updates to Partner Information fields (logo, company profile, contacts, address, etc.)."}
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="relative w-full sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <Input
-                      placeholder="Search company, listing, ID, details…"
+                      placeholder={auditCategoryFilter === "listing" ? "Search company, listing, ID, details…" : "Search partner, field change, ID…"}
                       value={auditSearchTerm}
                       onChange={(e) => setAuditSearchTerm(e.target.value)}
                       className="pl-9 h-10 bg-white"
                     />
                   </div>
                   <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
-                    <button
-                      type="button"
-                      onClick={() => setAuditCategoryFilter("listing")}
-                      className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        auditCategoryFilter === "listing"
-                          ? "bg-white text-slate-900 shadow-sm"
-                          : "text-slate-600 hover:text-slate-900"
-                      }`}
-                    >
-                      Listings & Money
-                    </button>
                     <button
                       type="button"
                       onClick={() => setAuditCategoryFilter("partner")}
@@ -3708,14 +3697,14 @@ export default function AdminDashboard() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => setAuditCategoryFilter("all")}
+                      onClick={() => setAuditCategoryFilter("listing")}
                       className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
-                        auditCategoryFilter === "all"
+                        auditCategoryFilter === "listing"
                           ? "bg-white text-slate-900 shadow-sm"
                           : "text-slate-600 hover:text-slate-900"
                       }`}
                     >
-                      All Logs
+                      Listings & Money
                     </button>
                   </div>
                   <div className="flex items-center gap-2">
@@ -3957,7 +3946,7 @@ export default function AdminDashboard() {
                 onClick={() => {
                   if (selectedPartner) {
                     setActiveTab("audit");
-                    setAuditCategoryFilter("all");
+                    setAuditCategoryFilter("partner");
                     setAuditSearchTerm(selectedPartner.id || selectedPartner.businessName || "");
                     setPartnerEditorOpen(false);
                   }
@@ -6211,24 +6200,43 @@ function isPartnerAccountLog(log: any): boolean {
     action.startsWith("LISTING_") ||
     action.startsWith("PLAN_") ||
     action.startsWith("FEATURE_") ||
+    action === "CATEGORY_DELETED" ||
     category === "billing" ||
-    category === "listing"
+    category === "listing" ||
+    details.includes("listing status") ||
+    details.includes("feature status") ||
+    details.includes("feature upgraded") ||
+    details.includes("plan upgraded") ||
+    details.includes("subscription") ||
+    details.includes("recurring invoice") ||
+    details.includes("spotlight") ||
+    details.includes("trial")
   ) {
     return false;
   }
 
-  // Explicit inclusions: account actions or category
+  // Explicit inclusions: account actions or partner profile updates
   if (
     action === "ACCOUNT_CREATED" ||
     action === "ACCOUNT_UPDATED" ||
+    action === "PROFILE_UPDATED" ||
     action === "PASSWORD_UPDATED" ||
     category === "account" ||
     category === "admin" ||
     details.includes("password") ||
+    details.includes("logo") ||
+    details.includes("company profile") ||
     details.includes("company name") ||
     details.includes("primary email") ||
     details.includes("primary contact") ||
-    details.includes("company url")
+    details.includes("company url") ||
+    details.includes("business address") ||
+    details.includes("business headquarters") ||
+    details.includes("business id") ||
+    details.includes("billing email") ||
+    details.includes("alternate contact") ||
+    details.includes("alternate email") ||
+    details.includes("linkedin")
   ) {
     return true;
   }
