@@ -5810,6 +5810,15 @@ function TransactionList({
   const listingNameLookup = useMemo(() => {
     const byId = new Map<string, string>();
     const bySubId = new Map<string, string>();
+    const byPartnerGroup = new Map<string, string[]>();
+    const normalizeGroupKey = (raw: string): string => {
+      const s = raw.toLowerCase();
+      if (s.includes("event")) return "events";
+      if (s.includes("job")) return "jobs";
+      if (s.includes("consulting")) return "consulting";
+      if (s.includes("business")) return "business_offerings";
+      return s;
+    };
     const getListingName = (l: any): string =>
       String(l?.eventName || l?.jobTitle || l?.title || l?.businessName || l?.companyName || "").trim();
 
@@ -5820,6 +5829,14 @@ function TransactionList({
       if ((l as any).stripeSubscriptionId) bySubId.set(String((l as any).stripeSubscriptionId), name);
       if ((l as any).featureSpotlightStripeSubscriptionId) {
         bySubId.set(String((l as any).featureSpotlightStripeSubscriptionId), name);
+      }
+      const pid = l.partnerId || (typeof l.__path === "string" && l.__path.startsWith("partnersCollection/") ? l.__path.split("/")[1] : "");
+      const grpKey = normalizeGroupKey(String(l.selectedGroup || l.__col || ""));
+      if (pid && grpKey) {
+        const key = `${pid}:${grpKey}`;
+        const arr = byPartnerGroup.get(key) || [];
+        arr.push(name);
+        byPartnerGroup.set(key, arr);
       }
     }
     for (const pl of partnerPlans) {
@@ -5835,15 +5852,32 @@ function TransactionList({
         if (name) bySubId.set(String(subId), name);
       }
     }
-    return { byId, bySubId };
+    return { byId, bySubId, byPartnerGroup, normalizeGroupKey };
   }, [listings, partnerPlans, featuredPlans]);
 
   const rows = useMemo(
     () =>
       transactions
-        .map((t) => formatPartnerTransaction({ id: t.id, ...t }))
+        .map((t) => {
+          const formatted = formatPartnerTransaction({ id: t.id, ...t });
+          const byIdName = formatted.listingId ? listingNameLookup.byId.get(String(formatted.listingId)) : "";
+          const bySubName = formatted.stripeSubscriptionId ? listingNameLookup.bySubId.get(String(formatted.stripeSubscriptionId)) : "";
+          let byGroupName = "";
+          if (!byIdName && !bySubName && formatted.partnerId && formatted.group) {
+            const key = `${formatted.partnerId}:${listingNameLookup.normalizeGroupKey(formatted.group)}`;
+            const candidates = listingNameLookup.byPartnerGroup.get(key) || [];
+            if (candidates.length === 1) {
+              byGroupName = candidates[0];
+            }
+          }
+          const resolvedTitle = byIdName || bySubName || byGroupName || formatted.targetTitle || null;
+          return {
+            ...formatted,
+            targetTitle: resolvedTitle,
+          };
+        })
         .sort(sortPartnerTransactionsNewestFirst),
-    [transactions],
+    [transactions, listingNameLookup],
   );
 
   const filtered = useMemo(() => {
@@ -5854,22 +5888,18 @@ function TransactionList({
       const contact = r.primaryContact || p?.primaryName || "";
       const bName = r.businessName || p?.businessName || "";
       const em = r.customerEmail || p?.primaryEmail || "";
-      const resolvedListingName =
-        (r.listingId ? listingNameLookup.byId.get(String(r.listingId)) : "") ||
-        (r.stripeSubscriptionId ? listingNameLookup.bySubId.get(String(r.stripeSubscriptionId)) : "") ||
-        "";
+      const listingName = r.targetTitle || "";
       const hay = [
         r.dateDisplay,
         em,
         contact,
         bName,
+        listingName,
         r.group,
         r.eventDisplay,
         r.planDisplay,
         r.description,
-        r.targetTitle,
         r.upgradeFor,
-        resolvedListingName,
         r.listingId,
         r.statusLabel,
         r.amountDisplay,
@@ -5879,7 +5909,7 @@ function TransactionList({
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search, partnerMap, listingNameLookup]);
+  }, [rows, search, partnerMap]);
 
   const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     if (filtered.length === 0) return;
@@ -5953,6 +5983,7 @@ function TransactionList({
                     <TableHead>Email</TableHead>
                     <TableHead>Primary contact</TableHead>
                     <TableHead>Business name</TableHead>
+                    <TableHead>Listing name</TableHead>
                     <TableHead>Group</TableHead>
                     <TableHead>Event</TableHead>
                     <TableHead>Description</TableHead>
@@ -5967,6 +5998,7 @@ function TransactionList({
                     const email = t.customerEmail || partner?.primaryEmail || "—";
                     const primaryContact = t.primaryContact || partner?.primaryName || "—";
                     const businessName = t.businessName || partner?.businessName || "—";
+                    const listingName = t.targetTitle || "—";
                     const event = t.eventDisplay || "Initial";
                     const description = t.planDisplay || t.description || "—";
 
@@ -5981,6 +6013,9 @@ function TransactionList({
                         </TableCell>
                         <TableCell className="max-w-[190px] truncate text-slate-700" title={businessName}>
                           {businessName}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate font-medium text-slate-800" title={listingName}>
+                          {listingName}
                         </TableCell>
                         <TableCell className="capitalize whitespace-nowrap">{t.group || "—"}</TableCell>
                         <TableCell className="whitespace-nowrap font-medium text-slate-700">{event}</TableCell>
