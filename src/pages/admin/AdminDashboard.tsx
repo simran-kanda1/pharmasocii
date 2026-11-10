@@ -874,7 +874,12 @@ export default function AdminDashboard() {
 
   const { config: featuredPlansConfig, saveConfig: saveFeaturedPlansConfig } = useFeaturedPlansConfig();
 
-  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
+  const initialUrlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+  const initialTabParam = initialUrlParams?.get("tab") as AdminTab | null;
+  const initialAuditView = initialUrlParams?.get("auditView");
+  const initialAuditSearch = initialUrlParams?.get("auditSearch") || "";
+
+  const [activeTab, setActiveTab] = useState<AdminTab>(initialTabParam || "overview");
   const [partners, setPartners] = useState<PartnerRecord[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [listings, setListings] = useState<ListingRecord[]>([]);
@@ -896,8 +901,10 @@ export default function AdminDashboard() {
   const [saveNotice, setSaveNotice] = useState("");
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [communityMembers, setCommunityMembers] = useState<any[]>([]);
-  const [auditSearchTerm, setAuditSearchTerm] = useState("");
-  const [auditCategoryFilter, setAuditCategoryFilter] = useState<"partner" | "listing">("partner");
+  const [auditSearchTerm, setAuditSearchTerm] = useState(initialAuditSearch);
+  const [auditCategoryFilter, setAuditCategoryFilter] = useState<"partner" | "listing">(
+    initialAuditView === "listing" ? "listing" : "partner"
+  );
   const [auditListingFilter, setAuditListingFilter] = useState<string>("all");
   const [auditListingEventFilter, setAuditListingEventFilter] = useState<string>("all");
   const [memberAuditSearchTerm, setMemberAuditSearchTerm] = useState("");
@@ -3939,22 +3946,35 @@ export default function AdminDashboard() {
               <SheetDescription>Update partner's information and account status</SheetDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex items-center gap-1.5 text-blue-700 border-blue-200 hover:bg-blue-50"
-                onClick={() => {
-                  if (selectedPartner) {
-                    setActiveTab("audit");
-                    setAuditCategoryFilter("partner");
-                    setAuditSearchTerm(selectedPartner.id || selectedPartner.businessName || "");
-                    setPartnerEditorOpen(false);
-                  }
-                }}
-              >
-                <History className="w-3.5 h-3.5" />
-                Partner Audit Trail
-              </Button>
+              {selectedPartner ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-1.5 text-blue-700 border-blue-200 hover:bg-blue-50"
+                >
+                  <a
+                    href={`/admin/dashboard?tab=audit&auditView=partner&auditSearch=${encodeURIComponent(
+                      selectedPartner.id || selectedPartner.businessName || ""
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    Partner Audit Trail
+                  </a>
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  className="flex items-center gap-1.5 text-blue-700 border-blue-200 hover:bg-blue-50"
+                >
+                  <History className="w-3.5 h-3.5" />
+                  Partner Audit Trail
+                </Button>
+              )}
             </div>
           </SheetHeader>
           <div className="mt-6 space-y-6">
