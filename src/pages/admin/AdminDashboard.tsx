@@ -2190,8 +2190,6 @@ export default function AdminDashboard() {
     });
   }, [listings, listingTypeFilter]);
 
-  const pendingListings = typeFilteredListings.filter((l) => l.status === "Pending Review");
-
   const listingInsights = useMemo(() => {
     const plansByListing = new Map<string, PartnerPlanRecord>();
     const plansByPartner = new Map<string, PartnerPlanRecord>();
@@ -3333,9 +3331,14 @@ export default function AdminDashboard() {
               <OverviewTab
                 stats={stats}
                 transactions={transactions}
-                pendingListings={pendingListings}
-                onApproveListing={(listing: ListingRecord) => setListingStatus(listing, "Active", true)}
+                partners={partners}
+                listings={listings}
+                partnerPlans={partnerPlans}
+                featuredPlans={featuredPlans}
+                auditLogs={auditLogs}
+                listingInsights={listingInsights}
                 onViewListing={openListingEditor}
+                onOpenTransactions={() => setActiveTab("transactions")}
               />
               <VerificationMirrorsPanel />
             </div>
@@ -4766,83 +4769,632 @@ function StatCard({
 function OverviewTab({
   stats,
   transactions,
-  pendingListings,
-  onApproveListing,
+  partners,
+  listings,
+  partnerPlans,
+  featuredPlans,
+  auditLogs,
+  listingInsights,
   onViewListing,
+  onOpenTransactions,
 }: {
   stats: any;
   transactions: any[];
-  pendingListings: ListingRecord[];
-  onApproveListing: (listing: ListingRecord) => void;
+  partners: PartnerRecord[];
+  listings: ListingRecord[];
+  partnerPlans: PartnerPlanRecord[];
+  featuredPlans: FeaturedPlanPurchase[];
+  auditLogs: any[];
+  listingInsights: Record<string, any>;
   onViewListing: (listing: ListingRecord) => void;
+  onOpenTransactions: () => void;
 }) {
+  const [renewalWindow, setRenewalWindow] = useState<"month" | "week">("month");
+
+  const toDateSafe = (val: any): Date | null => {
+    if (!val) return null;
+    if (typeof val.toDate === "function") {
+      const d = val.toDate();
+      return d && !isNaN(d.getTime()) ? d : null;
+    }
+    if (typeof val.seconds === "number") return new Date(val.seconds * 1000);
+    if (typeof val._seconds === "number") return new Date(val._seconds * 1000);
+    if (val instanceof Date) return isNaN(val.getTime()) ? null : val;
+    if (typeof val === "string" || typeof val === "number") {
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? null : d;
+    }
+    return null;
+  };
+
+  const partnerById = useMemo(() => {
+    const map = new Map<string, PartnerRecord>();
+    for (const p of partners) {
+      if (p.id) map.set(p.id, p);
+    }
+    return map;
+  }, [partners]);
+
+  const listingById = useMemo(() => {
+    const map = new Map<string, ListingRecord>();
+    for (const l of listings) {
+      if (l.id) map.set(l.id, l);
+    }
+    return map;
+  }, [listings]);
+
+  const getListingTitle = (l: ListingRecord | undefined, fallback?: string): string => {
+    if (!l) return fallback || "—";
+    return String(l.eventName || l.jobTitle || (l as any).title || l.businessName || fallback || "—").trim();
+  };
+
+  // Current Month and Current Week windows starting from start of today
+  const windows = useMemo(() => {
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    // Current calendar week (through end of Sunday of this week)
+    const day = now.getDay(); // 0 = Sun, 1 = Mon, ...
+    const daysToSunday = day === 0 ? 0 : 7 - day;
+    const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToSunday, 23, 59, 59, 999);
+    // Current calendar month (through last day of this month)
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    return { startOfToday, endOfWeek, endOfMonth };
+  }, []);
+
+  // Build all active, auto-renewing upcoming renewals (plans + standalone features)
+  const { renewalsThisMonth, renewalsThisWeek } = useMemo(() => {
+    type RenewalItem = {
+      id: string;
+      kind: "Plan" | "Feature";
+      businessName: string;
+      listingName: string;
+      itemLabel: string;
+      groupLabel: string;
+      renewalDate: Date;
+      listing?: ListingRecord;
+    };
+
+    const items: RenewalItem[] = [];
+    const seenKeys = new Set<string>();
+
+    for (const plan of partnerPlans) {
+      const linkedListing = plan.listingId ? listingById.get(String(plan.listingId)) : undefined;
+      const insight = linkedListing ? listingInsights[linkedListing.id] : undefined;
+      const effStatus = getEffectiveListingStatus(
+        { status: plan.status, active: plan.active !== false },
+        { plan, expiryDate: plan.billingPeriodEnd },
+      );
+      if (
+        effStatus !== "Active" ||
+        plan.cancelPending ||
+        (plan as any).cancelAtPeriodEnd ||
+        (plan as any).cancelAt ||
+        (linkedListing as any)?.cancelPending ||
+        (linkedListing as any)?.cancelAt
+      ) {
+        continue;
+      }
+      // Exclude non-recurring single-run jobs/trials if marked admin trial without Stripe subscription
+      const renewalDate = toDateSafe(plan.billingPeriodEnd);
+      if (!renewalDate) continue;
+      if (renewalDate.getTime() < windows.startOfToday.getTime()) continue;
+
+      const partner = partnerById.get(plan.partnerId);
+      const businessName =
+        partner?.businessName ||
+        linkedListing?.businessName ||
+        insight?.businessName ||
+        "—";
+      const listingName = getListingTitle(linkedListing, businessName);
+      const groupLabel = formatAuditGroupCode(plan.group || linkedListing?.selectedGroup || linkedListing?.__col, plan.planId);
+      const itemLabel = formatAuditPlanType(plan.planId || plan.planName, groupLabel);
+
+      const dedupKey = `plan:${plan.listingId || plan.id}`;
+      if (seenKeys.has(dedupKey)) continue;
+      seenKeys.add(dedupKey);
+
+      items.push({
+        id: `plan-${plan.id}`,
+        kind: "Plan",
+        businessName,
+        listingName,
+        itemLabel: itemLabel !== "-" ? itemLabel : (plan.planName || plan.planId || "Plan"),
+        groupLabel,
+        renewalDate,
+        listing: linkedListing,
+      });
+    }
+
+    for (const feat of featuredPlans) {
+      if ((feat as any).supersededBy) continue;
+      const linkedListing = feat.listingId ? listingById.get(String(feat.listingId)) : undefined;
+      const effFeat = getEffectiveFeatureStatus(feat, linkedListing);
+      if (
+        effFeat !== "Active" ||
+        (feat as any).cancelPending ||
+        (feat as any).cancelAtPeriodEnd ||
+        (feat as any).cancelAt ||
+        (linkedListing as any)?.featureSpotlightCancelPending
+      ) {
+        continue;
+      }
+      const renewalDate = toDateSafe(feat.accessThrough || (feat as any).billingPeriodEnd);
+      if (!renewalDate) continue;
+      if (renewalDate.getTime() < windows.startOfToday.getTime()) continue;
+
+      const partner = partnerById.get(feat.partnerId);
+      const businessName = partner?.businessName || linkedListing?.businessName || "—";
+      const listingName = getListingTitle(linkedListing, businessName);
+      const groupLabel = formatAuditGroupCode(linkedListing?.selectedGroup || linkedListing?.__col, linkedListing?.selectedPlan);
+      const itemLabel = formatAuditFeatureType(feat.featureId || feat.featureName);
+
+      const dedupKey = `feat:${feat.listingId || feat.id}`;
+      if (seenKeys.has(dedupKey)) continue;
+      seenKeys.add(dedupKey);
+
+      items.push({
+        id: `feat-${feat.id}`,
+        kind: "Feature",
+        businessName,
+        listingName,
+        itemLabel: itemLabel !== "-" ? itemLabel : (feat.featureName || feat.featureId || "Feature"),
+        groupLabel,
+        renewalDate,
+        listing: linkedListing,
+      });
+    }
+
+    items.sort((a, b) => a.renewalDate.getTime() - b.renewalDate.getTime());
+
+    return {
+      renewalsThisMonth: items.filter((i) => i.renewalDate.getTime() <= windows.endOfMonth.getTime()),
+      renewalsThisWeek: items.filter((i) => i.renewalDate.getTime() <= windows.endOfWeek.getTime()),
+    };
+  }, [partnerPlans, featuredPlans, listingById, listingInsights, partnerById, windows]);
+
+  // Separate Incomplete Payments (unfinished/abandoned checkouts) & Failed Payments (payment failures / declined charges)
+  const { incompletePayments, failedPayments } = useMemo(() => {
+    type PaymentIssueItem = {
+      id: string;
+      businessName: string;
+      listingName: string;
+      itemLabel: string;
+      amountDisplay: string;
+      dateObj: Date | null;
+      statusLabel: string;
+      listing?: ListingRecord;
+    };
+
+    const incomplete: PaymentIssueItem[] = [];
+    const failed: PaymentIssueItem[] = [];
+    const seenFailedKeys = new Set<string>();
+    const seenIncompleteKeys = new Set<string>();
+
+    const completedListingIds = new Set<string>();
+    const completedSessionIds = new Set<string>();
+    for (const t of transactions) {
+      const s = String(t.status || "").toLowerCase();
+      if (["succeeded", "completed", "complete", "paid"].includes(s)) {
+        if (t.listingId) completedListingIds.add(String(t.listingId));
+        if (t.sessionId) completedSessionIds.add(String(t.sessionId));
+      }
+    }
+
+    // 1. TransactionsCollection entries with failed / incomplete / pending statuses
+    for (const t of transactions) {
+      const s = String(t.status || "").toLowerCase().trim();
+      if (["succeeded", "completed", "complete", "paid"].includes(s)) continue;
+      const linkedListing = t.listingId ? listingById.get(String(t.listingId)) : undefined;
+      const partner = t.partnerId ? partnerById.get(String(t.partnerId)) : undefined;
+      const businessName = t.businessName || partner?.businessName || linkedListing?.businessName || "—";
+      const listingName = getListingTitle(linkedListing, t.listingTitle || businessName);
+      const formatted = formatPartnerTransaction({ id: t.id, ...t });
+      const dateObj = toDateSafe(t.createdAt);
+
+      const isPendingCheckout = ["pending", "pending_payment", "pending payment", "open", "expired"].includes(s);
+      if (isPendingCheckout) {
+        const key = String(t.sessionId || t.listingId || t.id);
+        if (seenIncompleteKeys.has(key)) continue;
+        seenIncompleteKeys.add(key);
+        incomplete.push({
+          id: `txn-inc-${t.id}`,
+          businessName,
+          listingName,
+          itemLabel: formatted.planDisplay || formatted.description || "Checkout",
+          amountDisplay: formatted.amountNumeric > 0 ? formatted.amountDisplay : "—",
+          dateObj,
+          statusLabel: "Pending Payment",
+          listing: linkedListing,
+        });
+      } else {
+        const key = String(t.invoiceId || t.sessionId || t.listingId || t.id);
+        if (seenFailedKeys.has(key)) continue;
+        seenFailedKeys.add(key);
+        failed.push({
+          id: `txn-fail-${t.id}`,
+          businessName,
+          listingName,
+          itemLabel: formatted.planDisplay || formatted.description || "Payment",
+          amountDisplay: formatted.amountNumeric > 0 ? formatted.amountDisplay : "—",
+          dateObj,
+          statusLabel: "Failed Payment",
+          listing: linkedListing,
+        });
+      }
+    }
+
+    // 2. Audit logs: PAYMENT_FAILED -> Failed Payments; PAYMENT_PENDING / unpaid LISTING_CREATED -> Incomplete Payments
+    for (const log of auditLogs) {
+      if (!log || isMemberAuditLog(log)) continue;
+      const action = String(log.action || "").toUpperCase().trim();
+      const meta = log.metadata || {};
+      const lid = meta.listingId ? String(meta.listingId) : "";
+      const sid = meta.sessionId ? String(meta.sessionId) : "";
+      const invId = meta.invoiceId ? String(meta.invoiceId) : "";
+      const linkedListing = lid ? listingById.get(lid) : undefined;
+      const listingStatus = linkedListing
+        ? getEffectiveListingStatus(linkedListing, listingInsights[linkedListing.id])
+        : "";
+      const partner = log.partnerId ? partnerById.get(String(log.partnerId)) : undefined;
+      const businessName = partner?.businessName || linkedListing?.businessName || log.partnerName || "—";
+      const listingName = getListingTitle(linkedListing, meta.listingName || businessName);
+      const grp = formatAuditGroupCode(meta.group || linkedListing?.selectedGroup || linkedListing?.__col, meta.planId || meta.plan || linkedListing?.selectedPlan);
+      const itemLabel = meta.featureId
+        ? formatAuditFeatureType(meta.featureId)
+        : formatAuditPlanType(meta.planId || meta.plan || linkedListing?.selectedPlan, grp);
+      const dateObj = toDateSafe(log.timestamp);
+
+      if (action === "PAYMENT_FAILED") {
+        const key = String(invId || sid || lid || log.id);
+        if (seenFailedKeys.has(key)) continue;
+        seenFailedKeys.add(key);
+        const amt = typeof meta.amountDue === "number" ? meta.amountDue : typeof meta.amount === "number" ? meta.amount : 0;
+        failed.push({
+          id: `log-fail-${log.id}`,
+          businessName,
+          listingName,
+          itemLabel: itemLabel !== "-" ? itemLabel : "Stripe Payment",
+          amountDisplay: amt > 0 ? `$${amt.toFixed(2)}` : "—",
+          dateObj,
+          statusLabel: "Failed Payment",
+          listing: linkedListing,
+        });
+      } else if (
+        action === "PAYMENT_PENDING" ||
+        (action === "LISTING_CREATED" &&
+          (listingStatus === "Pending Payment" || String(meta.paymentStatus || "").toLowerCase().includes("pending")))
+      ) {
+        if (sid && completedSessionIds.has(sid)) continue;
+        if (lid && (completedListingIds.has(lid) || (listingStatus && listingStatus !== "Pending Payment"))) continue;
+        const key = String(sid || lid || log.id);
+        if (seenIncompleteKeys.has(key)) continue;
+        seenIncompleteKeys.add(key);
+        incomplete.push({
+          id: `log-inc-${log.id}`,
+          businessName,
+          listingName,
+          itemLabel: itemLabel !== "-" ? itemLabel : "Checkout Started",
+          amountDisplay: "—",
+          dateObj,
+          statusLabel: "Incomplete Payment",
+          listing: linkedListing,
+        });
+      }
+    }
+
+    // 3. Listings / plans / features currently in Pending Payment or Incomplete Payment status
+    for (const l of listings) {
+      if (!l?.id) continue;
+      const effStatus = getEffectiveListingStatus(l, listingInsights[l.id]);
+      if (effStatus !== "Pending Payment" && effStatus !== "Incomplete Payment") continue;
+      const partner = l.partnerId ? partnerById.get(l.partnerId) : undefined;
+      const businessName = l.businessName || partner?.businessName || "—";
+      const listingName = getListingTitle(l, businessName);
+      const grp = formatAuditGroupCode(l.selectedGroup || l.__col, l.selectedPlan);
+      const itemLabel = formatAuditPlanType(l.selectedPlan, grp);
+      const dateObj = toDateSafe(l.createdAt || (l as any).updatedAt);
+
+      if (effStatus === "Incomplete Payment") {
+        if (seenFailedKeys.has(String(l.id))) continue;
+        seenFailedKeys.add(String(l.id));
+        failed.push({
+          id: `listing-fail-${l.id}`,
+          businessName,
+          listingName,
+          itemLabel: itemLabel !== "-" ? itemLabel : "Plan",
+          amountDisplay: "—",
+          dateObj,
+          statusLabel: "Incomplete Payment",
+          listing: l,
+        });
+      } else {
+        if (seenIncompleteKeys.has(String(l.id))) continue;
+        seenIncompleteKeys.add(String(l.id));
+        incomplete.push({
+          id: `listing-inc-${l.id}`,
+          businessName,
+          listingName,
+          itemLabel: itemLabel !== "-" ? itemLabel : "Checkout",
+          amountDisplay: "—",
+          dateObj,
+          statusLabel: "Pending Payment",
+          listing: l,
+        });
+      }
+    }
+
+    const byDateDesc = (a: PaymentIssueItem, b: PaymentIssueItem) =>
+      (b.dateObj?.getTime() || 0) - (a.dateObj?.getTime() || 0);
+
+    return {
+      incompletePayments: incomplete.sort(byDateDesc),
+      failedPayments: failed.sort(byDateDesc),
+    };
+  }, [transactions, auditLogs, listings, listingById, listingInsights, partnerById]);
+
+  const recentSuccessfulTransactions = useMemo(
+    () =>
+      transactions
+        .filter((t) => ["succeeded", "completed", "complete", "paid"].includes(String(t.status || "").toLowerCase()))
+        .slice(0, 7),
+    [transactions],
+  );
+
+  const visibleRenewals = renewalWindow === "week" ? renewalsThisWeek : renewalsThisMonth;
+  const fmtShortDate = (d: Date) =>
+    d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <StatCard label="Revenue" value={`$${Number(stats.totalRevenue || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
         <StatCard label="Partners" value={stats.totalPartners} />
-        <StatCard label="Pending Partners" value={stats.pendingApprovals} />
-        <StatCard label="Pending Listings" value={stats.pendingListings} />
         <StatCard label="Live Listings" value={stats.activeListings} />
+        <StatCard
+          label={`Upcoming Renewals (${renewalWindow === "week" ? "Week" : "Month"})`}
+          value={visibleRenewals.length}
+        />
+        <StatCard label="Incomplete Payments" value={incompletePayments.length} />
+        <StatCard label="Failed Payments" value={failedPayments.length} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card className="lg:col-span-2 bg-white border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>Latest 7 successful platform payments.</CardDescription>
+      {/* Upcoming Renewals with Current Month / Current Week toggle */}
+      <Card className="bg-white border-slate-200 shadow-sm">
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <CardTitle>Upcoming Renewals</CardTitle>
+            <CardDescription>
+              {renewalWindow === "week"
+                ? `Current week (${fmtShortDate(windows.startOfToday)} – ${fmtShortDate(windows.endOfWeek)})`
+                : `Current month (${fmtShortDate(windows.startOfToday)} – ${fmtShortDate(windows.endOfMonth)})`}
+              {" · "}Active, non-cancelled plans and features scheduled to renew.
+            </CardDescription>
+          </div>
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 self-start sm:self-auto">
+            <button
+              type="button"
+              onClick={() => setRenewalWindow("month")}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                renewalWindow === "month"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Current Month ({renewalsThisMonth.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setRenewalWindow("week")}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                renewalWindow === "week"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              Current Week ({renewalsThisWeek.length})
+            </button>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {visibleRenewals.length === 0 ? (
+            <p className="text-sm text-slate-500 px-6 pb-6">
+              No upcoming renewals for the current {renewalWindow === "week" ? "week" : "month"}.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Renewal Date</TableHead>
+                    <TableHead>Business Name</TableHead>
+                    <TableHead>Listing Name</TableHead>
+                    <TableHead>Kind</TableHead>
+                    <TableHead>Group</TableHead>
+                    <TableHead className="pr-6">Plan / Feature</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {visibleRenewals.slice(0, 15).map((item) => (
+                    <TableRow
+                      key={item.id}
+                      className={item.listing ? "cursor-pointer hover:bg-slate-50/70" : ""}
+                      onClick={() => item.listing && onViewListing(item.listing)}
+                    >
+                      <TableCell className="pl-6 font-medium text-slate-700 whitespace-nowrap">
+                        {item.renewalDate.toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className="font-medium text-slate-900 max-w-[180px] truncate" title={item.businessName}>
+                        {item.businessName}
+                      </TableCell>
+                      <TableCell className="text-slate-700 max-w-[200px] truncate" title={item.listingName}>
+                        {item.listingName}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        <Badge variant="outline" className="text-xs font-medium">
+                          {item.kind}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap text-xs font-medium text-slate-600">
+                        {item.groupLabel}
+                      </TableCell>
+                      <TableCell className="pr-6 font-medium text-slate-800 whitespace-nowrap">
+                        {item.itemLabel}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Incomplete Payments + Failed Payments */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <Card className="bg-white border-slate-200 shadow-sm">
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <div>
+              <CardTitle>Incomplete Payments</CardTitle>
+              <CardDescription>Checkouts started that have not been completed.</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onOpenTransactions} className="text-xs text-slate-600 hover:text-slate-900">
+              View all
+            </Button>
           </CardHeader>
           <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-6">Partner</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead className="text-right pr-6">Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions.slice(0, 7).map((t) => (
-                  <TableRow key={t.id}>
-                    <TableCell className="pl-6">{t.customerEmail || "-"}</TableCell>
-                    <TableCell className="font-semibold text-emerald-700">${t.amount?.toFixed(2) || "0.00"}</TableCell>
-                    <TableCell className="text-right pr-6 text-slate-500">
-                      {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "-"}
-                    </TableCell>
+            {incompletePayments.length === 0 ? (
+              <p className="text-sm text-slate-500 px-6 pb-6">No incomplete payments right now.</p>
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Business / Listing</TableHead>
+                    <TableHead>Plan / Feature</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right pr-6">Date</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {incompletePayments.slice(0, 7).map((item) => (
+                    <TableRow
+                      key={item.id}
+                      className={item.listing ? "cursor-pointer hover:bg-slate-50/70" : ""}
+                      onClick={() => item.listing && onViewListing(item.listing)}
+                    >
+                      <TableCell className="pl-6 max-w-[200px]">
+                        <p className="font-medium text-slate-900 truncate" title={item.businessName}>{item.businessName}</p>
+                        {item.listingName && item.listingName !== item.businessName && (
+                          <p className="text-xs text-slate-500 truncate" title={item.listingName}>{item.listingName}</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-700">{item.itemLabel}</TableCell>
+                      <TableCell>
+                        <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-medium whitespace-nowrap">
+                          {item.statusLabel}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-right pr-6 text-slate-500 text-xs whitespace-nowrap">
+                        {item.dateObj ? item.dateObj.toLocaleDateString() : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
           </CardContent>
         </Card>
 
         <Card className="bg-white border-slate-200 shadow-sm">
-          <CardHeader>
-            <CardTitle>Listings Pending Review</CardTitle>
-            <CardDescription>Approve or inspect before publishing.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between gap-2">
+            <div>
+              <CardTitle>Failed Payments</CardTitle>
+              <CardDescription>Charges or renewals that failed payment.</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onOpenTransactions} className="text-xs text-slate-600 hover:text-slate-900">
+              View all
+            </Button>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {pendingListings.length === 0 ? (
-              <p className="text-sm text-slate-500">No pending listings right now.</p>
+          <CardContent className="p-0">
+            {failedPayments.length === 0 ? (
+              <p className="text-sm text-slate-500 px-6 pb-6">No failed payments recorded.</p>
             ) : (
-              pendingListings.slice(0, 5).map((listing) => (
-                <div key={listing.id} className="rounded-lg border border-slate-200 p-3">
-                  <p className="font-medium">{listing.businessName || "Unnamed"}</p>
-                  <p className="text-xs text-slate-500 mb-3">{listing.selectedPlan?.replace(/_/g, " ") || "-"}</p>
-                  <div className="flex items-center gap-2">
-                    <Button size="sm" onClick={() => onApproveListing(listing)}>
-                      <CheckCircle2 className="w-4 h-4 mr-1" /> Approve
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => onViewListing(listing)}>
-                      <Eye className="w-4 h-4 mr-1" /> Review
-                    </Button>
-                  </div>
-                </div>
-              ))
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6">Business / Listing</TableHead>
+                    <TableHead>Plan / Feature</TableHead>
+                    <TableHead>Amount</TableHead>
+                    <TableHead className="text-right pr-6">Date</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {failedPayments.slice(0, 7).map((item) => (
+                    <TableRow
+                      key={item.id}
+                      className={item.listing ? "cursor-pointer hover:bg-slate-50/70" : ""}
+                      onClick={() => item.listing && onViewListing(item.listing)}
+                    >
+                      <TableCell className="pl-6 max-w-[200px]">
+                        <p className="font-medium text-slate-900 truncate" title={item.businessName}>{item.businessName}</p>
+                        {item.listingName && item.listingName !== item.businessName && (
+                          <p className="text-xs text-slate-500 truncate" title={item.listingName}>{item.listingName}</p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-xs text-slate-700">
+                        <div>{item.itemLabel}</div>
+                        <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] font-medium mt-0.5">
+                          {item.statusLabel}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-semibold text-rose-600 text-sm whitespace-nowrap">
+                        {item.amountDisplay}
+                      </TableCell>
+                      <TableCell className="text-right pr-6 text-slate-500 text-xs whitespace-nowrap">
+                        {item.dateObj ? item.dateObj.toLocaleDateString() : "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Recent Transactions */}
+      <Card className="bg-white border-slate-200 shadow-sm">
+        <CardHeader className="flex flex-row items-center justify-between gap-2">
+          <div>
+            <CardTitle>Recent Transactions</CardTitle>
+            <CardDescription>Latest 7 successful platform payments.</CardDescription>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onOpenTransactions} className="text-xs text-slate-600 hover:text-slate-900">
+            View all
+          </Button>
+        </CardHeader>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-6">Partner</TableHead>
+                <TableHead>Amount</TableHead>
+                <TableHead className="text-right pr-6">Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {recentSuccessfulTransactions.map((t) => (
+                <TableRow key={t.id}>
+                  <TableCell className="pl-6">{t.customerEmail || "-"}</TableCell>
+                  <TableCell className="font-semibold text-emerald-700">${t.amount?.toFixed(2) || "0.00"}</TableCell>
+                  <TableCell className="text-right pr-6 text-slate-500">
+                    {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "-"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </div>
   );
 }
