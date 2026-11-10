@@ -3468,7 +3468,15 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {activeTab === "transactions" && <TransactionList transactions={transactions} partners={partners} />}
+          {activeTab === "transactions" && (
+            <TransactionList
+              transactions={transactions}
+              partners={partners}
+              listings={listings}
+              partnerPlans={partnerPlans}
+              featuredPlans={featuredPlans}
+            />
+          )}
 
           {activeTab === "plans" && <PlansCMS />}
 
@@ -5774,7 +5782,19 @@ function ListingsList({
   );
 }
 
-function TransactionList({ transactions, partners = [] }: { transactions: any[]; partners?: PartnerRecord[] }) {
+function TransactionList({
+  transactions,
+  partners = [],
+  listings = [],
+  partnerPlans = [],
+  featuredPlans = [],
+}: {
+  transactions: any[];
+  partners?: PartnerRecord[];
+  listings?: ListingRecord[];
+  partnerPlans?: PartnerPlanRecord[];
+  featuredPlans?: FeaturedPlanPurchase[];
+}) {
   const [search, setSearch] = useState("");
 
   const partnerMap = useMemo(() => {
@@ -5786,6 +5806,37 @@ function TransactionList({ transactions, partners = [] }: { transactions: any[];
     }
     return { byId, byEmail };
   }, [partners]);
+
+  const listingNameLookup = useMemo(() => {
+    const byId = new Map<string, string>();
+    const bySubId = new Map<string, string>();
+    const getListingName = (l: any): string =>
+      String(l?.eventName || l?.jobTitle || l?.title || l?.businessName || l?.companyName || "").trim();
+
+    for (const l of listings) {
+      const name = getListingName(l);
+      if (!name) continue;
+      if (l.id) byId.set(String(l.id), name);
+      if ((l as any).stripeSubscriptionId) bySubId.set(String((l as any).stripeSubscriptionId), name);
+      if ((l as any).featureSpotlightStripeSubscriptionId) {
+        bySubId.set(String((l as any).featureSpotlightStripeSubscriptionId), name);
+      }
+    }
+    for (const pl of partnerPlans) {
+      if (pl.stripeSubscriptionId && pl.listingId && !bySubId.has(String(pl.stripeSubscriptionId))) {
+        const name = byId.get(String(pl.listingId));
+        if (name) bySubId.set(String(pl.stripeSubscriptionId), name);
+      }
+    }
+    for (const fp of featuredPlans) {
+      const subId = (fp as any).stripeSubscriptionId;
+      if (subId && fp.listingId && !bySubId.has(String(subId))) {
+        const name = byId.get(String(fp.listingId));
+        if (name) bySubId.set(String(subId), name);
+      }
+    }
+    return { byId, bySubId };
+  }, [listings, partnerPlans, featuredPlans]);
 
   const rows = useMemo(
     () =>
@@ -5803,6 +5854,10 @@ function TransactionList({ transactions, partners = [] }: { transactions: any[];
       const contact = r.primaryContact || p?.primaryName || "";
       const bName = r.businessName || p?.businessName || "";
       const em = r.customerEmail || p?.primaryEmail || "";
+      const resolvedListingName =
+        (r.listingId ? listingNameLookup.byId.get(String(r.listingId)) : "") ||
+        (r.stripeSubscriptionId ? listingNameLookup.bySubId.get(String(r.stripeSubscriptionId)) : "") ||
+        "";
       const hay = [
         r.dateDisplay,
         em,
@@ -5812,6 +5867,10 @@ function TransactionList({ transactions, partners = [] }: { transactions: any[];
         r.eventDisplay,
         r.planDisplay,
         r.description,
+        r.targetTitle,
+        r.upgradeFor,
+        resolvedListingName,
+        r.listingId,
         r.statusLabel,
         r.amountDisplay,
       ]
@@ -5820,7 +5879,7 @@ function TransactionList({ transactions, partners = [] }: { transactions: any[];
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search, partnerMap]);
+  }, [rows, search, partnerMap, listingNameLookup]);
 
   const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     if (filtered.length === 0) return;
@@ -5843,7 +5902,7 @@ function TransactionList({ transactions, partners = [] }: { transactions: any[];
             <Input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search partner, business, plan, status…"
+              placeholder="Search partner, business, listing, plan, status…"
               className="pl-9 h-10 w-full sm:w-72 bg-white"
             />
           </div>

@@ -3517,11 +3517,27 @@ export default function Dashboard() {
                 : "bg-foreground/10 text-foreground border-foreground/20";
 
         const filteredTxns = txns.filter(t => {
-            const matchesSearch = !txnSearch || 
-                t.description.toLowerCase().includes(txnSearch.toLowerCase()) || 
-                (t.planDisplay || "").toLowerCase().includes(txnSearch.toLowerCase()) ||
-                (t.group || "").toLowerCase().includes(txnSearch.toLowerCase()) ||
-                t.typeLabel.toLowerCase().includes(txnSearch.toLowerCase());
+            const q = txnSearch.trim().toLowerCase();
+            const linkedListing = t.listingId
+                ? offerings.find((o) => o.id === t.listingId)
+                : t.stripeSubscriptionId
+                    ? offerings.find(
+                        (o) =>
+                            o.stripeSubscriptionId === t.stripeSubscriptionId ||
+                            o.featureSpotlightStripeSubscriptionId === t.stripeSubscriptionId
+                    )
+                    : undefined;
+            const listingTitle = linkedListing
+                ? String(linkedListing.eventName || linkedListing.jobTitle || linkedListing.title || linkedListing.businessName || "").toLowerCase()
+                : "";
+            const matchesSearch = !q ||
+                t.description.toLowerCase().includes(q) ||
+                (t.planDisplay || "").toLowerCase().includes(q) ||
+                (t.group || "").toLowerCase().includes(q) ||
+                t.typeLabel.toLowerCase().includes(q) ||
+                (t.targetTitle || "").toLowerCase().includes(q) ||
+                (t.upgradeFor || "").toLowerCase().includes(q) ||
+                listingTitle.includes(q);
             
             let matchesMonth = true;
             if (txnMonth !== "all") {
