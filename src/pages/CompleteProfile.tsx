@@ -758,18 +758,22 @@ export default function CompleteProfile() {
                 : collection(db, collectionName);
             const listingDoc = await addDoc(listingsRef, listingData);
 
-            // Log to Audit Trail
+            // Log to Audit Trail (Initial Profile Creation)
             await logActivity({
                 partnerId: auth.currentUser.uid,
                 partnerName: formData.companyName,
                 action: "ACCOUNT_UPDATED",
-                details: `Partner profile completed/updated. Group: ${formData.group.replace(/_/g, " ")}, Plan: ${formData.plan.replace(/_/g, " ")}.`,
+                details: `Partner profile created for "${formData.companyName}". Group: ${formData.group.replace(/_/g, " ")}, Plan: ${formData.plan.replace(/_/g, " ")}${logoUrlResolved ? " (logo uploaded)" : ""}.`,
                 category: "account",
+                performedBy: "partner",
                 metadata: {
+                    profileCreated: true,
                     group: formData.group,
                     plan: formData.plan,
                     categoriesCount: categoryCount,
-                    listingId: listingDoc.id
+                    listingId: listingDoc.id,
+                    hasLogo: Boolean(logoUrlResolved),
+                    businessCountry: formData.businessCountry || "",
                 }
             });
 
@@ -862,8 +866,8 @@ export default function CompleteProfile() {
                 <div key={cat} className="flex flex-col">
                     <div className="flex items-start gap-2 py-1">
                         {hasSubs ? (
-                            <button type="button" onClick={() => toggleExpandCategory(cat)} className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-foreground">
-                                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            <button type="button" onClick={() => toggleExpandCategory(cat)} className="mt-0.5 flex-shrink-0 text-foreground hover:text-primary">
+                                {isExpanded ? <ChevronDown className="w-4 h-4" strokeWidth={2.75} /> : <ChevronRight className="w-4 h-4" strokeWidth={2.75} />}
                             </button>
                         ) : <span className="w-4 h-4 flex-shrink-0" />}
 
@@ -875,7 +879,7 @@ export default function CompleteProfile() {
                                 disabled={!hasSubs && !isParentSelected && isCategoryLimitReached}
                                 className={hasSubs && isAnySubSelected ? "border-green-500 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}
                             />
-                            <label htmlFor={`cat-${cat}`} className={`text-sm leading-none cursor-pointer ${hasSubs ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>
+                            <label htmlFor={`cat-${cat}`} className={`text-sm leading-none cursor-pointer ${"font-normal text-foreground/80"}`}>
                                 {cat}
                             </label>
                         </div>
@@ -894,8 +898,8 @@ export default function CompleteProfile() {
                                     <div key={subLabel} className="flex flex-col">
                                         <div className="flex items-center gap-1.5 py-0.5">
                                             {isNested ? (
-                                                <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
-                                                    {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                                <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-foreground hover:text-primary">
+                                                    {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" strokeWidth={2.75} /> : <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.75} />}
                                                 </button>
                                             ) : <span className="w-3.5 h-3.5 flex-shrink-0" />}
 
@@ -1657,7 +1661,7 @@ export default function CompleteProfile() {
                                     <div className="pt-6 border-t border-foreground/10">
                                         <div className="flex items-center justify-between mb-4">
                                             <div>
-                                                <Label className="text-base font-semibold">
+                                                <Label className="text-sm font-medium">
                                                     Category(ies) <span className="text-blue-500">*</span>
                                                 </Label>
                                                 <p className="text-xs text-muted-foreground mt-1">Select categories from the lowest level. Parent categories expand when clicked.</p>

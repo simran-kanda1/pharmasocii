@@ -561,7 +561,7 @@ export default function AllCategories() {
                     <div className="flex items-start gap-2">
                         {subs && subs.length > 0 ? (
                             <button onClick={() => toggleExpandCategory(cat)} className="mt-1 flex-shrink-0">
-                                {isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />}
+                                {isExpanded ? <ChevronDown className="w-4 h-4 text-foreground" strokeWidth={2.75} /> : <ChevronRight className="w-4 h-4 text-foreground" strokeWidth={2.75} />}
                             </button>
                         ) : (
                             <span className="w-4 h-4 flex-shrink-0" />
@@ -572,7 +572,7 @@ export default function AllCategories() {
                                 checked={isSelectedCategory}
                                 onCheckedChange={() => toggleCategory(cat)}
                             />
-                            <label htmlFor={cat} className="text-sm font-medium leading-none cursor-pointer">{cat}</label>
+                            <label htmlFor={cat} className="text-sm font-normal leading-none cursor-pointer">{cat}</label>
                         </div>
                     </div>
 
@@ -591,8 +591,8 @@ export default function AllCategories() {
                                             {isNested ? (
                                                 <button onClick={() => toggleExpandSubcategory(cat, subLabel)} className="flex-shrink-0">
                                                     {isSubExpanded
-                                                        ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />
-                                                        : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />}
+                                                        ? <ChevronDown className="w-3.5 h-3.5 text-foreground" strokeWidth={2.75} />
+                                                        : <ChevronRight className="w-3.5 h-3.5 text-foreground" strokeWidth={2.75} />}
                                                 </button>
                                             ) : (
                                                 <span className="w-3.5 h-3.5 flex-shrink-0" />

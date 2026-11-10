@@ -1461,42 +1461,101 @@ export default function Dashboard() {
 
                 if (auth.currentUser) await reload(auth.currentUser);
 
-                setPartnerData({
-                    ...partnerData, ...{
-                        primaryName: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
-                        primaryEmail: nextEmail, phoneNumber: profileForm.phone,
-                        secondaryName: profileForm.altName, secondaryEmail: profileForm.altEmail,
-                        businessName: profileForm.companyName, companyWebsite: profileForm.companyWebsite,
-                        businessPhoneNumber: profileForm.businessPhone, linkedInProfileLink: profileForm.linkedin,
-                        companyProfileText: (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH),
-                        businessAddress: profileForm.businessAddress,
-                        businessCountry: profileForm.businessCountry || "",
-                        billingEmailAddress: profileForm.billingEmail || "",
-                        VAT_ABN_EIN_businessId: profileForm.businessId || "",
-                    }
-                });
+                const nextFirstName = profileForm.firstName.trim();
+                const nextLastName = profileForm.lastName.trim();
+                const nextPrimaryName = `${nextFirstName} ${nextLastName}`.trim();
+                const nextPhone = profileForm.phone || "";
+                const nextAltName = (profileForm.altName || "").trim();
+                const nextAltEmail = (profileForm.altEmail || "").trim();
+                const nextCompanyName = (profileForm.companyName || "").trim();
+                const nextWebsite = (profileForm.companyWebsite || "").trim();
+                const nextBusinessPhone = profileForm.businessPhone || "";
+                const nextLinkedin = (profileForm.linkedin || "").trim();
+                const nextCompanyProfile = (profileForm.companyProfile || "").slice(0, COMPANY_PROFILE_MAX_LENGTH);
+                const nextAddress = (profileForm.businessAddress || "").trim();
+                const nextCountry = profileForm.businessCountry || "";
+                const nextBillingEmail = (profileForm.billingEmail || "").trim();
+                const nextBusinessId = (profileForm.businessId || "").trim();
 
                 const changes: string[] = [];
-                const oldEmail = partnerData.primaryEmail || "";
-                const newEmail = nextEmail;
-                if (oldEmail && newEmail && oldEmail !== newEmail) {
-                    changes.push(`Primary email changed from "${oldEmail}" to "${newEmail}"`);
+                const updatedFieldNames: string[] = [];
+                const recordDiff = (fieldKey: string, label: string, oldVal: string, newVal: string, summarizeValue = false) => {
+                    const a = (oldVal || "").trim();
+                    const b = (newVal || "").trim();
+                    if (a === b) return;
+                    updatedFieldNames.push(fieldKey);
+                    if (summarizeValue) {
+                        changes.push(`${label} ${a ? (b ? "updated" : "cleared") : "added"}`);
+                    } else if (!a && b) {
+                        changes.push(`${label} set to "${b}"`);
+                    } else if (a && !b) {
+                        changes.push(`${label} cleared (was "${a}")`);
+                    } else {
+                        changes.push(`${label} changed from "${a}" to "${b}"`);
+                    }
+                };
+
+                const oldLogoUrl = (partnerData.companyLogoUrl || partnerData.logoUrl || "").trim();
+                if (finalLogoUrl.trim() !== oldLogoUrl) {
+                    updatedFieldNames.push("companyLogoUrl");
+                    if (!oldLogoUrl && finalLogoUrl) {
+                        changes.push("Logo uploaded");
+                    } else if (oldLogoUrl && !finalLogoUrl) {
+                        changes.push("Logo removed");
+                    } else {
+                        changes.push("Logo updated");
+                    }
                 }
-                const oldContact = partnerData.primaryName || "";
-                const newContact = `${profileForm.firstName} ${profileForm.lastName}`.trim();
-                if (oldContact && newContact && oldContact !== newContact) {
-                    changes.push(`Primary contact changed from "${oldContact}" to "${newContact}"`);
+
+                const [oldFirstFallback, ...oldRestFallback] = (partnerData.primaryName || "").trim().split(/\s+/);
+                const oldFirstName = (partnerData.firstName || oldFirstFallback || "").trim();
+                const oldLastName = (partnerData.lastName || oldRestFallback.join(" ") || "").trim();
+                recordDiff("firstName", "First name", oldFirstName, nextFirstName);
+                recordDiff("lastName", "Last name", oldLastName, nextLastName);
+                recordDiff("primaryEmail", "Primary email", partnerData.primaryEmail || partnerData.email || "", nextEmail);
+                recordDiff("phoneNumber", "Phone", partnerData.phoneNumber || partnerData.phone || "", nextPhone);
+                recordDiff("secondaryName", "Alternate contact", partnerData.secondaryName || partnerData.altContactName || "", nextAltName);
+                recordDiff("secondaryEmail", "Alternate email", partnerData.secondaryEmail || partnerData.altEmail || "", nextAltEmail);
+                if ((partnerData.businessName || partnerData.companyName || "").trim() !== nextCompanyName) {
+                    updatedFieldNames.push("businessName");
+                    changes.push(`Company name updated from "${(partnerData.businessName || partnerData.companyName || "").trim()}" to "${nextCompanyName}"`);
                 }
-                const oldBusiness = partnerData.businessName || "";
-                const newBusiness = profileForm.companyName || "";
-                if (oldBusiness && newBusiness && oldBusiness !== newBusiness) {
-                    changes.push(`Company name updated from "${oldBusiness}" to "${newBusiness}"`);
+                if ((partnerData.companyWebsite || partnerData.website || "").trim() !== nextWebsite) {
+                    updatedFieldNames.push("companyWebsite");
+                    changes.push(`Company URL changed from "${(partnerData.companyWebsite || partnerData.website || "").trim()}" to "${nextWebsite}"`);
                 }
-                const oldUrl = partnerData.companyWebsite || "";
-                const newUrl = profileForm.companyWebsite || "";
-                if (oldUrl && newUrl && oldUrl !== newUrl) {
-                    changes.push(`Company URL changed from "${oldUrl}" to "${newUrl}"`);
-                }
+                recordDiff("businessPhoneNumber", "Business phone", partnerData.businessPhoneNumber || partnerData.businessPhone || "", nextBusinessPhone);
+                recordDiff("linkedInProfileLink", "LinkedIn profile", partnerData.linkedInProfileLink || partnerData.linkedin || "", nextLinkedin);
+                recordDiff("billingEmailAddress", "Billing email", partnerData.billingEmailAddress || partnerData.billingEmail || "", nextBillingEmail);
+                recordDiff("VAT_ABN_EIN_businessId", "Business ID", partnerData.VAT_ABN_EIN_businessId || partnerData.businessId || "", nextBusinessId);
+                recordDiff("companyProfileText", "Company profile", partnerData.companyProfileText || partnerData.companyProfile || partnerData.description || "", nextCompanyProfile, true);
+                recordDiff("businessCountry", "Business headquarters", partnerData.businessCountry || "", nextCountry);
+                recordDiff("businessAddress", "Business address", partnerData.businessAddress || partnerData.address || "", nextAddress, true);
+
+                setCompanyLogoFile(null);
+                setCompanyLogoPreview("");
+                setProfileForm((prev: any) => ({ ...prev, companyLogoUrl: finalLogoUrl }));
+
+                setPartnerData({
+                    ...partnerData,
+                    firstName: nextFirstName,
+                    lastName: nextLastName,
+                    primaryName: nextPrimaryName,
+                    primaryEmail: nextEmail,
+                    phoneNumber: nextPhone,
+                    secondaryName: nextAltName,
+                    secondaryEmail: nextAltEmail,
+                    businessName: nextCompanyName,
+                    companyWebsite: nextWebsite,
+                    businessPhoneNumber: nextBusinessPhone,
+                    linkedInProfileLink: nextLinkedin,
+                    companyProfileText: nextCompanyProfile,
+                    businessAddress: nextAddress,
+                    businessCountry: nextCountry,
+                    billingEmailAddress: nextBillingEmail,
+                    VAT_ABN_EIN_businessId: nextBusinessId,
+                    companyLogoUrl: finalLogoUrl,
+                });
 
                 const changeDetails = changes.length > 0
                     ? `Partner profile updated by Partner: ${changes.join(". ")}.`
@@ -1505,7 +1564,7 @@ export default function Dashboard() {
                 // Log to Audit Trail
                 await logActivity({
                     partnerId: auth.currentUser.uid,
-                    partnerName: profileForm.companyName || partnerData.businessName || "Unnamed Business",
+                    partnerName: nextCompanyName || partnerData.businessName || "Unnamed Business",
                     action: "ACCOUNT_UPDATED",
                     details: changeDetails,
                     category: "account",
@@ -1513,7 +1572,7 @@ export default function Dashboard() {
                     metadata: {
                         performedBy: "partner",
                         changes,
-                        updatedFields: Object.keys(profileForm).filter(k => profileForm[k] !== partnerData[k])
+                        updatedFields: updatedFieldNames,
                     }
                 });
 
@@ -2971,6 +3030,7 @@ export default function Dashboard() {
                             <CardTitle className="text-xl flex items-center gap-2"><Building className="w-5 h-5 text-primary" /> {partnerData.businessName || "Business Information"}</CardTitle>
                         </CardHeader>
                         <CardContent className="space-y-4 pt-6">
+                            {livePlansSorted.length > 0 && (
                             <div className="grid grid-cols-1 gap-2 bg-muted/40 p-4 rounded-lg border border-foreground/10">
                                 <div className="grid grid-cols-2 gap-6">
                                     <p className="text-xs font-semibold text-muted-foreground tracking-wider">Group</p>
@@ -2988,15 +3048,16 @@ export default function Dashboard() {
                                     );
                                 })}
                             </div>
+                            )}
                             <div className="bg-muted/40 p-4 rounded-lg border border-foreground/10">
-                                <p className="text-xs font-semibold text-muted-foreground tracking-wider flex items-center gap-1.5">
-                                    <FileText className="w-3.5 h-3.5 text-muted-foreground" /> Business Tax ID {!partnerData.VAT_ABN_EIN_businessId && <span className="font-normal text-muted-foreground">(to be added)</span>}
+                                <p className="text-xs font-semibold text-muted-foreground tracking-wider flex items-center gap-1.5 flex-wrap">
+                                    <FileText className="w-3.5 h-3.5 text-muted-foreground" /> Business Tax ID
+                                    {partnerData.VAT_ABN_EIN_businessId ? (
+                                        <span className="text-foreground font-medium tracking-normal ml-1">{partnerData.VAT_ABN_EIN_businessId}</span>
+                                    ) : (
+                                        <span className="font-normal text-muted-foreground">(to be added)</span>
+                                    )}
                                 </p>
-                                {partnerData.VAT_ABN_EIN_businessId && (
-                                    <p className="text-xs text-foreground font-medium mt-1">
-                                        {partnerData.VAT_ABN_EIN_businessId}
-                                    </p>
-                                )}
                             </div>
                         </CardContent>
                     </Card>
@@ -3058,7 +3119,7 @@ export default function Dashboard() {
                                         <div className="space-y-4">{livePlansSorted.map((plan) => renderPlanSubscriptionCard(plan, "active"))}</div>
                                 </div>
                             )}
-                            {expiredPlans.length > 0 && (
+                            {expiredPlans.length > 0 && !partnerData.createdByAdmin && (
                                 <div className="space-y-3">
                                     <h3 className="text-sm font-bold tracking-wider text-muted-foreground">Past Plans</h3>
 
@@ -4140,8 +4201,8 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                 <div key={cat} className="flex flex-col">
                     <div className="flex items-start gap-2 py-1">
                         {hasSubs ? (
-                            <button type="button" onClick={() => toggleExpandCategory(cat)} className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-foreground">
-                                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            <button type="button" onClick={() => toggleExpandCategory(cat)} className="mt-0.5 flex-shrink-0 text-foreground hover:text-primary">
+                                {isExpanded ? <ChevronDown className="w-4 h-4" strokeWidth={2.75} /> : <ChevronRight className="w-4 h-4" strokeWidth={2.75} />}
                             </button>
                         ) : <span className="w-4 h-4 flex-shrink-0" />}
                         <div className="flex items-center gap-2">
@@ -4152,7 +4213,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                 disabled={!hasSubs && !isParentSelected && isCategoryLimitReached}
                                 className={hasSubs && isAnySubSelected ? "border-green-500 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}
                             />
-                            <label htmlFor={`edit-cat-${cat}`} className={`text-sm leading-none cursor-pointer ${hasSubs ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>{cat}</label>
+                            <label htmlFor={`edit-cat-${cat}`} className={`text-sm leading-none cursor-pointer ${"font-normal text-foreground/80"}`}>{cat}</label>
                         </div>
                     </div>
                     {hasSubs && isExpanded && (
@@ -4167,8 +4228,8 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     <div key={subLabel} className="flex flex-col">
                                         <div className="flex items-center gap-1.5 py-0.5">
                                             {isNested ? (
-                                                <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
-                                                    {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                                <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-foreground hover:text-primary">
+                                                    {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" strokeWidth={2.75} /> : <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.75} />}
                                                 </button>
                                             ) : <span className="w-3.5 h-3.5 flex-shrink-0" />}
                                             <Checkbox
@@ -5132,20 +5193,7 @@ function CancelPlanModal({
     const actionUnavailable =
         (resolvedScope === "feature" && !hasCancellableFeature) ||
         (resolvedScope !== "feature" && !canCancelPlan);
-    const billingEnd =
-        plan.billingPeriodEnd?.seconds
-            ? new Date(plan.billingPeriodEnd.seconds * 1000)
-            : getPlanPeriodEndDate(plan);
-    const featureNaturalEnd =
-        toDateValue(linkedListing?.featureSpotlightPaidThrough) ||
-        toDateValue(linkedListing?.featureSpotlightAccessEnd);
-    const spotlightEnd = featureNaturalEnd || billingEnd;
-    const featureEndsBeforePlan = Boolean(
-        featureNaturalEnd &&
-        billingEnd &&
-        featureNaturalEnd.getTime() + 60 * 1000 < billingEnd.getTime() &&
-        !sameCalendarDay(featureNaturalEnd, billingEnd),
-    );
+
     const spotlightLabel =
         FEATURE_PLANS.find(
             (f) =>
@@ -5237,43 +5285,11 @@ function CancelPlanModal({
                     <div className="bg-foreground/5 border border-foreground/10 rounded-lg p-4">
                         <p className="text-sm text-foreground">
                             {isFeatureCancel ? (
-                                <>
-                                    Feature stays active until{" "}
-                                    <span className="font-semibold">
-                                        {spotlightEnd?.toLocaleDateString() || "the end of your paid period"}
-                                    </span>
-                                    , then won&apos;t renew. You&apos;ll see a &quot;Scheduled to end&quot; tag until that date.
-                                </>
+                                <>Your feature stays active until the end of the paid period, then won&apos;t renew.</>
                             ) : hasPurchasedFeatureAddon ? (
-                                featureEndsBeforePlan ? (
-                                    <>
-                                        Your plan stays active until{" "}
-                                        <span className="font-semibold">
-                                            {billingEnd?.toLocaleDateString() || "the end of your billing period"}
-                                        </span>
-                                        . The feature ends on{" "}
-                                        <span className="font-semibold">
-                                            {featureNaturalEnd?.toLocaleDateString()}
-                                        </span>{" "}
-                                        and will not renew. The plan stays listed until its own end date.
-                                    </>
-                                ) : (
-                                    <>
-                                        Your plan stays active until{" "}
-                                        <span className="font-semibold">
-                                            {billingEnd?.toLocaleDateString() || "the end of your billing period"}
-                                        </span>
-                                        . Plan and feature end on that date. After that, access tied to this plan ends unless you purchase again.
-                                    </>
-                                )
+                                <>Your plan stays active until the end of the paid period. Any associated feature also ends and will not renew.</>
                             ) : (
-                                <>
-                                    Your plan stays active until{" "}
-                                    <span className="font-semibold">
-                                        {billingEnd?.toLocaleDateString() || "the end of your billing period"}
-                                    </span>
-                                    . After that, access tied to this plan ends unless you purchase again.
-                                </>
+                                <>Your plan stays active until the end of the paid period. After that, access tied to this plan ends unless you purchase again.</>
                             )}
                         </p>
                     </div>

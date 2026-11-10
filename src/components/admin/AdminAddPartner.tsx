@@ -633,8 +633,8 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         <div key={cat} className="flex flex-col">
           <div className="flex items-start gap-2 py-1">
             {hasSubs ? (
-              <button type="button" onClick={() => toggleExpandCategory(cat)} className="mt-0.5 flex-shrink-0 text-slate-500 hover:text-slate-900">
-                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+              <button type="button" onClick={() => toggleExpandCategory(cat)} className="mt-0.5 flex-shrink-0 text-slate-900 hover:text-black">
+                {isExpanded ? <ChevronDown className="w-4 h-4" strokeWidth={2.75} /> : <ChevronRight className="w-4 h-4" strokeWidth={2.75} />}
               </button>
             ) : <span className="w-4 h-4 flex-shrink-0" />}
 
@@ -646,7 +646,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 disabled={!hasSubs && !isParentSelected && isCategoryLimitReached}
                 className={hasSubs && isAnySubSelected ? "border-green-500 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""}
               />
-              <label htmlFor={`cat-${cat}`} className={`text-sm leading-none cursor-pointer ${hasSubs ? "font-semibold text-slate-900" : "font-medium text-slate-700"}`}>
+              <label htmlFor={`cat-${cat}`} className={`text-sm leading-none cursor-pointer ${"font-normal text-slate-700"}`}>
                 {cat}
               </label>
             </div>
@@ -665,8 +665,8 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   <div key={subLabel} className="flex flex-col">
                     <div className="flex items-center gap-1.5 py-0.5">
                       {isNested ? (
-                        <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-slate-500 hover:text-slate-900">
-                          {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                        <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-slate-900 hover:text-black">
+                          {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" strokeWidth={2.75} /> : <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.75} />}
                         </button>
                       ) : <span className="w-3.5 h-3.5 flex-shrink-0" />}
 

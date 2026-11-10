@@ -807,8 +807,8 @@ export default function AddListing() {
                 <div key={cat} className="flex flex-col">
                     <div className="flex items-start gap-2 py-1">
                         {hasSubs ? (
-                            <button type="button" onClick={() => toggleExpandCategory(cat)} className="mt-0.5 flex-shrink-0 text-muted-foreground hover:text-foreground">
-                                {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                            <button type="button" onClick={() => toggleExpandCategory(cat)} className="mt-0.5 flex-shrink-0 text-foreground hover:text-primary">
+                                {isExpanded ? <ChevronDown className="w-4 h-4" strokeWidth={2.75} /> : <ChevronRight className="w-4 h-4" strokeWidth={2.75} />}
                             </button>
                         ) : <span className="w-4 h-4 flex-shrink-0" />}
                         <div className="flex items-center gap-2">
@@ -816,7 +816,7 @@ export default function AddListing() {
                                 onCheckedChange={() => toggleCategorySelection(cat, hasSubs)}
                                 disabled={!hasSubs && !isParentSelected && isCategoryLimitReached}
                                 className={hasSubs && isAnySubSelected ? "border-green-500 data-[state=checked]:bg-green-600 data-[state=checked]:border-green-600" : ""} />
-                            <label htmlFor={`cat-${cat}`} className={`text-sm leading-none cursor-pointer ${hasSubs ? "font-semibold text-foreground" : "font-medium text-foreground/80"}`}>{cat}</label>
+                            <label htmlFor={`cat-${cat}`} className={`text-sm leading-none cursor-pointer ${"font-normal text-foreground/80"}`}>{cat}</label>
                         </div>
                     </div>
                     {hasSubs && isExpanded && (
@@ -831,8 +831,8 @@ export default function AddListing() {
                                     <div key={subLabel} className="flex flex-col">
                                         <div className="flex items-center gap-1.5 py-0.5">
                                             {isNested ? (
-                                                <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-muted-foreground hover:text-foreground">
-                                                    {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                                <button type="button" onClick={() => toggleExpandSubcategory(compositeSubKey)} className="flex-shrink-0 text-foreground hover:text-primary">
+                                                    {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" strokeWidth={2.75} /> : <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.75} />}
                                                 </button>
                                             ) : <span className="w-3.5 h-3.5 flex-shrink-0" />}
                                             <Checkbox id={`sub-${cat}-${subLabel}`} checked={isNested ? isSubExpanded : isSubChecked}
@@ -1313,7 +1313,7 @@ export default function AddListing() {
                                 <div className="pt-6 border-t border-foreground/10">
                                     <div className="flex items-center justify-between mb-4">
                                         <div>
-                                            <Label className="text-base font-semibold">Categories <span className="text-blue-500">*</span></Label>
+                                            <Label className="text-sm font-medium">Categories <span className="text-blue-500">*</span></Label>
                                         </div>
                                         <div className="flex items-center gap-2">
                                             <div className={`text-sm font-bold px-3 py-1.5 rounded-full border ${isCategoryLimitReached ? "bg-red-500/10 border-red-500/30 text-red-400" : "bg-green-500/10 border-green-500/30 text-green-400"}`}>

@@ -609,9 +609,9 @@ function CategoryTreeDropdown({
                           e.stopPropagation();
                           toggleCategorySelection(cat, true);
                         }}
-                        className="mt-0.5 flex-shrink-0 text-slate-500 hover:text-slate-900"
+                        className="mt-0.5 flex-shrink-0 text-slate-900 hover:text-black"
                       >
-                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        {isExpanded ? <ChevronDown className="w-4 h-4" strokeWidth={2.75} /> : <ChevronRight className="w-4 h-4" strokeWidth={2.75} />}
                       </button>
                     ) : (
                       <span className="w-4 h-4 flex-shrink-0" />
@@ -627,7 +627,7 @@ function CategoryTreeDropdown({
                       <label
                         htmlFor={`admin-cat-${cat}`}
                         className={`text-sm leading-none cursor-pointer select-none ${
-                          hasSubs ? "font-semibold text-slate-900" : "font-medium text-slate-700"
+                          "font-normal text-slate-700"
                         }`}
                       >
                         {cat}
@@ -655,9 +655,9 @@ function CategoryTreeDropdown({
                                     e.stopPropagation();
                                     toggleSubcategorySelection(cat, subLabel, true);
                                   }}
-                                  className="flex-shrink-0 text-slate-500 hover:text-slate-900"
+                                  className="flex-shrink-0 text-slate-900 hover:text-black"
                                 >
-                                  {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                                  {isSubExpanded ? <ChevronDown className="w-3.5 h-3.5" strokeWidth={2.75} /> : <ChevronRight className="w-3.5 h-3.5" strokeWidth={2.75} />}
                                 </button>
                               ) : (
                                 <span className="w-3.5 h-3.5 flex-shrink-0" />
@@ -1428,18 +1428,44 @@ export default function AdminDashboard() {
       );
 
       const changes: string[] = [];
-      if (payload.businessName && payload.businessName !== selectedPartner.businessName) {
-        changes.push(`Company name updated from "${selectedPartner.businessName || ''}" to "${payload.businessName}"`);
+      const recordAdminDiff = (label: string, oldVal: any, newVal: any, summarizeValue = false) => {
+        if (newVal === undefined) return;
+        const a = String(oldVal || "").trim();
+        const b = String(newVal || "").trim();
+        if (a === b) return;
+        if (summarizeValue) {
+          changes.push(`${label} ${a ? (b ? "updated" : "cleared") : "added"}`);
+        } else if (!a && b) {
+          changes.push(`${label} set to "${b}"`);
+        } else if (a && !b) {
+          changes.push(`${label} cleared (was "${a}")`);
+        } else {
+          changes.push(`${label} changed from "${a}" to "${b}"`);
+        }
+      };
+
+      if (payload.businessName && payload.businessName !== (selectedPartner.businessName || "")) {
+        changes.push(`Company name updated from "${selectedPartner.businessName || ""}" to "${payload.businessName}"`);
       }
-      if (payload.primaryEmail && payload.primaryEmail !== selectedPartner.primaryEmail) {
-        changes.push(`Primary email changed from "${selectedPartner.primaryEmail || ''}" to "${payload.primaryEmail}"`);
+      recordAdminDiff("Primary email", selectedPartner.primaryEmail, payload.primaryEmail);
+      recordAdminDiff("First name", selectedPartner.firstName, payload.firstName);
+      recordAdminDiff("Last name", selectedPartner.lastName, payload.lastName);
+      if (payload.primaryName && payload.primaryName !== (selectedPartner.primaryName || "")) {
+        changes.push(`Primary contact changed from "${selectedPartner.primaryName || ""}" to "${payload.primaryName}"`);
       }
-      if (payload.primaryName && payload.primaryName !== selectedPartner.primaryName) {
-        changes.push(`Primary contact changed from "${selectedPartner.primaryName || ''}" to "${payload.primaryName}"`);
+      recordAdminDiff("Phone", selectedPartner.phoneNumber || (selectedPartner as any).phone, payload.phoneNumber);
+      recordAdminDiff("Alternate contact", selectedPartner.altContactName || (selectedPartner as any).secondaryName, payload.altContactName);
+      recordAdminDiff("Alternate email", selectedPartner.altEmail || (selectedPartner as any).secondaryEmail, payload.altEmail);
+      if (payload.companyWebsite !== undefined && String(payload.companyWebsite || "").trim() !== String(selectedPartner.companyWebsite || "").trim()) {
+        changes.push(`Company URL changed from "${selectedPartner.companyWebsite || ""}" to "${payload.companyWebsite || ""}"`);
       }
-      if (payload.companyWebsite && payload.companyWebsite !== selectedPartner.companyWebsite) {
-        changes.push(`Company URL changed from "${selectedPartner.companyWebsite || ''}" to "${payload.companyWebsite}"`);
-      }
+      recordAdminDiff("Business phone", (selectedPartner as any).businessPhone || (selectedPartner as any).businessPhoneNumber, payload.businessPhone);
+      recordAdminDiff("LinkedIn profile", (selectedPartner as any).linkedinProfile || (selectedPartner as any).linkedInProfileLink, payload.linkedinProfile);
+      recordAdminDiff("Billing email", selectedPartner.billingEmailAddress, payload.billingEmailAddress);
+      recordAdminDiff("Business ID", selectedPartner.VAT_ABN_EIN_businessId || (selectedPartner as any).businessId, payload.VAT_ABN_EIN_businessId);
+      recordAdminDiff("Company profile", (selectedPartner as any).companyProfileText, payload.companyProfileText, true);
+      recordAdminDiff("Business headquarters", selectedPartner.businessCountry, payload.businessCountry);
+      recordAdminDiff("Business address", (selectedPartner as any).businessAddress, payload.businessAddress, true);
 
       const changeDetails = changes.length > 0
         ? `Partner profile updated by Admin (${adminEmail}): ${changes.join(". ")}.`
@@ -7057,19 +7083,46 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
       return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Partner Account Created</Badge>;
     }
 
-    // 3. Profile field updates with explicit diffs
+    // 3. Profile creation & profile field updates with explicit diffs
     if (action === "ACCOUNT_UPDATED" || action === "PROFILE_UPDATED") {
-      if (details.includes("company name updated") || details.includes("company name changed")) {
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Company Name Updated</Badge>;
+      if (details.includes("partner profile created") || log.metadata?.profileCreated) {
+        return <Badge className="bg-sky-50 text-sky-700 border-sky-200">Profile Created</Badge>;
       }
-      if (details.includes("primary email changed")) {
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Primary Email Changed</Badge>;
-      }
-      if (details.includes("primary contact changed")) {
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Primary Contact Changed</Badge>;
-      }
-      if (details.includes("company url changed") || details.includes("website changed")) {
-        return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Company URL Changed</Badge>;
+      const changeCount = Array.isArray(log.metadata?.changes) ? log.metadata.changes.length : 0;
+      if (changeCount <= 1) {
+        if (details.includes("logo uploaded") || details.includes("logo updated")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Logo Updated</Badge>;
+        }
+        if (details.includes("logo removed")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Logo Removed</Badge>;
+        }
+        if (details.includes("company profile updated") || details.includes("company profile added") || details.includes("company profile cleared")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Company Profile Updated</Badge>;
+        }
+        if (details.includes("company name updated") || details.includes("company name changed")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Company Name Updated</Badge>;
+        }
+        if (details.includes("primary email changed")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Primary Email Changed</Badge>;
+        }
+        if (details.includes("primary contact changed")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Primary Contact Changed</Badge>;
+        }
+        if (details.includes("company url changed") || details.includes("website changed")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Company URL Changed</Badge>;
+        }
+        if (details.includes("business headquarters")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Headquarters Updated</Badge>;
+        }
+        if (details.includes("business address")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Business Address Updated</Badge>;
+        }
+        if (details.includes("business id")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Business ID Updated</Badge>;
+        }
+        if (details.includes("billing email")) {
+          return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Billing Email Updated</Badge>;
+        }
       }
       return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Profile Updated</Badge>;
     }

@@ -11,26 +11,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Copy,
   Check,
-  ExternalLink,
   AlertCircle,
-  Download,
 } from "lucide-react";
 import {
   formatPartnerTransaction,
   sortPartnerTransactionsNewestFirst,
   type PartnerTransactionRow,
 } from "@/lib/partnerTransactions";
-import { downloadSingleTransactionInvoicePdf } from "@/lib/transactionExport";
 import {
   getEffectiveListingStatus,
   getEffectiveFeatureStatus,
@@ -156,26 +145,6 @@ function StatusBadge({ status }: { status?: string }) {
   return <Badge variant="outline" className="font-medium">{status || "Unknown"}</Badge>;
 }
 
-function getListingCategoriesDisplay(l: any): string {
-  if (!l) return "—";
-  if (Array.isArray(l.selectedCategoriesDisplay) && l.selectedCategoriesDisplay.length > 0) {
-    return l.selectedCategoriesDisplay.join(", ");
-  }
-  if (Array.isArray(l.selectedCategories) && l.selectedCategories.length > 0) {
-    return l.selectedCategories.join(", ");
-  }
-  if (Array.isArray(l.categories) && l.categories.length > 0) {
-    return l.categories.join(", ");
-  }
-  if (typeof l.selectedCategories === "string" && l.selectedCategories.trim()) {
-    return l.selectedCategories;
-  }
-  if (typeof l.categories === "string" && l.categories.trim()) {
-    return l.categories;
-  }
-  return "—";
-}
-
 class ModalErrorBoundary extends React.Component<
   { children: React.ReactNode; onClose: () => void },
   { hasError: boolean; error: Error | null }
@@ -225,7 +194,7 @@ export function PartnerPlanHistoryModal({
   transactions = [],
   listingInsights = {},
 }: Props) {
-  const [activeTab, setActiveTab] = useState<"plans" | "features" | "listings" | "transactions">("plans");
+  const [activeTab, setActiveTab] = useState<"plans" | "features">("plans");
 
   // 1. Partner's Plans (All-time)
   const partnerPlansList = useMemo(() => {
@@ -239,24 +208,16 @@ export function PartnerPlanHistoryModal({
       });
   }, [partnerPlans, partner?.id]);
 
-  // 2. Partner's Features (All-time, deduplicated by listing so upgrades keep a single feature)
+  // 2. Partner's Features (All-time — every feature plan record, not just the latest)
   const partnerFeaturesList = useMemo(() => {
     if (!partner || !Array.isArray(featuredPlans)) return [];
-    const sorted = featuredPlans
-      .filter((f) => f && f.partnerId === partner.id && !f.supersededBy)
+    return featuredPlans
+      .filter((f) => f && f.partnerId === partner.id)
       .sort((a, b) => {
         const aTs = a.lastPaymentReceived?.seconds || a.createdAt?.seconds || 0;
         const bTs = b.lastPaymentReceived?.seconds || b.createdAt?.seconds || 0;
         return bTs - aTs;
       });
-    const byListing = new Map<string, any>();
-    sorted.forEach((f) => {
-      const key = String(f.listingId || f.id);
-      if (!byListing.has(key)) {
-        byListing.set(key, f);
-      }
-    });
-    return Array.from(byListing.values());
   }, [featuredPlans, partner?.id]);
 
   // 3. Partner's Listings (All-time paid listings; exclude unpaid Pending Payment)
@@ -376,12 +337,12 @@ export function PartnerPlanHistoryModal({
               </div>
             </div>
 
-            {/* Top 4 Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-5">
+            {/* Top 3 Summary Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
               <Card className="bg-slate-50/70 border-slate-200 shadow-none">
                 <CardContent className="p-3.5">
                   <p className="text-xs font-medium text-slate-500">
-                    Current Plan
+                    Plans
                   </p>
                   <p className="text-sm font-bold text-slate-900 mt-1 truncate" title={latestPlan?.planName || latestPlan?.planId || partner.selectedPlan || "None"}>
                     {latestPlan?.planName || latestPlan?.planId || partner.selectedPlan || "No Active Plan"}
@@ -389,15 +350,7 @@ export function PartnerPlanHistoryModal({
                   <div className="mt-1 flex items-center gap-1">
                     <StatusBadge status={latestPlan?.status || (latestPlan ? "Active" : "None")} />
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card className="bg-slate-50/70 border-slate-200 shadow-none">
-                <CardContent className="p-3.5">
-                  <p className="text-xs font-medium text-slate-500">
-                    Listings
-                  </p>
-                  <p className="text-sm font-bold text-slate-900 mt-1">
+                  <p className="text-sm font-bold text-slate-900 mt-2">
                     <span className="text-emerald-700">{activeListingsCount} active</span>
                     <span className="text-slate-400 font-normal text-xs ml-1.5">/ {partnerListingsList.length} total</span>
                   </p>
@@ -441,18 +394,12 @@ export function PartnerPlanHistoryModal({
           {/* Content Body with Tabs */}
           <div className="p-6">
             <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-4">
-              <TabsList className="bg-white border border-slate-200 p-1 w-full sm:w-auto grid grid-cols-4 h-auto">
+              <TabsList className="bg-white border border-slate-200 p-1 w-full sm:w-auto grid grid-cols-2 h-auto">
                 <TabsTrigger value="plans" className="text-xs sm:text-sm py-2">
                   Plans ({partnerPlansList.length})
                 </TabsTrigger>
                 <TabsTrigger value="features" className="text-xs sm:text-sm py-2">
                   Features ({partnerFeaturesList.length})
-                </TabsTrigger>
-                <TabsTrigger value="listings" className="text-xs sm:text-sm py-2">
-                  Listings ({partnerListingsList.length})
-                </TabsTrigger>
-                <TabsTrigger value="transactions" className="text-xs sm:text-sm py-2">
-                  Invoices ({partnerTransactionsList.length})
                 </TabsTrigger>
               </TabsList>
 
@@ -500,7 +447,7 @@ export function PartnerPlanHistoryModal({
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-xs">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4 text-xs">
                               <div>
                                 <span className="text-slate-400 block mb-0.5">Start Date</span>
                                 <span className="font-medium text-slate-800">{startFormatted}</span>
@@ -515,20 +462,10 @@ export function PartnerPlanHistoryModal({
                                   {plan.billingInterval === "annual" ? "Yearly" : (plan.billingInterval || plan.interval || (typeof plan.planName === "string" && plan.planName.toLowerCase().includes("yr") ? "Yearly" : "Monthly"))}
                                 </span>
                               </div>
-                              <div>
-                                <span className="text-slate-400 block mb-0.5">Stripe Subscription ID</span>
-                                <CopyableText text={plan.stripeSubscriptionId || plan.subscriptionId || "—"} label="Stripe Subscription ID" />
-                              </div>
                             </div>
 
-                            {(plan.stripeCustomerId || plan.listingId || plan.cancelAt || plan.canceledAt || plan.price != null) && (
-                              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
-                                {plan.stripeCustomerId && (
-                                  <div>
-                                    <span className="text-slate-400 block mb-0.5">Stripe Customer ID</span>
-                                    <CopyableText text={plan.stripeCustomerId} label="Stripe Customer ID" />
-                                  </div>
-                                )}
+                            {(plan.listingId || plan.cancelAt || plan.canceledAt || plan.price != null) && (
+                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
                                 {plan.listingId && (
                                   <div>
                                     <span className="text-slate-400 block mb-0.5">Target Listing ID</span>
@@ -592,7 +529,7 @@ export function PartnerPlanHistoryModal({
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-xs">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4 text-xs">
                               <div>
                                 <span className="text-slate-400 block mb-0.5">Purchased / Granted</span>
                                 <span className="font-medium text-slate-800">{startFormatted}</span>
@@ -605,10 +542,6 @@ export function PartnerPlanHistoryModal({
                                 <span className="text-slate-400 block mb-0.5">Target Listing</span>
                                 <CopyableText text={feat.listingId || "Primary Account"} label="Listing ID" />
                               </div>
-                              <div>
-                                <span className="text-slate-400 block mb-0.5">Stripe Session ID</span>
-                                <CopyableText text={feat.sessionId || feat.stripeSubscriptionId || "—"} label="Session ID" />
-                              </div>
                             </div>
                           </CardContent>
                         </Card>
@@ -618,181 +551,6 @@ export function PartnerPlanHistoryModal({
                 )}
               </TabsContent>
 
-              {/* TAB 3: LISTINGS ALL-TIME */}
-              <TabsContent value="listings" className="space-y-3 focus-visible:outline-none">
-                {partnerListingsList.length === 0 ? (
-                  <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                    <p className="font-semibold text-slate-700">No listings found</p>
-                    <p className="text-xs text-slate-500 mt-1">This partner has not created any listings yet.</p>
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="pl-4">Listing Title / Name</TableHead>
-                          <TableHead>Group</TableHead>
-                          <TableHead>Categories</TableHead>
-                          <TableHead>Listing Status</TableHead>
-                          <TableHead>Feature Plan</TableHead>
-                          <TableHead>Created</TableHead>
-                          <TableHead className="pr-4 text-right">View</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {partnerListingsList.map((l) => {
-                          const insight = listingInsights && l?.id ? listingInsights[l.id] : null;
-                          const effectiveStatus = getEffectiveListingStatus(l, insight);
-                          const featStatus = insight?.featureStatus || getEffectiveFeatureStatus(insight?.feature, l);
-                          const isFeatActive = featStatus === "Active";
-
-                          const groupDisplay =
-                            l?.selectedGroup === "business_offerings" || l?.__col === "businessOfferingsCollection"
-                              ? "Business"
-                              : l?.selectedGroup === "consulting" || (typeof l?.__col === "string" && l.__col.includes("consulting"))
-                              ? "Consulting"
-                              : l?.selectedGroup === "events" || l?.__col === "eventsCollection"
-                              ? "Event"
-                              : l?.selectedGroup === "jobs" || l?.__col === "jobsCollection"
-                              ? "Job"
-                              : "General";
-
-                          const title = l?.businessName || l?.eventName || l?.jobTitle || l?.companyName || "Untitled Listing";
-                          const categories = getListingCategoriesDisplay(l);
-
-                          const groupSlug =
-                            groupDisplay === "Business"
-                              ? "business"
-                              : groupDisplay === "Consulting"
-                              ? "consulting"
-                              : groupDisplay === "Event"
-                              ? "events"
-                              : "jobs";
-
-                          return (
-                            <TableRow key={l.id}>
-                              <TableCell className="pl-4 font-medium max-w-[200px]">
-                                <p className="truncate text-slate-900 font-semibold">{title}</p>
-                                <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
-                                  <span>ID:</span> <CopyableText text={l.id} label="Listing ID" />
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-xs">{groupDisplay}</TableCell>
-                              <TableCell className="text-xs text-slate-600 max-w-[180px] truncate" title={categories}>
-                                {categories}
-                              </TableCell>
-                              <TableCell>
-                                <StatusBadge status={effectiveStatus} />
-                              </TableCell>
-                              <TableCell>
-                                {isFeatActive ? (
-                                  <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-medium">
-                                    Featured
-                                  </Badge>
-                                ) : featStatus === "Expired" ? (
-                                  <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs font-medium">
-                                    Expired
-                                  </Badge>
-                                ) : featStatus === "Cancelled" ? (
-                                  <Badge className="bg-rose-50 text-rose-700 border-rose-200 text-xs font-medium">
-                                    Cancelled
-                                  </Badge>
-                                ) : featStatus === "Disabled" ? (
-                                  <Badge className="bg-slate-100 text-slate-600 border-slate-200 text-xs font-medium">
-                                    Disabled
-                                  </Badge>
-                                ) : (
-                                  <span className="text-xs text-slate-400">Standard</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-xs text-slate-500 whitespace-nowrap">
-                                {formatDate(l?.createdAt)}
-                              </TableCell>
-                              <TableCell className="pr-4 text-right">
-                                <a
-                                  href={`/listing/${groupSlug}/${l.id}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                                >
-                                  View <ExternalLink className="w-3 h-3 ml-1" />
-                                </a>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </TabsContent>
-
-              {/* TAB 4: INVOICES & TRANSACTIONS */}
-              <TabsContent value="transactions" className="space-y-3 focus-visible:outline-none">
-                {partnerTransactionsList.length === 0 ? (
-                  <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-                    <p className="font-semibold text-slate-700">No payment transactions found</p>
-                    <p className="text-xs text-slate-500 mt-1">Transactions will appear here once the partner checks out or subscribes.</p>
-                  </div>
-                ) : (
-                  <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="pl-4">Date</TableHead>
-                          <TableHead>Description / Service</TableHead>
-                          <TableHead>Type</TableHead>
-                          <TableHead>Amount</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Invoice ID</TableHead>
-                          <TableHead className="pr-4 text-right">Invoice PDF</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {partnerTransactionsList.map((tx) => (
-                          <TableRow key={tx.id}>
-                            <TableCell className="pl-4 whitespace-nowrap text-xs font-medium text-slate-800">
-                              {tx.dateDisplay}
-                            </TableCell>
-                            <TableCell className="max-w-[220px]">
-                              <p className="font-medium text-sm text-slate-900 truncate" title={tx.description}>
-                                {tx.description || tx.planDisplay}
-                              </p>
-                              {tx.upgradeFor && (
-                                <p className="text-xs text-slate-500 truncate" title={tx.upgradeFor}>
-                                  For: {tx.upgradeFor}
-                                </p>
-                              )}
-                            </TableCell>
-                            <TableCell className="text-xs text-slate-600 capitalize">{tx.typeLabel}</TableCell>
-                            <TableCell className="text-sm font-bold text-slate-900">{tx.amountDisplay}</TableCell>
-                            <TableCell>
-                              <StatusBadge status={tx.statusLabel} />
-                            </TableCell>
-                            <TableCell className="text-xs">
-                              <CopyableText text={tx.invoiceId || tx.sessionId || tx.id} label="Invoice Ref" />
-                            </TableCell>
-                            <TableCell className="pr-4 text-right">
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => downloadSingleTransactionInvoicePdf(tx, {
-                                  companyName: partner.businessName || "Partner",
-                                  email: partner.primaryEmail || "",
-                                  businessId: partner.VAT_ABN_EIN_businessId || partner.businessId || "",
-                                })}
-                                className="h-7 text-xs border-slate-300 text-slate-700 hover:bg-slate-50"
-                              >
-                                <Download className="w-3 h-3 mr-1" /> PDF
-                              </Button>
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </TabsContent>
             </Tabs>
           </div>
         </ModalErrorBoundary>
