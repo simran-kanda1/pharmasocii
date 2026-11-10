@@ -5160,10 +5160,10 @@ function OverviewTab({
 
       {/* Upcoming Renewals with Current Month / Current Week toggle */}
       <Card className="bg-white border-slate-200 shadow-sm">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <div>
-            <CardTitle>Upcoming Renewals</CardTitle>
-            <CardDescription>
+        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-1.5">
+            <CardTitle className="tracking-normal">Upcoming Renewals</CardTitle>
+            <CardDescription className="leading-relaxed">
               {renewalWindow === "week"
                 ? `Current week (${fmtShortDate(windows.startOfToday)} – ${fmtShortDate(windows.endOfWeek)})`
                 : `Current month (${fmtShortDate(windows.startOfToday)} – ${fmtShortDate(windows.endOfMonth)})`}
@@ -5253,9 +5253,9 @@ function OverviewTab({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <div>
-              <CardTitle>Incomplete Payments</CardTitle>
-              <CardDescription>Checkouts started that have not been completed.</CardDescription>
+            <div className="space-y-1.5">
+              <CardTitle className="tracking-normal">Incomplete Payments</CardTitle>
+              <CardDescription className="leading-relaxed">Checkouts started that have not been completed.</CardDescription>
             </div>
             <Button variant="ghost" size="sm" onClick={onOpenTransactions} className="text-xs text-slate-600 hover:text-slate-900">
               View all
@@ -5306,9 +5306,9 @@ function OverviewTab({
 
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between gap-2">
-            <div>
-              <CardTitle>Failed Payments</CardTitle>
-              <CardDescription>Charges or renewals that failed payment.</CardDescription>
+            <div className="space-y-1.5">
+              <CardTitle className="tracking-normal">Failed Payments</CardTitle>
+              <CardDescription className="leading-relaxed">Charges or renewals that failed payment.</CardDescription>
             </div>
             <Button variant="ghost" size="sm" onClick={onOpenTransactions} className="text-xs text-slate-600 hover:text-slate-900">
               View all
@@ -5364,9 +5364,9 @@ function OverviewTab({
       {/* Recent Transactions */}
       <Card className="bg-white border-slate-200 shadow-sm">
         <CardHeader className="flex flex-row items-center justify-between gap-2">
-          <div>
-            <CardTitle>Recent Transactions</CardTitle>
-            <CardDescription>Latest 7 successful platform payments.</CardDescription>
+          <div className="space-y-1.5">
+            <CardTitle className="tracking-normal">Recent Transactions</CardTitle>
+            <CardDescription className="leading-relaxed">Latest 7 successful platform payments.</CardDescription>
           </div>
           <Button variant="ghost" size="sm" onClick={onOpenTransactions} className="text-xs text-slate-600 hover:text-slate-900">
             View all
