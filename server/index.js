@@ -1021,6 +1021,13 @@ function periodsClose(a, b) {
     return Boolean(a && b && Math.abs(a.getTime() - b.getTime()) <= PERIOD_BOUNDARY_SLACK_MS);
 }
 
+/** True when next is a first write or is not an older cycle than the date already stored. */
+function billingInstantApplies(existing, next) {
+    if (!next) return false;
+    if (!existing) return true;
+    return next.getTime() + 60 * 1000 >= existing.getTime();
+}
+
 /**
  * A failed renewal invoice covers the cycle that was not paid.
  * Keep the previous cycle on the plan. The failed cycle is recorded as a start
@@ -2568,7 +2575,8 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
             const updatedStatus = String(subscription.status || "").toLowerCase();
             console.log(`🔄 Subscription updated: ${subscription.id} (status: ${subscription.status})`);
             // Do not cancel on past_due here. Test clocks and Stripe retries flip to past_due
-            // before a renewal invoice is paid. A real failed charge still ends access via invoice.payment_failed.
+            // before a renewal invoice is paid. Sync leaves that state alone. A real failed
+            // charge still ends access via invoice.payment_failed.
             if (isSpotlightAddonSubscription(subscription) || await isKnownSpotlightAddonSubscriptionId(subscription.id, subscription)) {
                 console.log(`   ℹ Spotlight add-on subscription updated: ${subscription.id}`);
                 if (["active", "trialing"].includes(updatedStatus)) {
@@ -3273,12 +3281,13 @@ async function syncSpotlightRenewalPeriodFromStripeSubscription(subscription) {
     for (const fDoc of featureDocs) {
         const fd = fDoc.data() || {};
         const partnerId = partnerIdFromPartnersPlanRef(fDoc.ref);
+        const applyFeaturePeriod = billingInstantApplies(toDateValue(fd.accessThrough), periodEnd);
         await fDoc.ref.set(
             {
                 active: true,
-                accessThrough: periodEnd,
-                ...(periodStart ? { billingPeriodStart: periodStart } : {}),
-                cancelPending: admin.firestore.FieldValue.delete(),
+                ...(applyFeaturePeriod ? { accessThrough: periodEnd } : {}),
+                ...(applyFeaturePeriod && periodStart ? { billingPeriodStart: periodStart } : {}),
+                ...(applyFeaturePeriod ? { cancelPending: admin.firestore.FieldValue.delete() } : {}),
             },
             { merge: true },
         );
@@ -3292,15 +3301,22 @@ async function syncSpotlightRenewalPeriodFromStripeSubscription(subscription) {
         if (listingData.active === false || ["cancelled", "canceled", "expired", "inactive"].includes(listingStatus)) {
             continue;
         }
+        const existingListingEnd = toDateValue(listingData.featureSpotlightPaidThrough)
+            || toDateValue(listingData.featureSpotlightAccessEnd);
+        const applyListingPeriod = billingInstantApplies(existingListingEnd, periodEnd);
         await applyListingPatchEverywhere(partnerId, fd.collectionName, fd.listingId, {
             selectedAddon: fd.featureId,
             featuredPlacement: fd.featureId,
             isFeatured: true,
-            featureSpotlightPaidThrough: periodEnd,
-            featureSpotlightBillingPeriodStart: periodStart || admin.firestore.FieldValue.delete(),
-            featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
-            featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
-            featureSpotlightCancelScope: admin.firestore.FieldValue.delete(),
+            ...(applyListingPeriod ? { featureSpotlightPaidThrough: periodEnd } : {}),
+            ...(applyListingPeriod
+                ? { featureSpotlightBillingPeriodStart: periodStart || admin.firestore.FieldValue.delete() }
+                : {}),
+            ...(applyListingPeriod ? {
+                featureSpotlightAccessEnd: admin.firestore.FieldValue.delete(),
+                featureSpotlightCancelPending: admin.firestore.FieldValue.delete(),
+                featureSpotlightCancelScope: admin.firestore.FieldValue.delete(),
+            } : {}),
             featureSpotlightStripeSubscriptionId: subscription.id,
             updatedAt: admin.firestore.FieldValue.serverTimestamp(),
         });
@@ -4242,13 +4258,16 @@ async function tryProcessSpotlightAddonInvoicePaid({
                 .get();
             for (const lDoc of snap.docs) {
                 fallbackFound = true;
+                const existing = lDoc.data() || {};
+                const existingEnd = toDateValue(existing.featureSpotlightPaidThrough) || toDateValue(existing.featureSpotlightAccessEnd);
+                const applyPeriod = billingInstantApplies(existingEnd, periodEnd);
                 const patch = {
                     lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                     isFeatured: true,
                     active: true,
                     status: "Approved",
-                    ...(periodEnd ? { featureSpotlightPaidThrough: periodEnd } : {}),
-                    ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
+                    ...(applyPeriod && periodEnd ? { featureSpotlightPaidThrough: periodEnd } : {}),
+                    ...(applyPeriod && periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
                     ...(customerId ? { stripeCustomerId: customerId } : {}),
                 };
                 await lDoc.ref.set(patch, { merge: true });
@@ -4264,13 +4283,16 @@ async function tryProcessSpotlightAddonInvoicePaid({
                     .get();
                 for (const lDoc of snap.docs) {
                     fallbackFound = true;
+                    const existing = lDoc.data() || {};
+                    const existingEnd = toDateValue(existing.featureSpotlightPaidThrough) || toDateValue(existing.featureSpotlightAccessEnd);
+                    const applyPeriod = billingInstantApplies(existingEnd, periodEnd);
                     const patch = {
                         lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
                         isFeatured: true,
                         active: true,
                         status: "Approved",
-                        ...(periodEnd ? { featureSpotlightPaidThrough: periodEnd } : {}),
-                        ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
+                        ...(applyPeriod && periodEnd ? { featureSpotlightPaidThrough: periodEnd } : {}),
+                        ...(applyPeriod && periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
                         ...(customerId ? { stripeCustomerId: customerId } : {}),
                     };
                     await lDoc.ref.set(patch, { merge: true });
@@ -4316,6 +4338,8 @@ async function tryProcessSpotlightAddonInvoicePaid({
 
         partnerIds.add(partnerId);
 
+        const existingFeatureEnd = toDateValue(fd.accessThrough);
+        const applyFeaturePeriod = billingInstantApplies(existingFeatureEnd, periodEnd);
         await fDoc.ref.set({
             lastPaymentReceived: new Date(),
             active: true,
@@ -4325,8 +4349,8 @@ async function tryProcessSpotlightAddonInvoicePaid({
                     featureName: String(resolvedFeatureId).replace(/_/g, " "),
                 }
                 : {}),
-            ...(periodEnd ? { accessThrough: periodEnd } : {}),
-            ...(periodStart ? { billingPeriodStart: periodStart } : {}),
+            ...(applyFeaturePeriod ? { accessThrough: periodEnd } : {}),
+            ...(applyFeaturePeriod && periodStart ? { billingPeriodStart: periodStart } : {}),
             ...(customerId ? { stripeCustomerId: customerId } : {}),
         }, { merge: true });
 
@@ -4347,6 +4371,9 @@ async function tryProcessSpotlightAddonInvoicePaid({
             const currentTier = spotlightTierFromId(currentData.selectedAddon || currentData.featuredPlacement);
             const resolvedTier = spotlightTierFromId(resolvedFeatureId);
             if (currentTier <= resolvedTier) {
+                const existingListingEnd = toDateValue(currentData.featureSpotlightPaidThrough)
+                    || toDateValue(currentData.featureSpotlightAccessEnd);
+                const applyListingPeriod = billingInstantApplies(existingListingEnd, periodEnd);
                 await applyListingPatchEverywhere(partnerId, fd.collectionName, fd.listingId, {
                     selectedAddon: resolvedFeatureId,
                     featuredPlacement: resolvedFeatureId,
@@ -4354,8 +4381,8 @@ async function tryProcessSpotlightAddonInvoicePaid({
                     active: true,
                     status: "Approved",
                     lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
-                    featureSpotlightPaidThrough: periodEnd,
-                    ...(periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
+                    ...(applyListingPeriod ? { featureSpotlightPaidThrough: periodEnd } : {}),
+                    ...(applyListingPeriod && periodStart ? { featureSpotlightBillingPeriodStart: periodStart } : {}),
                     ...(customerId ? { stripeCustomerId: customerId } : {}),
                 });
             }
@@ -4449,7 +4476,8 @@ async function tryProcessSpotlightAddonInvoicePaid({
 }
 
 const STRIPE_LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
-const STRIPE_ENDED_SUBSCRIPTION_STATUSES = new Set(["past_due", "unpaid", "canceled", "incomplete_expired"]);
+// past_due and unpaid are a renewal still being charged. invoice.payment_failed ends access.
+const STRIPE_ENDED_SUBSCRIPTION_STATUSES = new Set(["canceled", "incomplete_expired"]);
 
 function isStripeSubscriptionBillingLive(status) {
     return STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(String(status || "").toLowerCase());
@@ -4497,12 +4525,17 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
     const status = String(subscription.status || "").toLowerCase();
     const isLive = isStripeSubscriptionBillingLive(status);
     const isEnded = STRIPE_ENDED_SUBSCRIPTION_STATUSES.has(status);
+    // Test clocks and Stripe retries sit on past_due until the renewal charge finishes.
+    // Canceling here took down listings whose payment then completed. A failed charge
+    // still ends access in invoice.payment_failed.
     if (["past_due", "unpaid"].includes(status)) {
-        try {
-            await voidOpenCycleInvoicesAndCancelSubscription(subId);
-        } catch (err) {
-            console.warn("sync cancel failed renewal:", err?.message || err);
-        }
+        return {
+            updatedPlans: 0,
+            updatedListings: 0,
+            subscriptionId: subId,
+            status,
+            skipped: "awaiting_payment",
+        };
     }
     const billingPeriodEnd = subscription.current_period_end
         ? new Date(subscription.current_period_end * 1000)
@@ -4541,19 +4574,19 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
             ...(customerId ? { stripeCustomerId: customerId } : {}),
         };
         const existingPeriodEnd = toDateValue(planData.billingPeriodEnd);
-        // A later Stripe period is an unpaid renewal until invoice.paid writes it. Sync may correct
-        // a date, but it must not move the displayed period forward on its own.
-        const periodMovesForward = Boolean(
-            existingPeriodEnd &&
-            billingPeriodEnd &&
-            billingPeriodEnd.getTime() > existingPeriodEnd.getTime() + 60 * 1000,
-        );
+        // An active Stripe period is the paid cycle. Apply it when it is newer, and never
+        // replace a newer stored cycle with an older one.
+        const applyStripePeriod = billingInstantApplies(existingPeriodEnd, billingPeriodEnd);
 
         if (isLive) {
             planUpdate.active = true;
             planUpdate.expiredAt = admin.firestore.FieldValue.delete();
-            if (billingPeriodStart && !periodMovesForward) planUpdate.billingPeriodStart = billingPeriodStart;
-            if (billingPeriodEnd && !periodMovesForward) planUpdate.billingPeriodEnd = billingPeriodEnd;
+            planUpdate.endedForNonpayment = admin.firestore.FieldValue.delete();
+            planUpdate.failedRenewalPeriodStart = admin.firestore.FieldValue.delete();
+            if (applyStripePeriod) {
+                if (billingPeriodStart) planUpdate.billingPeriodStart = billingPeriodStart;
+                planUpdate.billingPeriodEnd = billingPeriodEnd;
+            }
             planUpdate.lastPaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
             if (subscription.cancel_at_period_end || subscription.cancel_at) {
                 planUpdate.cancelAtPeriodEnd = true;
@@ -4570,8 +4603,8 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
         } else if (isEnded) {
             planUpdate.active = false;
             planUpdate.cancelAtPeriodEnd = true;
-            planUpdate.endedForNonpayment = ["past_due", "unpaid"].includes(status) || planData.endedForNonpayment === true;
-            planUpdate.stripeSubscriptionStatus = ["past_due", "unpaid"].includes(status) ? "canceled" : status;
+            // Keep a payment-failed flag written by invoice.payment_failed. Never clear it from here.
+            if (planData.endedForNonpayment === true) planUpdate.endedForNonpayment = true;
             planUpdate.expiredAt = admin.firestore.FieldValue.serverTimestamp();
         }
 
@@ -4615,7 +4648,7 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
             const hasActiveStandaloneSub = Boolean(currentListingData.featureSpotlightStripeSubscriptionId);
 
             if (!hasActiveStandaloneSub && currentTier <= includedTier) {
-                const spotlightEnd = (periodMovesForward ? existingPeriodEnd : billingPeriodEnd)
+                const spotlightEnd = (applyStripePeriod ? billingPeriodEnd : existingPeriodEnd)
                     || toDateValue(planData.billingPeriodEnd)
                     || addBillingPeriodFallback(new Date(), planData.planId);
                 listingUpdate.selectedAddon = includedSpotlight;
@@ -4623,7 +4656,7 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
                 listingUpdate.isFeatured = true;
                 listingUpdate.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
                 listingUpdate.featureSpotlightPaidThrough = spotlightEnd;
-                if (billingPeriodStart && !periodMovesForward) {
+                if (billingPeriodStart && applyStripePeriod) {
                     listingUpdate.featureSpotlightBillingPeriodStart = billingPeriodStart;
                 }
                 if (!billingPeriodEnd) {
@@ -4636,7 +4669,7 @@ async function syncPlansAndListingsFromStripeSubscription(subscriptionInput, opt
         updatedListings += 1;
 
         if (includedSpotlight) {
-            const spotlightEnd = (periodMovesForward ? existingPeriodEnd : billingPeriodEnd)
+            const spotlightEnd = (applyStripePeriod ? billingPeriodEnd : existingPeriodEnd)
                 || toDateValue(planData.billingPeriodEnd)
                 || addBillingPeriodFallback(new Date(), planData.planId);
             const partnerRef = db.collection("partnersCollection").doc(partnerId);
@@ -5269,23 +5302,22 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
             active: true,
             lastPaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp(),
             stripeSubscriptionId: subscriptionId,
+            stripeSubscriptionStatus: paidSubStatus || "active",
+            expiredAt: admin.firestore.FieldValue.delete(),
+            endedForNonpayment: admin.firestore.FieldValue.delete(),
+            failedRenewalPeriodStart: admin.firestore.FieldValue.delete(),
             ...(customerId ? { stripeCustomerId: customerId } : {}),
         };
-        // Never shrink the paid window when replaying older invoices.
-        const existingEnd = toDateValue(planData.billingPeriodEnd);
-        const isRenewal = billingReason === "subscription_cycle";
-        if (
-            billingPeriodEnd &&
-            (isRenewal || !existingEnd || billingPeriodEnd.getTime() >= existingEnd.getTime())
-        ) {
-            planUpdate.billingPeriodEnd = billingPeriodEnd;
+        if (!planSubCancelling) {
+            planUpdate.cancelAtPeriodEnd = false;
+            planUpdate.cancelAt = admin.firestore.FieldValue.delete();
         }
-        const existingStart = toDateValue(planData.billingPeriodStart);
-        if (
-            billingPeriodStart &&
-            (isRenewal || !existingStart || billingPeriodStart.getTime() >= existingStart.getTime())
-        ) {
-            planUpdate.billingPeriodStart = billingPeriodStart;
+        // Replaying an older paid invoice must not pull the saved cycle backward.
+        const existingEnd = toDateValue(planData.billingPeriodEnd);
+        const applyPaidPeriod = billingInstantApplies(existingEnd, billingPeriodEnd);
+        if (applyPaidPeriod) {
+            planUpdate.billingPeriodEnd = billingPeriodEnd;
+            if (billingPeriodStart) planUpdate.billingPeriodStart = billingPeriodStart;
         }
         await planDoc.ref.set(planUpdate, { merge: true });
 
@@ -5319,16 +5351,18 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
                     const hasActiveStandalone = Boolean(currentData.featureSpotlightStripeSubscriptionId);
 
                     if (!hasActiveStandalone && currentTier <= includedTier) {
-                        const spotlightEnd = billingPeriodEnd
+                        const spotlightEnd = (applyPaidPeriod ? billingPeriodEnd : null)
                             || toDateValue(planData.billingPeriodEnd)
                             || addBillingPeriodFallback(new Date(), planData.planId);
                         listingRenew.selectedAddon = includedSpotlight;
                         listingRenew.featuredPlacement = includedSpotlight;
                         listingRenew.isFeatured = true;
                         listingRenew.lastFeaturePaymentReceivedAt = admin.firestore.FieldValue.serverTimestamp();
-                        listingRenew.featureSpotlightPaidThrough = spotlightEnd;
-                        if (billingPeriodStart) {
-                            listingRenew.featureSpotlightBillingPeriodStart = billingPeriodStart;
+                        if (applyPaidPeriod) {
+                            listingRenew.featureSpotlightPaidThrough = spotlightEnd;
+                            if (billingPeriodStart) {
+                                listingRenew.featureSpotlightBillingPeriodStart = billingPeriodStart;
+                            }
                         }
                         if (!billingPeriodEnd) {
                             console.warn(`   ⚠ billingPeriodEnd null for included spotlight ${includedSpotlight}; used fallback ${spotlightEnd.toISOString()}`);
@@ -5337,7 +5371,7 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
                 }
                 await listingRef.set(listingRenew, { merge: true });
 
-                if (includedSpotlight) {
+                if (includedSpotlight && applyPaidPeriod) {
                     const currentSnap = await listingRef.get();
                     const currentData = currentSnap.exists ? currentSnap.data() || {} : {};
                     const currentTier = spotlightTierFromId(currentData.selectedAddon || currentData.featuredPlacement);

@@ -80,14 +80,21 @@ async function resolveListingDocRef(db, partnerId, collectionName, listingId) {
 }
 
 const STRIPE_LIVE_SUBSCRIPTION_STATUSES = new Set(["active", "trialing"]);
+// past_due and unpaid are still open. invoice.payment_failed is what ends them.
+const STRIPE_OPEN_SUBSCRIPTION_STATUSES = new Set(["active", "trialing", "past_due", "unpaid"]);
 
 async function stripeSubscriptionStillLive(stripe, subscriptionId) {
     if (!stripe || !subscriptionId) return false;
     try {
         const sub = await stripe.subscriptions.retrieve(String(subscriptionId));
         const status = String(sub?.status || "").toLowerCase();
-        if (!STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(status)) return false;
-        if (sub.cancel_at_period_end && sub.current_period_end && sub.current_period_end * 1000 < Date.now()) {
+        if (!STRIPE_OPEN_SUBSCRIPTION_STATUSES.has(status)) return false;
+        if (
+            STRIPE_LIVE_SUBSCRIPTION_STATUSES.has(status) &&
+            sub.cancel_at_period_end &&
+            sub.current_period_end &&
+            sub.current_period_end * 1000 < Date.now()
+        ) {
             return false;
         }
         return true;
