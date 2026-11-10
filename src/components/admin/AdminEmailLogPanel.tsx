@@ -3,7 +3,7 @@ import { collection, doc, getDocs, limit, orderBy, query, updateDoc } from "fire
 import { db } from "@/firebase";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { adminApproveMemberVerification } from "@/lib/adminCommunityCallables";
+import { adminApproveMemberVerification, adminListPendingVerifications } from "@/lib/adminCommunityCallables";
 
 type EmailRow = {
   id: string;
@@ -40,6 +40,9 @@ export function AdminEmailLogPanel() {
     (async () => {
       setLoading(true);
       try {
+        // Sync Firestore pendingVerifications against Firebase Auth first if callable is deployed
+        await adminListPendingVerifications().catch(() => null);
+
         const [eSnap, mSnap, membersSnap, pendingSnap] = await Promise.all([
           getDocs(query(collection(db, "emailLogCollection"), orderBy("createdAt", "desc"), limit(50))),
           getDocs(query(collection(db, "verificationMirrors"), orderBy("createdAt", "desc"), limit(50))),
@@ -223,7 +226,9 @@ export function AdminEmailLogPanel() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Activation links (Unactivated Accounts)</CardTitle>
-          <CardDescription>Account activation / email verification links for accounts not yet activated.</CardDescription>
+          <CardDescription>
+            Account activation / email verification links for accounts not yet activated. A link drops off this list once the account is activated.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (

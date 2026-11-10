@@ -383,6 +383,62 @@ const formatPlanDuration = (periodStart: Date | null, periodEnd: Date | null): s
 /** Renewal charges on period_end (start of the next cycle). */
 const getRenewalDate = (periodEnd: Date | null): Date | null => periodEnd;
 
+/**
+ * Payment failed for the cycle after the last one that was paid.
+ * If the stored window starts well after the last successful charge, that window
+ * is the unpaid cycle and the previous one is what should be shown.
+ */
+const calendarDaySpan = (earlier: Date, later: Date): number => {
+    const startUtc = Date.UTC(earlier.getFullYear(), earlier.getMonth(), earlier.getDate());
+    const endUtc = Date.UTC(later.getFullYear(), later.getMonth(), later.getDate());
+    return Math.round((endUtc - startUtc) / 86400000);
+};
+
+const shiftCalendarDays = (date: Date, days: number): Date => {
+    const next = new Date(date.getTime());
+    next.setDate(next.getDate() + days);
+    return next;
+};
+
+const resolveNonpaymentPeriods = (
+    plan: any,
+    paidAt: Date | null,
+): { paidStart: Date | null; paidEnd: Date | null; failedStart: Date | null } => {
+    const start = toDateValue(plan?.billingPeriodStart) || toDateValue(plan?.startDate);
+    const end = toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
+    const storedFailed = toDateValue(plan?.failedRenewalPeriodStart);
+    if (storedFailed && end && storedFailed.getTime() + 60 * 1000 >= end.getTime()) {
+        return { paidStart: start, paidEnd: end, failedStart: storedFailed };
+    }
+    const spanDays = start && end ? calendarDaySpan(start, end) : 0;
+    const gapDays = paidAt && start ? calendarDaySpan(paidAt, start) : 0;
+    if (spanDays > 0 && start && gapDays > spanDays * 0.5) {
+        return {
+            paidStart: shiftCalendarDays(start, -spanDays),
+            paidEnd: new Date(start.getTime()),
+            failedStart: new Date(start.getTime()),
+        };
+    }
+    return { paidStart: start, paidEnd: end, failedStart: storedFailed || end };
+};
+
+const latestCompletedPlanPaymentAt = (plan: any, transactions: any[]): Date | null => {
+    const listingId = plan?.listingId ? String(plan.listingId) : "";
+    const match = transactions.find((t) => {
+        if (t?.statusLabel !== "Completed") return false;
+        if (t.type === "feature" || (t.featureId && !t.planId)) return false;
+        if (listingId && t.listingId && t.listingId !== listingId) return false;
+        if (plan?.planId && t.planId && t.planId !== plan.planId) return false;
+        if (plan?.stripeSubscriptionId && t.stripeSubscriptionId && t.stripeSubscriptionId !== plan.stripeSubscriptionId) {
+            return false;
+        }
+        return Boolean(t.listingId || t.planId || t.stripeSubscriptionId);
+    });
+    if (!match?.createdAtIso) return null;
+    const paidAt = new Date(match.createdAtIso);
+    return Number.isNaN(paidAt.getTime()) ? null : paidAt;
+};
+
 const sameCalendarDay = (a: Date | null, b: Date | null): boolean =>
     Boolean(a && b && a.toDateString() === b.toDateString());
 
@@ -2557,7 +2613,12 @@ export default function Dashboard() {
                 toDateValue(plan.startDate);
             const periodEnd = toDateValue(plan.billingPeriodEnd) || toDateValue(plan.cancelAt);
             const renewalDate = getRenewalDate(periodEnd);
-            const lastPaidDay = getInclusivePeriodLastDay(periodEnd);
+            const nonpayment = plan.endedForNonpayment
+                ? resolveNonpaymentPeriods(plan, latestCompletedPlanPaymentAt(plan, formattedTransactions))
+                : null;
+            const displayPeriodStart = nonpayment?.paidStart || periodStart;
+            const displayPeriodEnd = nonpayment?.paidEnd || periodEnd;
+            const lastPaidDay = getInclusivePeriodLastDay(displayPeriodEnd);
             const cancelledAt = toDateValue(plan.cancelledAt);
             const linkedListing = getLinkedListingForPlan(plan);
             const spotlightRenewalPending = isSpotlightRenewalPending(linkedListing);
@@ -2728,10 +2789,18 @@ export default function Dashboard() {
                                     </p>
                                 )}
                                 {(() => {
-                                    const featureOwnedEnd =
+                                    let featureOwnedEnd =
                                         featureAccessEnd ||
                                         featurePaidThrough ||
                                         toDateValue(pastFeatureDoc?.accessThrough);
+                                    if (
+                                        nonpayment?.failedStart &&
+                                        nonpayment.paidEnd &&
+                                        featureOwnedEnd &&
+                                        featureOwnedEnd.getTime() > nonpayment.failedStart.getTime() + 60 * 1000
+                                    ) {
+                                        featureOwnedEnd = nonpayment.paidEnd;
+                                    }
                                     const featureOwnedLastDay = getInclusivePeriodLastDay(featureOwnedEnd);
                                     const listingHadThisFeature = Boolean(
                                         rawListingAddon ||
@@ -2759,7 +2828,7 @@ export default function Dashboard() {
                                             {isPast ? "Last Plan Duration" : "Plan Duration"}
                                         </p>
                                         <p className="text-sm text-foreground font-medium">
-                                            {formatPlanDuration(periodStart, periodEnd)}
+                                            {formatPlanDuration(displayPeriodStart, displayPeriodEnd)}
                                         </p>
                                     </div>
                                     <div className="min-w-[140px]">
@@ -2774,9 +2843,17 @@ export default function Dashboard() {
                                         <div className="min-w-[140px]">
                                             <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Cancelled On</p>
                                             <p className="text-sm text-foreground font-medium">
-                                                {plan.endedForNonpayment
-                                                    ? "Payment failed"
-                                                    : (cancelledAt ? cancelledAt.toLocaleDateString() : "N/A")}
+                                                {nonpayment ? "N/A" : (cancelledAt ? cancelledAt.toLocaleDateString() : "N/A")}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {isPast && nonpayment && (
+                                        <div className="min-w-[180px]">
+                                            <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Next period</p>
+                                            <p className="text-sm text-foreground font-medium">
+                                                {nonpayment.failedStart
+                                                    ? `${formatBillingDate(nonpayment.failedStart)} — Payment failed`
+                                                    : "Payment failed"}
                                             </p>
                                         </div>
                                     )}

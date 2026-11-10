@@ -935,6 +935,17 @@ exports.onMemberAccountStatusUpdated = onDocumentUpdated(
         const before = event.data?.before?.data?.() || {};
         const after = event.data?.after?.data?.() || {};
         const userId = event.params.userId;
+        if (after.emailVerified === true && before.emailVerified !== true) {
+            try {
+                await updatePendingVerificationDoc(userId, {
+                    status: "verified",
+                    verifyLink: FieldValue.delete(),
+                    linkError: FieldValue.delete(),
+                });
+            } catch (verifyErr) {
+                console.error("pending verification clear failed", userId, verifyErr);
+            }
+        }
         if (normalizeMemberAccountStatus(before.accountStatus) === normalizeMemberAccountStatus(after.accountStatus)) {
             return;
         }
@@ -1478,6 +1489,55 @@ exports.adminApproveMemberVerification = onCall(
         return { ok: true };
     }
 );
+
+/** Admin queue: only accounts that are still unverified in Firebase Auth. */
+exports.adminListPendingVerifications = onCall({ region: "us-central1", cors: true }, async (request) => {
+    if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
+    await assertAdmin(request.auth.uid);
+    const snap = await db.collection("pendingVerifications")
+        .where("status", "in", ["awaiting_verification", "link_ready", "link_unavailable"])
+        .limit(80)
+        .get();
+    const rows = [];
+    for (const docSnap of snap.docs) {
+        const data = docSnap.data() || {};
+        const userId = data.userId || docSnap.id;
+        if (data.status === "verified" || data.status === "admin_approved") continue;
+        let verified = false;
+        try {
+            const userRecord = await admin.auth().getUser(userId);
+            verified = Boolean(userRecord.emailVerified);
+        } catch (err) {
+            console.warn("adminListPendingVerifications getUser", userId, err?.message || err);
+        }
+        if (!verified) {
+            const memberSnap = await db.collection("membersCollection").doc(userId).get();
+            verified = memberSnap.exists && memberSnap.data()?.emailVerified === true;
+        }
+        if (verified) {
+            await updatePendingVerificationDoc(userId, {
+                status: "verified",
+                verifyLink: FieldValue.delete(),
+                linkError: FieldValue.delete(),
+            });
+            continue;
+        }
+        const updatedAtMs = data.updatedAt?.toDate?.()?.getTime?.() || null;
+        rows.push({
+            id: docSnap.id,
+            userId,
+            userEmail: data.userEmail || null,
+            userName: data.userName || null,
+            status: data.status || null,
+            verifyLink: data.verifyLink || null,
+            linkError: data.linkError || null,
+            source: data.source || null,
+            updatedAtMs,
+        });
+    }
+    rows.sort((a, b) => (b.updatedAtMs || 0) - (a.updatedAtMs || 0));
+    return { rows };
+});
 
 /**
  * Partner primary email change: Admin SDK replaces Auth + Firestore email immediately
