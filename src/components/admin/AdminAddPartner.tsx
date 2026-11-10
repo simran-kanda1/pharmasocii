@@ -328,18 +328,40 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const getIncludedFeaturedForPlan = (planId: string, groupKeyName: string): string => {
+    if (groupKeyName !== "events" && groupKeyName !== "jobs") return "none";
+    const p = String(planId || "").toLowerCase();
+    if (p.includes("premium_plus")) return "home_page";
+    if (p.includes("premium")) return "landing_page";
+    return "none";
+  };
+
   const handleSelectChange = (field: string, value: string) => {
     if (field === "selectedGroup") {
       const plans = getPlansForGroup(value);
       const defaultPlan = plans[0]?.value || "";
-      setFormData((prev) => ({ ...prev, selectedGroup: value, selectedPlan: defaultPlan, featuredPlan: "none", trialPeriod: "30_days" }));
+      const nextGk = getGroupKey(value);
+      setFormData((prev) => ({
+        ...prev,
+        selectedGroup: value,
+        selectedPlan: defaultPlan,
+        featuredPlan: getIncludedFeaturedForPlan(defaultPlan, nextGk),
+        trialPeriod: "30_days",
+      }));
       setSelectedBSL([]); setSelectedCerts([]); setSelectedRegions([]);
       setOtherCertText(""); setShowOtherCertInput(false);
       setSelectedCountries([]); setSelectedCategories([]);
       setSelectedSubcategories([]); setSelectedSubSubcategories([]);
       setExpandedCategories([]); setExpandedSubcategories([]);
     } else if (field === "selectedPlan") {
-      setFormData((prev) => ({ ...prev, selectedPlan: value }));
+      const curGk = getGroupKey(formData.selectedGroup);
+      setFormData((prev) => ({
+        ...prev,
+        selectedPlan: value,
+        ...(curGk === "events" || curGk === "jobs"
+          ? { featuredPlan: getIncludedFeaturedForPlan(value, curGk) }
+          : {}),
+      }));
       setEventAgendaPdfFile(null);
       setJobPdfFile(null);
       setSelectedCategories([]); setSelectedSubcategories([]); setSelectedSubSubcategories([]);
@@ -1001,13 +1023,15 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         serviceRegions: selectedRegions,
         serviceCountries: selectedCountries,
 
-        // Event fields
-        ...eventData,
-        agendaPdfUrl: "",
+        // Event fields (only include for Events so empty jobData doesn't overwrite city/stateRegion)
+        ...(getGroupKey(formData.selectedGroup) === "events"
+          ? { ...eventData, agendaPdfUrl: "" }
+          : {}),
 
-        // Job fields
-        ...jobData,
-        jobDescriptionPdfUrl: "",
+        // Job fields (only include for Jobs)
+        ...(getGroupKey(formData.selectedGroup) === "jobs"
+          ? { ...jobData, jobDescriptionPdfUrl: "" }
+          : {}),
       };
 
       const response = await fetch(`${API_BASE_URL}/api/admin/create-partner`, {
@@ -1358,7 +1382,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
               <div>
                 <Label className="text-slate-600 font-bold mb-1.5 block">
-                  Trial Period {groupKey !== "events" && groupKey !== "jobs" ? "(for selected plan & feature)" : "(for selected plan)"}
+                  Trial Period (for selected plan &amp; feature)
                 </Label>
                 <Select value={formData.trialPeriod} onValueChange={(val) => handleSelectChange("trialPeriod", val)}>
                   <SelectTrigger className="w-full h-11 bg-white border-slate-200">
@@ -1369,26 +1393,26 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-slate-500 mt-2">
-                  {groupKey !== "events" && groupKey !== "jobs" 
-                    ? "Sets the trial duration for both the plan and featured placement. The profile expires when the trial ends."
-                    : "Limits the plan duration. The profile expires when the trial ends."}
+                  Sets the trial duration for both the plan and featured placement. The profile expires when the trial ends.
                 </p>
               </div>
 
-              {groupKey !== "events" && groupKey !== "jobs" && (
-                <div>
-                  <Label className="text-slate-600 font-bold mb-1.5 block">Featured partner plan (monthly)</Label>
-                  <Select value={formData.featuredPlan} onValueChange={(val) => handleSelectChange("featuredPlan", val)}>
-                    <SelectTrigger className="w-full h-11 bg-white border-slate-200">
-                      <SelectValue placeholder="No Feature" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dynamicFeatureOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-slate-500 mt-2">Assign a featured plan to the partner manually.</p>
-                </div>
-              )}
+              <div>
+                <Label className="text-slate-600 font-bold mb-1.5 block">Featured partner plan (monthly)</Label>
+                <Select value={formData.featuredPlan} onValueChange={(val) => handleSelectChange("featuredPlan", val)}>
+                  <SelectTrigger className="w-full h-11 bg-white border-slate-200">
+                    <SelectValue placeholder="No Feature" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dynamicFeatureOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-500 mt-2">
+                  {groupKey === "events" || groupKey === "jobs"
+                    ? "Premium auto-includes Landing Page; Premium Plus auto-includes Home Page (or customize above)."
+                    : "Assign a featured plan to the partner manually."}
+                </p>
+              </div>
 
               {formData.selectedPlan && formData.selectedPlan !== "none" && (
                 <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 space-y-2.5">

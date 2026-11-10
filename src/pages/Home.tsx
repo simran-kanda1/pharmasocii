@@ -347,7 +347,7 @@ export default function Home() {
                                         <div className="flex flex-col p-4 w-full h-full">
                                             <div className="flex items-center justify-end mb-1 w-full">
                                                 <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 truncate max-w-full">
-                                                    <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{formatEventLocation(evt.city, evt.stateRegion || evt.state)}</span>
+                                                    <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{formatEventLocation(evt.city || evt.eventCity, evt.stateRegion || evt.state || evt.eventStateRegion, evt.eventCountry || evt.country)}</span>
                                                 </div>
                                             </div>
                                             <div className="flex-1 flex items-center justify-center text-center px-2">

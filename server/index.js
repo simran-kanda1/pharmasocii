@@ -8788,6 +8788,14 @@ app.post("/api/admin/create-partner", async (req, res) => {
         }
 
         const resolvedStatus = status || "Approved";
+        const effectiveFeaturedPlan =
+            featuredPlan && featuredPlan !== "none"
+                ? featuredPlan
+                : selectedPlan === "premium_plus_event" || selectedPlan === "premium_plus_job"
+                    ? "home_page"
+                    : selectedPlan === "premium_event" || selectedPlan === "premium_job"
+                        ? "landing_page"
+                        : "none";
 
         // Build listing payload
         const listingData = {
@@ -8795,10 +8803,10 @@ app.post("/api/admin/create-partner", async (req, res) => {
             businessName: companyName,
             selectedGroup: groupKey,
             selectedPlan: selectedPlan || "none",
-            selectedAddon: (featuredPlan && featuredPlan !== "none") ? featuredPlan : "",
-            featuredPlacement: (featuredPlan && featuredPlan !== "none") ? featuredPlan : "",
-            isFeatured: (featuredPlan && featuredPlan !== "none"),
-            ...(featuredPlan && featuredPlan !== "none" ? {
+            selectedAddon: (effectiveFeaturedPlan && effectiveFeaturedPlan !== "none") ? effectiveFeaturedPlan : "",
+            featuredPlacement: (effectiveFeaturedPlan && effectiveFeaturedPlan !== "none") ? effectiveFeaturedPlan : "",
+            isFeatured: (effectiveFeaturedPlan && effectiveFeaturedPlan !== "none"),
+            ...(effectiveFeaturedPlan && effectiveFeaturedPlan !== "none" ? {
                 featureSpotlightPaidThrough: new Date(billingPeriodEnd.getTime()),
                 lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp()
             } : {}),
@@ -8905,9 +8913,9 @@ app.post("/api/admin/create-partner", async (req, res) => {
             VAT_ABN_EIN_businessId: businessId || null,
             selectedGroup: groupKey,
             selectedPlan: selectedPlan || "none",
-            selectedAddon: (featuredPlan && featuredPlan !== "none") ? featuredPlan : "",
-            isFeatured: (featuredPlan && featuredPlan !== "none"),
-            ...(featuredPlan && featuredPlan !== "none" ? {
+            selectedAddon: (effectiveFeaturedPlan && effectiveFeaturedPlan !== "none") ? effectiveFeaturedPlan : "",
+            isFeatured: (effectiveFeaturedPlan && effectiveFeaturedPlan !== "none"),
+            ...(effectiveFeaturedPlan && effectiveFeaturedPlan !== "none" ? {
                 featureSpotlightPaidThrough: new Date(billingPeriodEnd.getTime()),
                 lastFeaturePaymentReceivedAt: admin.firestore.FieldValue.serverTimestamp()
             } : {}),
@@ -8993,14 +9001,17 @@ app.post("/api/admin/create-partner", async (req, res) => {
         }
 
         // Handle Featured Plan (Synchronized trial expiration with main plan)
-        if (featuredPlan && featuredPlan !== "none") {
+        if (effectiveFeaturedPlan && effectiveFeaturedPlan !== "none") {
             await db.collection("partnersCollection").doc(uid).collection("featuresCollection").add({
-                featureId: featuredPlan,
-                featureName: featuredPlan.replace(/_/g, " "),
+                featureId: effectiveFeaturedPlan,
+                featureName: effectiveFeaturedPlan.replace(/_/g, " "),
                 active: true,
                 lastPaymentReceived: startDate,
                 accessThrough: new Date(billingPeriodEnd.getTime()),
                 partnerId: uid,
+                listingId: listingDocId,
+                collectionName,
+                group: groupKey,
                 source: "admin_granted",
                 isTrial: isTrial,
                 trialPeriod: trialPeriod || null
@@ -9036,12 +9047,12 @@ app.post("/api/admin/create-partner", async (req, res) => {
                 collectionName,
                 planId: selectedPlan || "none",
                 plan: selectedPlan || "none",
-                isFeatured: Boolean(featuredPlan && featuredPlan !== "none"),
+                isFeatured: Boolean(effectiveFeaturedPlan && effectiveFeaturedPlan !== "none"),
                 paymentStatus: "Complete",
                 performedBy: "admin"
             }
         });
-        if (featuredPlan && featuredPlan !== "none") {
+        if (effectiveFeaturedPlan && effectiveFeaturedPlan !== "none") {
             await logAudit({
                 partnerId: uid,
                 partnerName: companyName,
@@ -9055,7 +9066,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
                     listingName: listingItemName,
                     group: groupKey,
                     collectionName,
-                    featureId: featuredPlan,
+                    featureId: effectiveFeaturedPlan,
                     paymentStatus: "Complete",
                     performedBy: "admin",
                 }

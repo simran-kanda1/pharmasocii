@@ -124,6 +124,7 @@ import { AdminContactPanel } from "@/components/admin/AdminContactPanel";
 import { AdminHealthAuthoritiesPanel } from "@/components/admin/AdminHealthAuthoritiesPanel";
 import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
 import { PartnerPlanHistoryModal } from "@/components/admin/PartnerPlanHistoryModal";
+import { AdminTablePagination } from "@/components/admin/AdminTablePagination";
 import {
   getEffectiveListingStatus,
   getEffectiveFeatureStatus,
@@ -878,6 +879,8 @@ export default function AdminDashboard() {
   const initialTabParam = initialUrlParams?.get("tab") as AdminTab | null;
   const initialAuditView = initialUrlParams?.get("auditView");
   const initialAuditSearch = initialUrlParams?.get("auditSearch") || "";
+  const initialAuditListing = initialUrlParams?.get("auditListing") || "all";
+  const initialPartnerHistoryId = initialUrlParams?.get("partnerHistory") || "";
 
   const [activeTab, setActiveTab] = useState<AdminTab>(initialTabParam || "overview");
   const [partners, setPartners] = useState<PartnerRecord[]>([]);
@@ -905,7 +908,7 @@ export default function AdminDashboard() {
   const [auditCategoryFilter, setAuditCategoryFilter] = useState<"partner" | "listing">(
     initialAuditView === "listing" ? "listing" : "partner"
   );
-  const [auditListingFilter, setAuditListingFilter] = useState<string>("all");
+  const [auditListingFilter, setAuditListingFilter] = useState<string>(initialAuditListing || "all");
   const [auditListingEventFilter, setAuditListingEventFilter] = useState<string>("all");
   const [memberAuditSearchTerm, setMemberAuditSearchTerm] = useState("");
   const [memberAuditCategoryFilter, setMemberAuditCategoryFilter] = useState<"all" | "account_created" | "password" | "status" | "post_reactivated" | "comment_reactivated">("all");
@@ -936,6 +939,16 @@ export default function AdminDashboard() {
   const [selectedListing, setSelectedListing] = useState<ListingRecord | null>(null);
   const [listingEditor, setListingEditor] = useState<Record<string, any>>({});
   const [listingEditorOpen, setListingEditorOpen] = useState(false);
+  const partnerHistoryOpenedFromUrlRef = useRef(false);
+
+  useEffect(() => {
+    if (!initialPartnerHistoryId || partnerHistoryOpenedFromUrlRef.current || partners.length === 0) return;
+    const match = partners.find((p) => p.id === initialPartnerHistoryId);
+    if (match) {
+      setHistoryPartner(match);
+      partnerHistoryOpenedFromUrlRef.current = true;
+    }
+  }, [initialPartnerHistoryId, partners]);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -3282,8 +3295,21 @@ export default function AdminDashboard() {
             <SidebarItem label="Site Policies" icon={ShieldCheck} active={activeTab === "policies"} onClick={() => setActiveTab("policies")} />
             <SidebarItem label="FAQs" icon={HelpCircle} active={activeTab === "faqs"} onClick={() => setActiveTab("faqs")} />
             <SidebarItem label="Contact Page" icon={Mail} active={activeTab === "contact"} onClick={() => setActiveTab("contact")} />
-            <SidebarItem label="Transactions" icon={Receipt} active={activeTab === "transactions"} onClick={() => setActiveTab("transactions")} />
-            <SidebarItem label="Audit Trail" icon={History} active={activeTab === "audit"} onClick={() => { setActiveTab("audit"); setAuditCategoryFilter("partner"); }} />
+            <a
+              href="/admin/dashboard?tab=transactions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-left transition-colors ${
+                activeTab === "transactions"
+                  ? "bg-slate-900 text-white font-semibold"
+                  : "text-slate-600 hover:bg-slate-100 font-medium"
+              }`}
+              title="Open Transactions in a new tab"
+            >
+              <Receipt className="w-4 h-4 shrink-0 text-current" />
+              <span className="text-sm text-left truncate flex-1 leading-snug">Transactions</span>
+              <ExternalLink className={`ml-auto w-3.5 h-3.5 shrink-0 ${activeTab === "transactions" ? "text-white/80" : "text-slate-400"}`} />
+            </a>
             <p className="text-[11px] font-semibold tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
             <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
             <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
@@ -3338,7 +3364,7 @@ export default function AdminDashboard() {
                 auditLogs={auditLogs}
                 listingInsights={listingInsights}
                 onViewListing={openListingEditor}
-                onOpenTransactions={() => setActiveTab("transactions")}
+                onOpenTransactions={() => window.open("/admin/dashboard?tab=transactions", "_blank", "noopener,noreferrer")}
               />
               <VerificationMirrorsPanel />
             </div>
@@ -4420,24 +4446,24 @@ export default function AdminDashboard() {
               <SheetTitle>Listing Details</SheetTitle>
               <SheetDescription>Inspect and manually edit listing information.</SheetDescription>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="flex items-center gap-2"
-              onClick={() => {
-                if (selectedListing) {
-                  setActiveTab("audit");
-                  setAuditCategoryFilter("listing");
-                  setAuditListingFilter(selectedListing.id || "all");
-                  setAuditListingEventFilter("all");
-                  setAuditSearchTerm("");
-                  setListingEditorOpen(false);
-                }
-              }}
-            >
-              <History className="w-4 h-4" />
-              View Listing History
-            </Button>
+            {selectedListing ? (
+              <Button asChild variant="outline" size="sm" className="flex items-center gap-2">
+                <a
+                  href={`/admin/dashboard?tab=audit&auditView=listing&auditListing=${encodeURIComponent(selectedListing.id)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <History className="w-4 h-4" />
+                  View Listing History
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                </a>
+              </Button>
+            ) : (
+              <Button variant="outline" size="sm" disabled className="flex items-center gap-2">
+                <History className="w-4 h-4" />
+                View Listing History
+              </Button>
+            )}
           </SheetHeader>
           <div className="mt-6 space-y-6 pb-6">
             {(() => {
@@ -5433,12 +5459,98 @@ function formatPartnerCreatedAt(raw: any) {
   return { date: dateStr, time: timeStr };
 }
 
+const TABLE_PAGE_SIZES = [10, 25, 50, 100] as const;
+
+function useTablePagination<T>(items: T[], initialSize = 25) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(initialSize);
+
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+
+  useEffect(() => {
+    setPage(0);
+  }, [items.length, pageSize]);
+
+  const pageItems = useMemo(
+    () => items.slice(safePage * pageSize, safePage * pageSize + pageSize),
+    [items, safePage, pageSize],
+  );
+
+  const startIndex = items.length === 0 ? 0 : safePage * pageSize + 1;
+  const endIndex = Math.min(items.length, safePage * pageSize + pageSize);
+
+  return {
+    page: safePage,
+    setPage,
+    pageSize,
+    setPageSize,
+    pageCount,
+    pageItems,
+    totalCount: items.length,
+    startIndex,
+    endIndex,
+  };
+}
+
+function TablePaginationBar({
+  page,
+  pageCount,
+  pageSize,
+  totalCount,
+  startIndex,
+  endIndex,
+  onPageChange,
+  onPageSizeChange,
+  itemLabel = "rows",
+}: {
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  totalCount: number;
+  startIndex: number;
+  endIndex: number;
+  onPageChange: (p: number) => void;
+  onPageSizeChange: (s: number) => void;
+  itemLabel?: string;
+}) {
+  return (
+    <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3 text-xs text-slate-600">
+        <span>
+          Showing <strong className="text-slate-900">{startIndex}–{endIndex}</strong> of{" "}
+          <strong className="text-slate-900">{totalCount}</strong> {itemLabel}
+        </span>
+        <label className="inline-flex items-center gap-1.5">
+          <span className="text-slate-500">Rows:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="h-7 rounded border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
+          >
+            {TABLE_PAGE_SIZES.map((sz) => (
+              <option key={sz} value={sz}>
+                {sz}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <AdminTablePagination
+        page={page}
+        pageCount={pageCount}
+        onPageChange={onPageChange}
+      />
+    </div>
+  );
+}
+
 function PartnerList({
   partners,
   partnerInsights,
   onView,
   onSetStatus,
-  onOpenHistory,
+  onOpenHistory: _onOpenHistory,
 }: {
   partners: PartnerRecord[];
   partnerInsights: Record<
@@ -5461,6 +5573,9 @@ function PartnerList({
   onSetStatus: (partner: PartnerRecord, status: string) => void;
   onOpenHistory: (partner: PartnerRecord) => void;
 }) {
+  const { page, setPage, pageSize, setPageSize, pageCount, pageItems, totalCount, startIndex, endIndex } =
+    useTablePagination(partners, 25);
+
   if (partners.length === 0) {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
@@ -5472,11 +5587,11 @@ function PartnerList({
   }
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
+    <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
       <CardContent className="p-0">
-        <div className="overflow-x-auto">
+        <div className="overflow-auto max-h-[68vh] admin-table-scrollbar">
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
               <TableRow>
                 <TableHead className="pl-4 pr-2 py-3 text-xs">Business</TableHead>
                 <TableHead className="px-2 py-3 text-xs">Email</TableHead>
@@ -5493,12 +5608,14 @@ function PartnerList({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {partners.map((partner) => {
+              {pageItems.map((partner) => {
                 const insight = partnerInsights[partner.id];
                 const created = formatPartnerCreatedAt(partner.createdAt || partner.created || partner.registeredAt);
+                const historyUrl = `/admin/dashboard?tab=partners&partnerHistory=${encodeURIComponent(partner.id)}`;
+                const partnerAuditUrl = `/admin/dashboard?tab=audit&auditView=partner&auditSearch=${encodeURIComponent(partner.id)}`;
 
                 return (
-                  <TableRow key={partner.id}>
+                  <TableRow key={partner.id} className="hover:bg-slate-50/70">
                     <TableCell className="pl-4 pr-2 py-2">
                       <p className="font-medium max-w-[130px] truncate text-sm" title={partner.businessName || "Unnamed Business"}>
                         {partner.businessName || "Unnamed Business"}
@@ -5524,44 +5641,48 @@ function PartnerList({
                       )}
                     </TableCell>
                     <TableCell className="px-2 py-2 text-sm text-center">
-                      <button
-                        type="button"
-                        onClick={() => onOpenHistory(partner)}
+                      <a
+                        href={historyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                        title="Click to view active listings history"
+                        title="Open active listings history in new tab"
                       >
                         {insight?.listingCount || 0}
-                      </button>
+                      </a>
                     </TableCell>
                     <TableCell className="px-2 py-2 text-sm text-center">
-                      <button
-                        type="button"
-                        onClick={() => onOpenHistory(partner)}
+                      <a
+                        href={historyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                        title="Click to view all-time listings history"
+                        title="Open all-time listings history in new tab"
                       >
                         {insight?.totalListingsCount || 0}
-                      </button>
+                      </a>
                     </TableCell>
                     <TableCell className="px-2 py-2 text-sm text-center">
-                      <button
-                        type="button"
-                        onClick={() => onOpenHistory(partner)}
+                      <a
+                        href={historyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-purple-50 hover:text-purple-600 transition-colors"
-                        title="Click to view active features history"
+                        title="Open active features history in new tab"
                       >
                         {insight?.featuredCount || 0}
-                      </button>
+                      </a>
                     </TableCell>
                     <TableCell className="px-2 py-2 text-sm text-center">
-                      <button
-                        type="button"
-                        onClick={() => onOpenHistory(partner)}
+                      <a
+                        href={historyUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
-                        title="Click to view all-time features history"
+                        title="Open all-time features history in new tab"
                       >
                         {insight?.totalFeaturedCount || 0}
-                      </button>
+                      </a>
                     </TableCell>
                     <TableCell className="px-2 py-2">
                       <p className="text-sm max-w-[120px] truncate font-medium text-slate-800" title={partner.primaryName || ""}>
@@ -5583,10 +5704,21 @@ function PartnerList({
                             <MoreVertical className="w-4 h-4" />
                           </Button>
                         </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="min-w-[210px]">
+                        <DropdownMenuContent align="end" className="min-w-[220px]">
                           <DropdownMenuLabel>Partner Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => onOpenHistory(partner)}>
-                            <History className="w-4 h-4 mr-2 text-blue-600" /> Plan & feature history
+                          <DropdownMenuItem asChild>
+                            <a href={historyUrl} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer">
+                              <History className="w-4 h-4 mr-2 text-blue-600" />
+                              <span className="flex-1">Plan &amp; feature history</span>
+                              <ExternalLink className="w-3.5 h-3.5 ml-2 text-slate-400" />
+                            </a>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem asChild>
+                            <a href={partnerAuditUrl} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer">
+                              <History className="w-4 h-4 mr-2 text-indigo-600" />
+                              <span className="flex-1">Partner audit trail</span>
+                              <ExternalLink className="w-3.5 h-3.5 ml-2 text-slate-400" />
+                            </a>
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => onView(partner)}>
                             <Eye className="w-4 h-4 mr-2" /> View / Edit profile
@@ -5607,6 +5739,17 @@ function PartnerList({
             </TableBody>
           </Table>
         </div>
+        <TablePaginationBar
+          page={page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="partners"
+        />
       </CardContent>
     </Card>
   );
@@ -6075,6 +6218,8 @@ function ListingsList({
   onSetFeatureStatus?: (listing: ListingRecord, status: string, active: boolean) => void;
   onViewAuditTrail?: (listing: ListingRecord) => void;
 }) {
+  const { page, setPage, pageSize, setPageSize, pageCount, pageItems, totalCount, startIndex, endIndex } =
+    useTablePagination(listings, 25);
   const topScrollRef = useRef<HTMLDivElement>(null);
   const tableScrollRef = useRef<HTMLDivElement>(null);
   const [contentWidth, setContentWidth] = useState<number>(0);
@@ -6110,7 +6255,7 @@ function ListingsList({
       ro.disconnect();
       window.removeEventListener("resize", updateScrollDimensions);
     };
-  }, [updateScrollDimensions, listings]);
+  }, [updateScrollDimensions, pageItems]);
 
   const handleTopScroll = () => {
     if (topScrollRef.current && tableScrollRef.current && !isSyncingBottom.current) {
@@ -6205,10 +6350,10 @@ function ListingsList({
         <div
           ref={tableScrollRef}
           onScroll={handleTableScroll}
-          className="overflow-x-auto admin-table-scrollbar"
+          className="overflow-auto max-h-[68vh] admin-table-scrollbar"
         >
           <Table className="min-w-max">
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-20 bg-slate-50 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
               <TableRow>
                 <TableHead className="pl-6">Business Name</TableHead>
                 <TableHead>Listing Name</TableHead>
@@ -6223,17 +6368,18 @@ function ListingsList({
                 <TableHead>Current Feature Plan</TableHead>
                 <TableHead>Feature Created Date</TableHead>
                 <TableHead>Feature Cancel Date</TableHead>
-                <TableHead className="text-right pr-6 sticky right-0 bg-white shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">Actions</TableHead>
+                <TableHead className="text-right pr-6 sticky right-0 z-30 bg-slate-50 shadow-[-4px_0_10px_rgba(0,0,0,0.05)]">Actions</TableHead>
               </TableRow>
             </TableHeader>
           <TableBody>
-            {listings.map((listing) => {
+            {pageItems.map((listing) => {
               const insight = listingInsights[listing.id];
               const effectiveStatus = getEffectiveListingStatus(listing, insight);
               const businessName = insight?.businessName || listing.businessName || "Unnamed";
               const listingName = insight?.listingName || listing.eventName || listing.jobTitle || listing.businessName || "—";
+              const listingAuditUrl = `/admin/dashboard?tab=audit&auditView=listing&auditListing=${encodeURIComponent(listing.id)}`;
               return (
-                <TableRow key={listing.__path}>
+                <TableRow key={listing.__path} className="hover:bg-slate-50/70">
                   <TableCell className="pl-6">
                     <p className="font-medium">{businessName}</p>
                   </TableCell>
@@ -6266,14 +6412,18 @@ function ListingsList({
                           <MoreVertical className="w-4 h-4" />
                         </Button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" className="min-w-[220px]">
+                      <DropdownMenuContent align="end" className="min-w-[235px]">
                         <DropdownMenuLabel>Listing Actions</DropdownMenuLabel>
                         <DropdownMenuItem onClick={() => onView(listing)}>
                           <Eye className="w-4 h-4 mr-2" /> View Listing
                         </DropdownMenuItem>
                         {onViewAuditTrail && (
-                          <DropdownMenuItem onClick={() => onViewAuditTrail(listing)}>
-                            <History className="w-4 h-4 mr-2 text-blue-600" /> View Listing Audit Trail
+                          <DropdownMenuItem asChild>
+                            <a href={listingAuditUrl} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer">
+                              <History className="w-4 h-4 mr-2 text-blue-600" />
+                              <span className="flex-1">View Listing Audit Trail</span>
+                              <ExternalLink className="w-3.5 h-3.5 ml-2 text-slate-400" />
+                            </a>
                           </DropdownMenuItem>
                         )}
                         <DropdownMenuSeparator />
@@ -6333,6 +6483,17 @@ function ListingsList({
           </TableBody>
         </Table>
         </div>
+        <TablePaginationBar
+          page={page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="listings"
+        />
       </CardContent>
     </Card>
   );
@@ -6689,6 +6850,18 @@ function TransactionList({
     });
   }, [rows, search, partnerMap]);
 
+  const {
+    page: txnPage,
+    setPage: setTxnPage,
+    pageSize: txnPageSize,
+    setPageSize: setTxnPageSize,
+    pageCount: txnPageCount,
+    pageItems: paginatedTxns,
+    totalCount: txnTotalCount,
+    startIndex: txnStart,
+    endIndex: txnEnd,
+  } = useTablePagination(filtered, 25);
+
   const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     if (filtered.length === 0) return;
     if (format === "csv") downloadPartnerTransactionsCsv(filtered);
@@ -6753,9 +6926,9 @@ function TransactionList({
       ) : (
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardContent className="p-0">
-            <div className="overflow-x-auto admin-table-scrollbar">
+            <div className="overflow-auto max-h-[68vh] admin-table-scrollbar">
               <Table className="min-w-max">
-                <TableHeader>
+                <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
                   <TableRow>
                     <TableHead className="pl-6">Date</TableHead>
                     <TableHead>Email</TableHead>
@@ -6771,7 +6944,7 @@ function TransactionList({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.map((t: PartnerTransactionRow) => {
+                  {paginatedTxns.map((t: PartnerTransactionRow) => {
                     const partner = (t.partnerId ? partnerMap.byId.get(t.partnerId) : null) || (t.customerEmail ? partnerMap.byEmail.get(t.customerEmail.toLowerCase()) : null);
                     const email = t.customerEmail || partner?.primaryEmail || "—";
                     const primaryContact = t.primaryContact || partner?.primaryName || "—";
@@ -6840,9 +7013,17 @@ function TransactionList({
                 </TableBody>
               </Table>
             </div>
-            <div className="px-6 py-3 border-t border-slate-100 text-xs text-slate-500">
-              Showing {filtered.length} of {rows.length} transaction{rows.length === 1 ? "" : "s"}
-            </div>
+            <TablePaginationBar
+              page={txnPage}
+              pageCount={txnPageCount}
+              pageSize={txnPageSize}
+              totalCount={txnTotalCount}
+              startIndex={txnStart}
+              endIndex={txnEnd}
+              onPageChange={setTxnPage}
+              onPageSizeChange={setTxnPageSize}
+              itemLabel="transactions"
+            />
           </CardContent>
         </Card>
       )}
@@ -7759,6 +7940,18 @@ function ListingAuditLogTable({
   onSelectListing?: (listingId: string) => void;
   activeListingFilter?: string;
 }) {
+  const {
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    pageCount,
+    pageItems,
+    totalCount,
+    startIndex,
+    endIndex,
+  } = useTablePagination(rows, 25);
+
   if (rows.length === 0) {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
@@ -7823,10 +8016,10 @@ function ListingAuditLogTable({
   return (
     <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
       <CardContent className="p-0">
-        <div className="overflow-x-auto admin-table-scrollbar">
+        <div className="max-h-[68vh] overflow-auto admin-table-scrollbar">
           <Table className="min-w-max">
-            <TableHeader>
-              <TableRow className="bg-slate-50/80">
+            <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+              <TableRow className="bg-slate-50/95 hover:bg-slate-50/95">
                 <TableHead className="pl-6">Date/Time</TableHead>
                 <TableHead>Company Name</TableHead>
                 <TableHead>Listing Name</TableHead>
@@ -7840,7 +8033,7 @@ function ListingAuditLogTable({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => {
+              {pageItems.map((row) => {
                 const isFilteredListing = Boolean(activeListingFilter && activeListingFilter !== "all" && row.listingId === activeListingFilter);
                 return (
                   <TableRow key={row.id} className="hover:bg-slate-50/60">
@@ -7895,6 +8088,17 @@ function ListingAuditLogTable({
             </TableBody>
           </Table>
         </div>
+        <TablePaginationBar
+          page={page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="entries"
+        />
       </CardContent>
     </Card>
   );
@@ -7959,6 +8163,18 @@ function getPartnerAuditActor(log: any): { label: "Admin" | "Partner" | "System"
 }
 
 function PartnerAuditLogList({ logs }: { logs: any[] }) {
+  const {
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    pageCount,
+    pageItems,
+    totalCount,
+    startIndex,
+    endIndex,
+  } = useTablePagination(logs, 25);
+
   if (logs.length === 0) {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
@@ -8080,52 +8296,65 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
   };
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
+    <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-6">Timestamp</TableHead>
-              <TableHead>Company / Partner</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Updated By</TableHead>
-              <TableHead>Details</TableHead>
-              <TableHead className="text-right pr-6">Partner ID</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {logs.map((log) => {
-              const actor = getPartnerAuditActor(log);
-              return (
-                <TableRow key={log.id} className="hover:bg-slate-50/50">
-                  <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
-                    {log.timestamp?.seconds
-                      ? new Date(log.timestamp.seconds * 1000).toLocaleString()
-                      : "Recently"}
-                  </TableCell>
-                  <TableCell className="font-medium whitespace-nowrap">
-                    <div className="space-y-0.5 max-w-[200px]">
-                      <p className="truncate text-sm text-slate-900 font-semibold">{log.partnerName || "Partner Account"}</p>
-                      {log.metadata?.email || log.primaryEmail ? (
-                        <p className="text-xs text-slate-500 truncate">{log.metadata?.email || log.primaryEmail}</p>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">{getActionBadge(log)}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <Badge className={`${actor.badgeClass} font-medium text-xs`}>
-                      {actor.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-slate-600 max-w-md break-words">{log.details}</TableCell>
-                  <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400 whitespace-nowrap">
-                    {log.partnerId || "-"}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <div className="max-h-[68vh] overflow-auto admin-table-scrollbar">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+              <TableRow className="bg-slate-50/95 hover:bg-slate-50/95">
+                <TableHead className="pl-6">Timestamp</TableHead>
+                <TableHead>Company / Partner</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Updated By</TableHead>
+                <TableHead>Details</TableHead>
+                <TableHead className="text-right pr-6">Partner ID</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pageItems.map((log) => {
+                const actor = getPartnerAuditActor(log);
+                return (
+                  <TableRow key={log.id} className="hover:bg-slate-50/50">
+                    <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
+                      {log.timestamp?.seconds
+                        ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+                        : "Recently"}
+                    </TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">
+                      <div className="space-y-0.5 max-w-[200px]">
+                        <p className="truncate text-sm text-slate-900 font-semibold">{log.partnerName || "Partner Account"}</p>
+                        {log.metadata?.email || log.primaryEmail ? (
+                          <p className="text-xs text-slate-500 truncate">{log.metadata?.email || log.primaryEmail}</p>
+                        ) : null}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{getActionBadge(log)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Badge className={`${actor.badgeClass} font-medium text-xs`}>
+                        {actor.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-600 max-w-md break-words">{log.details}</TableCell>
+                    <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                      {log.partnerId || "-"}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+        <TablePaginationBar
+          page={page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="logs"
+        />
       </CardContent>
     </Card>
   );
@@ -8272,6 +8501,18 @@ function getMemberAuditSubject(log: any, actor: { label: string }): { name: stri
 }
 
 function MemberAuditLogList({ logs }: { logs: any[] }) {
+  const {
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    pageCount,
+    pageItems,
+    totalCount,
+    startIndex,
+    endIndex,
+  } = useTablePagination(logs, 25);
+
   if (logs.length === 0) {
     return (
       <div className="bg-white border border-slate-200 rounded-xl p-16 text-center">
@@ -8303,53 +8544,66 @@ function MemberAuditLogList({ logs }: { logs: any[] }) {
   };
 
   return (
-    <Card className="bg-white border-slate-200 shadow-sm">
+    <Card className="bg-white border-slate-200 shadow-sm overflow-hidden">
       <CardContent className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="pl-6">Timestamp</TableHead>
-              <TableHead>Member / Target</TableHead>
-              <TableHead>Action</TableHead>
-              <TableHead>Performed By</TableHead>
-              <TableHead>Details</TableHead>
-              <TableHead className="text-right pr-6">Member ID</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {logs.map((log) => {
-              const actor = getMemberAuditActor(log);
-              const subject = getMemberAuditSubject(log, actor);
-              return (
-                <TableRow key={log.id} className="hover:bg-slate-50/50">
-                  <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
-                    {log.timestamp?.seconds
-                      ? new Date(log.timestamp.seconds * 1000).toLocaleString()
-                      : "Recently"}
-                  </TableCell>
-                  <TableCell className="font-medium whitespace-nowrap">
-                    <div className="space-y-0.5 max-w-[200px]">
-                      <p className="truncate text-sm text-slate-900">{subject.name}</p>
-                      {subject.email && (
-                        <p className="text-xs text-slate-500 truncate">{subject.email}</p>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className="whitespace-nowrap">{getActionBadge(log.action)}</TableCell>
-                  <TableCell className="whitespace-nowrap">
-                    <Badge className={`${actor.badgeClass} font-medium text-xs`}>
-                      {actor.label}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-slate-600 max-w-md break-words">{log.details}</TableCell>
-                  <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400 whitespace-nowrap">
-                    {subject.id || log.partnerId || log.memberId || "-"}
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <div className="max-h-[68vh] overflow-auto admin-table-scrollbar">
+          <Table>
+            <TableHeader className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_rgba(226,232,240,1)]">
+              <TableRow className="bg-slate-50/95 hover:bg-slate-50/95">
+                <TableHead className="pl-6">Timestamp</TableHead>
+                <TableHead>Member / Target</TableHead>
+                <TableHead>Action</TableHead>
+                <TableHead>Performed By</TableHead>
+                <TableHead>Details</TableHead>
+                <TableHead className="text-right pr-6">Member ID</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pageItems.map((log) => {
+                const actor = getMemberAuditActor(log);
+                const subject = getMemberAuditSubject(log, actor);
+                return (
+                  <TableRow key={log.id} className="hover:bg-slate-50/50">
+                    <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
+                      {log.timestamp?.seconds
+                        ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+                        : "Recently"}
+                    </TableCell>
+                    <TableCell className="font-medium whitespace-nowrap">
+                      <div className="space-y-0.5 max-w-[200px]">
+                        <p className="truncate text-sm text-slate-900">{subject.name}</p>
+                        {subject.email && (
+                          <p className="text-xs text-slate-500 truncate">{subject.email}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="whitespace-nowrap">{getActionBadge(log.action)}</TableCell>
+                    <TableCell className="whitespace-nowrap">
+                      <Badge className={`${actor.badgeClass} font-medium text-xs`}>
+                        {actor.label}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-sm text-slate-600 max-w-md break-words">{log.details}</TableCell>
+                    <TableCell className="text-right pr-6 font-mono text-[11px] text-slate-400 whitespace-nowrap">
+                      {subject.id || log.partnerId || log.memberId || "-"}
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
+        <TablePaginationBar
+          page={page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          startIndex={startIndex}
+          endIndex={endIndex}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
+          itemLabel="logs"
+        />
       </CardContent>
     </Card>
   );
