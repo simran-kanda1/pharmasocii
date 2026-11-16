@@ -1206,8 +1206,8 @@ export default function Dashboard() {
     const handleExportTransactions = useCallback(
         (format: "csv" | "xlsx" | "pdf") => {
             if (formattedTransactions.length === 0) return;
-            if (format === "csv") downloadPartnerTransactionsCsv(formattedTransactions);
-            else if (format === "xlsx") downloadPartnerTransactionsExcel(formattedTransactions);
+            if (format === "csv") downloadPartnerTransactionsCsv(formattedTransactions, { partnerFacing: true });
+            else if (format === "xlsx") downloadPartnerTransactionsExcel(formattedTransactions, { partnerFacing: true });
             else downloadPartnerTransactionsPdf(formattedTransactions);
         },
         [formattedTransactions]
@@ -2567,6 +2567,7 @@ export default function Dashboard() {
             const standaloneSpotlightPlan = dynamicFeaturePlans.find((f) => f.id === standaloneSpotlightId);
             // Prefer billing-period start (preserved across prorated upgrades), same as plans.
             // If an upgrade incorrectly stamped payment day as period start, align to plan period when renewal matches.
+            // Only when both renew at the same moment: a feature bought a day later has its own cycle.
             const planPeriodStart =
                 toDateValue(plan.billingPeriodStart) ||
                 toDateValue(plan.startDate);
@@ -2586,7 +2587,7 @@ export default function Dashboard() {
                 standaloneSpotlightStart.getTime() > planPeriodStart.getTime() &&
                 featurePeriodEnd &&
                 toDateValue(plan.billingPeriodEnd) &&
-                Math.abs(featurePeriodEnd.getTime() - toDateValue(plan.billingPeriodEnd)!.getTime()) < 86400000 * 2
+                Math.abs(featurePeriodEnd.getTime() - toDateValue(plan.billingPeriodEnd)!.getTime()) < 36e5
             ) {
                 standaloneSpotlightStart = planPeriodStart;
             }
@@ -3717,7 +3718,7 @@ export default function Dashboard() {
                                                                     email: partnerData?.email || auth.currentUser?.email || txn.customerEmail || "",
                                                                     businessId: profileForm?.businessId || partnerData?.VAT_ABN_EIN_businessId || txn.taxId || "",
                                                                     VAT_ABN_EIN_businessId: partnerData?.VAT_ABN_EIN_businessId || profileForm?.businessId || txn.taxId || "",
-                                                                })
+                                                                }, { partnerFacing: true })
                                                             }
                                                             title="Download Invoice PDF"
                                                         >
@@ -3822,101 +3823,10 @@ export default function Dashboard() {
                                             <dd className="text-foreground font-bold mt-0.5 text-primary">{detail.amountDisplay} {detail.currency}</dd>
                                         </div>
                                     </div>
-                                    <div>
-                                        <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Payment Method</dt>
-                                        <dd className="text-foreground mt-0.5 text-xs">{detail.paymentMethod}</dd>
-                                    </div>
                                     {detail.planId && (
                                         <div>
                                             <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Plan ID</dt>
                                             <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.planId}</dd>
-                                        </div>
-                                    )}
-                                    {detail.featureId && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Feature ID</dt>
-                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.featureId}</dd>
-                                        </div>
-                                    )}
-                                    {(detail.listingId || detail.collectionName) && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Listing Reference</dt>
-                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">
-                                                {detail.collectionName && <span>{detail.collectionName}</span>}
-                                                {detail.collectionName && detail.listingId && " / "}
-                                                {detail.listingId && <span>{detail.listingId}</span>}
-                                                {!detail.listingId && !detail.collectionName && "—"}
-                                            </dd>
-                                        </div>
-                                    )}
-                                    {detail.sessionId && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Stripe Session ID</dt>
-                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.sessionId}</dd>
-                                        </div>
-                                    )}
-                                    {detail.stripeSubscriptionId && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground">Subscription ID</dt>
-                                            <dd className="text-foreground mt-0.5 font-mono text-xs break-all">{detail.stripeSubscriptionId}</dd>
-                                        </div>
-                                    )}
-                                    {detail.selectedCategories.length > 0 && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Categories</dt>
-                                            <dd className="flex flex-wrap gap-1.5">
-                                                {detail.selectedCategories.map((cat, i) => (
-                                                    <Badge key={i} variant="secondary" className="bg-primary/10 text-primary border-primary/30 text-xs">
-                                                        {cat}
-                                                    </Badge>
-                                                ))}
-                                            </dd>
-                                        </div>
-                                    )}
-                                    {detail.selectedSubcategories.length > 0 && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Categories</dt>
-                                            <dd className="flex flex-wrap gap-1.5">
-                                                {detail.selectedSubcategories.map((sub, i) => (
-                                                    <Badge key={i} variant="outline" className="border-foreground/20 text-xs">
-                                                        {sub.split(" > ").pop()}
-                                                    </Badge>
-                                                ))}
-                                            </dd>
-                                        </div>
-                                    )}
-                                    {detail.selectedSubSubcategories.length > 0 && (
-                                        <div>
-                                            <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Categories</dt>
-                                            <dd className="flex flex-wrap gap-1.5">
-                                                {detail.selectedSubSubcategories.map((subSub, i) => (
-                                                    <Badge key={i} variant="outline" className="border-primary/30 text-primary text-xs">
-                                                        {subSub.split(" > ").pop()}
-                                                    </Badge>
-                                                ))}
-                                            </dd>
-                                        </div>
-                                    )}
-                                    {(detail.serviceCountries.length > 0 || detail.serviceRegions.length > 0) && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                            {detail.serviceCountries.length > 0 && (
-                                                <div>
-                                                    <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Countries</dt>
-                                                    <dd className="flex flex-wrap gap-1.5">
-                                                        {detail.serviceCountries.map((c, i) => (
-                                                             <Badge key={i} variant="secondary" className="bg-foreground/10 text-xs">
-                                                                {c}
-                                                            </Badge>
-                                                        ))}
-                                                    </dd>
-                                                </div>
-                                            )}
-                                            {detail.serviceRegions.length > 0 && (
-                                                <div>
-                                                    <dt className="text-xs font-semibold tracking-wide text-muted-foreground mb-1.5">Regions</dt>
-                                                    <dd className="text-xs text-foreground/90">{detail.serviceRegions.join(", ")}</dd>
-                                                </div>
-                                            )}
                                         </div>
                                     )}
 
@@ -3933,7 +3843,7 @@ export default function Dashboard() {
                                             email: partnerData?.email || auth.currentUser?.email || detail.customerEmail || "",
                                             businessId: profileForm?.businessId || partnerData?.VAT_ABN_EIN_businessId || detail.taxId || "",
                                             VAT_ABN_EIN_businessId: partnerData?.VAT_ABN_EIN_businessId || profileForm?.businessId || detail.taxId || "",
-                                        })
+                                        }, { partnerFacing: true })
                                     }
                                     className="border-foreground/20 text-foreground/80 hover:text-foreground"
                                 >

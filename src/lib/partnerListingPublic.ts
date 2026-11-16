@@ -212,10 +212,13 @@ export function resolveSpotlightPlacement(item: Record<string, unknown>): string
     return "";
 }
 
+const SPOTLIGHT_RENEWAL_GRACE_MS = 3 * 24 * 60 * 60 * 1000;
+
 /**
  * Paid-through is behind wall clock, but the partner did not cancel and the
  * listing still has the feature. Test clocks and a delayed Stripe webhook look
- * like this. It is not an ended feature.
+ * like this. It is not an ended feature. Past the grace window the renewal did
+ * not happen, and the feature must not keep showing.
  */
 export function isSpotlightRenewalPending(item: Record<string, unknown> | null | undefined): boolean {
     if (!item) return false;
@@ -234,7 +237,8 @@ export function isSpotlightRenewalPending(item: Record<string, unknown> | null |
         toDateValue(item.featureSpotlightAccessEnd) ||
         toDateValue(item.featureSpotlightPaidThrough);
     if (!end) return false;
-    return end.getTime() < Date.now();
+    const behindMs = Date.now() - end.getTime();
+    return behindMs > 0 && behindMs <= SPOTLIGHT_RENEWAL_GRACE_MS;
 }
 
 /** Spotlight stays visible until its paid/access window ends. */

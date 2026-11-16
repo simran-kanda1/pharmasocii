@@ -62,6 +62,7 @@ export function AdminArchivedPostsPanel() {
   useEffect(() => setPage(0), [search, pageSize]);
 
   const activate = async (postId: string) => {
+    if (busy) return;
     setBusy(true);
     setMsg("");
     try {

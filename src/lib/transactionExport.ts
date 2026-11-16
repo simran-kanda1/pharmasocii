@@ -25,9 +25,17 @@ function repsToString(row: PartnerTransactionRow): string {
         .join("; ");
 }
 
+export type TransactionExportOptions = {
+    /** Partner-facing receipts hide internal Stripe / listing / taxonomy fields. Admin keeps them. */
+    partnerFacing?: boolean;
+};
+
 /** Flat row for spreadsheet / CSV (human-readable joined lists). */
-export function transactionRowToExportRecord(row: PartnerTransactionRow): Record<string, string | number> {
-    return {
+export function transactionRowToExportRecord(
+    row: PartnerTransactionRow,
+    options: TransactionExportOptions = {},
+): Record<string, string | number> {
+    const base: Record<string, string | number> = {
         Date: row.dateDisplay,
         "ISO date": row.createdAtIso,
         Type: row.typeLabel,
@@ -39,23 +47,27 @@ export function transactionRowToExportRecord(row: PartnerTransactionRow): Record
         Currency: row.currency,
         Status: row.statusLabel,
         "Plan ID": row.planId || "",
-        "Feature ID": row.featureId || "",
         "Business name": row.businessName || "",
         "Primary contact": row.primaryContact || "",
         "Partner ID": row.partnerId || "",
+        "Invoice ID": row.invoiceId || "",
+        "Customer email": row.customerEmail || "",
+        Representatives: repsToString(row),
+    };
+    if (options.partnerFacing) return base;
+    return {
+        ...base,
+        "Feature ID": row.featureId || "",
         "Payment method": row.paymentMethod,
         "Session ID": row.sessionId || "",
-        "Invoice ID": row.invoiceId || "",
         "Subscription ID": row.stripeSubscriptionId || "",
         "Listing ID": row.listingId || "",
         Collection: row.collectionName || "",
-        "Customer email": row.customerEmail || "",
         Categories: row.selectedCategories.join("; "),
         Subcategories: row.selectedSubcategories.join("; "),
         "Sub-subcategories": row.selectedSubSubcategories.join("; "),
         Countries: row.serviceCountries.join("; "),
         Regions: row.serviceRegions.join("; "),
-        Representatives: repsToString(row),
     };
 }
 
@@ -71,9 +83,12 @@ function triggerBlobDownload(blob: Blob, filename: string): void {
     URL.revokeObjectURL(url);
 }
 
-export function downloadPartnerTransactionsCsv(rows: PartnerTransactionRow[]): void {
+export function downloadPartnerTransactionsCsv(
+    rows: PartnerTransactionRow[],
+    options: TransactionExportOptions = {},
+): void {
     if (rows.length === 0) return;
-    const records = rows.map(transactionRowToExportRecord);
+    const records = rows.map((row) => transactionRowToExportRecord(row, options));
     const headers = Object.keys(records[0]);
     const lines = [headers.map(escapeCsvCell).join(",")];
     for (const rec of records) {
@@ -83,9 +98,12 @@ export function downloadPartnerTransactionsCsv(rows: PartnerTransactionRow[]): v
     triggerBlobDownload(blob, `pharmasocii-transactions-${fileStamp()}.csv`);
 }
 
-export function downloadPartnerTransactionsExcel(rows: PartnerTransactionRow[]): void {
+export function downloadPartnerTransactionsExcel(
+    rows: PartnerTransactionRow[],
+    options: TransactionExportOptions = {},
+): void {
     if (rows.length === 0) return;
-    const records = rows.map(transactionRowToExportRecord);
+    const records = rows.map((row) => transactionRowToExportRecord(row, options));
     const ws = XLSX.utils.json_to_sheet(records);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Transactions");
@@ -129,8 +147,10 @@ export function downloadSingleTransactionInvoicePdf(
         email?: string;
         businessId?: string;
         VAT_ABN_EIN_businessId?: string;
-    }
+    },
+    options: TransactionExportOptions = {},
 ): void {
+    const partnerFacing = Boolean(options.partnerFacing);
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageWidth = doc.internal.pageSize.getWidth();
 
@@ -175,8 +195,10 @@ export function downloadSingleTransactionInvoicePdf(
     doc.setFontSize(9);
     doc.setFont("helvetica", "bold");
     doc.text(`PAYMENT STATUS: ${row.statusLabel.toUpperCase()}`, 20, 45.5);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Payment Method: ${row.paymentMethod}`, pageWidth - 20, 45.5, { align: "right" });
+    if (!partnerFacing) {
+        doc.setFont("helvetica", "normal");
+        doc.text(`Payment Method: ${row.paymentMethod}`, pageWidth - 20, 45.5, { align: "right" });
+    }
 
     // Details Grid (Billed To on Left, Transaction / Group / Plan on Right)
     doc.setTextColor(51, 65, 85);
@@ -222,7 +244,7 @@ export function downloadSingleTransactionInvoicePdf(
         doc.text(`Upgrade / Item For: ${row.upgradeFor || row.targetTitle}`, pageWidth / 2 + 5, rightY);
         rightY += 5;
     }
-    if (row.sessionId) {
+    if (!partnerFacing && row.sessionId) {
         doc.text(`Session Ref: ${row.sessionId.slice(0, 22)}...`, pageWidth / 2 + 5, rightY);
         rightY += 5;
     }
@@ -230,7 +252,7 @@ export function downloadSingleTransactionInvoicePdf(
         doc.text(`Stripe Invoice: ${row.invoiceId}`, pageWidth / 2 + 5, rightY);
         rightY += 5;
     }
-    if (row.stripeSubscriptionId) {
+    if (!partnerFacing && row.stripeSubscriptionId) {
         doc.text(`Subscription Ref: ${row.stripeSubscriptionId}`, pageWidth / 2 + 5, rightY);
         rightY += 5;
     }

@@ -407,12 +407,18 @@ async function sendAccountActivationEmail(userId, userEmail, userName, verifyLin
     const { forceResend = false } = options;
     if (!verifyLink || !userEmail) return { sent: false };
 
-    if (!forceResend && userId) {
-        const pending = await db.collection("pendingVerifications").doc(userId).get();
-        // Admin SDK DocumentSnapshot uses `.exists` (boolean property), not `.exists()`.
-        if (pending.exists && pending.data()?.activationEmailSentAt) {
-            return { sent: false, skipped: "already_sent" };
-        }
+    // The member-created trigger and the client's ensureVerificationPending call run at
+    // the same moment; claiming inside a transaction lets only one of them send.
+    const pendingRef = userId ? db.collection("pendingVerifications").doc(userId) : null;
+    if (!forceResend && pendingRef) {
+        const claimed = await db.runTransaction(async (tx) => {
+            const pending = await tx.get(pendingRef);
+            const data = pending.exists ? pending.data() || {} : {};
+            if (data.activationEmailSentAt || data.activationEmailClaimedAt) return false;
+            tx.set(pendingRef, { activationEmailClaimedAt: FieldValue.serverTimestamp() }, { merge: true });
+            return true;
+        });
+        if (!claimed) return { sent: false, skipped: "already_sent" };
     }
 
     try {
@@ -440,6 +446,9 @@ async function sendAccountActivationEmail(userId, userEmail, userName, verifyLin
         return { sent: true };
     } catch (mailErr) {
         console.error("sendAccountActivationEmail", userId, userEmail, mailErr);
+        if (pendingRef) {
+            await pendingRef.set({ activationEmailClaimedAt: FieldValue.delete() }, { merge: true }).catch(() => {});
+        }
         return { sent: false, error: mailErr?.message || String(mailErr) };
     }
 }
@@ -1008,6 +1017,7 @@ exports.adminArchivePost = onCall({ region: "us-central1", cors: true }, async (
     const pref = db.collection("postsCollection").doc(postId);
     const p = await pref.get();
     if (!p.exists) throw new HttpsError("not-found", "Post not found.");
+    if (p.data()?.archived === true) return { ok: true, alreadyArchived: true };
     await pref.update({
         archived: true,
         archivedReason: reason || "admin",
@@ -1036,6 +1046,7 @@ exports.adminRestorePost = onCall({ region: "us-central1", cors: true }, async (
     const pref = db.collection("postsCollection").doc(postId);
     const p = await pref.get();
     if (!p.exists) throw new HttpsError("not-found", "Post not found.");
+    if (p.data()?.archived !== true) return { ok: true, alreadyActive: true };
     const authorId = p.data().authorId;
     await pref.update({
         archived: false,
@@ -1065,6 +1076,7 @@ exports.adminRestoreComment = onCall({ region: "us-central1", cors: true }, asyn
     const cref = db.collection("postsCollection").doc(postId).collection("commentsCollection").doc(commentId);
     const c = await cref.get();
     if (!c.exists) throw new HttpsError("not-found", "Comment not found.");
+    if (c.data()?.archived !== true) return { ok: true, alreadyActive: true };
     const authorId = c.data().authorId;
     const commentData = c.data();
     const postRef = db.collection("postsCollection").doc(postId);
@@ -1165,22 +1177,20 @@ exports.adminSetMemberStatus = onCall({ region: "us-central1", cors: true }, asy
     return { ok: true };
 });
 
-/** Admin profile edits. Client rules keep name locked for the member; this bypasses that. */
+/** Admin profile edits. The member's name is not editable by admin. */
 exports.adminUpdateMemberProfile = onCall({ region: "us-central1", cors: true }, async (request) => {
     if (!request.auth?.uid) throw new HttpsError("unauthenticated", "Sign in required.");
     await assertAdmin(request.auth.uid);
-    const { userId, name, phone, country, institution, industry, userBio, aboutMe } = request.data || {};
+    const { userId, phone, country, institution, industry, userBio, aboutMe } = request.data || {};
     if (!userId) throw new HttpsError("invalid-argument", "userId required.");
-    const nextName = String(name || "").trim();
     const nextIndustry = String(industry || "").trim();
-    if (!nextName || !nextIndustry) {
-        throw new HttpsError("invalid-argument", "Name and industry are required.");
+    if (!nextIndustry) {
+        throw new HttpsError("invalid-argument", "Industry is required.");
     }
     const memberRef = db.collection("membersCollection").doc(userId);
     const snap = await memberRef.get();
     if (!snap.exists) throw new HttpsError("not-found", "Member not found.");
     await memberRef.update({
-        name: nextName,
         phone: String(phone || "").trim(),
         country: String(country || "").trim(),
         institution: String(institution || "").trim(),

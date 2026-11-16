@@ -319,9 +319,9 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
     const statusLabel =
         statusRaw === "succeeded" || statusRaw === "completed" || statusRaw === "paid"
             ? "Completed"
-            : statusRaw === "pending" || statusRaw === "requires_action" || statusRaw === "incomplete" || statusRaw === "open"
+            : statusRaw === "pending" || statusRaw === "requires_action" || statusRaw === "incomplete" || statusRaw === "incomplete_payment" || statusRaw === "open"
                 ? "Incomplete"
-                : statusRaw === "failed" || statusRaw === "canceled"
+                : statusRaw === "failed" || statusRaw === "canceled" || statusRaw === "payment_failed"
                     ? "Failed"
                     : statusRaw ? cleanTitleCase(statusRaw) : "Incomplete";
 

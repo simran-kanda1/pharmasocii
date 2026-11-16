@@ -88,6 +88,30 @@ async function testClockExists(testClockId) {
     }
 }
 
+const TEST_CLOCK_REUSE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
+
+/**
+ * Stripe deletes a test clock 30 days after it is created, and takes the customer
+ * and every subscription on it along. A new purchase on an old clock dies early,
+ * so once nothing on the clock is still billing, the next checkout gets a new one.
+ * Clocks younger than the reuse window are kept so several checkouts made
+ * together (including ones still pending payment) land on the same clock.
+ */
+async function shouldStartFreshTestClock(customerId, testClockId) {
+    try {
+        const clock = await stripe.testHelpers.testClocks.retrieve(testClockId);
+        if (Date.now() - Number(clock.created || 0) * 1000 < TEST_CLOCK_REUSE_WINDOW_MS) return false;
+        const subs = await stripe.subscriptions.list({ customer: customerId, status: "all", limit: 100 });
+        const open = (subs.data || []).some((sub) =>
+            ["active", "trialing", "past_due", "unpaid", "incomplete"].includes(String(sub.status || "").toLowerCase()),
+        );
+        return !open;
+    } catch (err) {
+        console.warn("shouldStartFreshTestClock:", err?.message || err);
+        return false;
+    }
+}
+
 async function clearStoredTestClock(partnerRef) {
     await partnerRef.set(
         { stripeTestClockId: admin.firestore.FieldValue.delete() },
@@ -123,6 +147,11 @@ async function getOrCreatePartnerStripeTestCustomer(partnerId, partnerEmail) {
                     // A customer cannot leave a deleted test clock. Start a new customer for future checkouts.
                     customerId = null;
                     testClockId = null;
+                } else if (customerClock && await shouldStartFreshTestClock(customerId, customerClock)) {
+                    console.log(`   ℹ Test clock ${customerClock} for ${partnerId} has nothing open; starting a fresh clock.`);
+                    customerId = null;
+                    testClockId = null;
+                    await clearStoredTestClock(partnerRef);
                 } else {
                     testClockId = customerClock || testClockId;
                     return { customerId, testClockId };
@@ -739,11 +768,47 @@ async function processPartnerPaidSubscriptionInvoices(partnerId) {
     let processed = 0;
     let inserted = 0;
     let alreadyPresent = 0;
+    let failedRenewalsEnded = 0;
     const invoiceIds = [];
     const errors = [];
     for (const subId of subIds) {
         try {
             const invoices = await stripe.invoices.list({ subscription: subId, limit: 24 });
+            // Stripe sends no webhooks to this server in the sandbox, so a declined renewal
+            // has to be picked up here or the listing waits on a renewal that never comes.
+            const failedRenewal = invoices.data.find((inv) =>
+                inv.status === "open" &&
+                inv.billing_reason === "subscription_cycle" &&
+                Number(inv.attempt_count || 0) >= 1,
+            );
+            if (failedRenewal) {
+                const sub = await stripe.subscriptions.retrieve(subId).catch(() => null);
+                if (["past_due", "unpaid"].includes(String(sub?.status || "").toLowerCase())) {
+                    await logAudit({
+                        partnerId,
+                        action: "PAYMENT_FAILED",
+                        details: `Invoice payment failed for $${(failedRenewal.amount_due || 0) / 100}.`,
+                        category: "billing",
+                        metadata: {
+                            invoiceId: failedRenewal.id,
+                            amountDue: (failedRenewal.amount_due || 0) / 100,
+                            subscriptionId: subId,
+                            billingReason: failedRenewal.billing_reason,
+                        },
+                    });
+                    try {
+                        await ensureFailedInvoiceTransaction(failedRenewal, {
+                            partnerId,
+                            subscriptionId: subId,
+                        });
+                    } catch (failedTxnErr) {
+                        console.warn("failed renewal transaction write:", failedTxnErr?.message || failedTxnErr);
+                    }
+                    await endFailedRenewalAccess(subId, failedRenewal);
+                    failedRenewalsEnded += 1;
+                    continue;
+                }
+            }
             for (const invoice of invoices.data) {
                 if (invoice.status !== "paid") continue;
                 if (invoice.billing_reason !== "subscription_cycle") continue;
@@ -762,7 +827,7 @@ async function processPartnerPaidSubscriptionInvoices(partnerId) {
             errors.push({ subscriptionId: subId, error: message });
         }
     }
-    return { processed, inserted, alreadyPresent, invoiceIds, errors };
+    return { processed, inserted, alreadyPresent, failedRenewalsEnded, invoiceIds, errors };
 }
 
 // ─── Firebase Admin ───
@@ -1813,6 +1878,157 @@ async function logAudit({ partnerId, action, details, category, performedBy = "s
     }
 }
 
+/**
+ * One transaction per Checkout session. The dashboard backfill and the checkout
+ * confirm flow can run at the same moment, so a query-then-add check is not enough.
+ */
+async function addCheckoutTransactionOnce(sessionId, data) {
+    try {
+        await db.collection("transactionsCollection").doc(`checkout_${sessionId}`).create(data);
+        return true;
+    } catch (err) {
+        if (err?.code === 6 || /already exists/i.test(String(err?.message || ""))) return false;
+        throw err;
+    }
+}
+
+/**
+ * Record a failed renewal/invoice payment once so partner + admin transaction
+ * tables can show it. A later successful charge of the same invoice upgrades the row.
+ */
+async function ensureFailedInvoiceTransaction(invoice, {
+    partnerId = null,
+    subscriptionId = null,
+    planId = null,
+    featureId = null,
+    listingId = null,
+    collectionName = null,
+    group = null,
+} = {}) {
+    const invoiceId = invoice?.id;
+    if (!invoiceId) return { created: false, reason: "missing_invoice" };
+
+    const existing = await db.collection("transactionsCollection")
+        .where("invoiceId", "==", invoiceId)
+        .limit(1)
+        .get();
+    if (!existing.empty) {
+        const existingStatus = String(existing.docs[0].data()?.status || "").toLowerCase();
+        if (["succeeded", "completed", "paid"].includes(existingStatus)) {
+            return { created: false, reason: "already_paid" };
+        }
+        return { created: false, reason: "exists" };
+    }
+
+    let resolvedPartnerId = partnerId;
+    let resolvedPlanId = planId;
+    let resolvedFeatureId = featureId;
+    let resolvedListingId = listingId;
+    let resolvedCollectionName = collectionName;
+    let resolvedGroup = group;
+    const subId = toStripeSubscriptionId(subscriptionId || getInvoiceSubscriptionId(invoice));
+
+    if (subId && (!resolvedPartnerId || !resolvedListingId || (!resolvedPlanId && !resolvedFeatureId))) {
+        const planSnap = await db.collectionGroup("planCollection")
+            .where("stripeSubscriptionId", "==", subId)
+            .limit(1)
+            .get()
+            .catch(() => ({ docs: [] }));
+        if (planSnap.docs?.[0]) {
+            const plan = planSnap.docs[0].data() || {};
+            resolvedPartnerId = resolvedPartnerId || partnerIdFromPartnersPlanRef(planSnap.docs[0].ref);
+            resolvedPlanId = resolvedPlanId || plan.planId || null;
+            resolvedListingId = resolvedListingId || plan.listingId || null;
+            resolvedCollectionName = resolvedCollectionName || plan.collectionName || null;
+            resolvedGroup = resolvedGroup || plan.group || null;
+        } else {
+            const featSnap = await db.collectionGroup("featuresCollection")
+                .where("stripeSubscriptionId", "==", subId)
+                .limit(1)
+                .get()
+                .catch(() => ({ docs: [] }));
+            if (featSnap.docs?.[0]) {
+                const feat = featSnap.docs[0].data() || {};
+                resolvedPartnerId = resolvedPartnerId || partnerIdFromPartnersPlanRef(featSnap.docs[0].ref);
+                resolvedFeatureId = resolvedFeatureId || feat.featureId || null;
+                resolvedListingId = resolvedListingId || feat.listingId || null;
+                resolvedCollectionName = resolvedCollectionName || feat.collectionName || null;
+                resolvedGroup = resolvedGroup || feat.group || null;
+            }
+        }
+    }
+
+    let detailSource = null;
+    if (resolvedPartnerId && resolvedListingId && resolvedCollectionName) {
+        const listingRef = await resolveListingDocRef(resolvedPartnerId, resolvedCollectionName, resolvedListingId);
+        if (listingRef) {
+            const listingSnap = await listingRef.get();
+            if (listingSnap.exists) detailSource = listingSnap.data();
+        }
+    }
+    if (!detailSource && resolvedPartnerId) {
+        const partnerSnap = await db.collection("partnersCollection").doc(resolvedPartnerId).get();
+        if (partnerSnap.exists) detailSource = partnerSnap.data();
+    }
+
+    await db.collection("transactionsCollection").add({
+        partnerId: resolvedPartnerId || null,
+        amount: (invoice.amount_due || invoice.amount_remaining || 0) / 100,
+        currency: invoice.currency || "usd",
+        status: "failed",
+        type: resolvedFeatureId ? "feature" : "listing",
+        planId: resolvedPlanId || null,
+        featureId: resolvedFeatureId || null,
+        group: resolvedGroup || null,
+        listingId: resolvedListingId || null,
+        collectionName: resolvedCollectionName || null,
+        listingTitle: detailSource?.eventName || detailSource?.jobTitle || detailSource?.title || detailSource?.businessName || null,
+        description: invoice.billing_reason === "subscription_cycle"
+            ? (resolvedFeatureId ? "Spotlight renewal failed" : "Plan renewal failed")
+            : "Payment failed",
+        billingReason: invoice.billing_reason || null,
+        eventType: invoice.billing_reason === "subscription_cycle" ? "renewal" : "initial",
+        invoiceId,
+        stripeInvoiceId: invoiceId,
+        stripeSubscriptionId: subId || null,
+        stripeCustomerId: getInvoiceCustomerId(invoice) || null,
+        customerEmail: invoice.customer_email || detailSource?.primaryEmail || "",
+        businessName: detailSource?.businessName || "",
+        selectedCategories: detailSource?.selectedCategories || [],
+        selectedSubcategories: detailSource?.selectedSubcategories || [],
+        serviceCountries: detailSource?.serviceCountries || [],
+        serviceRegions: detailSource?.serviceRegions || [],
+        companyRepresentatives: detailSource?.companyRepresentatives || [],
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return { created: true };
+}
+
+async function markInvoiceTransactionSucceeded(invoiceId, {
+    amount = null,
+    description = null,
+} = {}) {
+    if (!invoiceId) return { updated: false };
+    const existing = await db.collection("transactionsCollection")
+        .where("invoiceId", "==", invoiceId)
+        .limit(1)
+        .get();
+    if (existing.empty) return { updated: false, reason: "missing" };
+    const doc = existing.docs[0];
+    const status = String(doc.data()?.status || "").toLowerCase();
+    if (["succeeded", "completed", "paid"].includes(status)) {
+        return { updated: false, reason: "already_paid", exists: true };
+    }
+    const patch = {
+        status: "succeeded",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (typeof amount === "number" && Number.isFinite(amount)) patch.amount = amount;
+    if (description) patch.description = description;
+    await doc.ref.set(patch, { merge: true });
+    return { updated: true, exists: true };
+}
+
 async function createUpgradeTransactionIfMissing({
     session,
     partnerId,
@@ -1846,7 +2062,7 @@ async function createUpgradeTransactionIfMissing({
         if (partnerSnap.exists) detailSource = partnerSnap.data();
     }
 
-    await db.collection("transactionsCollection").add({
+    const inserted = await addCheckoutTransactionOnce(session.id, {
         partnerId: partnerKey,
         amount: (session.amount_total || 0) / 100,
         currency: session.currency || "usd",
@@ -1880,7 +2096,7 @@ async function createUpgradeTransactionIfMissing({
         companyRepresentatives: detailSource?.companyRepresentatives || [],
     });
 
-    return { created: true, reason: "inserted" };
+    return inserted ? { created: true, reason: "inserted" } : { created: false, reason: "exists" };
 }
 
 /**
@@ -2298,7 +2514,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         if (listingSnap.exists) detailSource = listingSnap.data();
                     }
                     const previousFeatureId = session.metadata?.previousFeatureId || null;
-                    await db.collection("transactionsCollection").add({
+                    await addCheckoutTransactionOnce(session.id, {
                         partnerId,
                         amount: (session.amount_total || 0) / 100,
                         currency: session.currency || "usd",
@@ -2528,8 +2744,7 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
 
             const existingTransaction = await db.collection("transactionsCollection")
                 .where("sessionId", "==", session.id).limit(1).get();
-            if (existingTransaction.empty) {
-                await db.collection("transactionsCollection").add(transactionData);
+            if (existingTransaction.empty && await addCheckoutTransactionOnce(session.id, transactionData)) {
                 console.log(`   ✓ Transaction record created`);
             } else {
                 console.log(`   ℹ Transaction already exists for session ${session.id}`);
@@ -2806,6 +3021,15 @@ app.post("/api/webhook", express.raw({ type: "application/json" }), async (req, 
                         billingReason: invoice.billing_reason || null,
                     }
                 });
+            }
+
+            try {
+                await ensureFailedInvoiceTransaction(invoice, {
+                    partnerId: Array.from(partnerIds)[0] || null,
+                    subscriptionId,
+                });
+            } catch (failedTxnErr) {
+                console.warn("invoice.payment_failed transaction write:", failedTxnErr?.message || failedTxnErr);
             }
 
             // Renewal only. The first checkout invoice can still be retried inside Checkout.
@@ -4402,9 +4626,12 @@ async function tryProcessSpotlightAddonInvoicePaid({
         return;
     }
 
-    const existingInvoiceTxn = await db.collection("transactionsCollection")
-        .where("invoiceId", "==", invoice.id).limit(1).get();
-    if (!existingInvoiceTxn.empty) {
+    const paidAmount = (invoice.amount_paid || invoice.amount_due || 0) / 100;
+    const upgradedFailedTxn = await markInvoiceTransactionSucceeded(invoice.id, {
+        amount: paidAmount,
+        description: "Spotlight renewal",
+    });
+    if (upgradedFailedTxn.exists) {
         console.log(`   ℹ Transaction already exists for invoice ${invoice.id}`);
         return;
     }
@@ -4431,7 +4658,7 @@ async function tryProcessSpotlightAddonInvoicePaid({
 
     const renewalTransaction = {
         partnerId: primaryPartnerId || null,
-        amount: (invoice.amount_paid || invoice.amount_due || 0) / 100,
+        amount: paidAmount,
         currency: invoice.currency || "usd",
         status: "succeeded",
         type: "feature",
@@ -4876,7 +5103,18 @@ async function ensureCheckoutTransaction(session, partnerId) {
         .get();
     if (!existing.empty) return false;
     const meta = session.metadata || {};
-    await db.collection("transactionsCollection").add({
+    if (meta.upgradeFlow === "true" && !meta.featureId) {
+        const result = await createUpgradeTransactionIfMissing({
+            session,
+            partnerId,
+            newPlanId: meta.newPlanId || meta.planId || null,
+            listingId: meta.listingId || null,
+            collectionName: meta.collectionName || null,
+            group: meta.group || null,
+        });
+        return Boolean(result.created);
+    }
+    return addCheckoutTransactionOnce(session.id, {
         partnerId,
         amount: (session.amount_total || 0) / 100,
         currency: session.currency || "usd",
@@ -4893,7 +5131,6 @@ async function ensureCheckoutTransaction(session, partnerId) {
         sessionId: session.id,
         customerEmail: session.customer_details?.email || "",
     });
-    return true;
 }
 
 async function cancelSupersededSpotlightSubscriptions(customerId, listingId, keepSubId) {
@@ -5413,9 +5650,15 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
         return;
     }
 
-    const existingInvoiceTxn = await db.collection("transactionsCollection")
-        .where("invoiceId", "==", invoice.id).limit(1).get();
-    if (!existingInvoiceTxn.empty) {
+    const paidAmount = (invoice.amount_paid || invoice.amount_due || 0) / 100;
+    const renewalDescription = billingReason === "subscription_cycle"
+        ? "Plan renewal"
+        : `Subscription payment (${billingReason})`;
+    const upgradedFailedTxn = await markInvoiceTransactionSucceeded(invoice.id, {
+        amount: paidAmount,
+        description: renewalDescription,
+    });
+    if (upgradedFailedTxn.exists) {
         console.log(`   ℹ Transaction already exists for invoice ${invoice.id}`);
         return;
     }
@@ -5440,7 +5683,7 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
 
     const renewalTransaction = {
         partnerId: primaryPlanContext?.partnerId || null,
-        amount: (invoice.amount_paid || invoice.amount_due || 0) / 100,
+        amount: paidAmount,
         currency: invoice.currency || "usd",
         status: "succeeded",
         type: "listing",
@@ -5448,7 +5691,7 @@ async function processSubscriptionInvoicePaid(invoice, options = {}) {
         group: primaryPlanContext?.group || null,
         listingId: primaryPlanContext?.listingId || null,
         collectionName: primaryPlanContext?.collectionName || null,
-        description: billingReason === "subscription_cycle" ? "Plan renewal" : `Subscription payment (${billingReason})`,
+        description: renewalDescription,
         billingReason,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
         invoiceId: invoice.id,

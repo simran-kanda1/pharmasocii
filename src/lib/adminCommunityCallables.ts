@@ -32,7 +32,6 @@ export async function adminArchiveComment(postId: string, commentId: string, rea
 
 export async function adminUpdateMemberProfile(params: {
   userId: string;
-  name: string;
   phone?: string;
   country?: string;
   institution?: string;

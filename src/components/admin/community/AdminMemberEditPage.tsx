@@ -53,12 +53,12 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
     })();
   }, [memberId]);
 
-  const isFormValid = Boolean(name.trim() && industry.trim());
+  const isFormValid = Boolean(industry.trim());
 
   const submit = async () => {
     if (!member) return;
     if (!isFormValid) {
-      setMsg("Name and industry are required and cannot be empty.");
+      setMsg("Industry is required and cannot be empty.");
       return;
     }
     setBusy(true);
@@ -66,7 +66,6 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
     try {
       const profile = {
         userId: memberId,
-        name: name.trim(),
         phone: phone.trim(),
         country: country.trim(),
         institution: institution.trim(),
@@ -82,7 +81,6 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
           : "";
         if (code !== "functions/not-found" && code !== "functions/unavailable") throw profileErr;
         await updateDoc(doc(db, "membersCollection", memberId), {
-          name: profile.name,
           phone: profile.phone,
           country: profile.country,
           institution: profile.institution,
@@ -121,7 +119,7 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
         if (u) {
           await logMemberActivity({
             memberId,
-            memberName: name.trim() || member.name || memberId,
+            memberName: member.name || member.userName || memberId,
             action: "MEMBER_UPDATED",
             details: `Member profile updated by admin (${u.email})`,
             category: "admin",
@@ -162,8 +160,8 @@ export function AdminMemberEditPage({ memberId, onBack, onSaved }: Props) {
         }}
       >
         <div className="space-y-2">
-          <Label>Name <span className="text-blue-500">*</span></Label>
-          <Input value={name} onChange={(e) => setName(e.target.value)} />
+          <Label>Name</Label>
+          <Input value={name} disabled className="bg-muted/40" />
         </div>
         <div className="space-y-2">
           <Label>Username</Label>

@@ -25,7 +25,6 @@ type Props = {
 
 export function AdminPostDetailPage({
   postId,
-  archived,
   onBack,
   onStatusChanged,
   backLabel = "Back To Posts",
@@ -150,7 +149,7 @@ export function AdminPostDetailPage({
               <div className="space-y-1">
                 <select
                   className="h-9 rounded-md border bg-white px-2 text-sm"
-                  value={post.archived || archived ? "inactive" : "active"}
+                  value={post.archived ? "inactive" : "active"}
                   disabled={statusBusy}
                   onChange={(e) => void changeStatus(e.target.value === "active")}
                 >
