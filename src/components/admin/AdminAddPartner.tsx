@@ -1382,7 +1382,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
               <div>
                 <Label className="text-slate-600 font-bold mb-1.5 block">
-                  Trial Period (for selected plan &amp; feature)
+                  Trial Period {groupKey !== "events" && groupKey !== "jobs" ? "(for selected plan & feature)" : "(for selected plan)"}
                 </Label>
                 <Select value={formData.trialPeriod} onValueChange={(val) => handleSelectChange("trialPeriod", val)}>
                   <SelectTrigger className="w-full h-11 bg-white border-slate-200">
@@ -1393,26 +1393,26 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-slate-500 mt-2">
-                  Sets the trial duration for both the plan and featured placement. The profile expires when the trial ends.
+                  {groupKey !== "events" && groupKey !== "jobs" 
+                    ? "Sets the trial duration for both the plan and featured placement. The profile expires when the trial ends."
+                    : "Limits the plan duration. The profile expires when the trial ends."}
                 </p>
               </div>
 
-              <div>
-                <Label className="text-slate-600 font-bold mb-1.5 block">Featured partner plan (monthly)</Label>
-                <Select value={formData.featuredPlan} onValueChange={(val) => handleSelectChange("featuredPlan", val)}>
-                  <SelectTrigger className="w-full h-11 bg-white border-slate-200">
-                    <SelectValue placeholder="No Feature" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dynamicFeatureOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <p className="text-[11px] text-slate-500 mt-2">
-                  {groupKey === "events" || groupKey === "jobs"
-                    ? "Premium auto-includes Landing Page; Premium Plus auto-includes Home Page (or customize above)."
-                    : "Assign a featured plan to the partner manually."}
-                </p>
-              </div>
+              {groupKey !== "events" && groupKey !== "jobs" && (
+                <div>
+                  <Label className="text-slate-600 font-bold mb-1.5 block">Featured partner plan (monthly)</Label>
+                  <Select value={formData.featuredPlan} onValueChange={(val) => handleSelectChange("featuredPlan", val)}>
+                    <SelectTrigger className="w-full h-11 bg-white border-slate-200">
+                      <SelectValue placeholder="No Feature" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dynamicFeatureOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-slate-500 mt-2">Assign a featured plan to the partner manually.</p>
+                </div>
+              )}
 
               {formData.selectedPlan && formData.selectedPlan !== "none" && (
                 <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 space-y-2.5">

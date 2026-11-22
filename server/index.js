@@ -1663,7 +1663,7 @@ async function scheduleSpotlightEndWithPlanCancel(partnerRef, partnerId, plan, p
         for (const fDoc of featSnap.docs) {
             const fd = fDoc.data() || {};
             if (fd.collectionName && fd.collectionName !== plan.collectionName) continue;
-            if (fd.source !== "included_plan") continue;
+            if (fd.source !== "included_plan" && fd.source !== "admin_granted") continue;
             await fDoc.ref.set(
                 {
                     cancelPending: true,
@@ -8789,13 +8789,13 @@ app.post("/api/admin/create-partner", async (req, res) => {
 
         const resolvedStatus = status || "Approved";
         const effectiveFeaturedPlan =
-            featuredPlan && featuredPlan !== "none"
-                ? featuredPlan
-                : selectedPlan === "premium_plus_event" || selectedPlan === "premium_plus_job"
+            groupKey === "events" || groupKey === "jobs"
+                ? (selectedPlan === "premium_plus_event" || selectedPlan === "premium_plus_job"
                     ? "home_page"
                     : selectedPlan === "premium_event" || selectedPlan === "premium_job"
                         ? "landing_page"
-                        : "none";
+                        : "none")
+                : (featuredPlan && featuredPlan !== "none" ? featuredPlan : "none");
 
         // Build listing payload
         const listingData = {
@@ -9002,6 +9002,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
 
         // Handle Featured Plan (Synchronized trial expiration with main plan)
         if (effectiveFeaturedPlan && effectiveFeaturedPlan !== "none") {
+            const isEventOrJob = groupKey === "events" || groupKey === "jobs";
             await db.collection("partnersCollection").doc(uid).collection("featuresCollection").add({
                 featureId: effectiveFeaturedPlan,
                 featureName: effectiveFeaturedPlan.replace(/_/g, " "),
@@ -9012,7 +9013,8 @@ app.post("/api/admin/create-partner", async (req, res) => {
                 listingId: listingDocId,
                 collectionName,
                 group: groupKey,
-                source: "admin_granted",
+                planId: selectedPlan || "",
+                source: isEventOrJob ? "included_plan" : "admin_granted",
                 isTrial: isTrial,
                 trialPeriod: trialPeriod || null
             });

@@ -1030,6 +1030,25 @@ export default function AdminDashboard() {
                   console.warn("Auto-cancel partner isFeatured sync error:", pe);
                 }
 
+                // Deactivate the associated listing across root/nested collections
+                const pListings = listings.filter((l) => (l.partnerId || (l.__path?.startsWith("partnersCollection/") ? l.__path.split("/")[1] : "")) === plan.partnerId);
+                for (const pl of pListings) {
+                  if (pl.__path) {
+                    try {
+                      await updateDoc(doc(db, pl.__path), {
+                        active: false,
+                        status: "Expired",
+                        isFeatured: false,
+                        selectedAddon: "",
+                        featuredPlacement: "",
+                        featureStatus: "Expired",
+                      });
+                    } catch (le) {
+                      console.warn("Auto-cancel listing sync error:", le);
+                    }
+                  }
+                }
+
                 console.log(`Auto-cancelled expired admin plan & feature ${plan.id} for partner ${plan.partnerId}`);
               } catch (e) {
                 console.error("Error auto-cancelling expired trial plan:", e);
