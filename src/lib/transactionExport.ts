@@ -233,10 +233,6 @@ export function downloadSingleTransactionInvoicePdf(
         doc.text(`Stripe Invoice: ${row.invoiceId}`, pageWidth / 2 + 5, rightY);
         rightY += 5;
     }
-    if (row.stripeSubscriptionId) {
-        doc.text(`Subscription Ref: ${row.stripeSubscriptionId}`, pageWidth / 2 + 5, rightY);
-        rightY += 5;
-    }
 
     // Line Item Table
     const startTableY = Math.max(leftY, rightY) + 6;
