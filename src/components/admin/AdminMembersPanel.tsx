@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { deleteDoc, doc } from "firebase/firestore";
 import { auth, db } from "@/firebase";
-import { logActivity } from "@/lib/auditLogger";
+import { logActivity, logMemberActivity } from "@/lib/auditLogger";
+import { adminSetMemberStatus } from "@/lib/adminCommunityCallables";
+import { Button } from "@/components/ui/button";
 import { loadCommunityMembers, type AdminMemberRow } from "@/lib/adminCommunityData";
 import { formatAdminDate, formatAdminDateTime } from "@/lib/formatAdminDate";
 import { Input } from "@/components/ui/input";
@@ -33,7 +35,7 @@ type Screen = { type: "list" } | { type: "view"; id: string } | { type: "edit"; 
 
 function statusBadge(status?: string) {
   if (status === "spam_blocked") return <Badge variant="destructive">Blocked</Badge>;
-  if (status === "admin_hold") return <Badge variant="secondary">On hold</Badge>;
+  if (status === "admin_hold") return <Badge variant="secondary" className="bg-slate-100 text-slate-700">Inactive</Badge>;
   return <Badge className="bg-emerald-600 hover:bg-emerald-600">Active</Badge>;
 }
 
@@ -117,6 +119,47 @@ export function AdminMembersPanel() {
     }
   };
 
+  const handleToggleMemberStatus = async (m: AdminMemberRow) => {
+    const isCurrentlyActive = (m.accountStatus || "active") === "active";
+    const nextStatus = isCurrentlyActive ? "admin_hold" : "active";
+    const actionLabel = isCurrentlyActive ? "Inactivate" : "Activate";
+    if (!window.confirm(`${actionLabel} member account for @${m.userName || m.name}?`)) return;
+    setBusy(true);
+    setMsg("");
+    try {
+      await adminSetMemberStatus({
+        userId: m.id,
+        status: nextStatus,
+        reason: isCurrentlyActive ? "Admin hold" : undefined,
+        clearSpamCounters: !isCurrentlyActive,
+      });
+      const u = auth.currentUser;
+      if (u) {
+        await logMemberActivity({
+          memberId: m.id,
+          memberName: m.name || m.userName || m.id,
+          action: "MEMBER_STATUS_CHANGED",
+          details: `Account status changed from "${m.accountStatus || "active"}" to "${nextStatus}" by admin (${u.email})`,
+          category: "admin",
+          performedBy: "admin",
+          metadata: {
+            adminEmail: u.email,
+            prevStatus: m.accountStatus || "active",
+            newStatus: nextStatus,
+            scope: "community_members",
+          },
+        });
+      }
+      setMsg(`Member @${m.userName || m.name} ${isCurrentlyActive ? "inactivated" : "activated"}.`);
+      await load();
+    } catch (e) {
+      console.error(e);
+      setMsg(`Could not ${actionLabel.toLowerCase()} member.`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   if (screen.type === "view") {
     return (
       <AdminMemberDetailPage
@@ -156,7 +199,7 @@ export function AdminMembersPanel() {
             <SelectContent>
               <SelectItem value="all">All statuses</SelectItem>
               <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="admin_hold">On hold</SelectItem>
+              <SelectItem value="admin_hold">Inactive</SelectItem>
               <SelectItem value="spam_blocked">Blocked</SelectItem>
             </SelectContent>
           </Select>
@@ -241,12 +284,29 @@ export function AdminMembersPanel() {
                   <TableCell>{formatAdminDate(m.spamBlockStartedAt?.toDate?.())}</TableCell>
                   <TableCell>{formatAdminDate(m.spamBlockUntil?.toDate?.())}</TableCell>
                   <TableCell>
-                    <AdminRowActions
-                      disabled={busy}
-                      onView={() => setScreen({ type: "view", id: m.id })}
-                      onEdit={() => setScreen({ type: "edit", id: m.id })}
-                      onDelete={() => setDeleteTarget(m)}
-                    />
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className={`h-8 px-2 text-xs font-medium ${
+                          m.accountStatus === "admin_hold" || m.accountStatus === "spam_blocked"
+                            ? "text-emerald-700 hover:bg-emerald-50"
+                            : "text-amber-700 hover:bg-amber-50"
+                        }`}
+                        disabled={busy}
+                        onClick={() => handleToggleMemberStatus(m)}
+                        title={m.accountStatus === "admin_hold" || m.accountStatus === "spam_blocked" ? "Activate account" : "Inactivate account"}
+                      >
+                        {m.accountStatus === "admin_hold" || m.accountStatus === "spam_blocked" ? "Activate" : "Inactivate"}
+                      </Button>
+                      <AdminRowActions
+                        disabled={busy}
+                        onView={() => setScreen({ type: "view", id: m.id })}
+                        onEdit={() => setScreen({ type: "edit", id: m.id })}
+                        onDelete={() => setDeleteTarget(m)}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

@@ -20,7 +20,7 @@ export function memberStatusLabel(status?: string, spamBlockUntil?: Date | null)
       ? `Blocked until ${spamBlockUntil.toLocaleDateString(undefined, { dateStyle: "medium" })}`
       : "Blocked";
   }
-  if (status === "admin_hold") return "On hold";
+  if (status === "admin_hold") return "Inactive";
   return "Active";
 }
 
