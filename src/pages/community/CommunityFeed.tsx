@@ -308,8 +308,7 @@ export default function CommunityFeed() {
       const matchMain = ((p.mainCategories as string[] | undefined) || []).some((c) => String(c).toLowerCase().includes(s));
       const matchSub = ((p.subCategories as string[] | undefined) || []).some((c) => String(c).toLowerCase().includes(s));
       const matchSubSub = ((p.subSubCategories as string[] | undefined) || []).some((c) => String(c).toLowerCase().includes(s));
-      const matchCountry = ((p.countries as string[] | undefined) || []).some((c) => String(c).toLowerCase().includes(s));
-      return matchTitle || matchMain || matchSub || matchSubSub || matchCountry;
+      return matchTitle || matchMain || matchSub || matchSubSub;
     });
   }, [posts, search]);
 

@@ -241,8 +241,7 @@ export function CommunityMemberPanels({
         const matchMain = (p.mainCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchSub = (p.subCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchSubSub = (p.subSubCategories || []).some((c) => String(c).toLowerCase().includes(s));
-        const matchCountry = (p.countries || []).some((c) => String(c).toLowerCase().includes(s));
-        if (!matchTitle && !matchMain && !matchSub && !matchSubSub && !matchCountry) return false;
+        if (!matchTitle && !matchMain && !matchSub && !matchSubSub) return false;
       }
       return true;
     });
@@ -268,8 +267,7 @@ export function CommunityMemberPanels({
         const matchMain = (p.mainCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchSub = (p.subCategories || []).some((c) => String(c).toLowerCase().includes(s));
         const matchSubSub = (p.subSubCategories || []).some((c) => String(c).toLowerCase().includes(s));
-        const matchCountry = (p.countries || []).some((c) => String(c).toLowerCase().includes(s));
-        if (!matchTitle && !matchMain && !matchSub && !matchSubSub && !matchCountry) return false;
+        if (!matchTitle && !matchMain && !matchSub && !matchSubSub) return false;
       }
       return true;
     });
