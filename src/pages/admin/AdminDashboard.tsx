@@ -3563,6 +3563,8 @@ export default function AdminDashboard() {
                 <FeaturedPlansTab 
                   featuredPlans={featuredPlans} 
                   partners={partners} 
+                  listings={listings}
+                  transactions={transactions}
                   featuredPlansConfig={featuredPlansConfig}
                   onEditPlan={(plan, groupName) => setEditingFeaturedPlan({ ...plan, groupName })}
                   onDeletePlan={async (plan, _groupName) => {
@@ -4817,6 +4819,94 @@ function StatCard({
   );
 }
 
+const TABLE_PAGE_SIZES = [10, 25, 50, 100] as const;
+
+function useTablePagination<T>(items: T[], initialSize = 25) {
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState<number>(initialSize);
+
+  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
+  const safePage = Math.min(page, pageCount - 1);
+
+  useEffect(() => {
+    setPage(0);
+  }, [items.length, pageSize]);
+
+  const pageItems = useMemo(
+    () => items.slice(safePage * pageSize, safePage * pageSize + pageSize),
+    [items, safePage, pageSize],
+  );
+
+  const startIndex = items.length === 0 ? 0 : safePage * pageSize + 1;
+  const endIndex = Math.min(items.length, safePage * pageSize + pageSize);
+
+  return {
+    page: safePage,
+    setPage,
+    pageSize,
+    setPageSize,
+    onPageChange: setPage,
+    onPageSizeChange: setPageSize,
+    pageCount,
+    pageItems,
+    totalCount: items.length,
+    startIndex,
+    endIndex,
+  };
+}
+
+function TablePaginationBar({
+  page,
+  pageCount,
+  pageSize,
+  totalCount,
+  startIndex,
+  endIndex,
+  onPageChange,
+  onPageSizeChange,
+  itemLabel = "rows",
+}: {
+  page: number;
+  pageCount: number;
+  pageSize: number;
+  totalCount: number;
+  startIndex: number;
+  endIndex: number;
+  onPageChange: (p: number) => void;
+  onPageSizeChange: (s: number) => void;
+  itemLabel?: string;
+}) {
+  return (
+    <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex items-center gap-3 text-xs text-slate-600">
+        <span>
+          Showing <strong className="text-slate-900">{startIndex}–{endIndex}</strong> of{" "}
+          <strong className="text-slate-900">{totalCount}</strong> {itemLabel}
+        </span>
+        <label className="inline-flex items-center gap-1.5">
+          <span className="text-slate-500">Rows:</span>
+          <select
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+            className="h-7 rounded border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
+          >
+            {TABLE_PAGE_SIZES.map((sz) => (
+              <option key={sz} value={sz}>
+                {sz}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <AdminTablePagination
+        page={page}
+        pageCount={pageCount}
+        onPageChange={onPageChange}
+      />
+    </div>
+  );
+}
+
 function OverviewTab({
   stats,
   transactions,
@@ -4899,10 +4989,67 @@ function OverviewTab({
       kind: "Plan" | "Feature";
       businessName: string;
       listingName: string;
+      contactName: string;
+      contactEmail: string;
       itemLabel: string;
       groupLabel: string;
+      cycle: string;
+      amountNumeric: number;
+      amountDisplay: string;
       renewalDate: Date;
       listing?: ListingRecord;
+    };
+
+    const resolvePlanRenewalAmount = (plan: PartnerPlanRecord, listing?: ListingRecord): number => {
+      if (typeof plan.price === "number" && plan.price > 0) return plan.price;
+      if (typeof plan.amount === "number" && plan.amount > 0) return plan.amount;
+      if (typeof (plan as any).amountDue === "number" && (plan as any).amountDue > 0) return (plan as any).amountDue;
+      const matchTxn = transactions.find(
+        (t) =>
+          (plan.stripeSubscriptionId && t.stripeSubscriptionId === plan.stripeSubscriptionId) ||
+          (plan.listingId && t.listingId === plan.listingId)
+      );
+      if (matchTxn && typeof matchTxn.amount === "number" && matchTxn.amount > 0) {
+        return matchTxn.amount;
+      }
+      const p = String(plan.planId || plan.planName || listing?.selectedPlan || "").toLowerCase();
+      const g = String(plan.group || listing?.selectedGroup || listing?.__col || "").toLowerCase();
+      const isYearly = p.includes("_yr") || p.includes("year") || p.includes("annual");
+      if (g.includes("event") || p.includes("event")) {
+        if (p.includes("premium_plus") || p.includes("premium plus")) return 1450;
+        if (p.includes("premium")) return 1250;
+        if (p.includes("standard")) return 850;
+        if (p.includes("basic")) return 500;
+      }
+      if (g.includes("job") || p.includes("job")) {
+        if (p.includes("premium_plus") || p.includes("premium plus")) return 1000;
+        if (p.includes("premium")) return 650;
+        if (p.includes("standard")) return 400;
+        if (p.includes("basic")) return 150;
+      }
+      if (p.includes("premium_plus") || p.includes("premium plus")) return isYearly ? 8000 : 800;
+      if (p.includes("premium")) return isYearly ? 4500 : 450;
+      if (p.includes("standard")) return isYearly ? 2000 : 200;
+      if (p.includes("basic")) return isYearly ? 1000 : 100;
+      return 0;
+    };
+
+    const resolveFeatureRenewalAmount = (feat: FeaturedPlanPurchase): number => {
+      if (typeof (feat as any).amount === "number" && (feat as any).amount > 0) return (feat as any).amount;
+      if (typeof (feat as any).price === "number" && (feat as any).price > 0) return (feat as any).price;
+      const matchTxn = transactions.find(
+        (t) =>
+          (feat.listingId && t.listingId === feat.listingId && (t.type === "feature" || t.featureId)) ||
+          (t.featureId && t.featureId === feat.featureId && t.partnerId === feat.partnerId)
+      );
+      if (matchTxn && typeof matchTxn.amount === "number" && matchTxn.amount > 0) {
+        return matchTxn.amount;
+      }
+      const f = String(feat.featureId || feat.featureName || "").toLowerCase();
+      if (f.includes("both")) return 400;
+      if (f.includes("home")) return 300;
+      if (f.includes("landing") || f.includes("category")) return 150;
+      return 0;
     };
 
     const items: RenewalItem[] = [];
@@ -4940,6 +5087,25 @@ function OverviewTab({
       const groupLabel = formatAuditGroupCode(plan.group || linkedListing?.selectedGroup || linkedListing?.__col, plan.planId);
       const itemLabel = formatAuditPlanType(plan.planId || plan.planName, groupLabel);
 
+      const contactName =
+        partner?.primaryName ||
+        (linkedListing as any)?.contactName ||
+        (linkedListing as any)?.representativeName ||
+        "—";
+      const contactEmail =
+        partner?.primaryEmail ||
+        (linkedListing as any)?.contactEmail ||
+        (linkedListing as any)?.email ||
+        (plan as any)?.customerEmail ||
+        "—";
+
+      const p = String(plan.planId || plan.planName || "").toLowerCase();
+      const cycle = plan.interval === "year" || p.includes("_yr") || p.includes("year") || p.includes("annual")
+        ? "Yearly"
+        : "Monthly";
+      const amountNumeric = resolvePlanRenewalAmount(plan, linkedListing);
+      const amountDisplay = amountNumeric > 0 ? `$${amountNumeric.toFixed(2)}` : "—";
+
       const dedupKey = `plan:${plan.listingId || plan.id}`;
       if (seenKeys.has(dedupKey)) continue;
       seenKeys.add(dedupKey);
@@ -4949,8 +5115,13 @@ function OverviewTab({
         kind: "Plan",
         businessName,
         listingName,
+        contactName,
+        contactEmail,
         itemLabel: itemLabel !== "-" ? itemLabel : (plan.planName || plan.planId || "Plan"),
         groupLabel,
+        cycle,
+        amountNumeric,
+        amountDisplay,
         renewalDate,
         listing: linkedListing,
       });
@@ -4979,6 +5150,25 @@ function OverviewTab({
       const groupLabel = formatAuditGroupCode(linkedListing?.selectedGroup || linkedListing?.__col, linkedListing?.selectedPlan);
       const itemLabel = formatAuditFeatureType(feat.featureId || feat.featureName);
 
+      const contactName =
+        partner?.primaryName ||
+        (linkedListing as any)?.contactName ||
+        (linkedListing as any)?.representativeName ||
+        "—";
+      const contactEmail =
+        partner?.primaryEmail ||
+        (linkedListing as any)?.contactEmail ||
+        (linkedListing as any)?.email ||
+        (feat as any)?.customerEmail ||
+        "—";
+
+      const cycle =
+        (feat as any).interval === "year" || (feat as any).durationDays >= 365
+          ? "Yearly"
+          : "Monthly";
+      const amountNumeric = resolveFeatureRenewalAmount(feat);
+      const amountDisplay = amountNumeric > 0 ? `$${amountNumeric.toFixed(2)}` : "—";
+
       const dedupKey = `feat:${feat.listingId || feat.id}`;
       if (seenKeys.has(dedupKey)) continue;
       seenKeys.add(dedupKey);
@@ -4988,8 +5178,13 @@ function OverviewTab({
         kind: "Feature",
         businessName,
         listingName,
+        contactName,
+        contactEmail,
         itemLabel: itemLabel !== "-" ? itemLabel : (feat.featureName || feat.featureId || "Feature"),
         groupLabel,
+        cycle,
+        amountNumeric,
+        amountDisplay,
         renewalDate,
         listing: linkedListing,
       });
@@ -5001,7 +5196,7 @@ function OverviewTab({
       renewalsThisMonth: items.filter((i) => i.renewalDate.getTime() <= windows.endOfMonth.getTime()),
       renewalsThisWeek: items.filter((i) => i.renewalDate.getTime() <= windows.endOfWeek.getTime()),
     };
-  }, [partnerPlans, featuredPlans, listingById, listingInsights, partnerById, windows]);
+  }, [partnerPlans, featuredPlans, listingById, listingInsights, partnerById, windows, transactions]);
 
   // Separate Incomplete Payments (unfinished/abandoned checkouts) & Failed Payments (payment failures / declined charges)
   const { incompletePayments, failedPayments } = useMemo(() => {
@@ -5191,7 +5386,26 @@ function OverviewTab({
     [transactions],
   );
 
-  const visibleRenewals = renewalWindow === "week" ? renewalsThisWeek : renewalsThisMonth;
+  const [renewalSearch, setRenewalSearch] = useState("");
+
+  const filteredRenewals = useMemo(() => {
+    const list = renewalWindow === "week" ? renewalsThisWeek : renewalsThisMonth;
+    const q = renewalSearch.toLowerCase().trim();
+    if (!q) return list;
+    return list.filter((r) =>
+      r.businessName.toLowerCase().includes(q) ||
+      r.listingName.toLowerCase().includes(q) ||
+      r.contactName.toLowerCase().includes(q) ||
+      r.contactEmail.toLowerCase().includes(q) ||
+      r.itemLabel.toLowerCase().includes(q) ||
+      r.groupLabel.toLowerCase().includes(q) ||
+      r.kind.toLowerCase().includes(q) ||
+      r.cycle.toLowerCase().includes(q)
+    );
+  }, [renewalWindow, renewalsThisWeek, renewalsThisMonth, renewalSearch]);
+
+  const renewalPagination = useTablePagination(filteredRenewals, 25);
+
   const fmtShortDate = (d: Date) =>
     d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
@@ -5203,15 +5417,15 @@ function OverviewTab({
         <StatCard label="Live Listings" value={stats.activeListings} />
         <StatCard
           label={`Upcoming Renewals (${renewalWindow === "week" ? "Week" : "Month"})`}
-          value={visibleRenewals.length}
+          value={renewalWindow === "week" ? renewalsThisWeek.length : renewalsThisMonth.length}
         />
         <StatCard label="Incomplete Payments" value={incompletePayments.length} />
         <StatCard label="Failed Payments" value={failedPayments.length} />
       </div>
 
-      {/* Upcoming Renewals with Current Month / Current Week toggle */}
+      {/* Upcoming Renewals with Current Month / Current Week toggle & search */}
       <Card className="bg-white border-slate-200 shadow-sm">
-        <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="space-y-1.5">
             <CardTitle className="tracking-normal">Upcoming Renewals</CardTitle>
             <CardDescription className="leading-relaxed">
@@ -5221,81 +5435,127 @@ function OverviewTab({
               {" · "}Active, non-cancelled plans and features scheduled to renew.
             </CardDescription>
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200 self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => setRenewalWindow("month")}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                renewalWindow === "month"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Current Month ({renewalsThisMonth.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setRenewalWindow("week")}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                renewalWindow === "week"
-                  ? "bg-white text-slate-900 shadow-sm"
-                  : "text-slate-600 hover:text-slate-900"
-              }`}
-            >
-              Current Week ({renewalsThisWeek.length})
-            </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Input
+                placeholder="Search renewals..."
+                value={renewalSearch}
+                onChange={(e) => setRenewalSearch(e.target.value)}
+                className="h-8 pl-8 pr-3 text-xs w-48 bg-slate-50 border-slate-200"
+              />
+            </div>
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-lg border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setRenewalWindow("month")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  renewalWindow === "month"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Current Month ({renewalsThisMonth.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setRenewalWindow("week")}
+                className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                  renewalWindow === "week"
+                    ? "bg-white text-slate-900 shadow-sm"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                Current Week ({renewalsThisWeek.length})
+              </button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {visibleRenewals.length === 0 ? (
-            <p className="text-sm text-slate-500 px-6 pb-6">
-              No upcoming renewals for the current {renewalWindow === "week" ? "week" : "month"}.
+          {filteredRenewals.length === 0 ? (
+            <p className="text-sm text-slate-500 px-6 py-6">
+              {renewalSearch
+                ? `No renewals matching "${renewalSearch}".`
+                : `No upcoming renewals for the current ${renewalWindow === "week" ? "week" : "month"}.`}
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Renewal Date</TableHead>
-                    <TableHead>Business Name</TableHead>
-                    <TableHead>Listing Name</TableHead>
-                    <TableHead>Kind</TableHead>
-                    <TableHead>Group</TableHead>
-                    <TableHead className="pr-6">Plan / Feature</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {visibleRenewals.slice(0, 15).map((item) => (
-                    <TableRow
-                      key={item.id}
-                      className={item.listing ? "cursor-pointer hover:bg-slate-50/70" : ""}
-                      onClick={() => item.listing && onViewListing(item.listing)}
-                    >
-                      <TableCell className="pl-6 font-medium text-slate-700 whitespace-nowrap">
-                        {item.renewalDate.toLocaleDateString()}
-                      </TableCell>
-                      <TableCell className="font-medium text-slate-900 max-w-[180px] truncate" title={item.businessName}>
-                        {item.businessName}
-                      </TableCell>
-                      <TableCell className="text-slate-700 max-w-[200px] truncate" title={item.listingName}>
-                        {item.listingName}
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        <Badge variant="outline" className="text-xs font-medium">
-                          {item.kind}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="whitespace-nowrap text-xs font-medium text-slate-600">
-                        {item.groupLabel}
-                      </TableCell>
-                      <TableCell className="pr-6 font-medium text-slate-800 whitespace-nowrap">
-                        {item.itemLabel}
-                      </TableCell>
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">Renewal Date</TableHead>
+                      <TableHead>Business Name</TableHead>
+                      <TableHead>Listing Name</TableHead>
+                      <TableHead>Contact / Email</TableHead>
+                      <TableHead>Kind</TableHead>
+                      <TableHead>Group</TableHead>
+                      <TableHead>Plan / Feature</TableHead>
+                      <TableHead>Cycle</TableHead>
+                      <TableHead className="text-right">Amount</TableHead>
+                      <TableHead className="pr-6 text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {renewalPagination.pageItems.map((item) => (
+                      <TableRow
+                        key={item.id}
+                        className={item.listing ? "hover:bg-slate-50/70" : ""}
+                      >
+                        <TableCell className="pl-6 font-medium text-slate-700 whitespace-nowrap">
+                          {item.renewalDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                        </TableCell>
+                        <TableCell className="font-medium text-slate-900 max-w-[160px] truncate" title={item.businessName}>
+                          {item.businessName}
+                        </TableCell>
+                        <TableCell className="text-slate-700 max-w-[180px] truncate" title={item.listingName}>
+                          {item.listingName}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-600 max-w-[180px]">
+                          <div className="font-medium text-slate-800 truncate" title={item.contactName}>{item.contactName}</div>
+                          <div className="text-slate-400 truncate text-[11px]" title={item.contactEmail}>{item.contactEmail}</div>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <Badge variant="outline" className={`text-xs font-medium ${item.kind === "Feature" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}>
+                            {item.kind}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-xs font-medium text-slate-600">
+                          {item.groupLabel}
+                        </TableCell>
+                        <TableCell className="font-medium text-slate-800 whitespace-nowrap">
+                          {item.itemLabel}
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
+                            {item.cycle}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-slate-900 whitespace-nowrap">
+                          {item.amountDisplay}
+                        </TableCell>
+                        <TableCell className="pr-6 text-right whitespace-nowrap">
+                          {item.listing ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 px-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                              onClick={() => onViewListing(item.listing!)}
+                            >
+                              View
+                            </Button>
+                          ) : (
+                            <span className="text-slate-400 text-xs">—</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <TablePaginationBar {...renewalPagination} itemLabel="renewals" />
+            </>
           )}
         </CardContent>
       </Card>
@@ -5482,92 +5742,6 @@ function formatPartnerCreatedAt(raw: any) {
   });
 
   return { date: dateStr, time: timeStr };
-}
-
-const TABLE_PAGE_SIZES = [10, 25, 50, 100] as const;
-
-function useTablePagination<T>(items: T[], initialSize = 25) {
-  const [page, setPage] = useState(0);
-  const [pageSize, setPageSize] = useState<number>(initialSize);
-
-  const pageCount = Math.max(1, Math.ceil(items.length / pageSize));
-  const safePage = Math.min(page, pageCount - 1);
-
-  useEffect(() => {
-    setPage(0);
-  }, [items.length, pageSize]);
-
-  const pageItems = useMemo(
-    () => items.slice(safePage * pageSize, safePage * pageSize + pageSize),
-    [items, safePage, pageSize],
-  );
-
-  const startIndex = items.length === 0 ? 0 : safePage * pageSize + 1;
-  const endIndex = Math.min(items.length, safePage * pageSize + pageSize);
-
-  return {
-    page: safePage,
-    setPage,
-    pageSize,
-    setPageSize,
-    pageCount,
-    pageItems,
-    totalCount: items.length,
-    startIndex,
-    endIndex,
-  };
-}
-
-function TablePaginationBar({
-  page,
-  pageCount,
-  pageSize,
-  totalCount,
-  startIndex,
-  endIndex,
-  onPageChange,
-  onPageSizeChange,
-  itemLabel = "rows",
-}: {
-  page: number;
-  pageCount: number;
-  pageSize: number;
-  totalCount: number;
-  startIndex: number;
-  endIndex: number;
-  onPageChange: (p: number) => void;
-  onPageSizeChange: (s: number) => void;
-  itemLabel?: string;
-}) {
-  return (
-    <div className="px-4 py-3 border-t border-slate-200 bg-slate-50/70 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <div className="flex items-center gap-3 text-xs text-slate-600">
-        <span>
-          Showing <strong className="text-slate-900">{startIndex}–{endIndex}</strong> of{" "}
-          <strong className="text-slate-900">{totalCount}</strong> {itemLabel}
-        </span>
-        <label className="inline-flex items-center gap-1.5">
-          <span className="text-slate-500">Rows:</span>
-          <select
-            value={pageSize}
-            onChange={(e) => onPageSizeChange(Number(e.target.value))}
-            className="h-7 rounded border border-slate-200 bg-white px-2 text-xs font-medium text-slate-700"
-          >
-            {TABLE_PAGE_SIZES.map((sz) => (
-              <option key={sz} value={sz}>
-                {sz}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <AdminTablePagination
-        page={page}
-        pageCount={pageCount}
-        onPageChange={onPageChange}
-      />
-    </div>
-  );
 }
 
 function PartnerList({
@@ -5785,6 +5959,8 @@ function PartnerList({
 function FeaturedPlansTab({
   featuredPlans,
   partners,
+  listings = [],
+  transactions = [],
   featuredPlansConfig,
   onEditPlan,
   onDeletePlan,
@@ -5792,26 +5968,47 @@ function FeaturedPlansTab({
 }: {
   featuredPlans: FeaturedPlanPurchase[];
   partners: PartnerRecord[];
+  listings?: ListingRecord[];
+  transactions?: any[];
   featuredPlansConfig: FeaturedPlansConfig;
   onEditPlan: (plan: FeaturedPlanOption, groupName: string) => void;
   onDeletePlan: (plan: FeaturedPlanOption, groupName: string) => void;
   onTogglePlanStatus: (plan: FeaturedPlanOption, groupName: string) => void;
 }) {
-
-
   const recentPurchases = useMemo(() => {
+    const resolveDateValue = (p: any) => {
+      const partner = partners.find((pt) => pt.id === p.partnerId);
+      const listing = p.listingId ? listings.find((l) => l.id === p.listingId) : undefined;
+      const matchTxn = transactions.find(
+        (t) =>
+          (p.listingId && t.listingId === p.listingId && (t.type === "feature" || t.featureId)) ||
+          (p.featureId && t.featureId === p.featureId && t.partnerId === p.partnerId) ||
+          (t.partnerId && t.partnerId === p.partnerId && (t.type === "feature" || t.featureId))
+      );
+
+      return (
+        p.lastPaymentReceived ||
+        p.lastPaymentReceivedAt ||
+        p.billingPeriodStart ||
+        p.createdAt ||
+        p.startDate ||
+        p.accessThrough ||
+        p.billingPeriodEnd ||
+        p.timestamp ||
+        p.date ||
+        listing?.featureSpotlightBillingPeriodStart ||
+        listing?.featureSpotlightBillingPeriodEnd ||
+        listing?.createdAt ||
+        partner?.lastPaymentReceivedAt ||
+        partner?.subscribedOn ||
+        partner?.createdAt ||
+        matchTxn?.createdAt
+      );
+    };
+
     const sorted = [...featuredPlans].sort((a: any, b: any) => {
       const getMs = (p: any) => {
-        const d =
-          p.lastPaymentReceived ||
-          p.lastPaymentReceivedAt ||
-          p.billingPeriodStart ||
-          p.createdAt ||
-          p.startDate ||
-          p.accessThrough ||
-          p.billingPeriodEnd ||
-          p.timestamp ||
-          p.date;
+        const d = resolveDateValue(p);
         if (!d) return 0;
         if (typeof d?.toMillis === "function") return d.toMillis();
         if (typeof d?.toDate === "function") return d.toDate().getTime();
@@ -5823,14 +6020,16 @@ function FeaturedPlansTab({
       return getMs(b) - getMs(a);
     });
 
-    return sorted.slice(0, 12).map((feature) => {
+    return sorted.slice(0, 15).map((feature) => {
       const partner = partners.find((p) => p.id === feature.partnerId);
+      const listing = feature.listingId ? listings.find((l) => l.id === feature.listingId) : undefined;
       return {
         ...feature,
-        partnerName: partner?.businessName || "Unknown partner",
+        partnerName: partner?.businessName || listing?.businessName || "Unknown partner",
+        resolvedDate: resolveDateValue(feature),
       };
     });
-  }, [featuredPlans, partners]);
+  }, [featuredPlans, partners, listings, transactions]);
 
   const groups = featuredPlansConfig?.groups || [];
 
@@ -5953,6 +6152,7 @@ function FeaturedPlansTab({
                     </TableCell>
                     <TableCell className="pr-6 text-slate-500">
                       {formatAdminDate(
+                        (purchase as any).resolvedDate ||
                         purchase.lastPaymentReceived ||
                         (purchase as any).lastPaymentReceivedAt ||
                         (purchase as any).billingPeriodStart ||
