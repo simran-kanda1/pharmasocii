@@ -41,8 +41,8 @@ export function AdminPostListTable({
   const colSpan = archived ? 14 : 13;
 
   return (
-    <div className="rounded-lg border bg-white overflow-x-auto">
-      <Table>
+    <div className="rounded-lg border bg-white overflow-auto max-h-[68vh] admin-table-scrollbar">
+      <Table className="min-w-max">
         <TableHeader>
           <TableRow>
             <TableHead>Sr.</TableHead>

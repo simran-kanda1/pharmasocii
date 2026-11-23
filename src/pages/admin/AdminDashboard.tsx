@@ -5840,8 +5840,8 @@ function OverviewTab({
             </p>
           ) : (
             <>
-              <div className="overflow-x-auto">
-                <Table>
+              <div className="overflow-auto max-h-[60vh] admin-table-scrollbar">
+                <Table className="min-w-max">
                   <TableHeader>
                     <TableRow>
                       <TableHead className="pl-6">Renewal Date</TableHead>
@@ -5936,41 +5936,43 @@ function OverviewTab({
             {pendingPayments.length === 0 ? (
               <p className="text-sm text-slate-500 px-6 pb-6">No incomplete checkouts for the current month.</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Business / Listing</TableHead>
-                    <TableHead>Plan / Feature</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right pr-6">Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pendingPayments.slice(0, 7).map((item) => (
-                    <TableRow
-                      key={item.id}
-                      className={item.listing ? "cursor-pointer hover:bg-slate-50/70" : ""}
-                      onClick={() => item.listing && onViewListing(item.listing)}
-                    >
-                      <TableCell className="pl-6 max-w-[200px]">
-                        <p className="font-medium text-slate-900 truncate" title={item.businessName}>{item.businessName}</p>
-                        {item.listingName && item.listingName !== item.businessName && (
-                          <p className="text-xs text-slate-500 truncate" title={item.listingName}>{item.listingName}</p>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-700">{item.itemLabel}</TableCell>
-                      <TableCell>
-                        <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-medium whitespace-nowrap">
-                          {item.statusLabel}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-right pr-6 text-slate-500 text-xs whitespace-nowrap">
-                        {item.dateObj ? item.dateObj.toLocaleDateString() : "—"}
-                      </TableCell>
+              <div className="overflow-auto max-h-[420px] admin-table-scrollbar">
+                <Table className="min-w-max">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">Business / Listing</TableHead>
+                      <TableHead>Plan / Feature</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right pr-6">Date</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {pendingPayments.slice(0, 7).map((item) => (
+                      <TableRow
+                        key={item.id}
+                        className={item.listing ? "cursor-pointer hover:bg-slate-50/70" : ""}
+                        onClick={() => item.listing && onViewListing(item.listing)}
+                      >
+                        <TableCell className="pl-6 max-w-[200px]">
+                          <p className="font-medium text-slate-900 truncate" title={item.businessName}>{item.businessName}</p>
+                          {item.listingName && item.listingName !== item.businessName && (
+                            <p className="text-xs text-slate-500 truncate" title={item.listingName}>{item.listingName}</p>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-700">{item.itemLabel}</TableCell>
+                        <TableCell>
+                          <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-medium whitespace-nowrap">
+                            {item.statusLabel}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-right pr-6 text-slate-500 text-xs whitespace-nowrap">
+                          {item.dateObj ? item.dateObj.toLocaleDateString() : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -5989,44 +5991,46 @@ function OverviewTab({
             {failedPayments.length === 0 ? (
               <p className="text-sm text-slate-500 px-6 pb-6">No failed payments recorded for the current month.</p>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="pl-6">Business / Listing</TableHead>
-                    <TableHead>Plan / Feature</TableHead>
-                    <TableHead>Amount</TableHead>
-                    <TableHead className="text-right pr-6">Date</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {failedPayments.slice(0, 7).map((item) => (
-                    <TableRow
-                      key={item.id}
-                      className={item.listing ? "cursor-pointer hover:bg-slate-50/70" : ""}
-                      onClick={() => item.listing && onViewListing(item.listing)}
-                    >
-                      <TableCell className="pl-6 max-w-[200px]">
-                        <p className="font-medium text-slate-900 truncate" title={item.businessName}>{item.businessName}</p>
-                        {item.listingName && item.listingName !== item.businessName && (
-                          <p className="text-xs text-slate-500 truncate" title={item.listingName}>{item.listingName}</p>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-xs text-slate-700">
-                        <div>{item.itemLabel}</div>
-                        <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] font-medium mt-0.5">
-                          {item.statusLabel}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="font-semibold text-rose-600 text-sm whitespace-nowrap">
-                        {item.amountDisplay}
-                      </TableCell>
-                      <TableCell className="text-right pr-6 text-slate-500 text-xs whitespace-nowrap">
-                        {item.dateObj ? item.dateObj.toLocaleDateString() : "—"}
-                      </TableCell>
+              <div className="overflow-auto max-h-[420px] admin-table-scrollbar">
+                <Table className="min-w-max">
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="pl-6">Business / Listing</TableHead>
+                      <TableHead>Plan / Feature</TableHead>
+                      <TableHead>Amount</TableHead>
+                      <TableHead className="text-right pr-6">Date</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {failedPayments.slice(0, 7).map((item) => (
+                      <TableRow
+                        key={item.id}
+                        className={item.listing ? "cursor-pointer hover:bg-slate-50/70" : ""}
+                        onClick={() => item.listing && onViewListing(item.listing)}
+                      >
+                        <TableCell className="pl-6 max-w-[200px]">
+                          <p className="font-medium text-slate-900 truncate" title={item.businessName}>{item.businessName}</p>
+                          {item.listingName && item.listingName !== item.businessName && (
+                            <p className="text-xs text-slate-500 truncate" title={item.listingName}>{item.listingName}</p>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-xs text-slate-700">
+                          <div>{item.itemLabel}</div>
+                          <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] font-medium mt-0.5">
+                            {item.statusLabel}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="font-semibold text-rose-600 text-sm whitespace-nowrap">
+                          {item.amountDisplay}
+                        </TableCell>
+                        <TableCell className="text-right pr-6 text-slate-500 text-xs whitespace-nowrap">
+                          {item.dateObj ? item.dateObj.toLocaleDateString() : "—"}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -6044,26 +6048,28 @@ function OverviewTab({
           </Button>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Partner</TableHead>
-                <TableHead>Amount</TableHead>
-                <TableHead className="text-right pr-6">Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentSuccessfulTransactions.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell className="pl-6">{t.customerEmail || "-"}</TableCell>
-                  <TableCell className="font-semibold text-emerald-700">${t.amount?.toFixed(2) || "0.00"}</TableCell>
-                  <TableCell className="text-right pr-6 text-slate-500">
-                    {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "-"}
-                  </TableCell>
+          <div className="overflow-auto max-h-[420px] admin-table-scrollbar">
+            <Table className="min-w-max">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="pl-6">Partner</TableHead>
+                  <TableHead>Amount</TableHead>
+                  <TableHead className="text-right pr-6">Date</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {recentSuccessfulTransactions.map((t) => (
+                  <TableRow key={t.id}>
+                    <TableCell className="pl-6">{t.customerEmail || "-"}</TableCell>
+                    <TableCell className="font-semibold text-emerald-700">${t.amount?.toFixed(2) || "0.00"}</TableCell>
+                    <TableCell className="text-right pr-6 text-slate-500">
+                      {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "-"}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -6486,49 +6492,51 @@ function FeaturedPlansTab({
           <CardTitle>Recent Featured Purchases</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="pl-6">Partner</TableHead>
-                <TableHead>Feature</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="pr-6">Date</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {recentPurchases.length === 0 ? (
+          <div className="overflow-auto max-h-[50vh] admin-table-scrollbar">
+            <Table className="min-w-max">
+              <TableHeader>
                 <TableRow>
-                  <TableCell className="pl-6 text-slate-500" colSpan={4}>
-                    No featured purchases yet.
-                  </TableCell>
+                  <TableHead className="pl-6">Partner</TableHead>
+                  <TableHead>Feature</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="pr-6">Date</TableHead>
                 </TableRow>
-              ) : (
-                recentPurchases.map((purchase) => (
-                  <TableRow key={purchase.id}>
-                    <TableCell className="pl-6">{purchase.partnerName}</TableCell>
-                    <TableCell>{purchase.featureName || purchase.featureId || "-"}</TableCell>
-                    <TableCell>
-                      {getStatusBadge(getEffectiveFeatureStatus(purchase))}
-                    </TableCell>
-                    <TableCell className="pr-6 text-slate-500">
-                      {formatAdminDate(
-                        (purchase as any).resolvedDate ||
-                        purchase.lastPaymentReceived ||
-                        (purchase as any).lastPaymentReceivedAt ||
-                        (purchase as any).billingPeriodStart ||
-                        purchase.createdAt ||
-                        (purchase as any).startDate ||
-                        purchase.accessThrough ||
-                        (purchase as any).billingPeriodEnd ||
-                        (purchase as any).timestamp ||
-                        (purchase as any).date
-                      )}
+              </TableHeader>
+              <TableBody>
+                {recentPurchases.length === 0 ? (
+                  <TableRow>
+                    <TableCell className="pl-6 text-slate-500" colSpan={4}>
+                      No featured purchases yet.
                     </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
+                ) : (
+                  recentPurchases.map((purchase) => (
+                    <TableRow key={purchase.id}>
+                      <TableCell className="pl-6">{purchase.partnerName}</TableCell>
+                      <TableCell>{purchase.featureName || purchase.featureId || "-"}</TableCell>
+                      <TableCell>
+                        {getStatusBadge(getEffectiveFeatureStatus(purchase))}
+                      </TableCell>
+                      <TableCell className="pr-6 text-slate-500">
+                        {formatAdminDate(
+                          (purchase as any).resolvedDate ||
+                          purchase.lastPaymentReceived ||
+                          (purchase as any).lastPaymentReceivedAt ||
+                          (purchase as any).billingPeriodStart ||
+                          purchase.createdAt ||
+                          (purchase as any).startDate ||
+                          purchase.accessThrough ||
+                          (purchase as any).billingPeriodEnd ||
+                          (purchase as any).timestamp ||
+                          (purchase as any).date
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
@@ -6693,8 +6701,9 @@ function CategoryBreakdownTable({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
+          <div className="overflow-auto max-h-[68vh] admin-table-scrollbar">
+            <Table className="min-w-max">
+              <TableHeader>
               <TableRow>
                 <TableHead className="pl-6">Group</TableHead>
                 <TableHead>Category</TableHead>
@@ -6805,7 +6814,8 @@ function CategoryBreakdownTable({
               )}
             </TableBody>
           </Table>
-        </CardContent>
+        </div>
+      </CardContent>
       </Card>
 
       {editingCategory && (
