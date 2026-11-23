@@ -991,7 +991,7 @@ export function AdminAddCategory({
             </div>
             <div className="space-y-2">
               <Label className="text-xs text-slate-600">
-                Paste subcategory names separated by newlines or commas:
+                Paste Subcategory Names (Separated by Newlines or Commas):
               </Label>
               <textarea
                 rows={6}

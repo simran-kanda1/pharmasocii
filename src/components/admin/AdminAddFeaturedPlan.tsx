@@ -276,7 +276,7 @@ export function AdminAddFeaturedPlan({ initialPlan, initialGroup, onCancel, onSu
             </div>
 
             <div className="grid grid-cols-[200px_1fr] items-center gap-4">
-              <Label className="text-slate-600 font-medium">Duration (in days)</Label>
+              <Label className="text-slate-600 font-medium">Duration (in Days)</Label>
               <Input
                 type="number"
                 required

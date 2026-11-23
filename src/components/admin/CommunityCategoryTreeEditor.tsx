@@ -26,7 +26,7 @@ function SubSubRow({
     <div className="flex flex-wrap items-end gap-2 rounded-md border border-slate-100 bg-slate-50/80 p-3 dark:border-foreground/10 dark:bg-muted/20">
       <div className="min-w-[140px] flex-1 space-y-1">
         <label className="text-[10px] font-medium tracking-wide text-muted-foreground">
-          Sub-sub label
+          Sub-Sub Label
         </label>
         <Input
           value={ss.label}
@@ -104,7 +104,7 @@ function SubBlock({
       <div className="flex flex-wrap items-end gap-2">
         <div className="min-w-[160px] flex-1 space-y-1">
           <label className="text-[10px] font-medium tracking-wide text-muted-foreground">
-            Sub-category label
+            Sub-Category Label
           </label>
           <Input
             value={sub.label}
@@ -236,7 +236,7 @@ function MainBlock({
           <div className="flex flex-wrap items-end gap-2">
             <div className="min-w-[180px] flex-1 space-y-1">
               <label className="text-[10px] font-medium tracking-wide text-muted-foreground">
-                Main label
+                Main Label
               </label>
               <Input
                 value={main.label}

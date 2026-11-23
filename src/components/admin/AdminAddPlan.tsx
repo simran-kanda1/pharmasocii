@@ -118,7 +118,7 @@ export function AdminAddPlan({ onCancel, onSuccess }: { onCancel: () => void; on
             </div>
 
             <div className="grid grid-cols-[200px_1fr] items-center gap-4">
-              <Label className="text-slate-600 font-medium">Stripe price id</Label>
+              <Label className="text-slate-600 font-medium">Stripe Price ID</Label>
               <Input 
                 value={formData.stripePriceId} 
                 onChange={(e) => handleChange("stripePriceId", e.target.value)} 
@@ -126,7 +126,7 @@ export function AdminAddPlan({ onCancel, onSuccess }: { onCancel: () => void; on
             </div>
 
             <div className="grid grid-cols-[200px_1fr] items-center gap-4">
-              <Label className="text-slate-600 font-medium">Days (in days)</Label>
+              <Label className="text-slate-600 font-medium">Days (in Days)</Label>
               <Input 
                 type="number"
                 value={formData.days} 

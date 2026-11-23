@@ -180,13 +180,13 @@ export default function PlansCMS() {
                                         
                                         <div className="grid grid-cols-2 gap-2">
                                             <div><Label>Monthly Price</Label><Input type="number" value={plan.monthlyPrice} onChange={e => updatePlan(groupIndex, planIndex, 'monthlyPrice', Number(e.target.value))} /></div>
-                                            {group.hasAnnualToggle && <div><Label>Yearly (/mo equiv)</Label><Input type="number" value={plan.yearlyMonthlyPrice} onChange={e => updatePlan(groupIndex, planIndex, 'yearlyMonthlyPrice', Number(e.target.value))} /></div>}
+                                            {group.hasAnnualToggle && <div><Label>Yearly (/Mo Equiv)</Label><Input type="number" value={plan.yearlyMonthlyPrice} onChange={e => updatePlan(groupIndex, planIndex, 'yearlyMonthlyPrice', Number(e.target.value))} /></div>}
                                             {group.hasAnnualToggle && <div><Label>Yearly Total</Label><Input type="number" value={plan.yearlyTotalPrice} onChange={e => updatePlan(groupIndex, planIndex, 'yearlyTotalPrice', Number(e.target.value))} /></div>}
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-2">
-                                            <div><Label>Max Categories (-1 for unlim)</Label><Input type="number" value={plan.maxCategories} onChange={e => updatePlan(groupIndex, planIndex, 'maxCategories', Number(e.target.value))} /></div>
-                                            <div><Label>Max Countries (-1 for unlim)</Label><Input type="number" value={plan.maxCountries} onChange={e => updatePlan(groupIndex, planIndex, 'maxCountries', Number(e.target.value))} /></div>
+                                            <div><Label>Max Categories (-1 for Unlimited)</Label><Input type="number" value={plan.maxCategories} onChange={e => updatePlan(groupIndex, planIndex, 'maxCategories', Number(e.target.value))} /></div>
+                                            <div><Label>Max Countries (-1 for Unlimited)</Label><Input type="number" value={plan.maxCountries} onChange={e => updatePlan(groupIndex, planIndex, 'maxCountries', Number(e.target.value))} /></div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-2">

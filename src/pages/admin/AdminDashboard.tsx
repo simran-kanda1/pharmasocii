@@ -3337,11 +3337,11 @@ export default function AdminDashboard() {
             </a>
             <p className="text-[11px] font-semibold tracking-wider text-slate-400 px-3 pt-4 pb-1">Community</p>
             <SidebarItem label="Members" icon={User} active={activeTab === "communityMembers"} onClick={() => setActiveTab("communityMembers")} />
-            <SidebarItem label="Member posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
-            <SidebarItem label="Archive posts" icon={FileText} active={activeTab === "communityArchivePosts"} onClick={() => setActiveTab("communityArchivePosts")} />
-            <SidebarItem label="Reported comments" icon={Flag} active={activeTab === "communityReportedComments"} onClick={() => setActiveTab("communityReportedComments")} />
-            <SidebarItem label="Community categories" icon={Tags} active={activeTab === "communityCategories"} onClick={() => setActiveTab("communityCategories")} />
-            <SidebarItem label="Email log" icon={History} active={activeTab === "emailLog"} onClick={() => setActiveTab("emailLog")} />
+            <SidebarItem label="Member Posts" icon={MessageSquare} active={activeTab === "communityPosts"} onClick={() => setActiveTab("communityPosts")} />
+            <SidebarItem label="Archive Posts" icon={FileText} active={activeTab === "communityArchivePosts"} onClick={() => setActiveTab("communityArchivePosts")} />
+            <SidebarItem label="Reported Comments" icon={Flag} active={activeTab === "communityReportedComments"} onClick={() => setActiveTab("communityReportedComments")} />
+            <SidebarItem label="Community Categories" icon={Tags} active={activeTab === "communityCategories"} onClick={() => setActiveTab("communityCategories")} />
+            <SidebarItem label="Email Log" icon={History} active={activeTab === "emailLog"} onClick={() => setActiveTab("emailLog")} />
             <SidebarItem label="Member Audit Trail" icon={History} active={activeTab === "memberAudit"} onClick={() => setActiveTab("memberAudit")} />
             <SidebarItem label="Settings" icon={Settings} active={activeTab === "settings"} onClick={() => setActiveTab("settings")} />
         </nav>
@@ -4060,7 +4060,7 @@ export default function AdminDashboard() {
             </div>
 
             <Field 
-              label="Selected Group (business_offerings, consulting, events, jobs)" 
+              label="Selected Group (Business Offerings, Consulting, Events, Jobs)" 
               value={partnerEditor.selectedGroup || ""} 
               onChange={(v) => setPartnerEditor((prev) => ({ ...prev, selectedGroup: v }))} 
               disabled={!Boolean(selectedPartner && (selectedPartner as any).createdByAdmin)}
@@ -4531,7 +4531,7 @@ export default function AdminDashboard() {
                       <option value="Disabled">Disabled</option>
                     </select>
                   </div>
-                  <Field label="Active (true or false)" value={listingEditor.active || "true"} onChange={() => {}} disabled={true} />
+                  <Field label="Active (True or False)" value={listingEditor.active || "true"} onChange={() => {}} disabled={true} />
                   <Field label="Plan" value={listingEditor.selectedPlan || ""} onChange={() => {}} disabled={true} />
                   <Field label="Listing Type" value={typeLabel} onChange={() => {}} disabled={true} />
                   <Field 
@@ -4617,8 +4617,8 @@ export default function AdminDashboard() {
                       <div className="border-b pb-2 pt-2 mb-2">
                         <h3 className="font-semibold text-slate-900 text-sm">{isConsulting ? "Consulting Service Details" : "Business Offering Details"}</h3>
                       </div>
-                      <Field label="Bio Safety Level (BSL) (comma separated, e.g. 1,2,3)" value={listingEditor.bioSafetyLevelCsv || ""} onChange={() => {}} disabled={true} />
-                      <Field label="Certifications (comma separated, e.g. GMP,ISO 9001)" value={listingEditor.certificationsCsv || ""} onChange={() => {}} disabled={true} />
+                      <Field label="Bio Safety Level (BSL) (Comma-Separated, e.g. 1, 2, 3)" value={listingEditor.bioSafetyLevelCsv || ""} onChange={() => {}} disabled={true} />
+                      <Field label="Certifications (Comma-Separated, e.g. GMP, ISO 9001)" value={listingEditor.certificationsCsv || ""} onChange={() => {}} disabled={true} />
                       <div className="space-y-1">
                         <p className="text-sm font-medium text-slate-500">Company Representatives (JSON)</p>
                         <Textarea

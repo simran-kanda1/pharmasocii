@@ -1138,11 +1138,11 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Building className="w-5 h-5 text-blue-500" /> Primary Account Admin</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-slate-600 font-medium">First name <span className="text-blue-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">First Name <span className="text-blue-500">*</span></Label>
                   <Input value={formData.firstName} onChange={(e) => handleChange("firstName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Last name <span className="text-blue-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Last Name <span className="text-blue-500">*</span></Label>
                   <Input value={formData.lastName} onChange={(e) => handleChange("lastName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
@@ -1197,7 +1197,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 </div>
                 <div>
                   <div className="relative">
-                    <Label className="text-slate-600 font-medium">Confirm password <span className="text-blue-500">*</span></Label>
+                    <Label className="text-slate-600 font-medium">Confirm Password <span className="text-blue-500">*</span></Label>
                     <Input type={showConfirmPassword ? "text" : "password"} value={formData.confirmPassword} onChange={(e) => handleChange("confirmPassword", e.target.value)} className={`mt-1.5 bg-white focus:border-blue-500 pr-10 ${passwordsMismatch ? "border-red-400" : "border-slate-200"}`} />
                     <button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)} className="absolute right-3 top-[34px] text-slate-400 hover:text-slate-600">
                       {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -1219,23 +1219,23 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2"><Building2 className="w-5 h-5 text-blue-500" /> Company Profile Info</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label className="text-slate-600 font-medium">Company name <span className="text-blue-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Company Name <span className="text-blue-500">*</span></Label>
                   <Input value={formData.companyName} onChange={(e) => handleChange("companyName", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                   <p className="text-xs text-slate-400 mt-1">Original capitalization preserved.</p>
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Company website <span className="text-blue-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Company Website <span className="text-blue-500">*</span></Label>
                   <Input type="url" placeholder="https://" value={formData.companyWebsite} onChange={(e) => handleChange("companyWebsite", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Business phone <span className="text-blue-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Business Phone <span className="text-blue-500">*</span></Label>
                   <PhoneInput defaultCountry="US" value={toPhoneInputValue(formData.businessPhone) || undefined}
                     onChange={(value) => handleChange("businessPhone", value || '')}
                     className="flex h-10 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm mt-1.5" />
                   <p className="text-xs text-slate-400 mt-1">Choose a country before adding your phone number</p>
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">LinkedIn profile</Label>
+                  <Label className="text-slate-600 font-medium">LinkedIn Profile</Label>
                   <Input type="url" placeholder="https://linkedin.com/company/..." value={formData.linkedinProfile} onChange={(e) => handleChange("linkedinProfile", e.target.value)} className="mt-1.5 bg-white border-slate-200 focus:border-blue-500" />
                 </div>
               </div>
@@ -1272,7 +1272,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-slate-600 font-medium">Full business address <span className="text-blue-500">*</span></Label>
+                  <Label className="text-slate-600 font-medium">Full Business Address <span className="text-blue-500">*</span></Label>
                   <Textarea value={formData.addressHtml} onChange={(e) => handleChange("addressHtml", e.target.value)} className="mt-1.5 bg-white border-slate-200 resize-none h-[100px] text-sm" placeholder="123 Science Way&#10;Suite 100&#10;San Francisco, CA 94107" />
                 </div>
               </div>
@@ -1280,7 +1280,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
             <div className="bg-slate-50/50 p-6 rounded-2xl border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label className="text-slate-600 font-medium">Company logo</Label>
+                <Label className="text-slate-600 font-medium">Company Logo</Label>
                 <div className="flex items-center gap-4 mt-2">
                   <label className="flex items-center justify-center px-4 py-2 bg-slate-100 border border-slate-200 rounded-lg cursor-pointer hover:bg-slate-200 transition-colors">
                     <UploadCloud className="w-5 h-5 mr-2 text-slate-600" />
@@ -1316,13 +1316,13 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     <Input
                       value={rep.firstName}
                       onChange={(e) => updateRepresentative(index, "firstName", e.target.value)}
-                      placeholder="First name"
+                      placeholder="First Name"
                       className="bg-white border-slate-200"
                     />
                     <Input
                       value={rep.lastName}
                       onChange={(e) => updateRepresentative(index, "lastName", e.target.value)}
-                      placeholder="Last name"
+                      placeholder="Last Name"
                       className="bg-white border-slate-200"
                     />
                     <div className="flex gap-2">
@@ -1355,7 +1355,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
           <div className="space-y-6 animate-fadeIn max-w-xl mx-auto">
             <div className="bg-slate-50/50 p-8 rounded-2xl border border-slate-100 space-y-6">
               <div>
-                <Label className="text-slate-600 font-bold mb-1.5 block">Select group <span className="text-blue-500">*</span></Label>
+                <Label className="text-slate-600 font-bold mb-1.5 block">Select Group <span className="text-blue-500">*</span></Label>
                 <Select value={formData.selectedGroup} onValueChange={(val) => handleSelectChange("selectedGroup", val)}>
                   <SelectTrigger className="w-full h-11 bg-white border-slate-200">
                     <SelectValue placeholder="Select group" />
@@ -1367,7 +1367,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
               </div>
 
               <div>
-                <Label className="text-slate-600 font-bold mb-1.5 block">Payment plans <span className="text-blue-500">*</span></Label>
+                <Label className="text-slate-600 font-bold mb-1.5 block">Payment Plans <span className="text-blue-500">*</span></Label>
                 <Select value={formData.selectedPlan} onValueChange={(val) => handleSelectChange("selectedPlan", val)} disabled={!formData.selectedGroup}>
                   <SelectTrigger className="w-full h-11 bg-white border-slate-200">
                     <SelectValue placeholder={formData.selectedGroup ? "Select plan" : "Select a group first"} />
@@ -1401,7 +1401,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
               {groupKey !== "events" && groupKey !== "jobs" && (
                 <div>
-                  <Label className="text-slate-600 font-bold mb-1.5 block">Featured partner plan (monthly)</Label>
+                  <Label className="text-slate-600 font-bold mb-1.5 block">Featured Partner Plan (Monthly)</Label>
                   <Select value={formData.featuredPlan} onValueChange={(val) => handleSelectChange("featuredPlan", val)}>
                     <SelectTrigger className="w-full h-11 bg-white border-slate-200">
                       <SelectValue placeholder="No Feature" />
@@ -1561,7 +1561,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     <Input type="url" placeholder="https://" value={eventData.eventLink} onChange={e => setEventData(prev => ({ ...prev, eventLink: e.target.value }))} className="mt-1.5 bg-white border-slate-200" />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">Start date <span className="text-blue-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">Start Date <span className="text-blue-500">*</span></Label>
                     <Input
                       type="date"
                       value={eventData.startDate}
@@ -1578,7 +1578,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                     />
                   </div>
                   <div>
-                    <Label className="text-slate-600 font-semibold">{formData.selectedPlan === "basic_event" ? "Event date" : "End date"} <span className="text-blue-500">*</span></Label>
+                    <Label className="text-slate-600 font-semibold">{formData.selectedPlan === "basic_event" ? "Event Date" : "End Date"} <span className="text-blue-500">*</span></Label>
                     <Input
                       type="date"
                       value={eventData.endDate}
