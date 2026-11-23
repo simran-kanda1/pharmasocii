@@ -7652,6 +7652,20 @@ function buildNormalizedListingAuditRows({
   // Track which sessionIds already have a specific log (so legacy duplicate PAYMENT_SUCCESS for the same sessionId is skipped)
   const specificActionSessionIds = new Set<string>();
   const paidListingIdsWithPurchaseLog = new Set<string>();
+
+  // Mark all listings that have paid transactions or active status
+  transactions.forEach((t) => {
+    if (t.listingId && (t.status === "succeeded" || t.status === "paid" || (t.amount && t.amount > 0))) {
+      paidListingIdsWithPurchaseLog.add(String(t.listingId));
+    }
+  });
+  listings.forEach((l) => {
+    const s = String(l.status || "").toLowerCase().trim();
+    if (s && s !== "pending_payment" && s !== "pending payment" && s !== "pending") {
+      paidListingIdsWithPurchaseLog.add(String(l.id));
+    }
+  });
+
   auditLogs.forEach((log) => {
     const action = String(log.action || "").toUpperCase();
     const sid = log.metadata?.sessionId ? String(log.metadata.sessionId) : "";
@@ -7668,13 +7682,14 @@ function buildNormalizedListingAuditRows({
     if (action === "SUBSCRIPTION_PURCHASED" || action === "PAYMENT_SUCCESS") {
       const txn = sid ? txnBySessionId.get(sid) : null;
       const lid = log.metadata?.listingId || txn?.listingId || "";
-      if (lid && action === "SUBSCRIPTION_PURCHASED") {
+      if (lid) {
         paidListingIdsWithPurchaseLog.add(String(lid));
       }
     }
   });
 
   const rows: NormalizedListingAuditRow[] = [];
+  const seenActionIds = new Set<string>();
 
   for (const log of auditLogs) {
     const rawAction = String(log.action || "").toUpperCase();
@@ -7732,13 +7747,10 @@ function buildNormalizedListingAuditRows({
       resolvedListingId = matchedListing.id;
     }
 
-    // If a listing was paid and already has a SUBSCRIPTION_PURCHASED row, skip the pre-checkout PAYMENT_PENDING / LISTING_CREATED row for that same initial purchase
+    // If a listing was paid, skip the pre-checkout PAYMENT_PENDING / LISTING_CREATED row for that initial purchase
     if (
       (rawAction === "PAYMENT_PENDING" || rawAction === "LISTING_CREATED") &&
       resolvedListingId &&
-      matchedListing &&
-      String(matchedListing.status || "").toLowerCase() !== "pending_payment" &&
-      String(matchedListing.status || "").toLowerCase() !== "pending payment" &&
       paidListingIdsWithPurchaseLog.has(resolvedListingId)
     ) {
       continue;
@@ -7927,6 +7939,11 @@ function buildNormalizedListingAuditRows({
       log.id ||
       "-";
 
+    if (actionId && actionId !== "-") seenActionIds.add(actionId);
+    if (sid) seenActionIds.add(sid);
+    if (invId) seenActionIds.add(invId);
+    if (log.id) seenActionIds.add(log.id);
+
     rows.push({
       id: log.id || `${log.partnerId}-${timestampMs}-${eventKind}`,
       rawLog: log,
@@ -7946,6 +7963,94 @@ function buildNormalizedListingAuditRows({
       actionId,
     });
   }
+
+  // Synthesize rows for any transaction not already covered in auditLogs
+  for (const txn of transactions) {
+    const txnSid = String(txn.sessionId || "");
+    const txnInvId = String(txn.invoiceId || "");
+    const txnId = String(txn.id || "");
+    if (
+      (txnSid && seenActionIds.has(txnSid)) ||
+      (txnInvId && seenActionIds.has(txnInvId)) ||
+      (txnId && seenActionIds.has(txnId))
+    ) {
+      continue;
+    }
+
+    const resolvedListingId = txn.listingId || "";
+    const matchedListing = resolvedListingId ? listingById.get(resolvedListingId) : undefined;
+    const partner = txn.partnerId ? partnerById.get(txn.partnerId) : undefined;
+    const companyName = txn.businessName || partner?.businessName || matchedListing?.businessName || "-";
+    const listingName =
+      matchedListing?.title ||
+      matchedListing?.jobTitle ||
+      matchedListing?.eventName ||
+      matchedListing?.businessName ||
+      txn.listingName ||
+      companyName;
+
+    const desc = String(txn.description || "").toLowerCase();
+    const isUpgrade = desc.includes("upgrade");
+    const isRenewal = desc.includes("renewal") || desc.includes("recurring") || Boolean(txn.invoiceId);
+    const isFeature = txn.type === "feature" || Boolean(txn.featureId);
+
+    let eventKind: ListingAuditEventKind = "subscription_purchased";
+    let actionLabel = "New Listing";
+    let detailsLabel = "Initial Listing";
+
+    if (isUpgrade) {
+      eventKind = isFeature ? "feature_upgraded" : "subscription_upgraded";
+      actionLabel = isFeature ? "Feature Upgrade" : "Upgrade";
+      detailsLabel = txn.description || (isFeature ? "Feature upgrade" : "Plan upgraded");
+    } else if (isRenewal) {
+      eventKind = isFeature ? "feature_renewed" : "plan_renewed";
+      actionLabel = isFeature ? "Feature Renewed" : "Renewal";
+      detailsLabel = isFeature ? "Feature renewals" : "Plan renewals";
+    } else if (isFeature) {
+      eventKind = "feature_added";
+      actionLabel = "Feature Added";
+      detailsLabel = "Feature added";
+    }
+
+    const grpLabel = formatAuditGroupCode(txn.group || matchedListing?.selectedGroup, txn.planId || matchedListing?.selectedPlan);
+    const typeLabel = isFeature
+      ? formatAuditFeatureType(txn.featureId || "")
+      : formatAuditPlanType(txn.planId || matchedListing?.selectedPlan || "", grpLabel);
+
+    const byLabel: "Partner" | "System" | "Stripe" | "Admin" = isRenewal ? "System" : "Partner";
+    const paymentStatusLabel: "Complete" | "Pending" | "Payment Failed" | "N/A" =
+      txn.status === "failed" ? "Payment Failed" : "Complete";
+
+    const timestampMs = txn.createdAt?.seconds
+      ? txn.createdAt.seconds * 1000
+      : typeof txn.createdAt?.toDate === "function"
+        ? txn.createdAt.toDate().getTime()
+        : txn.date ? new Date(txn.date).getTime() : 0;
+    const dateTimeStr = timestampMs ? new Date(timestampMs).toLocaleString() : "Recently";
+    const actionId = txnSid || txnInvId || txnId || "-";
+
+    rows.push({
+      id: `txn-${txnId || actionId}`,
+      rawLog: txn,
+      timestampMs,
+      dateTimeStr,
+      partnerId: txn.partnerId || "",
+      companyName,
+      listingId: resolvedListingId,
+      listingName,
+      eventKind,
+      actionLabel,
+      grpLabel,
+      typeLabel,
+      byLabel,
+      detailsLabel,
+      paymentStatusLabel,
+      actionId,
+    });
+  }
+
+  // Ensure newest events appear first
+  rows.sort((a, b) => b.timestampMs - a.timestampMs);
 
   return rows;
 }
