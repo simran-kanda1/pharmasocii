@@ -5293,10 +5293,8 @@ function OverviewTab({
   const windows = useMemo(() => {
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    // Current calendar week (through end of Sunday of this week)
-    const day = now.getDay(); // 0 = Sun, 1 = Mon, ...
-    const daysToSunday = day === 0 ? 0 : 7 - day;
-    const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToSunday, 23, 59, 59, 999);
+    // Upcoming 7-day week window starting from start of today
+    const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 7, 23, 59, 59, 999);
     // Current calendar month (from 1st of this month through last day of this month)
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -5728,7 +5726,7 @@ function OverviewTab({
     );
   }, [renewalWindow, renewalsThisWeek, renewalsThisMonth, renewalSearch]);
 
-  const renewalPagination = useTablePagination(filteredRenewals, 25);
+  const renewalPagination = useTablePagination(filteredRenewals, 100);
 
   const fmtShortDate = (d: Date) =>
     d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
