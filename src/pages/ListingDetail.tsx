@@ -6,7 +6,7 @@ import {
     buildLiveListingKeySet,
     isPartnerListingPublic,
 } from "@/lib/partnerListingPublic";
-import { MapPin, Users, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText, LayoutList } from "lucide-react";
+import { MapPin, ShieldCheck, Phone, ExternalLink, Building2, Linkedin, Calendar, CalendarRange, Globe, Ticket, Briefcase, Clock, FileText, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -464,9 +464,12 @@ export default function ListingDetail() {
             subMap.forEach((ssSet, subLabel) => {
                 subs.push({
                     label: subLabel,
-                    subSubs: Array.from(ssSet),
+                    subSubs: Array.from(ssSet).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })),
                 });
             });
+
+            // Sort subcategories alphabetically
+            subs.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
 
             // Only display this area if:
             // 1. It has matched subcategories (subs.length > 0), OR
@@ -485,8 +488,12 @@ export default function ListingDetail() {
             }
         });
 
+        // Sort categories/areas in alphabetical order
+        grouped.sort((a, b) => a.area.localeCompare(b.area, undefined, { sensitivity: "base" }));
+
         // Only display "Other selected specializations" if there are actual unmatched orphan tokens
         if (orphanEntries.length > 0) {
+            orphanEntries.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
             grouped.push({
                 area: "Other selected specializations",
                 subs: orphanEntries,
@@ -958,12 +965,12 @@ export default function ListingDetail() {
                                 </h3>
                             </div>
                             <div className="p-8 flex flex-wrap gap-2">
-                                {item.selectedSubcategories.map((sub: string, idx: number) => (
+                                {item.selectedSubcategories.slice().sort((a: string, b: string) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((sub: string, idx: number) => (
                                     <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-primary/5 text-primary border-primary/10 font-medium">
                                         {sub.split(" > ").pop()}
                                     </Badge>
                                 ))}
-                                {Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.map((ss: string, idx: number) => (
+                                {Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.slice().sort((a: string, b: string) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((ss: string, idx: number) => (
                                     <Badge key={`ss-${idx}`} variant="outline" className="text-sm py-1.5 px-4 rounded-xl font-medium">
                                         {ss.split(" > ").pop()}
                                     </Badge>
@@ -983,12 +990,12 @@ export default function ListingDetail() {
                                 </h3>
                             </div>
                             <div className="p-8 flex flex-wrap gap-2">
-                                {item.selectedSubcategories.map((sub: string, idx: number) => (
+                                {item.selectedSubcategories.slice().sort((a: string, b: string) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((sub: string, idx: number) => (
                                     <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-primary/5 text-primary border-primary/10 font-medium">
                                         {sub.split(" > ").pop()}
                                     </Badge>
                                 ))}
-                                {Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.map((ss: string, idx: number) => (
+                                {Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.slice().sort((a: string, b: string) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((ss: string, idx: number) => (
                                     <Badge key={`ss-${idx}`} variant="outline" className="text-sm py-1.5 px-4 rounded-xl font-medium">
                                         {ss.split(" > ").pop()}
                                     </Badge>
@@ -1003,8 +1010,8 @@ export default function ListingDetail() {
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
-                                    <Building2 className="w-5 h-5 text-primary" /> Areas & Categories
+                                <h3 className="text-lg font-black text-foreground tracking-wider">
+                                    Areas & Categories
                                 </h3>
                             </div>
                             <table className="w-full text-left border-collapse">
@@ -1083,8 +1090,8 @@ export default function ListingDetail() {
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden border-2 border-slate-200">
                             <div className="bg-slate-50 px-8 py-6 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground tracking-tight flex items-center gap-2 tracking-wider">
-                                    <MapPin className="w-5 h-5 text-slate-500" /> Geographic Availability
+                                <h3 className="text-lg font-black text-foreground tracking-tight tracking-wider">
+                                    Geographic Availability
                                 </h3>
                             </div>
                             <div className="p-8">
@@ -1199,8 +1206,8 @@ export default function ListingDetail() {
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden border-2 border-slate-200">
                             <div className="bg-slate-50 px-8 py-6 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground tracking-tight flex items-center gap-2 tracking-wider">
-                                    <Users className="w-5 h-5 text-slate-500" /> Representative(s)
+                                <h3 className="text-lg font-black text-foreground tracking-tight tracking-wider">
+                                    Representative(s)
                                 </h3>
                             </div>
                             <div className="overflow-x-auto">

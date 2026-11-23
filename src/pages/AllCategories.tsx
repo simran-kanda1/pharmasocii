@@ -553,13 +553,19 @@ export default function AllCategories() {
         .sort((a, b) => featuredRecencyMs(b) - featuredRecencyMs(a));
     // ── Sidebar: uses selectedCategories array everywhere with full 3-level support ──
     const renderSidebarCategories = () => {
-        return Object.entries(currentCategoriesDict as CategoriesDict).map(([cat, subs]) => {
+        const sortedEntries = Object.entries(currentCategoriesDict as CategoriesDict).sort(([a], [b]) =>
+            a.localeCompare(b, undefined, { sensitivity: "base" })
+        );
+        return sortedEntries.map(([cat, subs]) => {
             const isExpanded = expandedCategories.includes(cat);
             const isSelectedCategory = selectedCategories.includes(cat);
+            const sortedSubs = [...(subs || [])].sort((a, b) =>
+                getSubLabel(a).localeCompare(getSubLabel(b), undefined, { sensitivity: "base" })
+            );
             return (
                 <div key={cat} className="flex flex-col gap-2">
                     <div className="flex items-start gap-2">
-                        {subs && subs.length > 0 ? (
+                        {sortedSubs && sortedSubs.length > 0 ? (
                             <button onClick={() => toggleExpandCategory(cat)} className="mt-1 flex-shrink-0">
                                 {isExpanded ? <ChevronDown className="w-4 h-4 text-foreground" strokeWidth={2.75} /> : <ChevronRight className="w-4 h-4 text-foreground" strokeWidth={2.75} />}
                             </button>
@@ -576,9 +582,9 @@ export default function AllCategories() {
                         </div>
                     </div>
 
-                    {isExpanded && subs && subs.length > 0 && (
+                    {isExpanded && sortedSubs && sortedSubs.length > 0 && (
                         <div className="pl-10 space-y-2 mb-2">
-                            {subs.map((entry) => {
+                            {sortedSubs.map((entry) => {
                                 const subLabel = getSubLabel(entry);
                                 const isNested = hasSubSub(entry);
                                 const compositeSubKey = `${cat} > ${subLabel}`;
@@ -611,7 +617,7 @@ export default function AllCategories() {
 
                                         {isNested && isSubExpanded && (
                                             <div className="pl-6 space-y-1.5 mt-1">
-                                                {entry.subSubcategories.map((subSub) => {
+                                                {[...(entry.subSubcategories || [])].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })).map((subSub) => {
                                                     const compositeSsKey = `${cat} > ${subLabel} > ${subSub}`;
                                                     const isSsChecked = selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(subSub);
                                                     return (
@@ -852,8 +858,8 @@ export default function AllCategories() {
                     <div className="flex flex-col gap-16 pb-24 w-full max-w-7xl mx-auto">
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                             {(showAllCategories
-                                ? Object.keys(currentCategoriesDict)
-                                : Object.keys(currentCategoriesDict).slice(0, 11)
+                                ? Object.keys(currentCategoriesDict).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }))
+                                : Object.keys(currentCategoriesDict).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })).slice(0, 11)
                             )
                                 .filter(cat =>
                                     cat.toLowerCase().includes(searchQuery.toLowerCase())
@@ -1176,10 +1182,10 @@ export default function AllCategories() {
                                         <div>
                                             <p className="font-bold mb-2 text-sm text-muted-foreground tracking-wider">Specializations</p>
                                             <div className="flex flex-wrap gap-2">
-                                                {(selectedProfile.selectedSubcategoriesDisplay || selectedProfile.selectedSubcategories || []).map((s: string, i: number) => (
+                                                {[...(selectedProfile.selectedSubcategoriesDisplay || selectedProfile.selectedSubcategories || [])].sort((a: string, b: string) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((s: string, i: number) => (
                                                     <span key={i} className="bg-foreground/10 px-3 py-1 rounded-full text-xs">{s.split(" > ").pop()}</span>
                                                 ))}
-                                                {Array.isArray(selectedProfile.selectedSubSubcategories) && selectedProfile.selectedSubSubcategories.map((s: string, i: number) => (
+                                                {Array.isArray(selectedProfile.selectedSubSubcategories) && [...selectedProfile.selectedSubSubcategories].sort((a: string, b: string) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((s: string, i: number) => (
                                                     <span key={`ss-${i}`} className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs">{s.split(" > ").pop()}</span>
                                                 ))}
                                             </div>
