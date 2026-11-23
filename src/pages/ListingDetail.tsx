@@ -224,7 +224,7 @@ export default function ListingDetail() {
     const jobTypeLabel = type === "jobs" ? (item.jobtype || item.positionType || "") : "";
     const jobDeadlineFormatted = type === "jobs" && item.applicationDeadline ? formatDate(item.applicationDeadline) : null;
 
-    // Helper to group subcategories by Area
+    // Helper to group subcategories by Area as per the new taxonomy setup
     const getGroupedCategories = () => {
         if (type !== "business" && type !== "consulting") return [];
 
@@ -244,54 +244,249 @@ export default function ListingDetail() {
         const serviceRegions = Array.isArray(item.serviceRegions) ? item.serviceRegions : [];
         const serviceCountries = Array.isArray(item.serviceCountries) ? item.serviceCountries : [];
 
-        // Track claimed items for orphan detection
-        const claimedSubs = new Set<string>();
-        const claimedSubSubs = new Set<string>();
-
         const normalize = (s: any) => (typeof s === 'string' ? s.toLowerCase().trim() : "");
 
         const categoriesDict = type === "business" ? businessCategories : consultingCategories;
 
-        const grouped = (selectedAreas as string[]).map(area => {
-            const areaConfig = (categoriesDict as any)[area] || [];
-            const matchingSubs = areaConfig.map((entry: any) => {
+        // Legacy area aliases mapping old taxonomy category names to active categories
+        const LEGACY_AREA_ALIASES: Record<string, string> = {
+            "container closures & packaging": "Packaging & Delivery Systems",
+            "container closures packaging": "Packaging & Delivery Systems",
+            "packaging": "Packaging & Delivery Systems",
+            "clinical research & related activities": "Clinical Research Services",
+            "clinical research related activities": "Clinical Research Services",
+            "clinical research & development": "Clinical Research Services",
+            "clinical research": "Clinical Research Services",
+            "engineering": "Engineering Services",
+            "equipment": "Equipment Support Services",
+            "equipment suppliers": "Equipment Support Services",
+            "facility design and qualifications": "Available Facilities & Infrastructure",
+            "facility & infrastructure": "Available Facilities & Infrastructure",
+            "materials/ excipients / cells": "Materials, Excipients & Bioprocess Supplies",
+            "materials excipients cells": "Materials, Excipients & Bioprocess Supplies",
+            "medical devices": "Medical Devices & Delivery Systems",
+        };
+
+        // Build active taxonomy lookup indices
+        type SubSubHit = { area: string; sub: string; subSub: string };
+        type SubHit = { area: string; sub: string };
+
+        const subSubIndex: SubSubHit[] = [];
+        const subIndex: SubHit[] = [];
+        const activeAreas = new Set<string>();
+
+        Object.entries(categoriesDict || {}).forEach(([areaName, entries]) => {
+            activeAreas.add(areaName);
+            (entries || []).forEach((entry: any) => {
                 const subLabel = typeof entry === "string" ? entry : entry.label;
-
-                // Flexible matching
-                const matchedSub = allSelectedSubs.find((s: string) => matchCategoryOrSub(s, subLabel));
-                const isSubSelected = matchedSub !== undefined;
-                if (isSubSelected) claimedSubs.add(normalize(matchedSub));
-
-                let subSubItems: string[] = [];
-                if (typeof entry !== "string" && entry.subSubcategories) {
-                    subSubItems = (entry.subSubcategories as string[]).filter((ss: string) => {
-                        const matchedSS = allSelectedSubSubs.find((selectedSS: string) => matchCategoryOrSub(selectedSS, ss));
-                        if (matchedSS) {
-                            claimedSubSubs.add(normalize(matchedSS));
-                            return true;
-                        }
-                        return false;
+                subIndex.push({ area: areaName, sub: subLabel });
+                if (typeof entry !== "string" && Array.isArray(entry.subSubcategories)) {
+                    entry.subSubcategories.forEach((ss: string) => {
+                        subSubIndex.push({ area: areaName, sub: subLabel, subSub: ss });
                     });
                 }
-
-                if (isSubSelected || subSubItems.length > 0) {
-                    const originalSubLabel = matchedSub || subLabel;
-                    return { label: originalSubLabel, subSubs: subSubItems };
-                }
-                return null;
-            }).filter(Boolean);
-
-            return { area, subs: matchingSubs, regions: serviceRegions, countries: serviceCountries };
+            });
         });
 
-        // Show selected sub/sub-sub values even when taxonomy mapping is mismatched.
-        const orphanSubs = allSelectedSubs.filter((sub: string) => !claimedSubs.has(normalize(sub)));
-        const orphanSubSubs = allSelectedSubSubs.filter((subSub: string) => !claimedSubSubs.has(normalize(subSub)));
-        if (orphanSubs.length > 0 || orphanSubSubs.length > 0) {
-            const orphanEntries = orphanSubs.map((sub: string) => ({ label: sub, subSubs: [] as string[] }));
-            if (orphanSubSubs.length > 0) {
-                orphanEntries.push({ label: "Additional specializations", subSubs: orphanSubSubs });
+        // Helper to match token in subSubIndex (with exact, matchCategoryOrSub, and compound '&' or '/' support)
+        const findSubSubHit = (token: string): SubSubHit | undefined => {
+            const raw = token.includes(" > ") ? token.split(" > ").pop()?.trim() || token : token;
+            const normRaw = normalize(raw);
+
+            // 1. Exact or matchCategoryOrSub
+            let found = subSubIndex.find((hit) => matchCategoryOrSub(raw, hit.subSub));
+            if (found) return found;
+
+            // 2. Compound matching (e.g. "Ampoules & Vials" matches "Ampoules" or "Vials")
+            if (raw.includes("&") || raw.includes("/")) {
+                const parts = raw.split(/[&/]/).map((p) => normalize(p)).filter(Boolean);
+                found = subSubIndex.find((hit) => parts.includes(normalize(hit.subSub)));
+                if (found) return found;
             }
+
+            // 3. Reversed compound matching (e.g. hit.subSub has "Bottles & Jars", token has "Bottles")
+            found = subSubIndex.find((hit) => {
+                if (hit.subSub.includes("&") || hit.subSub.includes("/")) {
+                    const hitParts = hit.subSub.split(/[&/]/).map((p) => normalize(p)).filter(Boolean);
+                    return hitParts.includes(normRaw);
+                }
+                return false;
+            });
+            if (found) return found;
+
+            return undefined;
+        };
+
+        // Helper to match token in subIndex
+        const findSubHit = (token: string): SubHit | undefined => {
+            const raw = token.includes(" > ") ? token.split(" > ").pop()?.trim() || token : token;
+
+            let found = subIndex.find((hit) => matchCategoryOrSub(raw, hit.sub));
+            if (found) return found;
+
+            if (raw.includes("&") || raw.includes("/")) {
+                const parts = raw.split(/[&/]/).map((p: string) => normalize(p)).filter(Boolean);
+                found = subIndex.find((hit) => parts.includes(normalize(hit.sub)));
+                if (found) return found;
+            }
+
+            return undefined;
+        };
+
+        // Resolve an Area name (active taxonomy, case-insensitive, or legacy alias)
+        const resolveAreaName = (area: string): string | undefined => {
+            const norm = normalize(area);
+            for (const active of activeAreas) {
+                if (normalize(active) === norm) return active;
+            }
+            const alias = LEGACY_AREA_ALIASES[norm];
+            if (alias) {
+                for (const active of activeAreas) {
+                    if (normalize(active) === normalize(alias)) return active;
+                }
+                return alias;
+            }
+            return undefined;
+        };
+
+        // Map: Area -> Map of (SubcategoryLabel -> Set of Sub-subcategories)
+        const areaMap = new Map<string, Map<string, Set<string>>>();
+        const getOrCreateArea = (area: string) => {
+            let m = areaMap.get(area);
+            if (!m) {
+                m = new Map<string, Set<string>>();
+                areaMap.set(area, m);
+            }
+            return m;
+        };
+
+        // Pre-register any active or resolved areas from selectedAreas to preserve original order
+        (selectedAreas as string[]).forEach((area) => {
+            const resolved = resolveAreaName(area);
+            if (resolved) {
+                getOrCreateArea(resolved);
+            }
+        });
+
+        const claimedTokens = new Set<string>();
+
+        // Combine all sub/sub-sub tokens from Firestore listing
+        const allTokens = [
+            ...allSelectedSubSubs.map((t: string) => ({ raw: t })),
+            ...allSelectedSubs.map((t: string) => ({ raw: t })),
+        ];
+
+        // Process all selected tokens against active taxonomy
+        allTokens.forEach(({ raw }) => {
+            const leaf = raw.includes(" > ") ? raw.split(" > ").pop()?.trim() || raw : raw;
+            const normRaw = normalize(raw);
+            const normLeaf = normalize(leaf);
+
+            // A) Check sub-subcategory match first (e.g. Aerosols, Airless Systems, Ampoules & Vials -> Primary Packaging)
+            const ssHit = findSubSubHit(leaf);
+            if (ssHit) {
+                const subMap = getOrCreateArea(ssHit.area);
+                let ssSet = subMap.get(ssHit.sub);
+                if (!ssSet) {
+                    ssSet = new Set<string>();
+                    subMap.set(ssHit.sub, ssSet);
+                }
+                ssSet.add(leaf);
+                claimedTokens.add(normRaw);
+                claimedTokens.add(normLeaf);
+                return;
+            }
+
+            // B) Check subcategory match (e.g. Formulation Development -> Development Services)
+            const sHit = findSubHit(leaf);
+            if (sHit) {
+                const subMap = getOrCreateArea(sHit.area);
+                if (!subMap.has(sHit.sub)) {
+                    subMap.set(sHit.sub, new Set<string>());
+                }
+                claimedTokens.add(normRaw);
+                claimedTokens.add(normLeaf);
+                return;
+            }
+        });
+
+        // Fallback for composite paths e.g. "Area > Sub > SubSub"
+        allTokens.forEach(({ raw }) => {
+            const leaf = raw.includes(" > ") ? raw.split(" > ").pop()?.trim() || raw : raw;
+            const normRaw = normalize(raw);
+            const normLeaf = normalize(leaf);
+            if (claimedTokens.has(normRaw) || claimedTokens.has(normLeaf)) return;
+
+            if (raw.includes(" > ")) {
+                const parts = raw.split(" > ").map((p: string) => p.trim());
+                if (parts.length >= 2) {
+                    const resolvedArea = resolveAreaName(parts[0]);
+                    if (resolvedArea) {
+                        const subMap = getOrCreateArea(resolvedArea);
+                        const subName = parts[1];
+                        let ssSet = subMap.get(subName);
+                        if (!ssSet) {
+                            ssSet = new Set<string>();
+                            subMap.set(subName, ssSet);
+                        }
+                        if (parts[2]) ssSet.add(parts[2]);
+                        claimedTokens.add(normRaw);
+                        claimedTokens.add(normLeaf);
+                        return;
+                    }
+                }
+            }
+        });
+
+        // Truly unmatched orphans
+        const orphanEntries: { label: string; subSubs: string[] }[] = [];
+        allTokens.forEach(({ raw }) => {
+            const leaf = raw.includes(" > ") ? raw.split(" > ").pop()?.trim() || raw : raw;
+            const normRaw = normalize(raw);
+            const normLeaf = normalize(leaf);
+            if (claimedTokens.has(normRaw) || claimedTokens.has(normLeaf)) return;
+
+            claimedTokens.add(normRaw);
+            claimedTokens.add(normLeaf);
+            orphanEntries.push({ label: leaf, subSubs: [] });
+        });
+
+        // Build the final grouped list
+        const grouped: {
+            area: string;
+            subs: { label: string; subSubs: string[] }[];
+            regions: string[];
+            countries: string[];
+        }[] = [];
+
+        areaMap.forEach((subMap, areaName) => {
+            const subs: { label: string; subSubs: string[] }[] = [];
+            subMap.forEach((ssSet, subLabel) => {
+                subs.push({
+                    label: subLabel,
+                    subSubs: Array.from(ssSet),
+                });
+            });
+
+            // Only display this area if:
+            // 1. It has matched subcategories (subs.length > 0), OR
+            // 2. It is an active category in categoriesDict whose taxonomy legitimately has no subcategories (leaf category).
+            // Do NOT render empty legacy areas (like old "Container Closures & Packaging" when all its subs moved to "Packaging & Delivery Systems").
+            const areaInTaxonomy = (categoriesDict as any)[areaName];
+            const isLegitLeafArea = Array.isArray(areaInTaxonomy) && areaInTaxonomy.length === 0;
+
+            if (subs.length > 0 || isLegitLeafArea) {
+                grouped.push({
+                    area: areaName,
+                    subs,
+                    regions: serviceRegions,
+                    countries: serviceCountries,
+                });
+            }
+        });
+
+        // Only display "Other selected specializations" if there are actual unmatched orphan tokens
+        if (orphanEntries.length > 0) {
             grouped.push({
                 area: "Other selected specializations",
                 subs: orphanEntries,
