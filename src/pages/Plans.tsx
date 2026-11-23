@@ -5,6 +5,15 @@ import { Button } from "@/components/ui/button";
 import { usePlansConfig, type PlanItem } from "@/hooks/usePlansConfig";
 import { HIDE_DIRECTORY_DATA_PREVIEW } from "@/lib/partnerListingPublic";
 
+const isExtraFeatureText = (f: string) => {
+    const lower = f.toLowerCase();
+    return lower.includes("extra feature") ||
+           lower.includes("landing page feature") ||
+           lower.includes("home page feature") ||
+           lower.includes("feature for increased visibility") ||
+           lower.includes("feature for maximum visibility");
+};
+
 export default function Plans() {
     const navigate = useNavigate();
     const [isYearly, setIsYearly] = useState(true);
@@ -99,7 +108,7 @@ export default function Plans() {
                                     isYearly={isYearly && group.hasAnnualToggle}
                                     showDiscountTag={group.hasAnnualToggle}
                                     hasGroupExtraFeatures={group.plans.some((p) =>
-                                        p.features.some((f) => f.toLowerCase().includes("extra feature"))
+                                        p.features.some((f) => isExtraFeatureText(f))
                                     )}
                                 />
                             ))}
@@ -144,31 +153,27 @@ function PlanCard({
 }) {
     const displayPrice = isYearly ? plan.yearlyMonthlyPrice : plan.monthlyPrice;
 
-    const extraFeatures = plan.features.filter((f) =>
-        f.toLowerCase().includes("extra feature")
-    );
-    const standardFeatures = plan.features.filter(
-        (f) => !f.toLowerCase().includes("extra feature")
-    );
+    const extraFeatures = plan.features.filter((f) => isExtraFeatureText(f));
+    const standardFeatures = plan.features.filter((f) => !isExtraFeatureText(f));
 
     return (
         <div className={`relative flex flex-col justify-between rounded-2xl bg-white border ${plan.isFeatured ? "border-slate-800 shadow-md" : "border-slate-200/90 shadow-sm"} p-6 transition-all hover:shadow-md`}>
             {/* Top Badge */}
-            <div className="text-center mb-4 shrink-0">
+            <div className="text-center mb-3 shrink-0">
                 <span className="inline-block bg-slate-900 text-white font-bold text-xs px-4 py-1 rounded-full tracking-wider">
                     {plan.badge}
                 </span>
             </div>
 
             {/* Subtitle Box - fixed height and centered so prices always align across all cards */}
-            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-center mb-6 h-[76px] flex items-center justify-center shrink-0">
+            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-center mb-4 h-[68px] flex items-center justify-center shrink-0">
                 <p className="text-xs font-medium text-slate-600 leading-snug line-clamp-3">
                     {plan.subtitle}
                 </p>
             </div>
 
-            {/* Price Header - consistent min-height so extra feature slots / features align */}
-            <div className="text-center mb-6 pb-6 border-b border-slate-100 min-h-[84px] flex flex-col justify-center shrink-0">
+            {/* Price Header - consistent fixed height so extra feature slots align precisely */}
+            <div className="text-center mb-3 pb-3 border-b border-slate-100 h-[72px] flex flex-col justify-center shrink-0">
                 <div className="flex items-baseline justify-center gap-1">
                     <span className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
                         ${displayPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -188,11 +193,11 @@ function PlanCard({
 
             {/* Features List */}
             <div className="flex-1 flex flex-col">
-                {/* Extra Feature Top Slot - strictly fixed height so standard features align 100% across all cards */}
+                {/* Extra Feature Top Slot - moved up closer to price, strictly fixed height and invisible spacer in non-extra columns */}
                 {hasGroupExtraFeatures && (
-                    <div className="h-[64px] mb-5 flex items-center shrink-0">
+                    <div className="h-[52px] mb-3 flex items-center shrink-0">
                         {extraFeatures.length > 0 ? (
-                            <div className="w-full h-full bg-blue-50/90 border border-blue-200/90 rounded-xl px-3 py-2 flex items-center gap-2.5 shadow-sm">
+                            <div className="w-full h-full bg-blue-50/90 border border-blue-200/90 rounded-xl px-3 py-1.5 flex items-center gap-2.5 shadow-sm">
                                 <Check className="w-4 h-4 text-blue-600 shrink-0" />
                                 <div className="text-[11px] leading-tight flex-1">
                                     <span className="font-bold text-blue-700 block uppercase tracking-wider text-[9px]">
@@ -204,17 +209,17 @@ function PlanCard({
                                 </div>
                             </div>
                         ) : (
-                            <div className="w-full h-full" />
+                            <div className="w-full h-full invisible" aria-hidden="true" />
                         )}
                     </div>
                 )}
 
-                {/* Standard Features */}
-                <div className="space-y-3 flex-1">
+                {/* Standard Features - identical row height and alignment across all 4 columns */}
+                <div className="space-y-2.5 flex-1">
                     {standardFeatures.map((feat, idx) => (
-                        <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700 leading-relaxed min-h-[20px]">
-                            <Check className="w-4 h-4 text-slate-900 shrink-0 mt-0.5" />
-                            <span>{feat}</span>
+                        <div key={idx} className="flex items-center gap-2.5 text-xs text-slate-700 leading-snug min-h-[22px]">
+                            <Check className="w-4 h-4 text-slate-900 shrink-0" />
+                            <span className="truncate">{feat}</span>
                         </div>
                     ))}
                 </div>
