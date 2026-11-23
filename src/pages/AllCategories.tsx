@@ -59,7 +59,7 @@ export {
 const CATEGORY_CONFIG = {
     business: {
         title: "Business Offerings",
-        description: "Explore companies serving global life sciences markets across specialized categories."
+        description: "Explore companies, products and solution providers across the global life sciences ecosystem."
     },
     consulting: {
         title: "Consulting Services",
