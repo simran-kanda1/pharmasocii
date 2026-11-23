@@ -14,6 +14,7 @@ import {
   Copy,
   Check,
   AlertCircle,
+  ArrowUpCircle,
 } from "lucide-react";
 import {
   formatPartnerTransaction,
@@ -57,6 +58,196 @@ function formatDate(val: any): string {
   } catch {
     return "—";
   }
+}
+
+export function formatPlanName(planId?: string | null, planName?: string | null): string {
+  if (!planId && !planName) return "Standard Plan";
+  const id = String(planId || planName || "").trim().toLowerCase();
+
+  const map: Record<string, string> = {
+    standard_mo: "Standard Monthly",
+    standard_yr: "Standard Yearly",
+    basic_mo: "Basic Monthly",
+    basic_yr: "Basic Yearly",
+    premium_mo: "Premium Monthly",
+    premium_yr: "Premium Yearly",
+    premium_plus_mo: "Premium Plus Monthly",
+    premium_plus_yr: "Premium Plus Yearly",
+    basic_job: "Basic Job",
+    standard_job: "Standard Job",
+    premium_job: "Premium Job",
+    premium_plus_job: "Premium Plus Job",
+    basic_event: "Basic Event",
+    standard_event: "Standard Event",
+    premium_event: "Premium Event",
+    premium_plus_event: "Premium Plus Event",
+    pp_monthly: "Premium Plus Monthly",
+    pp_yearly: "Premium Plus Yearly",
+    "standard mo": "Standard Monthly",
+    "standard yr": "Standard Yearly",
+    "basic mo": "Basic Monthly",
+    "basic yr": "Basic Yearly",
+    "premium mo": "Premium Monthly",
+    "premium yr": "Premium Yearly",
+    "premium plus mo": "Premium Plus Monthly",
+    "premium plus yr": "Premium Plus Yearly",
+    "premium plus job": "Premium Plus Job",
+    "premium job": "Premium Job",
+  };
+
+  if (map[id]) return map[id];
+
+  return id
+    .replace(/_mo$/i, " Monthly")
+    .replace(/_yr$/i, " Yearly")
+    .replace(/_month$/i, " Monthly")
+    .replace(/_year$/i, " Yearly")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function formatFeatureName(featureId?: string | null, featureName?: string | null): string {
+  if (!featureId && !featureName) return "Feature Spotlight";
+  const id = String(featureId || featureName || "").trim().toLowerCase();
+
+  const map: Record<string, string> = {
+    landing_page: "Landing Page Spotlight",
+    home_page: "Home Page Spotlight",
+    "landing page": "Landing Page Spotlight",
+    "home page": "Home Page Spotlight",
+    category: "Category Spotlight",
+    module: "Module Spotlight",
+    both: "Both (Module & Home Page)",
+  };
+
+  if (map[id]) return map[id];
+
+  return id
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+export function resolveItemType(
+  item: any,
+  listings: any[] = [],
+  transactions: any[] = []
+): {
+  key: "business_offerings" | "consulting" | "jobs" | "events" | "unknown";
+  label: string;
+  badgeClass: string;
+  listingName: string;
+} {
+  const listingId = String(item?.listingId || "").trim();
+  const matchedListing = listingId ? listings.find((l) => String(l?.id) === listingId) : null;
+
+  // Find transaction matching this listingId or item docId
+  const matchedTxn = (listingId || item?.id)
+    ? transactions.find(
+        (t) =>
+          (listingId && String(t?.listingId) === listingId) ||
+          (item?.id && String(t?.planId) === String(item?.id)) ||
+          (item?.sessionId && t?.sessionId === item?.sessionId)
+      )
+    : null;
+
+  // Resolve listing name
+  let listingName = "";
+  if (matchedListing) {
+    listingName =
+      matchedListing.eventName ||
+      matchedListing.jobTitle ||
+      matchedListing.businessName ||
+      matchedListing.title ||
+      "";
+  }
+  if (!listingName && matchedTxn) {
+    listingName =
+      matchedTxn.eventName ||
+      matchedTxn.jobTitle ||
+      matchedTxn.listingName ||
+      matchedTxn.businessName ||
+      "";
+  }
+  if (!listingName && item?.listingName) {
+    listingName = item.listingName;
+  }
+  if (!listingName && listingId) {
+    listingName = `Listing (${listingId.slice(0, 8)}...)`;
+  }
+
+  // Resolve Category / Group
+  const rawCol = String(
+    item?.collectionName ||
+    matchedListing?.__col ||
+    matchedListing?.__collection ||
+    matchedListing?.selectedGroup ||
+    matchedTxn?.collectionName ||
+    matchedTxn?.group ||
+    ""
+  ).toLowerCase();
+
+  const rawPlanId = String(item?.planId || item?.featureId || "").toLowerCase();
+
+  if (
+    rawCol.includes("business") ||
+    rawCol === "business_offerings" ||
+    rawCol === "businessofferingscollection"
+  ) {
+    return {
+      key: "business_offerings",
+      label: "Business Offerings",
+      badgeClass: "bg-blue-50 text-blue-700 border-blue-200",
+      listingName,
+    };
+  }
+
+  if (
+    rawCol.includes("consult") ||
+    rawCol === "consulting" ||
+    rawCol === "consultingcollection"
+  ) {
+    return {
+      key: "consulting",
+      label: "Consulting",
+      badgeClass: "bg-cyan-50 text-cyan-700 border-cyan-200",
+      listingName,
+    };
+  }
+
+  if (
+    rawCol.includes("job") ||
+    rawCol === "jobs" ||
+    rawCol === "jobscollection" ||
+    rawPlanId.includes("job")
+  ) {
+    return {
+      key: "jobs",
+      label: "Job Listing",
+      badgeClass: "bg-purple-50 text-purple-700 border-purple-200",
+      listingName,
+    };
+  }
+
+  if (
+    rawCol.includes("event") ||
+    rawCol === "events" ||
+    rawCol === "eventscollection" ||
+    rawPlanId.includes("event")
+  ) {
+    return {
+      key: "events",
+      label: "Event Listing",
+      badgeClass: "bg-amber-50 text-amber-700 border-amber-200",
+      listingName,
+    };
+  }
+
+  return {
+    key: "unknown",
+    label: "Standard Plan",
+    badgeClass: "bg-slate-100 text-slate-700 border-slate-200",
+    listingName,
+  };
 }
 
 function CopyableText({ text, label }: { text?: string | null; label?: string }) {
@@ -203,29 +394,196 @@ export function PartnerPlanHistoryModal({
 }: Props) {
   const [activeTab, setActiveTab] = useState<"plans" | "features">("plans");
 
-  // 1. Partner's Plans (All-time)
-  const partnerPlansList = useMemo(() => {
-    if (!partner || !Array.isArray(partnerPlans)) return [];
-    return partnerPlans
+  // 1. Partner's Plans (Processed with upgrade detection and deduplication)
+  const {
+    allPlans: partnerPlansList,
+    distinctPlans,
+    activePlansCount,
+    upgradedPlansCount,
+  } = useMemo(() => {
+    if (!partner || !Array.isArray(partnerPlans)) {
+      return { allPlans: [], distinctPlans: [], activePlansCount: 0, upgradedPlansCount: 0 };
+    }
+
+    const rawPlans = partnerPlans
       .filter((p) => p && p.partnerId === partner.id)
       .sort((a, b) => {
         const aTs = a.startDate?.seconds || a.createdAt?.seconds || 0;
         const bTs = b.startDate?.seconds || b.createdAt?.seconds || 0;
         return bTs - aTs;
       });
-  }, [partnerPlans, partner?.id]);
 
-  // 2. Partner's Features (All-time — every feature plan record, not just the latest)
-  const partnerFeaturesList = useMemo(() => {
-    if (!partner || !Array.isArray(featuredPlans)) return [];
-    return featuredPlans
+    // Group plans by listingId (or stripeSubscriptionId) to detect superseded plans
+    const listingPlansMap = new Map<string, any[]>();
+    rawPlans.forEach((plan) => {
+      const key = String(plan.listingId || plan.stripeSubscriptionId || plan.id);
+      if (!listingPlansMap.has(key)) listingPlansMap.set(key, []);
+      listingPlansMap.get(key)!.push(plan);
+    });
+
+    const processedPlans = rawPlans.map((plan) => {
+      const listingKey = String(plan.listingId || plan.stripeSubscriptionId || plan.id);
+      const siblings = listingPlansMap.get(listingKey) || [plan];
+
+      const hasUpgradedAt = Boolean(plan.upgradedAt);
+      const isExplicitUpgrade = Boolean(plan.isUpgrade || plan.previousPlanId);
+
+      // Check transactions for upgrade matching listing or sessionId
+      const upgradeTxn = transactions?.find((t) => {
+        if (!t) return false;
+        const matchListing = plan.listingId && t.listingId === plan.listingId;
+        const matchSession = plan.sessionId && t.sessionId === plan.sessionId;
+        const isTxnUpgrade =
+          t.isUpgrade === true ||
+          String(t.eventType).toLowerCase() === "upgrade" ||
+          String(t.event).toLowerCase() === "upgrade" ||
+          String(t.description || "").toLowerCase().includes("upgrade");
+        return (matchListing || matchSession) && isTxnUpgrade;
+      });
+
+      // Check if this plan is superseded by a newer sibling plan
+      const isSuperseded = Boolean(
+        plan.supersededBy ||
+        (siblings.length > 1 && siblings[0].id !== plan.id && (siblings[0].upgradedAt || siblings[0].isUpgrade || upgradeTxn))
+      );
+
+      // Check if this plan is an upgraded plan
+      const isUpgraded = Boolean(
+        hasUpgradedAt ||
+        isExplicitUpgrade ||
+        upgradeTxn ||
+        (siblings.length > 1 && siblings[0].id === plan.id && siblings.length > 1)
+      );
+
+      const supersededPlan = siblings.find((s) => s.id !== plan.id && s.id !== plan.supersededBy);
+
+      return {
+        ...plan,
+        isUpgraded,
+        isSuperseded,
+        upgradeTxn,
+        supersededPlan,
+        upgradedAtDate: plan.upgradedAt || upgradeTxn?.createdAt || upgradeTxn?.date,
+        upgradeDesc:
+          upgradeTxn?.description ||
+          (isUpgraded ? `Plan upgrade: ${formatPlanName(plan.planId, plan.planName)}` : null),
+      };
+    });
+
+    // Deduplicate: only non-superseded plans count towards total
+    const distinct = processedPlans.filter((p) => !p.isSuperseded);
+
+    const activeCount = distinct.filter((p) => {
+      const effectivePlanStatus = getEffectiveListingStatus(
+        { status: p.status, active: p.active !== false },
+        { plan: p, expiryDate: p.billingPeriodEnd }
+      );
+      return effectivePlanStatus === "Active" || effectivePlanStatus === "Approved" || effectivePlanStatus === "Extended";
+    }).length;
+
+    const upgradedCount = distinct.filter((p) => p.isUpgraded).length;
+
+    return {
+      allPlans: processedPlans,
+      distinctPlans: distinct,
+      activePlansCount: activeCount,
+      upgradedPlansCount: upgradedCount,
+    };
+  }, [partnerPlans, partner?.id, transactions]);
+
+  // 2. Partner's Features (Processed with upgrade detection and deduplication)
+  const {
+    distinctFeatures,
+    activeFeaturesCount,
+    supersededFeaturesCount,
+  } = useMemo(() => {
+    if (!partner || !Array.isArray(featuredPlans)) {
+      return { allFeatures: [], distinctFeatures: [], activeFeaturesCount: 0, supersededFeaturesCount: 0 };
+    }
+
+    const rawFeatures = featuredPlans
       .filter((f) => f && f.partnerId === partner.id)
       .sort((a, b) => {
         const aTs = a.lastPaymentReceived?.seconds || a.createdAt?.seconds || 0;
         const bTs = b.lastPaymentReceived?.seconds || b.createdAt?.seconds || 0;
         return bTs - aTs;
       });
-  }, [featuredPlans, partner?.id]);
+
+    // Group features by listingId to link older superseded features with active upgraded features
+    const listingFeatsMap = new Map<string, any[]>();
+    rawFeatures.forEach((feat) => {
+      const key = String(feat.listingId || feat.id);
+      if (!listingFeatsMap.has(key)) listingFeatsMap.set(key, []);
+      listingFeatsMap.get(key)!.push(feat);
+    });
+
+    const processedFeatures = rawFeatures.map((feat) => {
+      const key = String(feat.listingId || feat.id);
+      const siblings = listingFeatsMap.get(key) || [feat];
+
+      // Is superseded if explicit supersededBy, supersededAt, or older inactive sibling
+      const isExplicitSuperseded = Boolean(feat.supersededBy || feat.supersededAt);
+      const newerActiveSibling = siblings.find(
+        (s) =>
+          s.id !== feat.id &&
+          (s.active === true || (s.lastPaymentReceived?.seconds || 0) > (feat.lastPaymentReceived?.seconds || 0))
+      );
+      const isSuperseded = isExplicitSuperseded || (feat.active === false && Boolean(newerActiveSibling));
+
+      // Is upgraded if an older sibling exists with supersededBy/supersededAt or active=false
+      const olderSupersededSibling = siblings.find(
+        (s) => s.id !== feat.id && (s.supersededBy || s.supersededAt || s.active === false)
+      );
+
+      // Check transactions for spotlight upgrade
+      const upgradeTxn = transactions?.find((t) => {
+        if (!t) return false;
+        const matchListing = feat.listingId && t.listingId === feat.listingId;
+        const isTxnUpgrade =
+          t.isUpgrade === true ||
+          String(t.eventType).toLowerCase() === "upgrade" ||
+          String(t.event).toLowerCase() === "upgrade" ||
+          String(t.description || "").toLowerCase().includes("upgrade");
+        return matchListing && isTxnUpgrade;
+      });
+
+      const isUpgraded = !isSuperseded && Boolean(olderSupersededSibling || upgradeTxn || feat.isUpgrade);
+
+      const previousFeatureId =
+        olderSupersededSibling?.featureId ||
+        olderSupersededSibling?.featureName ||
+        olderSupersededSibling?.supersededBy;
+      const upgradedAtDate =
+        olderSupersededSibling?.supersededAt || feat.lastPaymentReceived || upgradeTxn?.createdAt;
+
+      return {
+        ...feat,
+        isSuperseded,
+        isUpgraded,
+        olderSupersededSibling,
+        previousFeatureId,
+        upgradedAtDate,
+        upgradeTxn,
+      };
+    });
+
+    // Deduplicate: only non-superseded features count towards total
+    const distinct = processedFeatures.filter((f) => !f.isSuperseded);
+
+    const activeCount = distinct.filter((f) => {
+      const effStatus = getEffectiveFeatureStatus(f);
+      return effStatus === "Active";
+    }).length;
+
+    const supersededCount = processedFeatures.filter((f) => f.isSuperseded).length;
+
+    return {
+      allFeatures: processedFeatures,
+      distinctFeatures: distinct,
+      activeFeaturesCount: activeCount,
+      supersededFeaturesCount: supersededCount,
+    };
+  }, [featuredPlans, partner?.id, transactions]);
 
   // 3. Partner's Listings (All-time paid listings; exclude unpaid Pending Payment)
   const partnerListingsList = useMemo(() => {
@@ -247,7 +605,6 @@ export function PartnerPlanHistoryModal({
     if (!partner || !Array.isArray(transactions)) return [];
     const partnerEmail = typeof partner.primaryEmail === "string" ? partner.primaryEmail.toLowerCase().trim() : "";
     const partnerBillEmail = typeof partner.billingEmailAddress === "string" ? partner.billingEmailAddress.toLowerCase().trim() : "";
-
     const raw = transactions.filter((t) => {
       if (!t) return false;
       const matchId = t.partnerId === partner.id;
@@ -271,25 +628,12 @@ export function PartnerPlanHistoryModal({
 
   if (!partner) return null;
 
-  // Calculated Stats - accurately synchronized with AdminDashboard getEffectiveListingStatus
+  // Calculated Stats
   const activeListingsCount = partnerListingsList.filter((l) => {
     const insight = listingInsights && l?.id ? listingInsights[l.id] : null;
     const status = getEffectiveListingStatus(l, insight);
     return status === "Active" || status === "Approved" || status === "Extended";
   }).length;
-
-  let activeFeaturesCount = 0;
-  partnerListingsList.forEach((listing) => {
-    const insight = listingInsights && listing?.id ? listingInsights[listing.id] : null;
-    const status = getEffectiveListingStatus(listing, insight);
-    const isActiveListing = status === "Active" || status === "Approved" || status === "Extended";
-    if (isActiveListing) {
-      const featStatus = insight?.featureStatus || getEffectiveFeatureStatus(insight?.feature, listing);
-      if (featStatus === "Active") {
-        activeFeaturesCount += 1;
-      }
-    }
-  });
 
   const totalSpent = partnerTransactionsList.reduce((acc, t) => {
     if (t.statusRaw === "succeeded" || String(t.statusLabel || "").toLowerCase() === "completed") {
@@ -298,7 +642,20 @@ export function PartnerPlanHistoryModal({
     return acc;
   }, 0);
 
-  const latestPlan = partnerPlansList[0];
+  const latestPlan = distinctPlans[0] || partnerPlansList[0];
+  const latestPlanType = resolveItemType(latestPlan, listings, transactions);
+  const latestPlanDisplayTitle = latestPlan
+    ? formatPlanName(latestPlan.planId, latestPlan.planName)
+    : partner.selectedPlan
+    ? formatPlanName(partner.selectedPlan)
+    : "No Active Plan";
+
+  const latestFeature = distinctFeatures[0];
+  const latestFeatureDisplayTitle = latestFeature
+    ? formatFeatureName(latestFeature.featureId, latestFeature.featureName)
+    : "No Active Features";
+
+  const totalPlansCount = Math.max(distinctPlans.length, partnerListingsList.length);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
@@ -348,50 +705,83 @@ export function PartnerPlanHistoryModal({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
               <Card className="bg-slate-50/70 border-slate-200 shadow-none">
                 <CardContent className="p-3.5">
-                  <p className="text-xs font-medium text-slate-500">
-                    Plans
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-medium text-slate-500">Plans</p>
+                    {latestPlan && (
+                      <Badge className={`${latestPlanType.badgeClass} text-[10px] py-0 px-1.5`}>
+                        {latestPlanType.label}
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm font-bold text-slate-900 mt-1 truncate" title={latestPlanDisplayTitle}>
+                    {latestPlanDisplayTitle}
                   </p>
-                  <p className="text-sm font-bold text-slate-900 mt-1 truncate" title={latestPlan?.planName || latestPlan?.planId || partner.selectedPlan || "None"}>
-                    {latestPlan?.planName || latestPlan?.planId || partner.selectedPlan || "No Active Plan"}
-                  </p>
-                  <div className="mt-1 flex items-center gap-1">
+                  <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                     <StatusBadge status={latestPlan?.status || (latestPlan ? "Active" : "None")} />
+                    {latestPlan?.isUpgraded && (
+                      <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] py-0 px-1.5">
+                        Upgraded
+                      </Badge>
+                    )}
                   </div>
                   <p className="text-sm font-bold text-slate-900 mt-2">
-                    <span className="text-emerald-700">{activeListingsCount} active</span>
-                    <span className="text-slate-400 font-normal text-xs ml-1.5">/ {partnerListingsList.length} total</span>
+                    <span className="text-emerald-700">{activePlansCount || activeListingsCount} active</span>
+                    <span className="text-slate-400 font-normal text-xs ml-1.5">/ {totalPlansCount} total</span>
                   </p>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    {partnerListingsList.length === 0 ? "No listings created" : `${partnerListingsList.length} all-time listings`}
+                    {totalPlansCount === 0
+                      ? "No plans subscribed"
+                      : `${totalPlansCount} total plan${totalPlansCount === 1 ? "" : "s"}${
+                          upgradedPlansCount > 0 ? ` (${upgradedPlansCount} upgraded)` : ""
+                        }`}
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="bg-slate-50/70 border-slate-200 shadow-none">
                 <CardContent className="p-3.5">
-                  <p className="text-xs font-medium text-slate-500">
-                    Features
+                  <p className="text-xs font-medium text-slate-500">Features</p>
+                  <p className="text-sm font-bold text-slate-900 mt-1 truncate" title={latestFeatureDisplayTitle}>
+                    {latestFeatureDisplayTitle}
                   </p>
-                  <p className="text-sm font-bold text-slate-900 mt-1">
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <StatusBadge status={activeFeaturesCount > 0 ? "Active" : "None"} />
+                    {supersededFeaturesCount > 0 && (
+                      <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[10px] py-0 px-1.5">
+                        {supersededFeaturesCount} Upgraded
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-sm font-bold text-slate-900 mt-2">
                     <span className="text-amber-700">{activeFeaturesCount} active</span>
-                    <span className="text-slate-400 font-normal text-xs ml-1.5">/ {partnerFeaturesList.length} total</span>
+                    <span className="text-slate-400 font-normal text-xs ml-1.5">/ {distinctFeatures.length} total</span>
                   </p>
                   <p className="text-[11px] text-slate-500 mt-1">
-                    {partnerFeaturesList.length === 0 ? "No features granted" : `${partnerFeaturesList.length} all-time features`}
+                    {distinctFeatures.length === 0
+                      ? "No features granted"
+                      : `${distinctFeatures.length} total feature${distinctFeatures.length === 1 ? "" : "s"}${
+                          supersededFeaturesCount > 0 ? ` (deduplicated upgrades)` : ""
+                        }`}
                   </p>
                 </CardContent>
               </Card>
 
               <Card className="bg-slate-50/70 border-slate-200 shadow-none">
                 <CardContent className="p-3.5">
-                  <p className="text-xs font-medium text-slate-500">
-                    Lifetime Invoiced
-                  </p>
+                  <p className="text-xs font-medium text-slate-500">Lifetime Invoiced</p>
                   <p className="text-sm font-bold text-slate-900 mt-1">
                     ${(totalSpent || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </p>
-                  <p className="text-[11px] text-slate-500 mt-1">
+                  <div className="mt-1 flex items-center gap-1">
+                    <Badge variant="outline" className="bg-slate-100 text-slate-600 border-slate-200 text-[10px]">
+                      Stripe
+                    </Badge>
+                  </div>
+                  <p className="text-sm font-bold text-slate-900 mt-2">
                     {partnerTransactionsList.length} transaction{partnerTransactionsList.length === 1 ? "" : "s"}
+                  </p>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    All-time checkout payments
                   </p>
                 </CardContent>
               </Card>
@@ -403,23 +793,23 @@ export function PartnerPlanHistoryModal({
             <Tabs value={activeTab} onValueChange={(v: any) => setActiveTab(v)} className="space-y-4">
               <TabsList className="bg-white border border-slate-200 p-1 w-full sm:w-auto grid grid-cols-2 h-auto">
                 <TabsTrigger value="plans" className="text-xs sm:text-sm py-2">
-                  Plans ({partnerPlansList.length})
+                  Plans ({distinctPlans.length})
                 </TabsTrigger>
                 <TabsTrigger value="features" className="text-xs sm:text-sm py-2">
-                  Features ({partnerFeaturesList.length})
+                  Features ({distinctFeatures.length})
                 </TabsTrigger>
               </TabsList>
 
               {/* TAB 1: PLANS HISTORY */}
               <TabsContent value="plans" className="space-y-3 focus-visible:outline-none">
-                {partnerPlansList.length === 0 ? (
+                {distinctPlans.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
                     <p className="font-semibold text-slate-700">No plan subscriptions found</p>
-                    <p className="text-xs text-slate-500 mt-1">This partner does not currently have any plan records in planCollection.</p>
+                    <p className="text-xs text-slate-500 mt-1">This partner does not currently have any active plan records in planCollection.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {partnerPlansList.map((plan, idx) => {
+                    {distinctPlans.map((plan, idx) => {
                       const isLatest = idx === 0;
                       const isTrial = Boolean(plan.isTrial || plan.source === "admin_granted");
                       const startFormatted = formatDate(plan.startDate || plan.createdAt);
@@ -428,6 +818,7 @@ export function PartnerPlanHistoryModal({
                         { status: plan.status, active: plan.active !== false },
                         { plan, expiryDate: plan.billingPeriodEnd }
                       );
+                      const planType = resolveItemType(plan, listings, transactions);
 
                       return (
                         <Card key={plan.id || idx} className={`bg-white border ${isLatest ? "border-emerald-300 shadow-sm" : "border-slate-200"}`}>
@@ -435,11 +826,20 @@ export function PartnerPlanHistoryModal({
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="font-bold text-slate-900 text-base">
-                                  {plan.planName || plan.planId || "Standard Plan"}
+                                  {formatPlanName(plan.planId, plan.planName)}
                                 </h3>
+                                {/* Type / Category Indicator Badge */}
+                                <Badge className={`${planType.badgeClass} text-xs font-medium`}>
+                                  {planType.label}
+                                </Badge>
                                 {isLatest && (
                                   <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[11px]">
                                     Latest Plan
+                                  </Badge>
+                                )}
+                                {plan.isUpgraded && (
+                                  <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[11px] font-semibold">
+                                    Upgraded Plan
                                   </Badge>
                                 )}
                                 {isTrial && (
@@ -454,7 +854,38 @@ export function PartnerPlanHistoryModal({
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4 text-xs">
+                            {/* Plan Upgrade Notice Banner */}
+                            {plan.isUpgraded && (
+                              <div className="mt-3 p-3 bg-purple-50/70 border border-purple-200/80 rounded-lg text-xs text-purple-950 flex items-start gap-2.5">
+                                <ArrowUpCircle className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <div className="font-semibold text-purple-900 flex items-center gap-2">
+                                    <span>Plan Upgraded</span>
+                                    {plan.upgradedAtDate && (
+                                      <span className="text-[11px] font-normal text-purple-600">
+                                        on {formatDate(plan.upgradedAtDate)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-purple-800 text-[11px] mt-0.5">
+                                    {plan.upgradeDesc || `Upgraded to ${formatPlanName(plan.planId, plan.planName)}`}
+                                  </p>
+                                  {plan.supersededPlan && (
+                                    <div className="mt-1 text-[11px] text-purple-700 flex items-center gap-1.5 flex-wrap">
+                                      <span>
+                                        Previous Plan: <strong>{formatPlanName(plan.supersededPlan.planId, plan.supersededPlan.planName)}</strong>
+                                      </span>
+                                      <span>•</span>
+                                      <span>Previous Doc ID:</span>
+                                      <CopyableText text={plan.supersededPlan.id} label="Previous Plan ID" />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Plan Key Details */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-xs">
                               <div>
                                 <span className="text-slate-400 block mb-0.5">Start Date</span>
                                 <span className="font-medium text-slate-800">{startFormatted}</span>
@@ -466,33 +897,47 @@ export function PartnerPlanHistoryModal({
                               <div>
                                 <span className="text-slate-400 block mb-0.5">Billing Interval</span>
                                 <span className="font-medium text-slate-800 capitalize">
-                                  {plan.billingInterval === "annual" ? "Yearly" : (plan.billingInterval || plan.interval || (typeof plan.planName === "string" && plan.planName.toLowerCase().includes("yr") ? "Yearly" : "Monthly"))}
+                                  {plan.billingInterval === "annual"
+                                    ? "Yearly"
+                                    : plan.billingInterval ||
+                                      plan.interval ||
+                                      (typeof plan.planName === "string" && plan.planName.toLowerCase().includes("yr")
+                                        ? "Yearly"
+                                        : "Monthly")}
                                 </span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block mb-0.5">Category</span>
+                                <span className="font-medium text-slate-800">{planType.label}</span>
                               </div>
                             </div>
 
-                            {(plan.listingId || plan.cancelAt || plan.canceledAt || plan.price != null) && (
-                              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
+                            {/* Target Listing Details */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
+                              <div>
+                                <span className="text-slate-400 block mb-0.5">Target Listing</span>
+                                <span className="font-semibold text-slate-800 text-xs block truncate" title={planType.listingName || "Account-level Plan"}>
+                                  {planType.listingName || "Account-level Plan"}
+                                </span>
                                 {plan.listingId && (
-                                  <div>
-                                    <span className="text-slate-400 block mb-0.5">Target Listing ID</span>
+                                  <div className="mt-0.5">
                                     <CopyableText text={plan.listingId} label="Listing ID" />
                                   </div>
                                 )}
-                                {(plan.cancelAt || plan.canceledAt) && (
-                                  <div>
-                                    <span className="text-slate-400 block mb-0.5">Cancelled On</span>
-                                    <span className="text-rose-600 font-medium">{formatDate(plan.cancelAt || plan.canceledAt)}</span>
-                                  </div>
-                                )}
-                                {plan.price != null && !isNaN(Number(plan.price)) && (
-                                  <div>
-                                    <span className="text-slate-400 block mb-0.5">Plan Price</span>
-                                    <span className="font-medium text-slate-800">${Number(plan.price).toFixed(2)}</span>
-                                  </div>
-                                )}
                               </div>
-                            )}
+                              {(plan.cancelAt || plan.canceledAt) && (
+                                <div>
+                                  <span className="text-slate-400 block mb-0.5">Cancelled On</span>
+                                  <span className="text-rose-600 font-medium">{formatDate(plan.cancelAt || plan.canceledAt)}</span>
+                                </div>
+                              )}
+                              {plan.price != null && !isNaN(Number(plan.price)) && (
+                                <div>
+                                  <span className="text-slate-400 block mb-0.5">Plan Price</span>
+                                  <span className="font-medium text-slate-800">${Number(plan.price).toFixed(2)}</span>
+                                </div>
+                              )}
+                            </div>
                           </CardContent>
                         </Card>
                       );
@@ -503,18 +948,19 @@ export function PartnerPlanHistoryModal({
 
               {/* TAB 2: FEATURES */}
               <TabsContent value="features" className="space-y-3 focus-visible:outline-none">
-                {partnerFeaturesList.length === 0 ? (
+                {distinctFeatures.length === 0 ? (
                   <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
                     <p className="font-semibold text-slate-700">No features recorded</p>
                     <p className="text-xs text-slate-500 mt-1">This partner has not purchased or been granted any features.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {partnerFeaturesList.map((feat, idx) => {
+                    {distinctFeatures.map((feat, idx) => {
                       const isTrial = Boolean(feat.isTrial || feat.source === "admin_granted");
                       const startFormatted = formatDate(feat.lastPaymentReceived || feat.createdAt);
                       const endFormatted = formatDate(feat.accessThrough || feat.billingPeriodEnd);
                       const effectiveFeatStatus = getEffectiveFeatureStatus(feat);
+                      const featType = resolveItemType(feat, listings, transactions);
 
                       return (
                         <Card key={feat.id || idx} className="bg-white border border-slate-200">
@@ -522,8 +968,17 @@ export function PartnerPlanHistoryModal({
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
                               <div className="flex items-center gap-2 flex-wrap">
                                 <h3 className="font-bold text-slate-900 text-base">
-                                  {feat.featureName || feat.featureId || "Feature"}
+                                  {formatFeatureName(feat.featureId, feat.featureName)}
                                 </h3>
+                                {/* Category / Type Indicator Badge */}
+                                <Badge className={`${featType.badgeClass} text-xs font-medium`}>
+                                  {featType.label}
+                                </Badge>
+                                {feat.isUpgraded && (
+                                  <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[11px] font-semibold">
+                                    Upgraded Feature
+                                  </Badge>
+                                )}
                                 {isTrial && (
                                   <Badge className="bg-purple-50 text-purple-700 border-purple-200 text-[11px]">
                                     Admin Granted
@@ -536,7 +991,35 @@ export function PartnerPlanHistoryModal({
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4 text-xs">
+                            {/* Feature Upgrade Notice Banner */}
+                            {feat.isUpgraded && (
+                              <div className="mt-3 p-3 bg-purple-50/70 border border-purple-200/80 rounded-lg text-xs text-purple-950 flex items-start gap-2.5">
+                                <ArrowUpCircle className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                                <div className="flex-1">
+                                  <div className="font-semibold text-purple-900 flex items-center gap-2">
+                                    <span>Feature Upgraded</span>
+                                    {feat.upgradedAtDate && (
+                                      <span className="text-[11px] font-normal text-purple-600">
+                                        on {formatDate(feat.upgradedAtDate)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-purple-800 text-[11px] mt-0.5">
+                                    Upgraded from <strong>{formatFeatureName(feat.previousFeatureId)}</strong>
+                                    {feat.upgradeTxn?.description ? ` • ${feat.upgradeTxn.description}` : ""}
+                                  </p>
+                                  {feat.olderSupersededSibling?.id && (
+                                    <div className="mt-1 text-[11px] text-purple-700 flex items-center gap-1.5 flex-wrap">
+                                      <span>Previous Doc ID:</span>
+                                      <CopyableText text={feat.olderSupersededSibling.id} label="Previous Feature ID" />
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Feature Key Details */}
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4 text-xs">
                               <div>
                                 <span className="text-slate-400 block mb-0.5">Purchased / Granted</span>
                                 <span className="font-medium text-slate-800">{startFormatted}</span>
@@ -546,10 +1029,63 @@ export function PartnerPlanHistoryModal({
                                 <span className="font-medium text-slate-800">{endFormatted}</span>
                               </div>
                               <div>
-                                <span className="text-slate-400 block mb-0.5">Target Listing</span>
-                                <CopyableText text={feat.listingId || "Primary Account"} label="Listing ID" />
+                                <span className="text-slate-400 block mb-0.5">Category</span>
+                                <span className="font-medium text-slate-800">{featType.label}</span>
+                              </div>
+                              <div>
+                                <span className="text-slate-400 block mb-0.5">Source</span>
+                                <span className="font-medium text-slate-800 capitalize">
+                                  {feat.source ? String(feat.source).replace(/_/g, " ") : "Standard Feature"}
+                                </span>
                               </div>
                             </div>
+
+                            {/* Target Listing Details */}
+                            <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-600">
+                              <div>
+                                <span className="text-slate-400 block mb-0.5">Target Listing</span>
+                                <span className="font-semibold text-slate-800 text-xs block truncate" title={featType.listingName || "Primary Account"}>
+                                  {featType.listingName || "Primary Account"}
+                                </span>
+                                {feat.listingId && (
+                                  <div className="mt-0.5">
+                                    <CopyableText text={feat.listingId} label="Listing ID" />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Collapsible Previous Version if Available */}
+                            {feat.olderSupersededSibling && (
+                              <details className="mt-3 pt-2 border-t border-slate-100 text-xs group">
+                                <summary className="cursor-pointer text-purple-700 hover:text-purple-900 font-medium list-none flex items-center justify-between py-1 select-none">
+                                  <span>View Prior Version ({formatFeatureName(feat.olderSupersededSibling.featureId)})</span>
+                                  <span className="text-slate-400 text-[10px] group-open:rotate-180 transition-transform">▼</span>
+                                </summary>
+                                <div className="mt-2 p-3 bg-slate-50 border border-slate-200 rounded-lg text-slate-600 space-y-1.5 text-xs">
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-semibold text-slate-800">
+                                      {formatFeatureName(feat.olderSupersededSibling.featureId)}
+                                    </span>
+                                    <Badge className="bg-slate-200 text-slate-700 border-slate-300 text-[10px]">
+                                      Superseded by Upgrade
+                                    </Badge>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-2 mt-2 text-[11px]">
+                                    <div>
+                                      <span className="text-slate-400 block">Doc ID</span>
+                                      <CopyableText text={feat.olderSupersededSibling.id} label="Superseded Feature Doc ID" />
+                                    </div>
+                                    <div>
+                                      <span className="text-slate-400 block">Superseded On</span>
+                                      <span className="font-medium text-slate-700">
+                                        {formatDate(feat.olderSupersededSibling.supersededAt || feat.upgradedAtDate)}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              </details>
+                            )}
                           </CardContent>
                         </Card>
                       );
@@ -557,7 +1093,6 @@ export function PartnerPlanHistoryModal({
                   </div>
                 )}
               </TabsContent>
-
             </Tabs>
           </div>
         </ModalErrorBoundary>
