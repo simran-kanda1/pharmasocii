@@ -1543,26 +1543,42 @@ export default function AdminDashboard() {
     }
   };
 
-  const extendTrial = async (days: number) => {
-    if (!selectedPartner || !(selectedPartner as any).createdByAdmin) return;
-    try {
-      const latestPlan = partnerPlans
-        .filter((plan) => plan.partnerId === selectedPartner.id)
-        .sort((a, b) => {
-          const aTs = a.startDate?.seconds || a.createdAt?.seconds || 0;
-          const bTs = b.startDate?.seconds || b.createdAt?.seconds || 0;
-          return bTs - aTs;
-        })[0];
+  const extendTrial = async (days: number, targetPartner?: PartnerRecord | null, targetListing?: ListingRecord | null) => {
+    const effListing = targetListing !== undefined ? targetListing : selectedListing;
+    let effPartner = targetPartner !== undefined ? targetPartner : selectedPartner;
 
+    let partnerId = effPartner?.id;
+    if (!partnerId && effListing) {
+      partnerId = effListing.partnerId || (effListing.__path?.includes("partnersCollection") ? effListing.__path.split("/")[1] : "");
+      if (partnerId) {
+        effPartner = partners.find((p) => p.id === partnerId) || null;
+      }
+    }
+
+    if (!partnerId) {
+      alert("No partner ID associated with this listing.");
+      return;
+    }
+
+    try {
+      let latestPlan = effListing ? partnerPlans.find((plan) => (plan as any).listingId === effListing.id) : null;
       if (!latestPlan) {
-        alert("No plan document found for this partner to extend.");
-        return;
+        latestPlan = partnerPlans
+          .filter((plan) => plan.partnerId === partnerId)
+          .sort((a, b) => {
+            const aTs = a.startDate?.seconds || a.createdAt?.seconds || 0;
+            const bTs = b.startDate?.seconds || b.createdAt?.seconds || 0;
+            return bTs - aTs;
+          })[0];
+      }
+      if (!latestPlan && effListing && listingInsights[effListing.id]?.plan) {
+        latestPlan = listingInsights[effListing.id].plan;
       }
 
-      const currentEnd = latestPlan.billingPeriodEnd;
+      const currentEnd = latestPlan?.billingPeriodEnd || (effListing as any)?.billingPeriodEnd || (effListing as any)?.accessThrough;
       let endMs = 0;
       if (currentEnd) {
-        endMs = typeof currentEnd.toMillis === 'function' 
+        endMs = typeof currentEnd.toMillis === "function" 
           ? currentEnd.toMillis() 
           : (currentEnd.seconds ? currentEnd.seconds * 1000 : new Date(currentEnd).getTime());
       } else {
@@ -1576,25 +1592,30 @@ export default function AdminDashboard() {
       const extensionMs = days * 24 * 60 * 60 * 1000;
       const newEnd = new Date(baseMs + extensionMs);
 
-      const planDocRef = doc(db, "partnersCollection", selectedPartner.id, "planCollection", latestPlan.id);
-      await updateDoc(planDocRef, {
-        billingPeriodEnd: newEnd,
-        isTrial: true,
-        active: true
-      });
+      if (latestPlan) {
+        const planDocRef = doc(db, "partnersCollection", partnerId, "planCollection", latestPlan.id);
+        await updateDoc(planDocRef, {
+          billingPeriodEnd: newEnd,
+          isTrial: true,
+          active: true,
+        });
+      }
 
       // Synchronize featuresCollection if partner has an active feature spotlight
       let hasFeature = false;
       try {
-        const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
+        const featSnap = await getDocs(collection(db, "partnersCollection", partnerId, "featuresCollection"));
         if (!featSnap.empty) {
           hasFeature = true;
           for (const fDoc of featSnap.docs) {
-            await updateDoc(fDoc.ref, {
-              accessThrough: newEnd,
-              active: true,
-              isTrial: true
-            });
+            const fData = fDoc.data();
+            if (!effListing || !fData.listingId || fData.listingId === effListing.id) {
+              await updateDoc(fDoc.ref, {
+                accessThrough: newEnd,
+                active: true,
+                isTrial: true,
+              });
+            }
           }
         }
       } catch (e) {
@@ -1602,11 +1623,11 @@ export default function AdminDashboard() {
       }
 
       // Sync partner document featureSpotlightPaidThrough
-      if (hasFeature || selectedPartner.selectedAddon || selectedPartner.isFeatured) {
+      if (hasFeature || effPartner?.selectedAddon || effPartner?.isFeatured || (effListing as any)?.selectedAddon || (effListing as any)?.isFeatured) {
         try {
-          await updateDoc(doc(db, "partnersCollection", selectedPartner.id), {
+          await updateDoc(doc(db, "partnersCollection", partnerId), {
             featureSpotlightPaidThrough: newEnd,
-            isFeatured: true
+            isFeatured: true,
           });
         } catch (e) {
           console.warn("Failed to sync partner featureSpotlightPaidThrough:", e);
@@ -1614,46 +1635,83 @@ export default function AdminDashboard() {
       }
 
       // Sync status and feature spotlight to the associated listing if present
-      const listingId = (latestPlan as any).listingId;
-      const collectionName = (latestPlan as any).collectionName;
-      if (listingId && collectionName) {
+      const targetListingId = effListing?.id || (latestPlan as any)?.listingId;
+      let collectionName = effListing?.__col || (latestPlan as any)?.collectionName;
+      if (!collectionName && effListing?.selectedGroup) {
+        collectionName = effListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
+          effListing.selectedGroup === "events" ? "eventsCollection" : (
+            effListing.selectedGroup === "jobs" ? "jobsCollection" : "consultingServicesCollection"
+          )
+        );
+      }
+      if (targetListingId && collectionName) {
         let listingRef;
         if (collectionName === "businessOfferingsCollection") {
-          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", listingId);
+          listingRef = doc(db, "partnersCollection", partnerId, "businessOfferingsCollection", targetListingId);
         } else {
-          listingRef = doc(db, collectionName, listingId);
+          listingRef = doc(db, collectionName, targetListingId);
         }
         try {
           await updateDoc(listingRef, { 
             status: "Extended",
-            ...(hasFeature || selectedPartner.selectedAddon || selectedPartner.isFeatured ? { isFeatured: true, featureSpotlightPaidThrough: newEnd } : {})
+            billingPeriodEnd: newEnd,
+            accessThrough: newEnd,
+            active: true,
+            ...(hasFeature || effPartner?.selectedAddon || effPartner?.isFeatured || (effListing as any)?.selectedAddon || (effListing as any)?.isFeatured ? { isFeatured: true, featureSpotlightPaidThrough: newEnd } : {})
           });
         } catch (e) {
           console.warn("Failed to sync listing status to Extended:", e);
         }
       }
 
-      const partnerListing = listings.find((l) => l.partnerId === selectedPartner.id);
-      if (partnerListing && (!listingId || partnerListing.id !== listingId)) {
+      const partnerListing = listings.find((l) => l.partnerId === partnerId);
+      if (partnerListing && (!targetListingId || partnerListing.id !== targetListingId)) {
         let listingRef;
-        const col = partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
+        const col = partnerListing.__col || (partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
           partnerListing.selectedGroup === "events" ? "eventsCollection" : (
             partnerListing.selectedGroup === "jobs" ? "jobsCollection" : "consultingServicesCollection"
           )
-        );
-        if (partnerListing.selectedGroup === "business_offerings") {
-          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", partnerListing.id);
+        ));
+        if (col === "businessOfferingsCollection") {
+          listingRef = doc(db, "partnersCollection", partnerId, "businessOfferingsCollection", partnerListing.id);
         } else {
           listingRef = doc(db, col, partnerListing.id);
         }
         try {
           await updateDoc(listingRef, {
             status: "Extended",
-            ...(hasFeature || selectedPartner.selectedAddon || selectedPartner.isFeatured ? { isFeatured: true, featureSpotlightPaidThrough: newEnd } : {})
+            billingPeriodEnd: newEnd,
+            accessThrough: newEnd,
+            active: true,
+            ...(hasFeature || effPartner?.selectedAddon || effPartner?.isFeatured ? { isFeatured: true, featureSpotlightPaidThrough: newEnd } : {})
           });
         } catch (e) {
           console.warn("Failed to sync partner listing on trial extend:", e);
         }
+      }
+
+      if (latestPlan) {
+        setPartnerPlans((prev) =>
+          prev.map((p) =>
+            p.id === latestPlan?.id
+              ? { ...p, billingPeriodEnd: newEnd, isTrial: true, active: true }
+              : p
+          )
+        );
+      }
+      if (effListing) {
+        setListingEditor((prev) => ({
+          ...prev,
+          status: "Extended",
+          active: "true",
+        }));
+        setListings((prev) =>
+          prev.map((item) =>
+            item.id === effListing.id
+              ? { ...item, status: "Extended", active: true, billingPeriodEnd: newEnd, accessThrough: newEnd }
+              : item
+          )
+        );
       }
 
       const actionMsg = hasFeature 
@@ -1661,13 +1719,13 @@ export default function AdminDashboard() {
         : `Trial extended by ${days} days (New expiry: ${newEnd.toLocaleDateString()}). Admin: ${adminEmail}`;
 
       await logActivity({
-        partnerId: selectedPartner.id,
-        partnerName: selectedPartner.businessName || "Unnamed Business",
+        partnerId,
+        partnerName: effPartner?.businessName || (effListing as any)?.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
         details: actionMsg,
         category: "admin",
         performedBy: "admin",
-        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd, performedBy: "admin" }
+        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd, performedBy: "admin", listingId: targetListingId }
       });
 
       setSaveNotice(actionMsg);
@@ -1677,32 +1735,52 @@ export default function AdminDashboard() {
     }
   };
 
-  const undoExtension = async () => {
-    if (!selectedPartner || !(selectedPartner as any).createdByAdmin || lastTrialEndMs === null) return;
-    try {
-      const latestPlan = partnerPlans
-        .filter((plan) => plan.partnerId === selectedPartner.id)
-        .sort((a, b) => {
-          const aTs = a.startDate?.seconds || a.createdAt?.seconds || 0;
-          const bTs = b.startDate?.seconds || b.createdAt?.seconds || 0;
-          return bTs - aTs;
-        })[0];
+  const undoExtension = async (targetPartner?: PartnerRecord | null, targetListing?: ListingRecord | null) => {
+    const effListing = targetListing !== undefined ? targetListing : selectedListing;
+    let effPartner = targetPartner !== undefined ? targetPartner : selectedPartner;
 
-      if (!latestPlan) return;
+    let partnerId = effPartner?.id;
+    if (!partnerId && effListing) {
+      partnerId = effListing.partnerId || (effListing.__path?.includes("partnersCollection") ? effListing.__path.split("/")[1] : "");
+      if (partnerId) {
+        effPartner = partners.find((p) => p.id === partnerId) || null;
+      }
+    }
+
+    if (!partnerId || lastTrialEndMs === null) return;
+    try {
+      let latestPlan = effListing ? partnerPlans.find((plan) => (plan as any).listingId === effListing.id) : null;
+      if (!latestPlan) {
+        latestPlan = partnerPlans
+          .filter((plan) => plan.partnerId === partnerId)
+          .sort((a, b) => {
+            const aTs = a.startDate?.seconds || a.createdAt?.seconds || 0;
+            const bTs = b.startDate?.seconds || b.createdAt?.seconds || 0;
+            return bTs - aTs;
+          })[0];
+      }
+      if (!latestPlan && effListing && listingInsights[effListing.id]?.plan) {
+        latestPlan = listingInsights[effListing.id].plan;
+      }
 
       const previousEnd = new Date(lastTrialEndMs);
-      const planDocRef = doc(db, "partnersCollection", selectedPartner.id, "planCollection", latestPlan.id);
-      await updateDoc(planDocRef, { billingPeriodEnd: previousEnd });
+      if (latestPlan) {
+        const planDocRef = doc(db, "partnersCollection", partnerId, "planCollection", latestPlan.id);
+        await updateDoc(planDocRef, { billingPeriodEnd: previousEnd });
+      }
 
       // Synchronize featuresCollection on undo
       try {
-        const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
+        const featSnap = await getDocs(collection(db, "partnersCollection", partnerId, "featuresCollection"));
         for (const fDoc of featSnap.docs) {
-          await updateDoc(fDoc.ref, {
-            accessThrough: previousEnd,
-            active: previousEnd.getTime() > Date.now(),
-            isTrial: true
-          });
+          const fData = fDoc.data();
+          if (!effListing || !fData.listingId || fData.listingId === effListing.id) {
+            await updateDoc(fDoc.ref, {
+              accessThrough: previousEnd,
+              active: previousEnd.getTime() > Date.now(),
+              isTrial: true,
+            });
+          }
         }
       } catch (e) {
         console.warn("Failed to revert featuresCollection on undo:", e);
@@ -1710,66 +1788,106 @@ export default function AdminDashboard() {
 
       // Sync partner document featureSpotlightPaidThrough
       try {
-        await updateDoc(doc(db, "partnersCollection", selectedPartner.id), {
+        await updateDoc(doc(db, "partnersCollection", partnerId), {
           featureSpotlightPaidThrough: previousEnd,
-          isFeatured: previousEnd.getTime() > Date.now()
+          isFeatured: previousEnd.getTime() > Date.now(),
         });
       } catch (e) {
         console.warn("Failed to revert partner featureSpotlightPaidThrough on undo:", e);
       }
 
       // Sync status to the associated listing if present
-      const listingId = (latestPlan as any).listingId;
-      const collectionName = (latestPlan as any).collectionName;
-      if (listingId && collectionName) {
+      const targetListingId = effListing?.id || (latestPlan as any)?.listingId;
+      let collectionName = effListing?.__col || (latestPlan as any)?.collectionName;
+      if (!collectionName && effListing?.selectedGroup) {
+        collectionName = effListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
+          effListing.selectedGroup === "events" ? "eventsCollection" : (
+            effListing.selectedGroup === "jobs" ? "jobsCollection" : "consultingServicesCollection"
+          )
+        );
+      }
+      if (targetListingId && collectionName) {
         let listingRef;
         if (collectionName === "businessOfferingsCollection") {
-          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", listingId);
+          listingRef = doc(db, "partnersCollection", partnerId, "businessOfferingsCollection", targetListingId);
         } else {
-          listingRef = doc(db, collectionName, listingId);
+          listingRef = doc(db, collectionName, targetListingId);
         }
         try {
           await updateDoc(listingRef, { 
-            status: "Approved",
+            status: previousEnd.getTime() > Date.now() ? "Active" : "Expired",
+            billingPeriodEnd: previousEnd,
+            accessThrough: previousEnd,
+            active: previousEnd.getTime() > Date.now(),
             featureSpotlightPaidThrough: previousEnd,
-            isFeatured: previousEnd.getTime() > Date.now()
+            isFeatured: previousEnd.getTime() > Date.now(),
           });
         } catch (e) {
           console.warn("Failed to revert listing status on undo:", e);
         }
       }
 
-      const partnerListing = listings.find((l) => l.partnerId === selectedPartner.id);
-      if (partnerListing && (!listingId || partnerListing.id !== listingId)) {
+      const partnerListing = listings.find((l) => l.partnerId === partnerId);
+      if (partnerListing && (!targetListingId || partnerListing.id !== targetListingId)) {
         let listingRef;
-        const col = partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
+        const col = partnerListing.__col || (partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
           partnerListing.selectedGroup === "events" ? "eventsCollection" : (
             partnerListing.selectedGroup === "jobs" ? "jobsCollection" : "consultingServicesCollection"
           )
-        );
-        if (partnerListing.selectedGroup === "business_offerings") {
-          listingRef = doc(db, "partnersCollection", selectedPartner.id, "businessOfferingsCollection", partnerListing.id);
+        ));
+        if (col === "businessOfferingsCollection") {
+          listingRef = doc(db, "partnersCollection", partnerId, "businessOfferingsCollection", partnerListing.id);
         } else {
           listingRef = doc(db, col, partnerListing.id);
         }
         try {
           await updateDoc(listingRef, {
             featureSpotlightPaidThrough: previousEnd,
-            isFeatured: previousEnd.getTime() > Date.now()
+            isFeatured: previousEnd.getTime() > Date.now(),
           });
         } catch (e) {
           console.warn("Failed to sync partner listing on undo:", e);
         }
       }
 
+      if (latestPlan) {
+        setPartnerPlans((prev) =>
+          prev.map((p) =>
+            p.id === latestPlan?.id
+              ? { ...p, billingPeriodEnd: previousEnd }
+              : p
+          )
+        );
+      }
+      if (effListing) {
+        setListingEditor((prev) => ({
+          ...prev,
+          status: previousEnd.getTime() > Date.now() ? "Active" : "Expired",
+          active: `${previousEnd.getTime() > Date.now()}`,
+        }));
+        setListings((prev) =>
+          prev.map((item) =>
+            item.id === effListing.id
+              ? {
+                  ...item,
+                  status: previousEnd.getTime() > Date.now() ? "Active" : "Expired",
+                  active: previousEnd.getTime() > Date.now(),
+                  billingPeriodEnd: previousEnd,
+                  accessThrough: previousEnd,
+                }
+              : item
+          )
+        );
+      }
+
       await logActivity({
-        partnerId: selectedPartner.id,
-        partnerName: selectedPartner.businessName || "Unnamed Business",
+        partnerId,
+        partnerName: effPartner?.businessName || (effListing as any)?.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
         details: `Trial extension undone. Expiry reverted to ${previousEnd.toLocaleDateString()}. Admin: ${adminEmail}`,
         category: "admin",
         performedBy: "admin",
-        metadata: { adminEmail, revertedTo: previousEnd, performedBy: "admin" }
+        metadata: { adminEmail, revertedTo: previousEnd, performedBy: "admin", listingId: targetListingId }
       });
 
       setLastTrialEndMs(null);
@@ -1779,15 +1897,26 @@ export default function AdminDashboard() {
     }
   };
 
-  const cancelTrial = async () => {
-    if (!selectedPartner || !(selectedPartner as any).createdByAdmin) return;
+  const cancelTrial = async (targetPartner?: PartnerRecord | null, targetListing?: ListingRecord | null) => {
+    const effListing = targetListing !== undefined ? targetListing : selectedListing;
+    let effPartner = targetPartner !== undefined ? targetPartner : selectedPartner;
+
+    let partnerId = effPartner?.id;
+    if (!partnerId && effListing) {
+      partnerId = effListing.partnerId || (effListing.__path?.includes("partnersCollection") ? effListing.__path.split("/")[1] : "");
+      if (partnerId) {
+        effPartner = partners.find((p) => p.id === partnerId) || null;
+      }
+    }
+
+    if (!partnerId) return;
     if (!window.confirm("Are you sure you want to cancel this partner's trial? Their plan and feature will be deactivated immediately.")) return;
     try {
       const now = new Date();
 
       // 1. Deactivate ALL plan documents in planCollection for this partner
       try {
-        const plansSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "planCollection"));
+        const plansSnap = await getDocs(collection(db, "partnersCollection", partnerId, "planCollection"));
         for (const pDoc of plansSnap.docs) {
           await updateDoc(pDoc.ref, {
             active: false,
@@ -1803,7 +1932,7 @@ export default function AdminDashboard() {
 
       // 2. Deactivate ALL feature documents in featuresCollection for this partner
       try {
-        const featSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, "featuresCollection"));
+        const featSnap = await getDocs(collection(db, "partnersCollection", partnerId, "featuresCollection"));
         for (const fDoc of featSnap.docs) {
           await updateDoc(fDoc.ref, {
             active: false,
@@ -1819,7 +1948,7 @@ export default function AdminDashboard() {
 
       // 3. Update the partner document: disable featured flag, clear addons, mark status Cancelled
       try {
-        await updateDoc(doc(db, "partnersCollection", selectedPartner.id), {
+        await updateDoc(doc(db, "partnersCollection", partnerId), {
           isFeatured: false,
           featureSpotlightPaidThrough: now,
           selectedAddon: "",
@@ -1836,7 +1965,7 @@ export default function AdminDashboard() {
       // 4. Deactivate and mark Cancelled on ALL listings belonging to this partner across all collections
       const partnerListings = listings.filter((l) => {
         const pId = l.partnerId || (l.__path?.startsWith("partnersCollection/") ? l.__path.split('/')[1] : "");
-        return pId === selectedPartner.id;
+        return pId === partnerId;
       });
 
       for (const pl of partnerListings) {
@@ -1861,7 +1990,7 @@ export default function AdminDashboard() {
       const subCols = ["businessOfferingsCollection", "eventsCollection", "jobsCollection", "consultingServicesCollection", "consultingCollection"];
       for (const sc of subCols) {
         try {
-          const scSnap = await getDocs(collection(db, "partnersCollection", selectedPartner.id, sc));
+          const scSnap = await getDocs(collection(db, "partnersCollection", partnerId, sc));
           for (const sDoc of scSnap.docs) {
             await updateDoc(sDoc.ref, {
               status: "Cancelled",
@@ -1881,37 +2010,44 @@ export default function AdminDashboard() {
 
       // 5. Update local React states so UI reflects changes immediately
       setPartnerPlans((prev) =>
-        prev.map((p) => (p.partnerId === selectedPartner.id ? { ...p, active: false, billingPeriodEnd: now, status: "Cancelled" } : p))
+        prev.map((p) => (p.partnerId === partnerId ? { ...p, active: false, billingPeriodEnd: now, status: "Cancelled" } : p))
       );
       setFeaturedPlans((prev) =>
-        prev.map((f) => (f.partnerId === selectedPartner.id ? { ...f, active: false, accessThrough: now, status: "Cancelled" } : f))
+        prev.map((f) => (f.partnerId === partnerId ? { ...f, active: false, accessThrough: now, status: "Cancelled" } : f))
       );
       setPartners((prev) =>
-        prev.map((p) => (p.id === selectedPartner.id ? { ...p, isFeatured: false, partnerStatus: "Cancelled", status: "Cancelled" } : p))
+        prev.map((p) => (p.id === partnerId ? { ...p, isFeatured: false, partnerStatus: "Cancelled", status: "Cancelled" } : p))
       );
       setListings((prev) =>
         prev.map((l) => {
           const pId = l.partnerId || (l.__path?.startsWith("partnersCollection/") ? l.__path.split('/')[1] : "");
-          return pId === selectedPartner.id ? { ...l, status: "Cancelled", active: false, isFeatured: false, featureStatus: "Cancelled" } : l;
+          return pId === partnerId ? { ...l, status: "Cancelled", active: false, isFeatured: false, featureStatus: "Cancelled" } : l;
         })
       );
       setPartnerEditor((prev) => ({
         ...prev,
         partnerStatus: "Cancelled",
       }));
+      if (effListing) {
+        setListingEditor((prev) => ({
+          ...prev,
+          status: "Cancelled",
+          active: "false",
+        }));
+      }
 
       // 6. Log to Audit Trail
       await logActivity({
-        partnerId: selectedPartner.id,
-        partnerName: selectedPartner.businessName || "Unnamed Business",
+        partnerId,
+        partnerName: effPartner?.businessName || (effListing as any)?.businessName || "Unnamed Business",
         action: "ACCOUNT_UPDATED",
         details: `Trial, plan, and feature cancelled immediately by admin: ${adminEmail}`,
         category: "admin",
         performedBy: "admin",
-        metadata: { adminEmail, cancelledAt: now, performedBy: "admin" }
+        metadata: { adminEmail, performedBy: "admin", listingId: effListing?.id },
       });
 
-      alert("Trial, plan, and feature cancelled successfully.");
+      setSaveNotice("Trial and plan cancelled successfully.");
     } catch (err: any) {
       console.error("Error cancelling trial:", err);
       alert("Failed to cancel trial: " + err.message);
@@ -2421,8 +2557,37 @@ export default function AdminDashboard() {
           ? String(rawFeaturePlan).replace(/_/g, " ")
           : "-";
 
+      let trialInfo = null;
+      if (plan && (plan.isTrial || plan.billingPeriodEnd || (partner as any)?.createdByAdmin || (listing as any)?.createdByAdmin)) {
+        const startDate = plan.startDate || plan.createdAt || (listing as any)?.createdAt || listing.lastPaymentReceivedAt;
+        const billingPeriodEnd = plan.billingPeriodEnd || (listing as any)?.billingPeriodEnd || (listing as any)?.accessThrough;
+        if (startDate && billingPeriodEnd) {
+          const startMs = typeof startDate.toMillis === "function" 
+            ? startDate.toMillis() 
+            : (startDate.seconds ? startDate.seconds * 1000 : new Date(startDate).getTime());
+          const endMs = typeof billingPeriodEnd.toMillis === "function" 
+            ? billingPeriodEnd.toMillis() 
+            : (billingPeriodEnd.seconds ? billingPeriodEnd.seconds * 1000 : new Date(billingPeriodEnd).getTime());
+          const nowMs = Date.now();
+          
+          const durationDays = Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)));
+          const elapsedDays = Math.floor((nowMs - startMs) / (1000 * 60 * 60 * 24));
+          const currentDay = Math.max(1, elapsedDays + 1);
+          
+          trialInfo = {
+            durationDays,
+            currentDay: Math.min(currentDay, durationDays),
+            isExpired: nowMs > endMs,
+            daysLeft: Math.max(0, Math.round((endMs - nowMs) / (1000 * 60 * 60 * 24))),
+            startDate: startMs,
+            billingPeriodEnd: endMs,
+          };
+        }
+      }
+
       acc[listing.id] = {
         plan,
+        trialInfo,
         businessName,
         listingName,
         subscribedOn: isPlanPaidComplete
@@ -4142,7 +4307,7 @@ export default function AdminDashboard() {
                         variant="outline"
                         size="sm"
                         className="w-full text-xs py-1 text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:border-amber-500"
-                        onClick={undoExtension}
+                        onClick={() => undoExtension()}
                       >
                         ↩ Undo Last Extension (revert to {new Date(lastTrialEndMs).toLocaleDateString()})
                       </Button>
@@ -4151,7 +4316,7 @@ export default function AdminDashboard() {
                       variant="outline"
                       size="sm"
                       className="w-full text-xs py-1 text-rose-600 border-rose-200 bg-white hover:bg-rose-50 hover:border-rose-400"
-                      onClick={cancelTrial}
+                      onClick={() => cancelTrial()}
                     >
                       Cancel Trial
                     </Button>
@@ -4564,6 +4729,110 @@ export default function AdminDashboard() {
                     onChange={() => {}} 
                     disabled={true} 
                   />
+
+                  {selectedListing && (() => {
+                    let lPartnerId = selectedListing.partnerId || "";
+                    if (!lPartnerId && (selectedListing.__col === "businessOfferingsCollection" || selectedListing.__path?.includes("partnersCollection"))) {
+                      lPartnerId = selectedListing.__path.split("/")[1];
+                    }
+                    const lPartner = partners.find((p) => p.id === lPartnerId) || null;
+                    const lInsight = listingInsights[selectedListing.id];
+                    const lPlan = lInsight?.plan || partnerPlans.find((p) => (p as any).listingId === selectedListing.id) || (lPartnerId ? partnerPlans.filter((p) => p.partnerId === lPartnerId).sort((a, b) => (b.startDate?.seconds || 0) - (a.startDate?.seconds || 0))[0] : null);
+
+                    let trial = lInsight?.trialInfo || (lPartnerId && partnerInsights[lPartnerId]?.trialInfo) || null;
+                    if (!trial && (lPlan || (lPartner && Boolean((lPartner as any).createdByAdmin)) || Boolean((selectedListing as any).createdByAdmin))) {
+                      const startDate = lPlan?.startDate || lPlan?.createdAt || (selectedListing as any).createdAt || new Date();
+                      const billingPeriodEnd = lPlan?.billingPeriodEnd || (selectedListing as any).billingPeriodEnd || (selectedListing as any).accessThrough;
+                      if (billingPeriodEnd) {
+                        const startMs = typeof startDate.toMillis === "function"
+                          ? startDate.toMillis()
+                          : (startDate.seconds ? startDate.seconds * 1000 : new Date(startDate).getTime());
+                        const endMs = typeof billingPeriodEnd.toMillis === "function"
+                          ? billingPeriodEnd.toMillis()
+                          : (billingPeriodEnd.seconds ? billingPeriodEnd.seconds * 1000 : new Date(billingPeriodEnd).getTime());
+                        const nowMs = Date.now();
+                        const durationDays = Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)));
+                        const elapsedDays = Math.floor((nowMs - startMs) / (1000 * 60 * 60 * 24));
+                        const currentDay = Math.max(1, elapsedDays + 1);
+                        trial = {
+                          durationDays,
+                          currentDay: Math.min(currentDay, durationDays),
+                          isExpired: nowMs > endMs,
+                          daysLeft: Math.max(0, Math.round((endMs - nowMs) / (1000 * 60 * 60 * 24))),
+                          startDate: startMs,
+                          billingPeriodEnd: endMs,
+                        };
+                      }
+                    }
+
+                    if (!trial) return null;
+
+                    return (
+                      <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 space-y-3 mt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold tracking-wider text-slate-500">Plan Period / Trial Status</span>
+                          {trial.isExpired ? (
+                            <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">Expired</Badge>
+                          ) : (
+                            <Badge className="bg-blue-50 text-blue-700 border-blue-200">Active ({trial.currentDay}/{trial.durationDays} Days)</Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-slate-600 space-y-1">
+                          <p><strong>Start Date:</strong> {new Date(trial.startDate).toLocaleDateString()}</p>
+                          <p><strong>Expiration:</strong> {new Date(trial.billingPeriodEnd).toLocaleDateString()}</p>
+                        </div>
+                        <div className="space-y-1.5 pt-1">
+                          <p className="text-xs font-medium text-slate-500">Extend Plan Period:</p>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 bg-white hover:bg-slate-100 text-xs py-1"
+                              onClick={() => extendTrial(7, lPartner, selectedListing)}
+                            >
+                              +7 Days
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 bg-white hover:bg-slate-100 text-xs py-1"
+                              onClick={() => extendTrial(30, lPartner, selectedListing)}
+                            >
+                              +30 Days
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 bg-white hover:bg-slate-100 text-xs py-1"
+                              onClick={() => extendTrial(90, lPartner, selectedListing)}
+                            >
+                              +90 Days
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="pt-1 border-t border-slate-200 space-y-2">
+                          {lastTrialEndMs !== null && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full text-xs py-1 text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 hover:border-amber-500"
+                              onClick={() => undoExtension(lPartner, selectedListing)}
+                            >
+                              ↩ Undo Last Extension (revert to {new Date(lastTrialEndMs).toLocaleDateString()})
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-xs py-1 text-rose-600 border-rose-200 bg-white hover:bg-rose-50 hover:border-rose-400"
+                            onClick={() => cancelTrial(lPartner, selectedListing)}
+                          >
+                            Cancel Plan / Trial
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Section 2: Core Info */}
                   <div className="border-b pb-2 pt-2 mb-2">
