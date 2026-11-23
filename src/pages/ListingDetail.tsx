@@ -650,8 +650,33 @@ export default function ListingDetail() {
                                             </div>
                                         )}
                                         {(() => {
-                                            const cats = Array.isArray(item.selectedCategories) ? item.selectedCategories :
-                                                (Array.isArray(item.categories) ? item.categories : []);
+                                            const cats = (() => {
+                                                const list: string[] = [];
+                                                if (Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0) {
+                                                    list.push(...item.selectedCategoriesDisplay);
+                                                } else if (Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0) {
+                                                    list.push(...item.selectedCategories);
+                                                } else if (Array.isArray(item.categories) && item.categories.length > 0) {
+                                                    list.push(...item.categories);
+                                                } else if (typeof item.categories === "string" && item.categories.trim()) {
+                                                    list.push(...item.categories.split(",").map((s: string) => s.trim()));
+                                                } else if (typeof item.category === "string" && item.category.trim()) {
+                                                    list.push(item.category.trim());
+                                                }
+
+                                                if (Array.isArray(item.selectedSubcategoriesDisplay) && item.selectedSubcategoriesDisplay.length > 0) {
+                                                    list.push(...item.selectedSubcategoriesDisplay);
+                                                } else if (Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0) {
+                                                    list.push(...item.selectedSubcategories.map((s: string) => s.split(" > ").pop()?.trim() || s.trim()));
+                                                }
+
+                                                if (Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.length > 0) {
+                                                    list.push(...item.selectedSubSubcategories.map((s: string) => s.split(" > ").pop()?.trim() || s.trim()));
+                                                }
+
+                                                return Array.from(new Set(list.filter(Boolean)));
+                                            })();
+
                                             if (cats.length === 0) return null;
 
                                             const initialLimit = 3;
@@ -955,30 +980,7 @@ export default function ListingDetail() {
                         </div>
                     )}
 
-                {/* Subcategories detail for events */}
-                {type === "events" && (Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0) && (
-                    <div className="mb-12">
-                        <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
-                            <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
-                                    <Globe className="w-5 h-5 text-primary" /> Event Specializations
-                                </h3>
-                            </div>
-                            <div className="p-8 flex flex-wrap gap-2">
-                                {item.selectedSubcategories.slice().sort((a: string, b: string) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((sub: string, idx: number) => (
-                                    <Badge key={idx} variant="secondary" className="text-sm py-1.5 px-4 rounded-xl bg-primary/5 text-primary border-primary/10 font-medium">
-                                        {sub.split(" > ").pop()}
-                                    </Badge>
-                                ))}
-                                {Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.slice().sort((a: string, b: string) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((ss: string, idx: number) => (
-                                    <Badge key={`ss-${idx}`} variant="outline" className="text-sm py-1.5 px-4 rounded-xl font-medium">
-                                        {ss.split(" > ").pop()}
-                                    </Badge>
-                                ))}
-                            </div>
-                        </Card>
-                    </div>
-                )}
+
 
                 {/* Subcategories detail for jobs */}
                 {type === "jobs" && (Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0) && (

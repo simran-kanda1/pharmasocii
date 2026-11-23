@@ -75,7 +75,7 @@ export default function Navbar() {
                     <Link to="/" className="flex items-center gap-2">
                         <img src="/pharmalogo1.png" alt="Pharma SocII Logo" className="h-10 w-auto object-contain" />
                         <span className="font-bold text-xl tracking-tight text-foreground">
-                            Pharma SocII™
+                            Pharma SocII<sup className="text-xs font-normal align-super ml-0.5">™</sup>
                         </span>
                     </Link>
 
@@ -186,7 +186,7 @@ export default function Navbar() {
                                 <SheetHeader className="text-left pb-4 border-b border-border">
                                     <SheetTitle className="flex items-center gap-2">
                                         <img src="/pharmalogo1.png" alt="Pharma SocII Logo" className="h-8 w-auto object-contain" />
-                                        <span className="font-bold text-lg">Pharma SocII™</span>
+                                        <span className="font-bold text-lg">Pharma SocII<sup className="text-xs font-normal align-super ml-0.5">™</sup></span>
                                     </SheetTitle>
                                 </SheetHeader>
 

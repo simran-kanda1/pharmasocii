@@ -4740,29 +4740,29 @@ export default function AdminDashboard() {
                     const lPlan = lInsight?.plan || partnerPlans.find((p) => (p as any).listingId === selectedListing.id) || (lPartnerId ? partnerPlans.filter((p) => p.partnerId === lPartnerId).sort((a, b) => (b.startDate?.seconds || 0) - (a.startDate?.seconds || 0))[0] : null);
 
                     let trial = lInsight?.trialInfo || (lPartnerId && partnerInsights[lPartnerId]?.trialInfo) || null;
-                    if (!trial && (lPlan || (lPartner && Boolean((lPartner as any).createdByAdmin)) || Boolean((selectedListing as any).createdByAdmin))) {
-                      const startDate = lPlan?.startDate || lPlan?.createdAt || (selectedListing as any).createdAt || new Date();
-                      const billingPeriodEnd = lPlan?.billingPeriodEnd || (selectedListing as any).billingPeriodEnd || (selectedListing as any).accessThrough;
-                      if (billingPeriodEnd) {
-                        const startMs = typeof startDate.toMillis === "function"
-                          ? startDate.toMillis()
-                          : (startDate.seconds ? startDate.seconds * 1000 : new Date(startDate).getTime());
-                        const endMs = typeof billingPeriodEnd.toMillis === "function"
-                          ? billingPeriodEnd.toMillis()
-                          : (billingPeriodEnd.seconds ? billingPeriodEnd.seconds * 1000 : new Date(billingPeriodEnd).getTime());
-                        const nowMs = Date.now();
-                        const durationDays = Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)));
-                        const elapsedDays = Math.floor((nowMs - startMs) / (1000 * 60 * 60 * 24));
-                        const currentDay = Math.max(1, elapsedDays + 1);
-                        trial = {
-                          durationDays,
-                          currentDay: Math.min(currentDay, durationDays),
-                          isExpired: nowMs > endMs,
-                          daysLeft: Math.max(0, Math.round((endMs - nowMs) / (1000 * 60 * 60 * 24))),
-                          startDate: startMs,
-                          billingPeriodEnd: endMs,
-                        };
-                      }
+                    if (!trial) {
+                      const startDate = lPlan?.startDate || lPlan?.createdAt || (selectedListing as any).createdAt || (selectedListing as any).startDate || new Date();
+                      const billingPeriodEnd = lPlan?.billingPeriodEnd || (selectedListing as any).billingPeriodEnd || (selectedListing as any).accessThrough || (selectedListing as any).endDate;
+                      const startMs = typeof startDate?.toMillis === "function"
+                        ? startDate.toMillis()
+                        : (startDate?.seconds ? startDate.seconds * 1000 : new Date(startDate || Date.now()).getTime());
+                      const endMs = billingPeriodEnd 
+                        ? (typeof billingPeriodEnd.toMillis === "function"
+                            ? billingPeriodEnd.toMillis()
+                            : (billingPeriodEnd.seconds ? billingPeriodEnd.seconds * 1000 : new Date(billingPeriodEnd).getTime()))
+                        : (startMs + 30 * 24 * 60 * 60 * 1000);
+                      const nowMs = Date.now();
+                      const durationDays = Math.max(1, Math.round((endMs - startMs) / (1000 * 60 * 60 * 24)));
+                      const elapsedDays = Math.floor((nowMs - startMs) / (1000 * 60 * 60 * 24));
+                      const currentDay = Math.max(1, elapsedDays + 1);
+                      trial = {
+                        durationDays,
+                        currentDay: Math.min(currentDay, durationDays),
+                        isExpired: nowMs > endMs,
+                        daysLeft: Math.max(0, Math.round((endMs - nowMs) / (1000 * 60 * 60 * 24))),
+                        startDate: startMs,
+                        billingPeriodEnd: endMs,
+                      };
                     }
 
                     if (!trial) return null;

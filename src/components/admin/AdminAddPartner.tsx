@@ -262,7 +262,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     activePlans.forEach(opt => {
       list.push({
         value: opt.id,
-        label: `${opt.label} ($${Number(opt.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}/mo)`,
+        label: `${opt.label} ($${Number(opt.price || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })})`,
       });
     });
     return list;
