@@ -916,7 +916,7 @@ export default function AllCategories() {
                                         const bottomLabel = currentTab === "business"
                                             ? (certsDisplay ? certsDisplay : null)
                                             : currentTab === "consulting" ? (item.focusArea || "Consultant")
-                                                : currentTab === "events" ? formatEventLocation(item.city || item.eventCity, item.stateRegion || item.state || item.eventStateRegion, item.eventCountry || item.country)
+                                                : currentTab === "events" ? formatEventLocation(item.city || item.eventCity, item.stateRegion || item.state || item.eventStateRegion)
                                                     : formatJobLocation(item.city || item.jobCity, item.stateRegion || item.state || item.jobStateRegion);
 
                                         const hasFooterInfo = currentTab !== "consulting" && Boolean(
@@ -1083,7 +1083,7 @@ export default function AllCategories() {
                                                         <div className="flex flex-col p-4 w-full h-full">
                                                             <div className="flex items-center justify-end mb-1 w-full">
                                                                 <div className="text-xs text-muted-foreground font-medium flex items-center gap-1.5 truncate max-w-full">
-                                                                    <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{formatEventLocation(fb.city || fb.eventCity, fb.stateRegion || fb.state || fb.eventStateRegion, fb.eventCountry || fb.country)}</span>
+                                                                    <MapPin className="w-3 h-3 shrink-0" /> <span className="truncate">{formatEventLocation(fb.city || fb.eventCity, fb.stateRegion || fb.state || fb.eventStateRegion)}</span>
                                                                 </div>
                                                             </div>
                                                             <div className="flex-1 flex items-center justify-center text-center px-2">
