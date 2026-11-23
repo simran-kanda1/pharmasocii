@@ -378,10 +378,9 @@ export default function MemberRegister() {
             <div className="rounded-lg border border-primary/25 bg-primary/5 p-4 text-sm text-foreground space-y-3">
               <p className="font-medium">You already have access with this email</p>
               <p className="text-muted-foreground leading-relaxed">
-                Pharma SocII uses one login per email for security. That still lets you use{" "}
-                <strong className="text-foreground">both</strong> partner listings and the community: log in, then—if
-                you have not yet—add your community profile (choose your community username there). Use the same
-                password you set for partner signup.
+                Pharma SocII uses a single login per email address. Sign in using your existing credentials, then
+                complete your Community profile by choosing a username. Your Partner Listings and Community access are
+                managed through the same account.
               </p>
               <Button type="button" className="w-full" asChild>
                 <Link
