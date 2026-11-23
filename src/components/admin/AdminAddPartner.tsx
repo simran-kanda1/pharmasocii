@@ -171,9 +171,9 @@ const TRIAL_PERIOD_OPTIONS = [
 
 const FEATURE_OPTIONS = [
   { value: "none", label: "No Feature" },
-  { value: "home_page", label: "Home Page Feature (Monthly)" },
-  { value: "landing_page", label: "Landing Page Feature (Monthly)" },
-  { value: "both", label: "Landing + Home Page Feature (Monthly)" },
+  { value: "home_page", label: "Home Page Feature" },
+  { value: "landing_page", label: "Landing Page Feature" },
+  { value: "both", label: "Landing + Home Page Feature" },
 ];
 
 export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void; onSuccess: () => void }) {
@@ -1401,7 +1401,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
               {groupKey !== "events" && groupKey !== "jobs" && (
                 <div>
-                  <Label className="text-slate-600 font-bold mb-1.5 block">Featured Partner Plan (Monthly)</Label>
+                  <Label className="text-slate-600 font-bold mb-1.5 block">Featured Partner Plan</Label>
                   <Select value={formData.featuredPlan} onValueChange={(val) => handleSelectChange("featuredPlan", val)}>
                     <SelectTrigger className="w-full h-11 bg-white border-slate-200">
                       <SelectValue placeholder="No Feature" />
