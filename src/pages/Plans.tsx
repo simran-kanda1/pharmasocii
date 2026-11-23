@@ -98,6 +98,9 @@ export default function Plans() {
                                     plan={plan}
                                     isYearly={isYearly && group.hasAnnualToggle}
                                     showDiscountTag={group.hasAnnualToggle}
+                                    hasGroupExtraFeatures={group.plans.some((p) =>
+                                        p.features.some((f) => f.toLowerCase().includes("extra feature"))
+                                    )}
                                 />
                             ))}
                         </div>
@@ -132,10 +135,12 @@ function PlanCard({
     plan,
     isYearly,
     showDiscountTag = true,
+    hasGroupExtraFeatures = false,
 }: {
     plan: PlanItem;
     isYearly: boolean;
     showDiscountTag?: boolean;
+    hasGroupExtraFeatures?: boolean;
 }) {
     const displayPrice = isYearly ? plan.yearlyMonthlyPrice : plan.monthlyPrice;
 
@@ -149,21 +154,21 @@ function PlanCard({
     return (
         <div className={`relative flex flex-col justify-between rounded-2xl bg-white border ${plan.isFeatured ? "border-slate-800 shadow-md" : "border-slate-200/90 shadow-sm"} p-6 transition-all hover:shadow-md`}>
             {/* Top Badge */}
-            <div className="text-center mb-4">
+            <div className="text-center mb-4 shrink-0">
                 <span className="inline-block bg-slate-900 text-white font-bold text-xs px-4 py-1 rounded-full tracking-wider">
                     {plan.badge}
                 </span>
             </div>
 
-            {/* Subtitle Box */}
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3 text-center mb-6 min-h-[56px] flex items-center justify-center">
-                <p className="text-xs font-medium text-slate-600 leading-relaxed">
+            {/* Subtitle Box - fixed height and centered so prices always align across all cards */}
+            <div className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2 text-center mb-6 h-[76px] flex items-center justify-center shrink-0">
+                <p className="text-xs font-medium text-slate-600 leading-snug line-clamp-3">
                     {plan.subtitle}
                 </p>
             </div>
 
-            {/* Price Header */}
-            <div className="text-center mb-6 pb-6 border-b border-slate-100">
+            {/* Price Header - consistent min-height so extra feature slots / features align */}
+            <div className="text-center mb-6 pb-6 border-b border-slate-100 min-h-[84px] flex flex-col justify-center shrink-0">
                 <div className="flex items-baseline justify-center gap-1">
                     <span className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
                         ${displayPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
@@ -184,23 +189,25 @@ function PlanCard({
             {/* Features List */}
             <div className="flex-1 flex flex-col">
                 {/* Extra Feature Top Slot - strictly fixed height so standard features align 100% across all cards */}
-                <div className="h-[56px] mb-5 flex items-center">
-                    {extraFeatures.length > 0 ? (
-                        <div className="w-full h-full bg-blue-50/90 border border-blue-200/90 rounded-xl px-3 py-1.5 flex items-center gap-2.5 shadow-sm">
-                            <Check className="w-4 h-4 text-blue-600 shrink-0" />
-                            <div className="text-[11px] leading-tight flex-1">
-                                <span className="font-bold text-blue-700 block uppercase tracking-wider text-[9px]">
-                                    Extra Feature
-                                </span>
-                                <span className="font-semibold text-slate-900 line-clamp-2">
-                                    {extraFeatures[0].replace(/^Extra Feature:\s*/i, "")}
-                                </span>
+                {hasGroupExtraFeatures && (
+                    <div className="h-[64px] mb-5 flex items-center shrink-0">
+                        {extraFeatures.length > 0 ? (
+                            <div className="w-full h-full bg-blue-50/90 border border-blue-200/90 rounded-xl px-3 py-2 flex items-center gap-2.5 shadow-sm">
+                                <Check className="w-4 h-4 text-blue-600 shrink-0" />
+                                <div className="text-[11px] leading-tight flex-1">
+                                    <span className="font-bold text-blue-700 block uppercase tracking-wider text-[9px]">
+                                        Extra Feature
+                                    </span>
+                                    <span className="font-semibold text-slate-900 line-clamp-2">
+                                        {extraFeatures[0].replace(/^Extra Feature:\s*/i, "")}
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    ) : (
-                        <div className="w-full h-full" />
-                    )}
-                </div>
+                        ) : (
+                            <div className="w-full h-full" />
+                        )}
+                    </div>
+                )}
 
                 {/* Standard Features */}
                 <div className="space-y-3 flex-1">
