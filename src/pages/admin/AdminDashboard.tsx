@@ -780,6 +780,7 @@ const getStatusBadge = (status?: string) => {
     case "failed payment":
     case "failed_payment":
     case "failed":
+      return <Badge className="bg-red-50 text-red-700 border-red-200">Failed Payment</Badge>;
     case "incomplete payment":
     case "incomplete_payment":
     case "payment error":
@@ -787,7 +788,7 @@ const getStatusBadge = (status?: string) => {
     case "past due":
     case "past_due":
     case "unpaid":
-      return <Badge className="bg-red-50 text-red-700 border-red-200">Failed Payment</Badge>;
+      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Incomplete Payment</Badge>;
     case "extended":
       return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Active</Badge>;
     default:
@@ -893,7 +894,7 @@ export default function AdminDashboard() {
   const initialPartnerHistoryId = initialUrlParams?.get("partnerHistory") || "";
 
   const [activeTab, setActiveTab] = useState<AdminTab>(initialTabParam || "overview");
-  const [transactionStatusFilter, setTransactionStatusFilter] = useState<"all" | "completed" | "pending" | "failed">(
+  const [transactionStatusFilter, setTransactionStatusFilter] = useState<"all" | "completed" | "pending" | "failed" | "incomplete">(
     initialStatusParam || "all"
   );
   const [partners, setPartners] = useState<PartnerRecord[]>([]);
@@ -1943,7 +1944,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleOpenTransactions = (filter: "all" | "completed" | "pending" | "failed" = "all") => {
+  const handleOpenTransactions = (filter: "all" | "completed" | "pending" | "failed" | "incomplete" = "all") => {
     setTransactionStatusFilter(filter);
     setActiveTab("transactions");
   };
@@ -4981,7 +4982,7 @@ function OverviewTab({
   auditLogs: any[];
   listingInsights: Record<string, any>;
   onViewListing: (listing: ListingRecord) => void;
-  onOpenTransactions: (filter?: "all" | "completed" | "pending" | "failed") => void;
+  onOpenTransactions: (filter?: "all" | "completed" | "pending" | "failed" | "incomplete") => void;
 }) {
   const [renewalWindow, setRenewalWindow] = useState<"month" | "week">("month");
 
@@ -6829,10 +6830,10 @@ function TransactionList({
   featuredPlans?: FeaturedPlanPurchase[];
   auditLogs?: any[];
   listingInsights?: Record<string, any>;
-  initialStatusFilter?: "all" | "completed" | "pending" | "failed";
+  initialStatusFilter?: "all" | "completed" | "pending" | "failed" | "incomplete";
 }) {
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "pending" | "failed">(initialStatusFilter);
+  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "pending" | "failed" | "incomplete">(initialStatusFilter);
 
   useEffect(() => {
     if (initialStatusFilter) {
@@ -6970,9 +6971,18 @@ function TransactionList({
         action === "PAYMENT_FAILED" ||
         action.includes("PAYMENT_FAIL") ||
         String(meta.paymentStatus || "").toLowerCase() === "failed" ||
-        String(meta.status || "").toLowerCase() === "incomplete payment" ||
+        String(meta.paymentStatus || "").toLowerCase() === "payment failed" ||
         String(meta.status || "").toLowerCase() === "failed payment" ||
         String(log.details || "").toLowerCase().includes("payment failed");
+
+      const isIncompleteLog =
+        action === "PAYMENT_INCOMPLETE" ||
+        action.includes("INCOMPLETE") ||
+        String(meta.paymentStatus || "").toLowerCase() === "incomplete" ||
+        String(meta.paymentStatus || "").toLowerCase() === "incomplete payment" ||
+        String(meta.status || "").toLowerCase() === "incomplete" ||
+        String(meta.status || "").toLowerCase() === "incomplete payment" ||
+        String(log.details || "").toLowerCase().includes("incomplete");
 
       const isPendingLog =
         action === "PAYMENT_PENDING" ||
@@ -6981,7 +6991,7 @@ function TransactionList({
           (listingStatus === "Pending Payment" ||
             String(meta.paymentStatus || "").toLowerCase().includes("pending")));
 
-      if (!isFailedLog && !isPendingLog) continue;
+      if (!isFailedLog && !isIncompleteLog && !isPendingLog) continue;
       if (sid && knownSessionIds.has(sid)) continue;
       if (invId && knownInvoiceIds.has(invId)) continue;
 
@@ -6993,7 +7003,7 @@ function TransactionList({
             : new Date(log.timestamp).getTime()
         : 0;
 
-      if (isFailedLog) {
+      if (isFailedLog || isIncompleteLog) {
         const failKey = invId || sid || (lid ? `${lid}:${action}` : "") || `log-${log.id}`;
         if (seenFailedKeys.has(failKey)) continue;
         seenFailedKeys.add(failKey);
@@ -7044,7 +7054,7 @@ function TransactionList({
         invoiceId: invId || null,
         amount: rawAmount,
         currency: meta.currency || "usd",
-        status: isFailedLog ? "incomplete_payment" : "pending_payment",
+        status: isIncompleteLog ? "incomplete_payment" : isFailedLog ? "failed" : "pending_payment",
         eventType: isFailedLog && String(meta.billingReason || "") === "subscription_cycle" ? "renewal" : "initial",
         listingTitle:
           meta.listingName ||
@@ -7082,7 +7092,8 @@ function TransactionList({
         (typeof l.__path === "string" && l.__path.startsWith("partnersCollection/") ? l.__path.split("/")[1] : "");
       const partner = pid ? partnerMap.byId.get(pid) : undefined;
       const resolvedPlanAmt = resolvePlanRenewalAmount({ planId: l.selectedPlan, group: l.selectedGroup } as any, l, transactions);
-      const isFailed = effStatus === "Incomplete Payment" || effStatus === "Failed Payment";
+      const isFailed = effStatus === "Failed Payment";
+      const isIncomplete = effStatus === "Incomplete Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `listing-${l.id}`,
         partnerId: pid || "",
@@ -7095,7 +7106,7 @@ function TransactionList({
         stripeSubscriptionId: (l as any).stripeSubscriptionId || null,
         amount: resolvedPlanAmt > 0 ? resolvedPlanAmt : 0,
         currency: "usd",
-        status: isFailed ? "incomplete_payment" : "pending_payment",
+        status: isFailed ? "failed" : isIncomplete ? "incomplete_payment" : "pending_payment",
         eventType: "initial",
         listingTitle: l.eventName || l.jobTitle || l.title || l.businessName || null,
         businessName: l.businessName || partner?.businessName || "",
@@ -7122,7 +7133,8 @@ function TransactionList({
       if (pl.stripeSubscriptionId) nonCompletedSubIds.add(String(pl.stripeSubscriptionId));
 
       const partner = pl.partnerId ? partnerMap.byId.get(pl.partnerId) : undefined;
-      const isFailed = s === "Incomplete Payment" || s === "Failed Payment";
+      const isFailed = s === "Failed Payment";
+      const isIncomplete = s === "Incomplete Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `plan-${pl.id}`,
         partnerId: pl.partnerId || "",
@@ -7136,7 +7148,7 @@ function TransactionList({
         stripeSubscriptionId: pl.stripeSubscriptionId || null,
         amount: typeof pl.price === "number" ? pl.price : 0,
         currency: "usd",
-        status: isFailed ? "incomplete_payment" : "pending_payment",
+        status: isFailed ? "failed" : isIncomplete ? "incomplete_payment" : "pending_payment",
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
@@ -7157,7 +7169,8 @@ function TransactionList({
       if (subId) nonCompletedSubIds.add(String(subId));
 
       const partner = fp.partnerId ? partnerMap.byId.get(fp.partnerId) : undefined;
-      const isFailed = s === "Incomplete Payment" || s === "Failed Payment";
+      const isFailed = s === "Failed Payment";
+      const isIncomplete = s === "Incomplete Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `feature-${fp.id}`,
         partnerId: fp.partnerId || "",
@@ -7169,7 +7182,7 @@ function TransactionList({
         stripeSubscriptionId: subId || null,
         amount: typeof (fp as any).price === "number" ? (fp as any).price : 0,
         currency: "usd",
-        status: isFailed ? "incomplete_payment" : "pending_payment",
+        status: isFailed ? "failed" : isIncomplete ? "incomplete_payment" : "pending_payment",
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
@@ -7188,13 +7201,20 @@ function TransactionList({
   const counts = useMemo(() => {
     let completed = 0;
     let pending = 0;
+    let incomplete = 0;
     let failed = 0;
     for (const r of rows) {
-      if (r.statusLabel === "Completed") completed++;
-      else if (r.statusLabel === "Pending Payment") pending++;
-      else if (r.statusLabel === "Failed Payment") failed++;
+      if (r.statusLabel === "Completed") {
+        completed++;
+      } else if (r.statusLabel === "Pending" || r.statusLabel === "Pending Payment") {
+        pending++;
+      } else if (r.statusLabel === "Incomplete Payment" || r.statusLabel.toLowerCase().includes("incomplete")) {
+        incomplete++;
+      } else if (r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail")) {
+        failed++;
+      }
     }
-    return { all: rows.length, completed, pending, failed };
+    return { all: rows.length, completed, pending, incomplete, failed };
   }, [rows]);
 
   const filtered = useMemo(() => {
@@ -7202,9 +7222,11 @@ function TransactionList({
     if (statusFilter === "completed") {
       list = list.filter((r) => r.statusLabel === "Completed");
     } else if (statusFilter === "pending") {
-      list = list.filter((r) => r.statusLabel === "Pending Payment");
+      list = list.filter((r) => r.statusLabel === "Pending Payment" || r.statusLabel === "Pending");
+    } else if (statusFilter === "incomplete") {
+      list = list.filter((r) => r.statusLabel === "Incomplete Payment" || r.statusLabel.toLowerCase().includes("incomplete"));
     } else if (statusFilter === "failed") {
-      list = list.filter((r) => r.statusLabel === "Failed Payment");
+      list = list.filter((r) => r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail"));
     }
 
     const q = search.trim().toLowerCase();
@@ -7295,7 +7317,18 @@ function TransactionList({
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            Pending Payments ({counts.pending})
+            Pending ({counts.pending})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("incomplete")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              statusFilter === "incomplete"
+                ? "bg-rose-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            Incomplete Payments ({counts.incomplete})
           </button>
           <button
             type="button"
@@ -7410,9 +7443,11 @@ function TransactionList({
                             className={
                               t.statusLabel === "Completed"
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-medium"
-                                : t.statusLabel === "Pending Payment"
+                                : t.statusLabel === "Pending Payment" || t.statusLabel === "Pending"
                                   ? "bg-amber-50 text-amber-700 border-amber-200 font-medium"
-                                  : "bg-red-50 text-red-700 border-red-200 font-medium"
+                                  : t.statusLabel === "Incomplete Payment" || t.statusLabel.toLowerCase().includes("incomplete")
+                                    ? "bg-rose-50 text-rose-700 border-rose-200 font-medium"
+                                    : "bg-red-50 text-red-700 border-red-200 font-medium"
                             }
                           >
                             {t.statusLabel}

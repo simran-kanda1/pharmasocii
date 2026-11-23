@@ -334,20 +334,21 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
             ? "Completed"
             : statusRaw === "pending" || statusRaw === "pending_payment" || statusRaw === "pending payment" || statusRaw === "open"
                 ? "Pending Payment"
-                : statusRaw === "failed" ||
-                    statusRaw === "payment_failed" ||
-                    statusRaw === "payment failed" ||
-                    statusRaw === "incomplete" ||
-                    statusRaw === "incomplete_payment" ||
-                    statusRaw === "incomplete payment" ||
-                    statusRaw === "requires_action" ||
-                    statusRaw === "past_due" ||
-                    statusRaw === "unpaid" ||
-                    statusRaw === "expired"
-                    ? "Failed Payment"
-                    : statusRaw === "canceled" || statusRaw === "cancelled"
-                        ? "Cancelled"
-                        : statusRaw ? cleanTitleCase(statusRaw.replace(/_/g, " ")) : "Failed Payment";
+                : statusRaw === "incomplete" ||
+                  statusRaw === "incomplete_payment" ||
+                  statusRaw === "incomplete payment"
+                    ? "Incomplete Payment"
+                    : statusRaw === "failed" ||
+                        statusRaw === "payment_failed" ||
+                        statusRaw === "payment failed" ||
+                        statusRaw === "requires_action" ||
+                        statusRaw === "past_due" ||
+                        statusRaw === "unpaid" ||
+                        statusRaw === "expired"
+                        ? "Failed Payment"
+                        : statusRaw === "canceled" || statusRaw === "cancelled"
+                            ? "Cancelled"
+                            : statusRaw ? cleanTitleCase(statusRaw.replace(/_/g, " ")) : "Failed Payment";
 
     const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]).map(String) : []);
     const reps = Array.isArray(t.companyRepresentatives) ? (t.companyRepresentatives as CompanyRep[]) : [];
