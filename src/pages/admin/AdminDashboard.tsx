@@ -777,6 +777,9 @@ const getStatusBadge = (status?: string) => {
       return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Cancelled</Badge>;
     case "expired":
       return <Badge className="bg-orange-50 text-orange-700 border-orange-200">Expired</Badge>;
+    case "failed payment":
+    case "failed_payment":
+    case "failed":
     case "incomplete payment":
     case "incomplete_payment":
     case "payment error":
@@ -784,7 +787,7 @@ const getStatusBadge = (status?: string) => {
     case "past due":
     case "past_due":
     case "unpaid":
-      return <Badge className="bg-red-50 text-red-700 border-red-200">Incomplete Payment</Badge>;
+      return <Badge className="bg-red-50 text-red-700 border-red-200">Failed Payment</Badge>;
     case "extended":
       return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Active</Badge>;
     default:
@@ -883,12 +886,16 @@ export default function AdminDashboard() {
 
   const initialUrlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const initialTabParam = initialUrlParams?.get("tab") as AdminTab | null;
+  const initialStatusParam = initialUrlParams?.get("status") as "all" | "completed" | "pending" | "failed" | null;
   const initialAuditView = initialUrlParams?.get("auditView");
   const initialAuditSearch = initialUrlParams?.get("auditSearch") || "";
   const initialAuditListing = initialUrlParams?.get("auditListing") || "all";
   const initialPartnerHistoryId = initialUrlParams?.get("partnerHistory") || "";
 
   const [activeTab, setActiveTab] = useState<AdminTab>(initialTabParam || "overview");
+  const [transactionStatusFilter, setTransactionStatusFilter] = useState<"all" | "completed" | "pending" | "failed">(
+    initialStatusParam || "all"
+  );
   const [partners, setPartners] = useState<PartnerRecord[]>([]);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [listings, setListings] = useState<ListingRecord[]>([]);
@@ -1936,6 +1943,11 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleOpenTransactions = (filter: "all" | "completed" | "pending" | "failed" = "all") => {
+    setTransactionStatusFilter(filter);
+    setActiveTab("transactions");
+  };
+
   const openListingEditor = (listing: ListingRecord) => {
     setSelectedListing(listing);
 
@@ -2596,7 +2608,9 @@ export default function AdminDashboard() {
     sources.forEach(({ group, data }) => {
       const groupKey = normalizeGroupKey(group) || "";
       Object.entries(data).forEach(([category, subEntries]) => {
-        const catMeta = categoryMetadataMap[`${groupKey}:${category}`] || {};
+        const rawCatMeta = categoryMetadataMap[`${groupKey}:${category}`] || {};
+        const isParentMeta = !rawCatMeta.subcategory || rawCatMeta.subcategory === "-" || rawCatMeta.subcategory === "—";
+        const catMeta = isParentMeta ? rawCatMeta : {};
         const isCatInactive =
           (catMeta.status || "").toLowerCase() === "inactive" ||
           catMeta.isDeleted === true ||
@@ -2636,13 +2650,13 @@ export default function AdminDashboard() {
 
               const subMeta = specificSubMeta || catMeta;
               rows.push({
-                id: subMeta.id || catMeta.id,
+                id: specificSubMeta?.id || undefined,
                 group,
                 category,
                 subcategory: sub,
                 subSubcategory: "—",
                 isParent: false,
-                status: isCatInactive ? "Inactive" : (specificSubMeta?.status || catMeta.status || "Active"),
+                status: isCatInactive ? "Inactive" : (specificSubMeta?.status || "Active"),
                 imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
                 metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
                 metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
@@ -2667,13 +2681,13 @@ export default function AdminDashboard() {
 
             const subMeta = specificSubMeta || catMeta;
             rows.push({
-              id: subMeta.id || catMeta.id,
+              id: specificSubMeta?.id || undefined,
               group,
               category,
               subcategory: subLabel,
               subSubcategory: subSubs,
               isParent: false,
-              status: isCatInactive ? "Inactive" : (specificSubMeta?.status || catMeta.status || "Active"),
+              status: isCatInactive ? "Inactive" : (specificSubMeta?.status || "Active"),
               imageUrl: subMeta.imageUrl || catMeta.imageUrl || defaultImg,
               metaDescription: subMeta.metaDescription || catMeta.metaDescription || "",
               metaKeywords: subMeta.metaKeywords || catMeta.metaKeywords || "",
@@ -3216,7 +3230,7 @@ export default function AdminDashboard() {
       if (status === "Active" || status === "Approved") counts.active++;
       else if (status === "Cancelled") counts.cancelled++;
       else if (status === "Expired") counts.expired++;
-      else if (status === "Incomplete Payment" || status === "Payment Error") counts.incomplete_payment++;
+      else if (status === "Failed Payment" || status === "Incomplete Payment" || status === "Payment Error") counts.incomplete_payment++;
       else if (status === "Pending Payment") counts.pending_payment++;
       else if (status === "Disabled") counts.disabled++;
       else if (status === "Pending Review" || status === "Pending") counts.pending++;
@@ -3235,8 +3249,8 @@ export default function AdminDashboard() {
       if (listingFilter === "disabled" && status !== "Disabled") return false;
       if (listingFilter === "cancelled" && status !== "Cancelled") return false;
       if (listingFilter === "expired" && status !== "Expired") return false;
-      if (listingFilter === "incomplete_payment" && status !== "Incomplete Payment") return false;
-      if (listingFilter === "payment_error" && status !== "Incomplete Payment") return false;
+      if (listingFilter === "incomplete_payment" && status !== "Failed Payment" && status !== "Incomplete Payment") return false;
+      if (listingFilter === "payment_error" && status !== "Failed Payment" && status !== "Incomplete Payment") return false;
       if (listingFilter === "pending_payment" && status !== "Pending Payment") return false;
 
       if (!listingSearchTerm) return true;
@@ -3389,7 +3403,7 @@ export default function AdminDashboard() {
                 auditLogs={auditLogs}
                 listingInsights={listingInsights}
                 onViewListing={openListingEditor}
-                onOpenTransactions={() => window.open("/admin/dashboard?tab=transactions", "_blank", "noopener,noreferrer")}
+                onOpenTransactions={handleOpenTransactions}
               />
               <VerificationMirrorsPanel />
             </div>
@@ -3491,7 +3505,7 @@ export default function AdminDashboard() {
                     <XCircle className="w-4 h-4 mr-2" /> Cancelled ({listingStatusCounts.cancelled})
                   </Button>
                   <Button variant={listingFilter === "incomplete_payment" || listingFilter === "payment_error" ? "default" : "outline"} onClick={() => setListingFilter("incomplete_payment")}>
-                    <AlertTriangle className="w-4 h-4 mr-2" /> Incomplete Payment ({listingStatusCounts.incomplete_payment})
+                    <AlertTriangle className="w-4 h-4 mr-2" /> Failed Payment ({listingStatusCounts.incomplete_payment})
                   </Button>
                   <Button variant={listingFilter === "pending_payment" ? "default" : "outline"} onClick={() => setListingFilter("pending_payment")}>
                     <Clock className="w-4 h-4 mr-2" /> Pending Payment ({listingStatusCounts.pending_payment})
@@ -3533,6 +3547,7 @@ export default function AdminDashboard() {
               featuredPlans={featuredPlans}
               auditLogs={auditLogs}
               listingInsights={listingInsights}
+              initialStatusFilter={transactionStatusFilter}
             />
           )}
 
@@ -4907,6 +4922,44 @@ function TablePaginationBar({
   );
 }
 
+const resolvePlanRenewalAmount = (
+  plan: { price?: number; amount?: number; stripeSubscriptionId?: string; listingId?: string; planId?: string; planName?: string; group?: string; [key: string]: any },
+  listing?: ListingRecord,
+  transactions: any[] = []
+): number => {
+  if (typeof plan.price === "number" && plan.price > 0) return plan.price;
+  if (typeof plan.amount === "number" && plan.amount > 0) return plan.amount;
+  if (typeof (plan as any).amountDue === "number" && (plan as any).amountDue > 0) return (plan as any).amountDue;
+  const matchTxn = transactions.find(
+    (t) =>
+      (plan.stripeSubscriptionId && t.stripeSubscriptionId === plan.stripeSubscriptionId) ||
+      (plan.listingId && t.listingId === plan.listingId)
+  );
+  if (matchTxn && typeof matchTxn.amount === "number" && matchTxn.amount > 0) {
+    return matchTxn.amount;
+  }
+  const p = String(plan.planId || plan.planName || listing?.selectedPlan || "").toLowerCase();
+  const g = String(plan.group || listing?.selectedGroup || listing?.__col || "").toLowerCase();
+  const isYearly = p.includes("_yr") || p.includes("year") || p.includes("annual");
+  if (g.includes("event") || p.includes("event")) {
+    if (p.includes("premium_plus") || p.includes("premium plus")) return 1450;
+    if (p.includes("premium")) return 1250;
+    if (p.includes("standard")) return 850;
+    if (p.includes("basic")) return 500;
+  }
+  if (g.includes("job") || p.includes("job")) {
+    if (p.includes("premium_plus") || p.includes("premium plus")) return 1000;
+    if (p.includes("premium")) return 650;
+    if (p.includes("standard")) return 400;
+    if (p.includes("basic")) return 150;
+  }
+  if (p.includes("premium_plus") || p.includes("premium plus")) return isYearly ? 8000 : 800;
+  if (p.includes("premium")) return isYearly ? 4500 : 450;
+  if (p.includes("standard")) return isYearly ? 2000 : 200;
+  if (p.includes("basic")) return isYearly ? 1000 : 100;
+  return 0;
+};
+
 function OverviewTab({
   stats,
   transactions,
@@ -4928,7 +4981,7 @@ function OverviewTab({
   auditLogs: any[];
   listingInsights: Record<string, any>;
   onViewListing: (listing: ListingRecord) => void;
-  onOpenTransactions: () => void;
+  onOpenTransactions: (filter?: "all" | "completed" | "pending" | "failed") => void;
 }) {
   const [renewalWindow, setRenewalWindow] = useState<"month" | "week">("month");
 
@@ -4977,9 +5030,10 @@ function OverviewTab({
     const day = now.getDay(); // 0 = Sun, 1 = Mon, ...
     const daysToSunday = day === 0 ? 0 : 7 - day;
     const endOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() + daysToSunday, 23, 59, 59, 999);
-    // Current calendar month (through last day of this month)
+    // Current calendar month (from 1st of this month through last day of this month)
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
-    return { startOfToday, endOfWeek, endOfMonth };
+    return { startOfToday, endOfWeek, startOfMonth, endOfMonth };
   }, []);
 
   // Build all active, auto-renewing upcoming renewals (plans + standalone features)
@@ -4998,40 +5052,6 @@ function OverviewTab({
       amountDisplay: string;
       renewalDate: Date;
       listing?: ListingRecord;
-    };
-
-    const resolvePlanRenewalAmount = (plan: PartnerPlanRecord, listing?: ListingRecord): number => {
-      if (typeof plan.price === "number" && plan.price > 0) return plan.price;
-      if (typeof plan.amount === "number" && plan.amount > 0) return plan.amount;
-      if (typeof (plan as any).amountDue === "number" && (plan as any).amountDue > 0) return (plan as any).amountDue;
-      const matchTxn = transactions.find(
-        (t) =>
-          (plan.stripeSubscriptionId && t.stripeSubscriptionId === plan.stripeSubscriptionId) ||
-          (plan.listingId && t.listingId === plan.listingId)
-      );
-      if (matchTxn && typeof matchTxn.amount === "number" && matchTxn.amount > 0) {
-        return matchTxn.amount;
-      }
-      const p = String(plan.planId || plan.planName || listing?.selectedPlan || "").toLowerCase();
-      const g = String(plan.group || listing?.selectedGroup || listing?.__col || "").toLowerCase();
-      const isYearly = p.includes("_yr") || p.includes("year") || p.includes("annual");
-      if (g.includes("event") || p.includes("event")) {
-        if (p.includes("premium_plus") || p.includes("premium plus")) return 1450;
-        if (p.includes("premium")) return 1250;
-        if (p.includes("standard")) return 850;
-        if (p.includes("basic")) return 500;
-      }
-      if (g.includes("job") || p.includes("job")) {
-        if (p.includes("premium_plus") || p.includes("premium plus")) return 1000;
-        if (p.includes("premium")) return 650;
-        if (p.includes("standard")) return 400;
-        if (p.includes("basic")) return 150;
-      }
-      if (p.includes("premium_plus") || p.includes("premium plus")) return isYearly ? 8000 : 800;
-      if (p.includes("premium")) return isYearly ? 4500 : 450;
-      if (p.includes("standard")) return isYearly ? 2000 : 200;
-      if (p.includes("basic")) return isYearly ? 1000 : 100;
-      return 0;
     };
 
     const resolveFeatureRenewalAmount = (feat: FeaturedPlanPurchase): number => {
@@ -5103,7 +5123,7 @@ function OverviewTab({
       const cycle = plan.interval === "year" || p.includes("_yr") || p.includes("year") || p.includes("annual")
         ? "Yearly"
         : "Monthly";
-      const amountNumeric = resolvePlanRenewalAmount(plan, linkedListing);
+      const amountNumeric = resolvePlanRenewalAmount(plan, linkedListing, transactions);
       const amountDisplay = amountNumeric > 0 ? `$${amountNumeric.toFixed(2)}` : "—";
 
       const dedupKey = `plan:${plan.listingId || plan.id}`;
@@ -5198,8 +5218,8 @@ function OverviewTab({
     };
   }, [partnerPlans, featuredPlans, listingById, listingInsights, partnerById, windows, transactions]);
 
-  // Separate Incomplete Payments (unfinished/abandoned checkouts) & Failed Payments (payment failures / declined charges)
-  const { incompletePayments, failedPayments } = useMemo(() => {
+  // Separate Pending Payments (unfinished/abandoned checkouts) & Failed Payments (payment failures / declined charges)
+  const { pendingPayments, failedPayments } = useMemo(() => {
     type PaymentIssueItem = {
       id: string;
       businessName: string;
@@ -5269,7 +5289,7 @@ function OverviewTab({
       }
     }
 
-    // 2. Audit logs: PAYMENT_FAILED -> Failed Payments; PAYMENT_PENDING / unpaid LISTING_CREATED -> Incomplete Payments
+    // 2. Audit logs: PAYMENT_FAILED -> Failed Payments; PAYMENT_PENDING / unpaid LISTING_CREATED -> Pending Payments
     for (const log of auditLogs) {
       if (!log || isMemberAuditLog(log)) continue;
       const action = String(log.action || "").toUpperCase().trim();
@@ -5322,17 +5342,17 @@ function OverviewTab({
           itemLabel: itemLabel !== "-" ? itemLabel : "Checkout Started",
           amountDisplay: "—",
           dateObj,
-          statusLabel: "Incomplete Payment",
+          statusLabel: "Pending Payment",
           listing: linkedListing,
         });
       }
     }
 
-    // 3. Listings / plans / features currently in Pending Payment or Incomplete Payment status
+    // 3. Listings / plans / features currently in Pending Payment or Failed/Incomplete Payment status
     for (const l of listings) {
       if (!l?.id) continue;
       const effStatus = getEffectiveListingStatus(l, listingInsights[l.id]);
-      if (effStatus !== "Pending Payment" && effStatus !== "Incomplete Payment") continue;
+      if (effStatus !== "Pending Payment" && effStatus !== "Incomplete Payment" && effStatus !== "Failed Payment") continue;
       const partner = l.partnerId ? partnerById.get(l.partnerId) : undefined;
       const businessName = l.businessName || partner?.businessName || "—";
       const listingName = getListingTitle(l, businessName);
@@ -5340,7 +5360,10 @@ function OverviewTab({
       const itemLabel = formatAuditPlanType(l.selectedPlan, grp);
       const dateObj = toDateSafe(l.createdAt || (l as any).updatedAt);
 
-      if (effStatus === "Incomplete Payment") {
+      const resolvedPlanAmt = resolvePlanRenewalAmount({ planId: l.selectedPlan, group: l.selectedGroup } as any, l, transactions);
+      const planAmountDisplay = resolvedPlanAmt > 0 ? `$${resolvedPlanAmt.toFixed(2)}` : "—";
+
+      if (effStatus === "Incomplete Payment" || effStatus === "Failed Payment") {
         if (seenFailedKeys.has(String(l.id))) continue;
         seenFailedKeys.add(String(l.id));
         failed.push({
@@ -5348,9 +5371,9 @@ function OverviewTab({
           businessName,
           listingName,
           itemLabel: itemLabel !== "-" ? itemLabel : "Plan",
-          amountDisplay: "—",
+          amountDisplay: planAmountDisplay,
           dateObj,
-          statusLabel: "Incomplete Payment",
+          statusLabel: "Failed Payment",
           listing: l,
         });
       } else {
@@ -5361,7 +5384,7 @@ function OverviewTab({
           businessName,
           listingName,
           itemLabel: itemLabel !== "-" ? itemLabel : "Checkout",
-          amountDisplay: "—",
+          amountDisplay: planAmountDisplay,
           dateObj,
           statusLabel: "Pending Payment",
           listing: l,
@@ -5372,11 +5395,20 @@ function OverviewTab({
     const byDateDesc = (a: PaymentIssueItem, b: PaymentIssueItem) =>
       (b.dateObj?.getTime() || 0) - (a.dateObj?.getTime() || 0);
 
+    // Filter to current calendar month so events show up as they are happening, not historical records from previous months
+    const currentMonthPending = incomplete
+      .filter((i) => i.dateObj && i.dateObj.getTime() >= windows.startOfMonth.getTime())
+      .sort(byDateDesc);
+    const currentMonthFailed = failed
+      .filter((i) => i.dateObj && i.dateObj.getTime() >= windows.startOfMonth.getTime())
+      .sort(byDateDesc);
+
     return {
-      incompletePayments: incomplete.sort(byDateDesc),
-      failedPayments: failed.sort(byDateDesc),
+      pendingPayments: currentMonthPending,
+      failedPayments: currentMonthFailed,
+      incompletePayments: currentMonthPending,
     };
-  }, [transactions, auditLogs, listings, listingById, listingInsights, partnerById]);
+  }, [transactions, auditLogs, listings, listingById, listingInsights, partnerById, windows]);
 
   const recentSuccessfulTransactions = useMemo(
     () =>
@@ -5419,7 +5451,7 @@ function OverviewTab({
           label={`Upcoming Renewals (${renewalWindow === "week" ? "Week" : "Month"})`}
           value={renewalWindow === "week" ? renewalsThisWeek.length : renewalsThisMonth.length}
         />
-        <StatCard label="Incomplete Payments" value={incompletePayments.length} />
+        <StatCard label="Pending Payments" value={pendingPayments.length} />
         <StatCard label="Failed Payments" value={failedPayments.length} />
       </div>
 
@@ -5560,21 +5592,21 @@ function OverviewTab({
         </CardContent>
       </Card>
 
-      {/* Incomplete Payments + Failed Payments */}
+      {/* Pending Payments + Failed Payments */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <div className="space-y-1.5">
-              <CardTitle className="tracking-normal">Incomplete Payments</CardTitle>
+              <CardTitle className="tracking-normal">Pending Payments</CardTitle>
               <CardDescription className="leading-relaxed">Checkouts started that have not been completed.</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={onOpenTransactions} className="text-xs text-slate-600 hover:text-slate-900">
+            <Button variant="ghost" size="sm" onClick={() => onOpenTransactions("pending")} className="text-xs text-slate-600 hover:text-slate-900">
               View all
             </Button>
           </CardHeader>
           <CardContent className="p-0">
-            {incompletePayments.length === 0 ? (
-              <p className="text-sm text-slate-500 px-6 pb-6">No incomplete payments right now.</p>
+            {pendingPayments.length === 0 ? (
+              <p className="text-sm text-slate-500 px-6 pb-6">No pending checkouts for the current month.</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -5586,7 +5618,7 @@ function OverviewTab({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {incompletePayments.slice(0, 7).map((item) => (
+                  {pendingPayments.slice(0, 7).map((item) => (
                     <TableRow
                       key={item.id}
                       className={item.listing ? "cursor-pointer hover:bg-slate-50/70" : ""}
@@ -5619,15 +5651,15 @@ function OverviewTab({
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <div className="space-y-1.5">
               <CardTitle className="tracking-normal">Failed Payments</CardTitle>
-              <CardDescription className="leading-relaxed">Charges or renewals that failed payment.</CardDescription>
+              <CardDescription className="leading-relaxed">Charges or renewals where payment did not go through.</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={onOpenTransactions} className="text-xs text-slate-600 hover:text-slate-900">
+            <Button variant="ghost" size="sm" onClick={() => onOpenTransactions("failed")} className="text-xs text-slate-600 hover:text-slate-900">
               View all
             </Button>
           </CardHeader>
           <CardContent className="p-0">
             {failedPayments.length === 0 ? (
-              <p className="text-sm text-slate-500 px-6 pb-6">No failed payments recorded.</p>
+              <p className="text-sm text-slate-500 px-6 pb-6">No failed payments recorded for the current month.</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -5679,7 +5711,7 @@ function OverviewTab({
             <CardTitle className="tracking-normal">Recent Transactions</CardTitle>
             <CardDescription className="leading-relaxed">Latest 7 successful platform payments.</CardDescription>
           </div>
-          <Button variant="ghost" size="sm" onClick={onOpenTransactions} className="text-xs text-slate-600 hover:text-slate-900">
+          <Button variant="ghost" size="sm" onClick={() => onOpenTransactions("completed")} className="text-xs text-slate-600 hover:text-slate-900">
             View all
           </Button>
         </CardHeader>
@@ -6266,7 +6298,7 @@ function CategoryBreakdownTable({
         isSub ? row.subcategory : undefined,
         isSubSub ? row.subSubcategory : undefined
       );
-      const docId = row.id || canonicalId;
+      const docId = isParentRow ? (row.id || canonicalId) : (row.id && !row.isParent ? row.id : canonicalId);
 
       const deletePayload = {
         group: row.group,
@@ -6763,6 +6795,7 @@ function TransactionList({
   featuredPlans = [],
   auditLogs = [],
   listingInsights = {},
+  initialStatusFilter = "all",
 }: {
   transactions: any[];
   partners?: PartnerRecord[];
@@ -6771,8 +6804,16 @@ function TransactionList({
   featuredPlans?: FeaturedPlanPurchase[];
   auditLogs?: any[];
   listingInsights?: Record<string, any>;
+  initialStatusFilter?: "all" | "completed" | "pending" | "failed";
 }) {
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "pending" | "failed">(initialStatusFilter);
+
+  useEffect(() => {
+    if (initialStatusFilter) {
+      setStatusFilter(initialStatusFilter);
+    }
+  }, [initialStatusFilter]);
 
   const partnerMap = useMemo(() => {
     const byId = new Map<string, PartnerRecord>();
@@ -6963,11 +7004,11 @@ function TransactionList({
       });
     }
 
-    // 2. Include listings currently in Pending Payment or Incomplete Payment status if not already represented
+    // 2. Include listings currently in Pending Payment or Failed/Incomplete Payment status if not already represented
     for (const l of listings) {
       if (!l?.id) continue;
       const effStatus = getEffectiveListingStatus(l, listingInsights[l.id]);
-      if (effStatus !== "Pending Payment" && effStatus !== "Incomplete Payment") continue;
+      if (effStatus !== "Pending Payment" && effStatus !== "Incomplete Payment" && effStatus !== "Failed Payment") continue;
       if (nonCompletedListingIds.has(String(l.id))) continue;
 
       nonCompletedListingIds.add(String(l.id));
@@ -6975,6 +7016,8 @@ function TransactionList({
         l.partnerId ||
         (typeof l.__path === "string" && l.__path.startsWith("partnersCollection/") ? l.__path.split("/")[1] : "");
       const partner = pid ? partnerMap.byId.get(pid) : undefined;
+      const resolvedPlanAmt = resolvePlanRenewalAmount({ planId: l.selectedPlan, group: l.selectedGroup } as any, l, transactions);
+      const isFailed = effStatus === "Incomplete Payment" || effStatus === "Failed Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `listing-${l.id}`,
         partnerId: pid || "",
@@ -6985,9 +7028,9 @@ function TransactionList({
         listingId: l.id,
         collectionName: l.__col || null,
         stripeSubscriptionId: (l as any).stripeSubscriptionId || null,
-        amount: 0,
+        amount: resolvedPlanAmt > 0 ? resolvedPlanAmt : 0,
         currency: "usd",
-        status: effStatus === "Incomplete Payment" ? "incomplete_payment" : "pending_payment",
+        status: isFailed ? "incomplete_payment" : "pending_payment",
         eventType: "initial",
         listingTitle: l.eventName || l.jobTitle || l.title || l.businessName || null,
         businessName: l.businessName || partner?.businessName || "",
@@ -7007,13 +7050,14 @@ function TransactionList({
         { status: pl.status, active: pl.active !== false },
         { plan: pl, expiryDate: pl.billingPeriodEnd },
       );
-      if (s !== "Incomplete Payment" && s !== "Pending Payment") continue;
+      if (s !== "Incomplete Payment" && s !== "Pending Payment" && s !== "Failed Payment") continue;
       if (pl.listingId && nonCompletedListingIds.has(String(pl.listingId))) continue;
       if (pl.stripeSubscriptionId && nonCompletedSubIds.has(String(pl.stripeSubscriptionId))) continue;
       if (pl.listingId) nonCompletedListingIds.add(String(pl.listingId));
       if (pl.stripeSubscriptionId) nonCompletedSubIds.add(String(pl.stripeSubscriptionId));
 
       const partner = pl.partnerId ? partnerMap.byId.get(pl.partnerId) : undefined;
+      const isFailed = s === "Incomplete Payment" || s === "Failed Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `plan-${pl.id}`,
         partnerId: pl.partnerId || "",
@@ -7027,7 +7071,7 @@ function TransactionList({
         stripeSubscriptionId: pl.stripeSubscriptionId || null,
         amount: typeof pl.price === "number" ? pl.price : 0,
         currency: "usd",
-        status: s === "Incomplete Payment" ? "incomplete_payment" : "pending_payment",
+        status: isFailed ? "incomplete_payment" : "pending_payment",
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
@@ -7042,12 +7086,13 @@ function TransactionList({
 
     for (const fp of featuredPlans) {
       const s = getEffectiveFeatureStatus(fp);
-      if (s !== "Incomplete Payment" && s !== "Pending Payment") continue;
+      if (s !== "Incomplete Payment" && s !== "Pending Payment" && s !== "Failed Payment") continue;
       const subId = (fp as any).stripeSubscriptionId;
       if (subId && nonCompletedSubIds.has(String(subId))) continue;
       if (subId) nonCompletedSubIds.add(String(subId));
 
       const partner = fp.partnerId ? partnerMap.byId.get(fp.partnerId) : undefined;
+      const isFailed = s === "Incomplete Payment" || s === "Failed Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `feature-${fp.id}`,
         partnerId: fp.partnerId || "",
@@ -7057,9 +7102,9 @@ function TransactionList({
         listingId: fp.listingId || null,
         collectionName: fp.collectionName || null,
         stripeSubscriptionId: subId || null,
-        amount: 0,
+        amount: typeof (fp as any).price === "number" ? (fp as any).price : 0,
         currency: "usd",
-        status: s === "Incomplete Payment" ? "incomplete_payment" : "pending_payment",
+        status: isFailed ? "incomplete_payment" : "pending_payment",
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
@@ -7075,10 +7120,31 @@ function TransactionList({
     return [...rawTxns, ...syntheticRows].sort(sortPartnerTransactionsNewestFirst);
   }, [transactions, auditLogs, listings, partnerPlans, featuredPlans, listingInsights, partnerMap, listingNameLookup]);
 
+  const counts = useMemo(() => {
+    let completed = 0;
+    let pending = 0;
+    let failed = 0;
+    for (const r of rows) {
+      if (r.statusLabel === "Completed") completed++;
+      else if (r.statusLabel === "Pending Payment") pending++;
+      else if (r.statusLabel === "Failed Payment") failed++;
+    }
+    return { all: rows.length, completed, pending, failed };
+  }, [rows]);
+
   const filtered = useMemo(() => {
+    let list = rows;
+    if (statusFilter === "completed") {
+      list = list.filter((r) => r.statusLabel === "Completed");
+    } else if (statusFilter === "pending") {
+      list = list.filter((r) => r.statusLabel === "Pending Payment");
+    } else if (statusFilter === "failed") {
+      list = list.filter((r) => r.statusLabel === "Failed Payment");
+    }
+
     const q = search.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((r) => {
+    if (!q) return list;
+    return list.filter((r) => {
       const p = (r.partnerId ? partnerMap.byId.get(r.partnerId) : null) || (r.customerEmail ? partnerMap.byEmail.get(r.customerEmail.toLowerCase()) : null);
       const contact = r.primaryContact || p?.primaryName || "";
       const bName = r.businessName || p?.businessName || "";
@@ -7104,7 +7170,7 @@ function TransactionList({
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, search, partnerMap]);
+  }, [rows, statusFilter, search, partnerMap]);
 
   const {
     page: txnPage,
@@ -7118,6 +7184,10 @@ function TransactionList({
     endIndex: txnEnd,
   } = useTablePagination(filtered, 25);
 
+  useEffect(() => {
+    setTxnPage(1);
+  }, [statusFilter, search, setTxnPage]);
+
   const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     if (filtered.length === 0) return;
     if (format === "csv") downloadPartnerTransactionsCsv(filtered);
@@ -7128,10 +7198,51 @@ function TransactionList({
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-sm text-slate-600">
-            All partner checkout payments. Search the table, then export the filtered results.
-          </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setStatusFilter("all")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              statusFilter === "all"
+                ? "bg-slate-900 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            All ({counts.all})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("completed")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              statusFilter === "completed"
+                ? "bg-emerald-700 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            Completed ({counts.completed})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("pending")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              statusFilter === "pending"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            Pending Payments ({counts.pending})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("failed")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              statusFilter === "failed"
+                ? "bg-red-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            Failed Payments ({counts.failed})
+          </button>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
           <div className="relative">

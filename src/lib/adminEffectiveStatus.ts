@@ -43,7 +43,7 @@ export function getEffectiveListingStatus(listing: any, insight?: any): string {
     return "Pending Payment";
   }
 
-  // 1. Incomplete Payment (charge did not go through, including expired card)
+  // 1. Failed Payment (charge did not go through, including expired card)
   const stripeStatus = String(
     plan?.stripeSubscriptionStatus || listing.stripeSubscriptionStatus || ""
   ).toLowerCase();
@@ -53,10 +53,10 @@ export function getEffectiveListingStatus(listing: any, insight?: any): string {
     Boolean(listing.endedForNonpayment) ||
     listing.paymentStatus === "failed" ||
     listing.paymentStatus === "past_due" ||
-    ["incomplete payment", "incomplete_payment", "payment error", "payment_error", "past_due"].includes(
+    ["failed payment", "failed_payment", "incomplete payment", "incomplete_payment", "payment error", "payment_error", "past_due"].includes(
       normListingStatus
     ) ||
-    ["incomplete payment", "incomplete_payment", "payment error", "payment_error", "past_due"].includes(
+    ["failed payment", "failed_payment", "incomplete payment", "incomplete_payment", "payment error", "payment_error", "past_due"].includes(
       normPlanStatus
     ) ||
     Boolean(plan?.paymentError) ||
@@ -64,7 +64,7 @@ export function getEffectiveListingStatus(listing: any, insight?: any): string {
     Boolean(plan?.lastPaymentError);
 
   if (isPaymentFailed) {
-    return "Incomplete Payment";
+    return "Failed Payment";
   }
 
   // 2. Disabled (explicit admin or inactive flag)
@@ -181,7 +181,7 @@ export function getEffectiveFeatureStatus(feature?: any, listing?: any): string 
     return "Disabled";
   }
 
-  // 2. Incomplete Payment / Payment Error
+  // 2. Failed Payment / Payment Error
   const stripeStatus = String(
     feature?.stripeSubscriptionStatus || listing?.featureSpotlightSubscriptionStatus || ""
   ).toLowerCase();
@@ -190,7 +190,7 @@ export function getEffectiveFeatureStatus(feature?: any, listing?: any): string 
     Boolean(feature?.endedForNonpayment) ||
     feature?.paymentStatus === "failed" ||
     feature?.paymentStatus === "past_due" ||
-    ["incomplete payment", "incomplete_payment", "payment error", "payment_error", "past_due"].includes(
+    ["failed payment", "failed_payment", "incomplete payment", "incomplete_payment", "payment error", "payment_error", "past_due"].includes(
       normExplicit
     ) ||
     Boolean(feature?.paymentError) ||
@@ -198,7 +198,7 @@ export function getEffectiveFeatureStatus(feature?: any, listing?: any): string 
     Boolean(feature?.lastPaymentError);
 
   if (isPaymentFailed) {
-    return "Incomplete Payment";
+    return "Failed Payment";
   }
 
   // 3. Expired vs Cancelled

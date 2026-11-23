@@ -493,11 +493,11 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
 
     // Helper to parse comma-separated lists, filtering out empty items and "-"
     const parseList = (val: string): string[] => {
-        if (!val || val === "-") return [];
+        if (!val || val === "-" || val === "—") return [];
         return val
             .split(",")
             .map((s) => s.trim())
-            .filter((s) => s && s !== "-");
+            .filter((s) => s && s !== "-" && s !== "—");
     };
 
     const getDocTime = (doc: DirectoryCategoryDoc): number => {
@@ -548,10 +548,27 @@ export function mergeDirectoryCategories(dbDocs: DirectoryCategoryDoc[]): {
         if (doc.id) {
             categoryMetadataMap[doc.id] = doc;
         }
-        categoryMetadataMap[`${groupKey}:${categoryName}`] = {
-            ...categoryMetadataMap[`${groupKey}:${categoryName}`],
-            ...doc,
-        };
+
+        const isParentDoc = subList.length === 0;
+
+        if (isParentDoc) {
+            categoryMetadataMap[`${groupKey}:${categoryName}`] = {
+                ...categoryMetadataMap[`${groupKey}:${categoryName}`],
+                ...doc,
+            };
+        } else {
+            // For a subcategory doc, preserve parent category metadata, do NOT overwrite parent status or deletion!
+            if (!categoryMetadataMap[`${groupKey}:${categoryName}`]) {
+                categoryMetadataMap[`${groupKey}:${categoryName}`] = {
+                    group: doc.group,
+                    parentCategory: doc.parentCategory,
+                    category: categoryName,
+                    categoryName: categoryName,
+                    status: "Active",
+                };
+            }
+        }
+
         subList.forEach((sub) => {
             categoryMetadataMap[`${groupKey}:${categoryName}:${sub}`] = doc;
             subSubList.forEach((ss) => {

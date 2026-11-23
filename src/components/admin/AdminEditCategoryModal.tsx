@@ -93,7 +93,7 @@ export function AdminEditCategoryModal({
         formData.categoryName,
         isSub ? formData.subcategory.trim() : undefined
       );
-      const docId = category.id || canonicalDocId;
+      const docId = isParentCategory ? (category.id || canonicalDocId) : (category.id && !category.isParent ? category.id : canonicalDocId);
       const docRef = doc(db, "categoriesCollection", docId);
 
       // If the category was renamed or moved to another parent, tombstone the old entry
@@ -106,7 +106,7 @@ export function AdminEditCategoryModal({
       const isRenamed = oldCanonicalDocId !== canonicalDocId;
 
       if (isRenamed) {
-        const oldDocId = category.id || oldCanonicalDocId;
+        const oldDocId = isParentCategory ? (category.id || oldCanonicalDocId) : (category.id && !category.isParent ? category.id : oldCanonicalDocId);
         const tombstonePayload = {
           group: category.group,
           parentCategory: category.group,
@@ -238,7 +238,7 @@ export function AdminEditCategoryModal({
         formData.categoryName,
         isSub ? formData.subcategory : undefined
       );
-      const docId = category.id || canonicalDocId;
+      const docId = isParentCategory ? (category.id || canonicalDocId) : (category.id && !category.isParent ? category.id : canonicalDocId);
 
       const deletePayload = {
         group: formData.parentCategory,

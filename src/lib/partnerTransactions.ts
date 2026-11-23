@@ -343,11 +343,11 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
                     statusRaw === "requires_action" ||
                     statusRaw === "past_due" ||
                     statusRaw === "unpaid" ||
-                    statusRaw === "expired" ||
-                    statusRaw === "canceled" ||
-                    statusRaw === "cancelled"
-                    ? "Incomplete Payment"
-                    : statusRaw ? cleanTitleCase(statusRaw.replace(/_/g, " ")) : "Incomplete Payment";
+                    statusRaw === "expired"
+                    ? "Failed Payment"
+                    : statusRaw === "canceled" || statusRaw === "cancelled"
+                        ? "Cancelled"
+                        : statusRaw ? cleanTitleCase(statusRaw.replace(/_/g, " ")) : "Failed Payment";
 
     const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]).map(String) : []);
     const reps = Array.isArray(t.companyRepresentatives) ? (t.companyRepresentatives as CompanyRep[]) : [];
