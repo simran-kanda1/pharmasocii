@@ -12,7 +12,7 @@ export const POST_MAIN_CAT_MIN = 1;
 export const POST_MAIN_CAT_MAX = 3;
 export const POST_SUB_PER_MAIN_MAX = 2;
 export const POST_SUBSUB_PER_SUB_MAX = 2;
-export const EXTERNAL_LINKS_MAX = 15;
+export const EXTERNAL_LINKS_MAX = 1;
 export const COMMENT_EXTERNAL_LINK_MAX = 1;
 
 /** Normalize http(s) URL; returns null if empty or invalid. */
@@ -166,6 +166,6 @@ export function validatePostPayload(input: {
     return `Pick ${POST_MAIN_CAT_MIN}–${POST_MAIN_CAT_MAX} main categories.`;
   }
   if (input.countries.length > POST_COUNTRIES_MAX) return `At most ${POST_COUNTRIES_MAX} countries.`;
-  if (input.externalLinks.length > EXTERNAL_LINKS_MAX) return `At most ${EXTERNAL_LINKS_MAX} links.`;
+  if (input.externalLinks.length > EXTERNAL_LINKS_MAX) return `At most ${EXTERNAL_LINKS_MAX} link${EXTERNAL_LINKS_MAX === 1 ? "" : "s"}.`;
   return null;
 }

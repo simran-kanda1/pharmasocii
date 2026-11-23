@@ -21,7 +21,7 @@ import { CountryMultiSelect } from "@/components/community/CountryMultiSelect";
 import { useCommunityCategories } from "@/hooks/useCommunityCategories";
 import { POST_BODY_MAX, POST_COUNTRIES_MAX, POST_TITLE_MAX, normalizeExternalLinks } from "@/lib/community";
 import { publishCommunityPost, updateCommunityPost, POST_IMAGE_ACCEPT } from "@/lib/publishCommunityPost";
-import { Globe, Link2, Send, Tag, ImageIcon, X } from "lucide-react";
+import { Globe, Link2, Send, Tag, ImageIcon } from "lucide-react";
 import { selectionToPostFields } from "@/components/community/CategoryPicker";
 import type { PostCardPost } from "@/components/community/PostCard";
 
@@ -211,33 +211,26 @@ export function CreatePostModal({
 
             {(showLinkFields || links.length > 0) && (
               <div className="space-y-2">
-                <Label>Links</Label>
-                {links.map((link, i) => (
-                  <div key={i} className="flex gap-2">
-                    <Input
-                      placeholder="https://…"
-                      value={link}
-                      onChange={(e) => {
-                        const next = [...links];
-                        next[i] = e.target.value;
-                        setLinks(next);
-                      }}
-                    />
-                    {links.length > 1 && (
-                      <Button type="button" variant="ghost" size="icon" onClick={() => setLinks(links.filter((_, j) => j !== i))}>
-                        <X className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setLinks((prev) => [...prev, ""])}
-                >
-                  Add another link
-                </Button>
+                <div className="flex items-center justify-between">
+                  <Label>Link</Label>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setLinks([]);
+                      setShowLinkFields(false);
+                    }}
+                  >
+                    Remove
+                  </Button>
+                </div>
+                <Input
+                  placeholder="https://…"
+                  value={links[0] ?? ""}
+                  onChange={(e) => setLinks(e.target.value ? [e.target.value] : [])}
+                />
               </div>
             )}
 

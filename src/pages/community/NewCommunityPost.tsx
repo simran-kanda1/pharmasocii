@@ -222,12 +222,11 @@ export default function NewCommunityPost() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="links">External links (optional, one per line, max {EXTERNAL_LINKS_MAX})</Label>
-          <Textarea
+          <Label htmlFor="links">External link (optional)</Label>
+          <Input
             id="links"
             value={linksRaw}
             onChange={(e) => setLinksRaw(e.target.value)}
-            rows={4}
             className="bg-foreground/5 border-foreground/10"
             placeholder="https://…"
           />
