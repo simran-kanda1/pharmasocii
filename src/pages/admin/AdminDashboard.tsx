@@ -887,7 +887,7 @@ export default function AdminDashboard() {
 
   const initialUrlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
   const initialTabParam = initialUrlParams?.get("tab") as AdminTab | null;
-  const initialStatusParam = initialUrlParams?.get("status") as "all" | "completed" | "pending" | "failed" | null;
+  const initialStatusParam = initialUrlParams?.get("status") as "all" | "completed" | "pending" | "failed" | "incomplete" | null;
   const initialAuditView = initialUrlParams?.get("auditView");
   const initialAuditSearch = initialUrlParams?.get("auditSearch") || "";
   const initialAuditListing = initialUrlParams?.get("auditListing") || "all";
@@ -7618,7 +7618,7 @@ function TransactionList({
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
           >
-            Pending ({counts.pending})
+            Pending Payments ({counts.pending})
           </button>
           <button
             type="button"
