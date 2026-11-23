@@ -4934,10 +4934,7 @@ export default function AdminDashboard() {
                         <Field label="Event Country" value={listingEditor.eventCountry || ""} onChange={() => {}} disabled={true} />
                         <Field label="State / Region" value={listingEditor.stateRegion || ""} onChange={() => {}} disabled={true} />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <Field label="City" value={listingEditor.city || ""} onChange={() => {}} disabled={true} />
-                        <Field label="Location / Venue" value={listingEditor.location || ""} onChange={() => {}} disabled={true} />
-                      </div>
+                      <Field label="City" value={listingEditor.city || ""} onChange={() => {}} disabled={true} />
                       <div className="space-y-1">
                         <p className="text-sm font-medium text-slate-500">Event Profile</p>
                         <Textarea value={listingEditor.eventProfile || ""} disabled={true} className="min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" />
