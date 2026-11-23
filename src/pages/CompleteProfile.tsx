@@ -407,6 +407,10 @@ export default function CompleteProfile() {
 
         const options = [];
         for (const plan of groupConfig.plans) {
+            if (groupId === "events" || groupId === "jobs") {
+                const isPremium = /premium/i.test(plan.id || "") || /premium/i.test(plan.badge || "") || /premium/i.test(plan.stripeMonthlyId || "");
+                if (isPremium) continue;
+            }
             if (plan.stripeMonthlyId) {
                 options.push({
                     value: plan.stripeMonthlyId,

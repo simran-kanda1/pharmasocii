@@ -386,6 +386,10 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       const groupConfig = plansConfig.groups.find(g => g.id === groupId);
       if (groupConfig && groupConfig.plans && groupConfig.plans.length > 0) {
         for (const plan of groupConfig.plans) {
+          if (gk === "events" || gk === "jobs") {
+            const isPremium = /premium/i.test(plan.id || "") || /premium/i.test(plan.badge || "") || /premium/i.test(plan.stripeMonthlyId || "");
+            if (isPremium) continue;
+          }
           const val = plan.stripeMonthlyId || plan.id;
           if (val) {
             options.push({
@@ -420,14 +424,10 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         return [
           { value: 'basic_event', label: 'Basic - $500.00' },
           { value: 'standard_event', label: 'Standard - $850.00' },
-          { value: 'premium_event', label: 'Premium - $1,250.00' },
-          { value: 'premium_plus_event', label: 'Premium Plus - $1,450.00' },
         ];
       case 'jobs':
         return [
           { value: 'standard_job', label: 'Standard - $400.00/mo' },
-          { value: 'premium_job', label: 'Premium - $800.00/mo' },
-          { value: 'premium_plus_job', label: 'Premium Plus - $1,000.00/mo' },
         ];
       default: return [];
     }
