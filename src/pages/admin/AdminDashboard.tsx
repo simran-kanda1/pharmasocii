@@ -737,10 +737,16 @@ const getCollectionLabel = (collectionName: string) => {
 const formatAdminDate = (val: any) => {
   if (!val) return "-";
   let d: Date;
-  if (val.seconds) {
-    d = new Date(val.seconds * 1000);
-  } else if (typeof val.toDate === "function") {
+  if (typeof val.toDate === "function") {
     d = val.toDate();
+  } else if (typeof val.toMillis === "function") {
+    d = new Date(val.toMillis());
+  } else if (val.seconds != null) {
+    d = new Date(val.seconds * 1000);
+  } else if (val._seconds != null) {
+    d = new Date(val._seconds * 1000);
+  } else if (val instanceof Date) {
+    d = val;
   } else {
     d = new Date(val);
   }
@@ -5794,7 +5800,30 @@ function FeaturedPlansTab({
 
 
   const recentPurchases = useMemo(() => {
-    return featuredPlans.slice(0, 12).map((feature) => {
+    const sorted = [...featuredPlans].sort((a: any, b: any) => {
+      const getMs = (p: any) => {
+        const d =
+          p.lastPaymentReceived ||
+          p.lastPaymentReceivedAt ||
+          p.billingPeriodStart ||
+          p.createdAt ||
+          p.startDate ||
+          p.accessThrough ||
+          p.billingPeriodEnd ||
+          p.timestamp ||
+          p.date;
+        if (!d) return 0;
+        if (typeof d?.toMillis === "function") return d.toMillis();
+        if (typeof d?.toDate === "function") return d.toDate().getTime();
+        if (typeof d?.seconds === "number") return d.seconds * 1000;
+        if (typeof d?._seconds === "number") return d._seconds * 1000;
+        const parsed = new Date(d).getTime();
+        return isNaN(parsed) ? 0 : parsed;
+      };
+      return getMs(b) - getMs(a);
+    });
+
+    return sorted.slice(0, 12).map((feature) => {
       const partner = partners.find((p) => p.id === feature.partnerId);
       return {
         ...feature,
@@ -5923,9 +5952,17 @@ function FeaturedPlansTab({
                       {getStatusBadge(getEffectiveFeatureStatus(purchase))}
                     </TableCell>
                     <TableCell className="pr-6 text-slate-500">
-                      {purchase.createdAt?.seconds
-                        ? new Date(purchase.createdAt.seconds * 1000).toLocaleDateString()
-                        : "-"}
+                      {formatAdminDate(
+                        purchase.lastPaymentReceived ||
+                        (purchase as any).lastPaymentReceivedAt ||
+                        (purchase as any).billingPeriodStart ||
+                        purchase.createdAt ||
+                        (purchase as any).startDate ||
+                        purchase.accessThrough ||
+                        (purchase as any).billingPeriodEnd ||
+                        (purchase as any).timestamp ||
+                        (purchase as any).date
+                      )}
                     </TableCell>
                   </TableRow>
                 ))
