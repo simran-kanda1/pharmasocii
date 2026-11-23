@@ -204,7 +204,7 @@ export default function MemberLogin() {
                 Resend verification email
               </Button>
               <p className="text-xs text-muted-foreground text-left mt-3">
-                You must be logged in with an unverified session to resend login with password link.
+                You must be logged in with an unverified session to resend login with verification link.
               </p>
             </div>
           )}
