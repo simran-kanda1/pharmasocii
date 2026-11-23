@@ -780,6 +780,7 @@ const getStatusBadge = (status?: string) => {
     case "failed payment":
     case "failed_payment":
     case "failed":
+      return <Badge className="bg-red-50 text-red-700 border-red-200">Failed Payment</Badge>;
     case "incomplete payment":
     case "incomplete_payment":
     case "payment error":
@@ -787,7 +788,7 @@ const getStatusBadge = (status?: string) => {
     case "past due":
     case "past_due":
     case "unpaid":
-      return <Badge className="bg-red-50 text-red-700 border-red-200">Failed Payment</Badge>;
+      return <Badge className="bg-amber-50 text-amber-700 border-amber-200">Incomplete Payment</Badge>;
     case "extended":
       return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Active</Badge>;
     default:
@@ -5521,8 +5522,8 @@ function OverviewTab({
       const formatted = formatPartnerTransaction({ id: t.id, ...t });
       const dateObj = toDateSafe(t.createdAt);
 
-      const isPendingCheckout = ["pending", "pending_payment", "pending payment", "open", "expired"].includes(s);
-      if (isPendingCheckout) {
+      const isIncompleteCheckout = ["incomplete", "incomplete_payment", "incomplete payment", "pending", "pending_payment", "pending payment", "open", "expired"].includes(s);
+      if (isIncompleteCheckout) {
         const key = String(t.sessionId || t.listingId || t.id);
         if (seenIncompleteKeys.has(key)) continue;
         seenIncompleteKeys.add(key);
@@ -5533,7 +5534,7 @@ function OverviewTab({
           itemLabel: formatted.planDisplay || formatted.description || "Checkout",
           amountDisplay: formatted.amountNumeric > 0 ? formatted.amountDisplay : "—",
           dateObj,
-          statusLabel: "Pending Payment",
+          statusLabel: s.includes("pending") ? "Pending Payment" : "Incomplete Payment",
           listing: linkedListing,
         });
       } else {
@@ -5553,7 +5554,7 @@ function OverviewTab({
       }
     }
 
-    // 2. Audit logs: PAYMENT_FAILED -> Failed Payments; PAYMENT_PENDING / unpaid LISTING_CREATED -> Pending Payments
+    // 2. Audit logs: PAYMENT_FAILED -> Failed Payments; PAYMENT_PENDING / PAYMENT_INCOMPLETE / unpaid LISTING_CREATED -> Incomplete Payments
     for (const log of auditLogs) {
       if (!log || isMemberAuditLog(log)) continue;
       const action = String(log.action || "").toUpperCase().trim();
@@ -5575,14 +5576,25 @@ function OverviewTab({
       const dateObj = toDateSafe(log.timestamp);
 
       const isFailedAudit =
-        action === "PAYMENT_FAILED" ||
-        action.includes("PAYMENT_FAIL") ||
-        String(meta.paymentStatus || "").toLowerCase() === "failed" ||
-        String(meta.status || "").toLowerCase() === "incomplete payment" ||
-        String(meta.status || "").toLowerCase() === "failed payment" ||
-        String(log.details || "").toLowerCase().includes("payment failed");
+        (action === "PAYMENT_FAILED" ||
+          action.includes("PAYMENT_FAIL") ||
+          String(meta.paymentStatus || "").toLowerCase() === "failed" ||
+          String(meta.paymentStatus || "").toLowerCase() === "payment failed" ||
+          String(meta.status || "").toLowerCase() === "failed payment" ||
+          String(log.details || "").toLowerCase().includes("payment failed")) &&
+        String(meta.status || "").toLowerCase() !== "incomplete payment" &&
+        !String(meta.paymentStatus || "").toLowerCase().includes("incomplete");
 
-      if (isFailedAudit) {
+      const isIncompleteAudit =
+        action === "PAYMENT_INCOMPLETE" ||
+        action.includes("INCOMPLETE") ||
+        String(meta.paymentStatus || "").toLowerCase() === "incomplete" ||
+        String(meta.paymentStatus || "").toLowerCase() === "incomplete payment" ||
+        String(meta.status || "").toLowerCase() === "incomplete" ||
+        String(meta.status || "").toLowerCase() === "incomplete payment" ||
+        String(log.details || "").toLowerCase().includes("incomplete");
+
+      if (isFailedAudit && !isIncompleteAudit) {
         const key = String(invId || sid || (lid ? `${lid}:${action}` : "") || log.id);
         if (seenFailedKeys.has(key)) continue;
         seenFailedKeys.add(key);
@@ -5610,10 +5622,14 @@ function OverviewTab({
           listing: linkedListing,
         });
       } else if (
+        isIncompleteAudit ||
         action === "PAYMENT_PENDING" ||
         String(meta.paymentStatus || "").toLowerCase() === "pending" ||
         (action === "LISTING_CREATED" &&
-          (listingStatus === "Pending Payment" || String(meta.paymentStatus || "").toLowerCase().includes("pending")))
+          (listingStatus === "Pending Payment" ||
+            listingStatus === "Incomplete Payment" ||
+            String(meta.paymentStatus || "").toLowerCase().includes("pending") ||
+            String(meta.paymentStatus || "").toLowerCase().includes("incomplete")))
       ) {
         if (sid && completedSessionIds.has(sid)) continue;
         const key = String(sid || (lid && dateObj ? `${lid}:${dateObj.getTime()}` : "") || log.id);
@@ -5631,17 +5647,28 @@ function OverviewTab({
           itemLabel: itemLabel !== "-" ? itemLabel : "Checkout Started",
           amountDisplay: resolvedPlanAmt > 0 ? `$${resolvedPlanAmt.toFixed(2)}` : "—",
           dateObj,
-          statusLabel: "Pending Payment",
+          statusLabel: isIncompleteAudit ? "Incomplete Payment" : "Pending Payment",
           listing: linkedListing,
         });
       }
     }
 
-    // 3. Listings / plans / features currently in Pending Payment or Failed/Incomplete Payment status
+    // 3. Listings / plans / features currently in Pending Payment, Incomplete Payment, or Failed Payment status
     for (const l of listings) {
       if (!l?.id) continue;
+      const rawStatus = String(l.status || "").trim().toLowerCase();
       const effStatus = getEffectiveListingStatus(l, listingInsights[l.id]);
-      if (effStatus !== "Pending Payment" && effStatus !== "Incomplete Payment" && effStatus !== "Failed Payment") continue;
+      const normEff = effStatus.toLowerCase();
+      if (
+        normEff !== "pending payment" &&
+        normEff !== "incomplete payment" &&
+        normEff !== "failed payment" &&
+        rawStatus !== "incomplete payment" &&
+        rawStatus !== "pending payment" &&
+        rawStatus !== "failed payment"
+      ) {
+        continue;
+      }
       const partner = l.partnerId ? partnerById.get(l.partnerId) : undefined;
       const businessName = l.businessName || partner?.businessName || "—";
       const listingName = getListingTitle(l, businessName);
@@ -5652,7 +5679,31 @@ function OverviewTab({
       const resolvedPlanAmt = resolvePlanRenewalAmount({ planId: l.selectedPlan, group: l.selectedGroup } as any, l, transactions);
       const planAmountDisplay = resolvedPlanAmt > 0 ? `$${resolvedPlanAmt.toFixed(2)}` : "—";
 
-      if (effStatus === "Incomplete Payment" || effStatus === "Failed Payment") {
+      const isIncomplete =
+        normEff === "incomplete payment" ||
+        rawStatus === "incomplete payment" ||
+        rawStatus === "incomplete_payment" ||
+        rawStatus === "incomplete";
+
+      const isPending =
+        normEff === "pending payment" ||
+        rawStatus === "pending payment" ||
+        rawStatus === "pending_payment";
+
+      if (isIncomplete || isPending) {
+        if (seenIncompleteKeys.has(String(l.id))) continue;
+        seenIncompleteKeys.add(String(l.id));
+        incomplete.push({
+          id: `listing-inc-${l.id}`,
+          businessName,
+          listingName,
+          itemLabel: itemLabel !== "-" ? itemLabel : "Checkout",
+          amountDisplay: planAmountDisplay,
+          dateObj,
+          statusLabel: isPending && !isIncomplete ? "Pending Payment" : "Incomplete Payment",
+          listing: l,
+        });
+      } else {
         if (seenFailedKeys.has(String(l.id))) continue;
         seenFailedKeys.add(String(l.id));
         failed.push({
@@ -5663,19 +5714,6 @@ function OverviewTab({
           amountDisplay: planAmountDisplay,
           dateObj,
           statusLabel: "Failed Payment",
-          listing: l,
-        });
-      } else {
-        if (seenIncompleteKeys.has(String(l.id))) continue;
-        seenIncompleteKeys.add(String(l.id));
-        incomplete.push({
-          id: `listing-inc-${l.id}`,
-          businessName,
-          listingName,
-          itemLabel: itemLabel !== "-" ? itemLabel : "Checkout",
-          amountDisplay: planAmountDisplay,
-          dateObj,
-          statusLabel: "Pending Payment",
           listing: l,
         });
       }
@@ -5740,7 +5778,7 @@ function OverviewTab({
           label={`Upcoming Renewals (${renewalWindow === "week" ? "Week" : "Month"})`}
           value={renewalWindow === "week" ? renewalsThisWeek.length : renewalsThisMonth.length}
         />
-        <StatCard label="Pending Payments" value={pendingPayments.length} />
+        <StatCard label="Incomplete Payments" value={pendingPayments.length} />
         <StatCard label="Failed Payments" value={failedPayments.length} />
       </div>
 
@@ -5881,21 +5919,21 @@ function OverviewTab({
         </CardContent>
       </Card>
 
-      {/* Pending Payments + Failed Payments */}
+      {/* Incomplete Payments + Failed Payments */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <div className="space-y-1.5">
-              <CardTitle className="tracking-normal">Pending Payments</CardTitle>
+              <CardTitle className="tracking-normal">Incomplete Payments</CardTitle>
               <CardDescription className="leading-relaxed">Checkouts started that have not been completed.</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => onOpenTransactions("pending")} className="text-xs text-slate-600 hover:text-slate-900">
+            <Button variant="ghost" size="sm" onClick={() => onOpenTransactions("incomplete")} className="text-xs text-slate-600 hover:text-slate-900">
               View all
             </Button>
           </CardHeader>
           <CardContent className="p-0">
             {pendingPayments.length === 0 ? (
-              <p className="text-sm text-slate-500 px-6 pb-6">No pending checkouts for the current month.</p>
+              <p className="text-sm text-slate-500 px-6 pb-6">No incomplete checkouts for the current month.</p>
             ) : (
               <Table>
                 <TableHeader>
@@ -7317,7 +7355,7 @@ function TransactionList({
         invoiceId: invId || null,
         amount: rawAmount,
         currency: meta.currency || "usd",
-        status: isFailedLog || isIncompleteLog ? "failed" : "pending_payment",
+        status: isFailedLog ? "failed" : isIncompleteLog ? "incomplete_payment" : "pending_payment",
         eventType: (isFailedLog || isIncompleteLog) && (String(meta.billingReason || "") === "subscription_cycle" || String(meta.type || "").toLowerCase().includes("renewal") || String(log.details || "").toLowerCase().includes("renewal")) ? "renewal" : "initial",
         listingTitle:
           meta.listingName ||
@@ -7355,7 +7393,8 @@ function TransactionList({
         (typeof l.__path === "string" && l.__path.startsWith("partnersCollection/") ? l.__path.split("/")[1] : "");
       const partner = pid ? partnerMap.byId.get(pid) : undefined;
       const resolvedPlanAmt = resolvePlanRenewalAmount({ planId: l.selectedPlan, group: l.selectedGroup } as any, l, transactions);
-      const isFailed = effStatus === "Failed Payment" || effStatus === "Incomplete Payment";
+      const isFailed = effStatus === "Failed Payment";
+      const isIncomplete = effStatus === "Incomplete Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `listing-${l.id}`,
         partnerId: pid || "",
@@ -7368,7 +7407,7 @@ function TransactionList({
         stripeSubscriptionId: (l as any).stripeSubscriptionId || null,
         amount: resolvedPlanAmt > 0 ? resolvedPlanAmt : 0,
         currency: "usd",
-        status: isFailed ? "failed" : "pending_payment",
+        status: isFailed ? "failed" : isIncomplete ? "incomplete_payment" : "pending_payment",
         eventType: "initial",
         listingTitle: l.eventName || l.jobTitle || l.title || l.businessName || null,
         businessName: l.businessName || partner?.businessName || "",
@@ -7395,7 +7434,8 @@ function TransactionList({
       if (pl.stripeSubscriptionId) nonCompletedSubIds.add(String(pl.stripeSubscriptionId));
 
       const partner = pl.partnerId ? partnerMap.byId.get(pl.partnerId) : undefined;
-      const isFailed = s === "Failed Payment" || s === "Incomplete Payment";
+      const isFailed = s === "Failed Payment";
+      const isIncomplete = s === "Incomplete Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `plan-${pl.id}`,
         partnerId: pl.partnerId || "",
@@ -7409,7 +7449,7 @@ function TransactionList({
         stripeSubscriptionId: pl.stripeSubscriptionId || null,
         amount: typeof pl.price === "number" ? pl.price : 0,
         currency: "usd",
-        status: isFailed ? "failed" : "pending_payment",
+        status: isFailed ? "failed" : isIncomplete ? "incomplete_payment" : "pending_payment",
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
@@ -7430,7 +7470,8 @@ function TransactionList({
       if (subId) nonCompletedSubIds.add(String(subId));
 
       const partner = fp.partnerId ? partnerMap.byId.get(fp.partnerId) : undefined;
-      const isFailed = s === "Failed Payment" || s === "Incomplete Payment";
+      const isFailed = s === "Failed Payment";
+      const isIncomplete = s === "Incomplete Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `feature-${fp.id}`,
         partnerId: fp.partnerId || "",
@@ -7442,7 +7483,7 @@ function TransactionList({
         stripeSubscriptionId: subId || null,
         amount: typeof (fp as any).price === "number" ? (fp as any).price : 0,
         currency: "usd",
-        status: isFailed ? "failed" : "pending_payment",
+        status: isFailed ? "failed" : isIncomplete ? "incomplete_payment" : "pending_payment",
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
@@ -7461,17 +7502,20 @@ function TransactionList({
   const counts = useMemo(() => {
     let completed = 0;
     let pending = 0;
+    let incomplete = 0;
     let failed = 0;
     for (const r of rows) {
       if (r.statusLabel === "Completed") {
         completed++;
       } else if (r.statusLabel === "Pending" || r.statusLabel === "Pending Payment") {
         pending++;
-      } else if (r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail") || r.statusLabel.toLowerCase().includes("incomplete")) {
+      } else if (r.statusLabel === "Incomplete Payment" || r.statusLabel.toLowerCase().includes("incomplete")) {
+        incomplete++;
+      } else if (r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail")) {
         failed++;
       }
     }
-    return { all: rows.length, completed, pending, failed };
+    return { all: rows.length, completed, pending, incomplete, failed };
   }, [rows]);
 
   const filtered = useMemo(() => {
@@ -7480,8 +7524,10 @@ function TransactionList({
       list = list.filter((r) => r.statusLabel === "Completed");
     } else if (statusFilter === "pending") {
       list = list.filter((r) => r.statusLabel === "Pending Payment" || r.statusLabel === "Pending");
-    } else if (statusFilter === "failed" || (statusFilter as string) === "incomplete") {
-      list = list.filter((r) => r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail") || r.statusLabel.toLowerCase().includes("incomplete"));
+    } else if (statusFilter === "incomplete") {
+      list = list.filter((r) => r.statusLabel === "Incomplete Payment" || r.statusLabel.toLowerCase().includes("incomplete"));
+    } else if (statusFilter === "failed") {
+      list = list.filter((r) => r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail"));
     }
 
     const q = search.trim().toLowerCase();
@@ -7576,9 +7622,20 @@ function TransactionList({
           </button>
           <button
             type="button"
+            onClick={() => setStatusFilter("incomplete")}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              statusFilter === "incomplete"
+                ? "bg-amber-600 text-white shadow-sm"
+                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
+            }`}
+          >
+            Incomplete Payments ({counts.incomplete})
+          </button>
+          <button
+            type="button"
             onClick={() => setStatusFilter("failed")}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              statusFilter === "failed" || (statusFilter as string) === "incomplete"
+              statusFilter === "failed"
                 ? "bg-red-600 text-white shadow-sm"
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
@@ -7689,7 +7746,9 @@ function TransactionList({
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-medium"
                                 : t.statusLabel === "Pending Payment" || t.statusLabel === "Pending"
                                   ? "bg-amber-50 text-amber-700 border-amber-200 font-medium"
-                                  : "bg-red-50 text-red-700 border-red-200 font-medium"
+                                  : t.statusLabel === "Incomplete Payment" || t.statusLabel.toLowerCase().includes("incomplete")
+                                    ? "bg-amber-50 text-amber-700 border-amber-200 font-medium"
+                                    : "bg-red-50 text-red-700 border-red-200 font-medium"
                             }
                           >
                             {t.statusLabel}

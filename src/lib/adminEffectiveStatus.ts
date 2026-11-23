@@ -43,20 +43,31 @@ export function getEffectiveListingStatus(listing: any, insight?: any): string {
     return "Pending Payment";
   }
 
-  // 1. Failed Payment (charge did not go through, including expired card)
+  // 1. Incomplete Payment (checkout started that has not been completed)
   const stripeStatus = String(
     plan?.stripeSubscriptionStatus || listing.stripeSubscriptionStatus || ""
   ).toLowerCase();
+
+  const isIncompletePayment =
+    ["incomplete", "incomplete_expired"].includes(stripeStatus) ||
+    ["incomplete payment", "incomplete_payment", "incomplete"].includes(normListingStatus) ||
+    ["incomplete payment", "incomplete_payment", "incomplete"].includes(normPlanStatus);
+
+  if (isIncompletePayment) {
+    return "Incomplete Payment";
+  }
+
+  // 1b. Failed Payment (charge did not go through, including expired card)
   const isPaymentFailed =
-    ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(stripeStatus) ||
+    ["past_due", "unpaid"].includes(stripeStatus) ||
     Boolean(plan?.endedForNonpayment) ||
     Boolean(listing.endedForNonpayment) ||
     listing.paymentStatus === "failed" ||
     listing.paymentStatus === "past_due" ||
-    ["failed payment", "failed_payment", "incomplete payment", "incomplete_payment", "payment error", "payment_error", "past_due"].includes(
+    ["failed payment", "failed_payment", "payment error", "payment_error", "past_due"].includes(
       normListingStatus
     ) ||
-    ["failed payment", "failed_payment", "incomplete payment", "incomplete_payment", "payment error", "payment_error", "past_due"].includes(
+    ["failed payment", "failed_payment", "payment error", "payment_error", "past_due"].includes(
       normPlanStatus
     ) ||
     Boolean(plan?.paymentError) ||
@@ -181,16 +192,25 @@ export function getEffectiveFeatureStatus(feature?: any, listing?: any): string 
     return "Disabled";
   }
 
-  // 2. Failed Payment / Payment Error
+  // 2. Incomplete Payment vs Failed Payment
   const stripeStatus = String(
     feature?.stripeSubscriptionStatus || listing?.featureSpotlightSubscriptionStatus || ""
   ).toLowerCase();
+
+  const isIncompletePayment =
+    ["incomplete", "incomplete_expired"].includes(stripeStatus) ||
+    ["incomplete payment", "incomplete_payment", "incomplete"].includes(normExplicit);
+
+  if (isIncompletePayment) {
+    return "Incomplete Payment";
+  }
+
   const isPaymentFailed =
-    ["past_due", "unpaid", "incomplete", "incomplete_expired"].includes(stripeStatus) ||
+    ["past_due", "unpaid"].includes(stripeStatus) ||
     Boolean(feature?.endedForNonpayment) ||
     feature?.paymentStatus === "failed" ||
     feature?.paymentStatus === "past_due" ||
-    ["failed payment", "failed_payment", "incomplete payment", "incomplete_payment", "payment error", "payment_error", "past_due"].includes(
+    ["failed payment", "failed_payment", "payment error", "payment_error", "past_due"].includes(
       normExplicit
     ) ||
     Boolean(feature?.paymentError) ||
