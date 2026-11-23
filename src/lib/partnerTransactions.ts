@@ -336,16 +336,15 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
                 ? "Pending Payment"
                 : statusRaw === "incomplete" ||
                   statusRaw === "incomplete_payment" ||
-                  statusRaw === "incomplete payment"
-                    ? "Incomplete Payment"
-                    : statusRaw === "failed" ||
-                        statusRaw === "payment_failed" ||
-                        statusRaw === "payment failed" ||
-                        statusRaw === "requires_action" ||
-                        statusRaw === "past_due" ||
-                        statusRaw === "unpaid" ||
-                        statusRaw === "expired"
-                        ? "Failed Payment"
+                  statusRaw === "incomplete payment" ||
+                  statusRaw === "failed" ||
+                  statusRaw === "payment_failed" ||
+                  statusRaw === "payment failed" ||
+                  statusRaw === "requires_action" ||
+                  statusRaw === "past_due" ||
+                  statusRaw === "unpaid" ||
+                  statusRaw === "expired"
+                    ? "Failed Payment"
                         : statusRaw === "canceled" || statusRaw === "cancelled"
                             ? "Cancelled"
                             : statusRaw ? cleanTitleCase(statusRaw.replace(/_/g, " ")) : "Failed Payment";

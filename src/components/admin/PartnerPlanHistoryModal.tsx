@@ -131,7 +131,7 @@ function StatusBadge({ status }: { status?: string }) {
   if (s.includes("incomplete") || s.includes("error") || s.includes("past_due") || s.includes("failed")) {
     return (
       <Badge className="bg-red-50 text-red-700 border-red-200 font-medium">
-        Incomplete Payment
+        Failed Payment
       </Badge>
     );
   }

@@ -780,7 +780,6 @@ const getStatusBadge = (status?: string) => {
     case "failed payment":
     case "failed_payment":
     case "failed":
-      return <Badge className="bg-red-50 text-red-700 border-red-200">Failed Payment</Badge>;
     case "incomplete payment":
     case "incomplete_payment":
     case "payment error":
@@ -788,7 +787,7 @@ const getStatusBadge = (status?: string) => {
     case "past due":
     case "past_due":
     case "unpaid":
-      return <Badge className="bg-rose-50 text-rose-700 border-rose-200">Incomplete Payment</Badge>;
+      return <Badge className="bg-red-50 text-red-700 border-red-200">Failed Payment</Badge>;
     case "extended":
       return <Badge className="bg-indigo-50 text-indigo-700 border-indigo-200">Active</Badge>;
     default:
@@ -2088,13 +2087,13 @@ export default function AdminDashboard() {
   const openListingEditor = (listing: ListingRecord) => {
     setSelectedListing(listing);
 
-    // Normalize status to one of: "Active", "Expired", "Cancelled", "Incomplete Payment", "Pending Payment", "Disabled"
+    // Normalize status to one of: "Active", "Expired", "Cancelled", "Failed Payment", "Pending Payment", "Disabled"
     const effective = getEffectiveListingStatus(listing, listingInsights[listing.id]);
     let initialStatus = "Active";
     if (effective === "Pending Payment" || listing.status === "pending_payment" || listing.status === "Pending Payment") {
       initialStatus = "Pending Payment";
-    } else if (effective === "Incomplete Payment" || effective === "Payment Error" || listing.status === "Incomplete Payment" || listing.status === "Payment Error" || listing.status === "past_due") {
-      initialStatus = "Incomplete Payment";
+    } else if (effective === "Failed Payment" || effective === "Incomplete Payment" || effective === "Payment Error" || listing.status === "Failed Payment" || listing.status === "Incomplete Payment" || listing.status === "Payment Error" || listing.status === "past_due") {
+      initialStatus = "Failed Payment";
     } else if (effective === "Disabled" || listing.status === "Disabled") {
       initialStatus = "Disabled";
     } else if (effective === "Expired" || listing.status === "Expired") {
@@ -4709,7 +4708,7 @@ export default function AdminDashboard() {
                       <option value="Active">Active</option>
                       <option value="Cancelled">Cancelled</option>
                       <option value="Expired">Expired</option>
-                      <option value="Incomplete Payment">Incomplete Payment</option>
+                      <option value="Failed Payment">Failed Payment</option>
                       <option value="Pending Payment">Pending Payment</option>
                       <option value="Disabled">Disabled</option>
                     </select>
@@ -7017,8 +7016,8 @@ function ListingsList({
                         <DropdownMenuItem onClick={() => onSetStatus(listing, "Expired", false)}>
                           <Clock className="w-4 h-4 mr-2 text-orange-600" /> Set to Expired
                         </DropdownMenuItem>
-                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Incomplete Payment", false)}>
-                          <AlertTriangle className="w-4 h-4 mr-2 text-red-600" /> Set to Incomplete Payment
+                        <DropdownMenuItem onClick={() => onSetStatus(listing, "Failed Payment", false)}>
+                          <AlertTriangle className="w-4 h-4 mr-2 text-red-600" /> Set to Failed Payment
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => onSetStatus(listing, "Pending Payment", false)}>
                           <Clock className="w-4 h-4 mr-2 text-amber-600" /> Set to Pending Payment
@@ -7041,8 +7040,8 @@ function ListingsList({
                             <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Expired", false)}>
                               <Clock className="w-4 h-4 mr-2 text-orange-600" /> Set Feature: Expired
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Incomplete Payment", false)}>
-                              <AlertTriangle className="w-4 h-4 mr-2 text-red-600" /> Set Feature: Incomplete Payment
+                            <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Failed Payment", false)}>
+                              <AlertTriangle className="w-4 h-4 mr-2 text-red-600" /> Set Feature: Failed Payment
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => onSetFeatureStatus(listing, "Pending Payment", false)}>
                               <Clock className="w-4 h-4 mr-2 text-amber-600" /> Set Feature: Pending Payment
@@ -7318,8 +7317,8 @@ function TransactionList({
         invoiceId: invId || null,
         amount: rawAmount,
         currency: meta.currency || "usd",
-        status: isIncompleteLog ? "incomplete_payment" : isFailedLog ? "failed" : "pending_payment",
-        eventType: isFailedLog && String(meta.billingReason || "") === "subscription_cycle" ? "renewal" : "initial",
+        status: isFailedLog || isIncompleteLog ? "failed" : "pending_payment",
+        eventType: (isFailedLog || isIncompleteLog) && (String(meta.billingReason || "") === "subscription_cycle" || String(meta.type || "").toLowerCase().includes("renewal") || String(log.details || "").toLowerCase().includes("renewal")) ? "renewal" : "initial",
         listingTitle:
           meta.listingName ||
           linkedListing?.eventName ||
@@ -7356,8 +7355,7 @@ function TransactionList({
         (typeof l.__path === "string" && l.__path.startsWith("partnersCollection/") ? l.__path.split("/")[1] : "");
       const partner = pid ? partnerMap.byId.get(pid) : undefined;
       const resolvedPlanAmt = resolvePlanRenewalAmount({ planId: l.selectedPlan, group: l.selectedGroup } as any, l, transactions);
-      const isFailed = effStatus === "Failed Payment";
-      const isIncomplete = effStatus === "Incomplete Payment";
+      const isFailed = effStatus === "Failed Payment" || effStatus === "Incomplete Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `listing-${l.id}`,
         partnerId: pid || "",
@@ -7370,7 +7368,7 @@ function TransactionList({
         stripeSubscriptionId: (l as any).stripeSubscriptionId || null,
         amount: resolvedPlanAmt > 0 ? resolvedPlanAmt : 0,
         currency: "usd",
-        status: isFailed ? "failed" : isIncomplete ? "incomplete_payment" : "pending_payment",
+        status: isFailed ? "failed" : "pending_payment",
         eventType: "initial",
         listingTitle: l.eventName || l.jobTitle || l.title || l.businessName || null,
         businessName: l.businessName || partner?.businessName || "",
@@ -7397,8 +7395,7 @@ function TransactionList({
       if (pl.stripeSubscriptionId) nonCompletedSubIds.add(String(pl.stripeSubscriptionId));
 
       const partner = pl.partnerId ? partnerMap.byId.get(pl.partnerId) : undefined;
-      const isFailed = s === "Failed Payment";
-      const isIncomplete = s === "Incomplete Payment";
+      const isFailed = s === "Failed Payment" || s === "Incomplete Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `plan-${pl.id}`,
         partnerId: pl.partnerId || "",
@@ -7412,7 +7409,7 @@ function TransactionList({
         stripeSubscriptionId: pl.stripeSubscriptionId || null,
         amount: typeof pl.price === "number" ? pl.price : 0,
         currency: "usd",
-        status: isFailed ? "failed" : isIncomplete ? "incomplete_payment" : "pending_payment",
+        status: isFailed ? "failed" : "pending_payment",
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
@@ -7433,8 +7430,7 @@ function TransactionList({
       if (subId) nonCompletedSubIds.add(String(subId));
 
       const partner = fp.partnerId ? partnerMap.byId.get(fp.partnerId) : undefined;
-      const isFailed = s === "Failed Payment";
-      const isIncomplete = s === "Incomplete Payment";
+      const isFailed = s === "Failed Payment" || s === "Incomplete Payment";
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `feature-${fp.id}`,
         partnerId: fp.partnerId || "",
@@ -7446,7 +7442,7 @@ function TransactionList({
         stripeSubscriptionId: subId || null,
         amount: typeof (fp as any).price === "number" ? (fp as any).price : 0,
         currency: "usd",
-        status: isFailed ? "failed" : isIncomplete ? "incomplete_payment" : "pending_payment",
+        status: isFailed ? "failed" : "pending_payment",
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
@@ -7465,20 +7461,17 @@ function TransactionList({
   const counts = useMemo(() => {
     let completed = 0;
     let pending = 0;
-    let incomplete = 0;
     let failed = 0;
     for (const r of rows) {
       if (r.statusLabel === "Completed") {
         completed++;
       } else if (r.statusLabel === "Pending" || r.statusLabel === "Pending Payment") {
         pending++;
-      } else if (r.statusLabel === "Incomplete Payment" || r.statusLabel.toLowerCase().includes("incomplete")) {
-        incomplete++;
-      } else if (r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail")) {
+      } else if (r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail") || r.statusLabel.toLowerCase().includes("incomplete")) {
         failed++;
       }
     }
-    return { all: rows.length, completed, pending, incomplete, failed };
+    return { all: rows.length, completed, pending, failed };
   }, [rows]);
 
   const filtered = useMemo(() => {
@@ -7487,10 +7480,8 @@ function TransactionList({
       list = list.filter((r) => r.statusLabel === "Completed");
     } else if (statusFilter === "pending") {
       list = list.filter((r) => r.statusLabel === "Pending Payment" || r.statusLabel === "Pending");
-    } else if (statusFilter === "incomplete") {
-      list = list.filter((r) => r.statusLabel === "Incomplete Payment" || r.statusLabel.toLowerCase().includes("incomplete"));
-    } else if (statusFilter === "failed") {
-      list = list.filter((r) => r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail"));
+    } else if (statusFilter === "failed" || (statusFilter as string) === "incomplete") {
+      list = list.filter((r) => r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail") || r.statusLabel.toLowerCase().includes("incomplete"));
     }
 
     const q = search.trim().toLowerCase();
@@ -7585,20 +7576,9 @@ function TransactionList({
           </button>
           <button
             type="button"
-            onClick={() => setStatusFilter("incomplete")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              statusFilter === "incomplete"
-                ? "bg-rose-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-            }`}
-          >
-            Incomplete Payments ({counts.incomplete})
-          </button>
-          <button
-            type="button"
             onClick={() => setStatusFilter("failed")}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              statusFilter === "failed"
+              statusFilter === "failed" || (statusFilter as string) === "incomplete"
                 ? "bg-red-600 text-white shadow-sm"
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
@@ -7709,9 +7689,7 @@ function TransactionList({
                                 ? "bg-emerald-50 text-emerald-700 border-emerald-200 font-medium"
                                 : t.statusLabel === "Pending Payment" || t.statusLabel === "Pending"
                                   ? "bg-amber-50 text-amber-700 border-amber-200 font-medium"
-                                  : t.statusLabel === "Incomplete Payment" || t.statusLabel.toLowerCase().includes("incomplete")
-                                    ? "bg-rose-50 text-rose-700 border-rose-200 font-medium"
-                                    : "bg-red-50 text-red-700 border-red-200 font-medium"
+                                  : "bg-red-50 text-red-700 border-red-200 font-medium"
                             }
                           >
                             {t.statusLabel}
