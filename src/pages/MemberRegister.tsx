@@ -186,7 +186,7 @@ export default function MemberRegister() {
         <div className="flex flex-col items-start text-left mb-8">
           <h1 className="text-3xl font-bold tracking-tight mb-2">Create your profile</h1>
           <p className="text-muted-foreground text-sm">
-            Name & username are final at account creation.
+            Name & Username are final at account creation.
           </p>
         </div>
 
