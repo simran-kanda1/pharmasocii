@@ -71,8 +71,30 @@ export default function ContactUs() {
                     localStorage.setItem("pharmasocii_contact_config", JSON.stringify(merged));
                 }
             }
-        }, (error) => {
-            console.warn("Firestore contact config snapshot notice:", error);
+        }, async (error) => {
+            console.warn("Firestore contact config snapshot notice, trying API fallback:", error);
+            try {
+                const res = await fetch("/api/contact-config");
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data && Array.isArray(data.departments)) {
+                        const merged: ContactConfig = {
+                            headline: data.headline || DEFAULT_CONTACT_CONFIG.headline,
+                            subtitle: data.subtitle || DEFAULT_CONTACT_CONFIG.subtitle,
+                            description: data.description || DEFAULT_CONTACT_CONFIG.description,
+                            globalPhone: data.globalPhone ?? "",
+                            globalAddress: data.globalAddress ?? "",
+                            globalHours: data.globalHours || DEFAULT_CONTACT_CONFIG.globalHours,
+                            showContactForm: data.showContactForm ?? true,
+                            departments: data.departments,
+                        };
+                        setConfig(merged);
+                        localStorage.setItem("pharmasocii_contact_config", JSON.stringify(merged));
+                    }
+                }
+            } catch (e) {
+                console.warn("API fallback notice:", e);
+            }
         });
 
         return () => unsubscribe();

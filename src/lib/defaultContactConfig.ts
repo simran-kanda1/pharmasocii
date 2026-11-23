@@ -63,15 +63,6 @@ export const DEFAULT_CONTACT_CONFIG: ContactConfig = {
             description: "Partner listing management, premium subscriptions, featured plans, and business collaborations.",
             hours: "Mon – Fri: 9:00 AM – 6:00 PM EST",
             icon: "Handshake"
-        },
-        {
-            id: "legal",
-            title: "Legal Inquiries",
-            email: "legal@pharmasocii.com",
-            phone: "",
-            description: "Terms of Use, privacy requests, intellectual property, compliance, and regulatory notices.",
-            hours: "Mon – Fri: 9:00 AM – 5:00 PM EST",
-            icon: "Scale"
         }
     ]
 };

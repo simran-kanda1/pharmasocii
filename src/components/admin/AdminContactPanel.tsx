@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { db } from "@/firebase";
+import { db, auth } from "@/firebase";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,55 +35,94 @@ export function AdminContactPanel() {
     const [config, setConfig] = useState<ContactConfig>(DEFAULT_CONTACT_CONFIG);
 
     useEffect(() => {
+        let isMounted = true;
         const fetchConfig = async () => {
             try {
                 setLoading(true);
                 setError("");
 
                 let activeConfig = DEFAULT_CONTACT_CONFIG;
+                let fetchedFromRemote = false;
 
-                // 1. Check localStorage first
-                const savedLocal = localStorage.getItem("pharmasocii_contact_config");
-                if (savedLocal) {
-                    try {
-                        const parsed = JSON.parse(savedLocal);
-                        if (parsed && Array.isArray(parsed.departments)) {
-                            activeConfig = parsed;
+                // 1. Fetch from Firestore direct
+                try {
+                    const docRef = doc(db, "config", "contactConfig");
+                    const docSnap = await getDoc(docRef);
+                    if (docSnap.exists()) {
+                        const data = docSnap.data() as Partial<ContactConfig>;
+                        if (data && Array.isArray(data.departments)) {
+                            activeConfig = {
+                                headline: data.headline || DEFAULT_CONTACT_CONFIG.headline,
+                                subtitle: data.subtitle || DEFAULT_CONTACT_CONFIG.subtitle,
+                                description: data.description || DEFAULT_CONTACT_CONFIG.description,
+                                globalPhone: data.globalPhone ?? "",
+                                globalAddress: data.globalAddress ?? "",
+                                globalHours: data.globalHours || DEFAULT_CONTACT_CONFIG.globalHours,
+                                showContactForm: data.showContactForm ?? true,
+                                departments: data.departments,
+                            };
+                            fetchedFromRemote = true;
                         }
-                    } catch (e) {
-                        console.error("Error parsing local contact config:", e);
+                    }
+                } catch (fsErr) {
+                    console.warn("Direct Firestore read notice, trying API fallback:", fsErr);
+                }
+
+                // 2. Fetch from API fallback if Firestore direct didn't load
+                if (!fetchedFromRemote) {
+                    try {
+                        const res = await fetch("/api/contact-config");
+                        if (res.ok) {
+                            const data = await res.json();
+                            if (data && Array.isArray(data.departments)) {
+                                activeConfig = {
+                                    headline: data.headline || DEFAULT_CONTACT_CONFIG.headline,
+                                    subtitle: data.subtitle || DEFAULT_CONTACT_CONFIG.subtitle,
+                                    description: data.description || DEFAULT_CONTACT_CONFIG.description,
+                                    globalPhone: data.globalPhone ?? "",
+                                    globalAddress: data.globalAddress ?? "",
+                                    globalHours: data.globalHours || DEFAULT_CONTACT_CONFIG.globalHours,
+                                    showContactForm: data.showContactForm ?? true,
+                                    departments: data.departments,
+                                };
+                                fetchedFromRemote = true;
+                            }
+                        }
+                    } catch (apiErr) {
+                        console.warn("API contact read notice:", apiErr);
                     }
                 }
 
-                // 2. Fetch from Firestore if available
-                const docRef = doc(db, "config", "contactConfig");
-                const docSnap = await getDoc(docRef);
-                if (docSnap.exists()) {
-                    const data = docSnap.data() as Partial<ContactConfig>;
-                    if (data && Array.isArray(data.departments)) {
-                        activeConfig = {
-                            headline: data.headline || DEFAULT_CONTACT_CONFIG.headline,
-                            subtitle: data.subtitle || DEFAULT_CONTACT_CONFIG.subtitle,
-                            description: data.description || DEFAULT_CONTACT_CONFIG.description,
-                            globalPhone: data.globalPhone ?? "",
-                            globalAddress: data.globalAddress ?? "",
-                            globalHours: data.globalHours || DEFAULT_CONTACT_CONFIG.globalHours,
-                            showContactForm: data.showContactForm ?? true,
-                            departments: data.departments,
-                        };
+                // 3. Fallback to localStorage if neither remote source responded
+                if (!fetchedFromRemote) {
+                    const savedLocal = localStorage.getItem("pharmasocii_contact_config");
+                    if (savedLocal) {
+                        try {
+                            const parsed = JSON.parse(savedLocal);
+                            if (parsed && Array.isArray(parsed.departments)) {
+                                activeConfig = parsed;
+                            }
+                        } catch (e) {
+                            console.error("Error parsing local contact config:", e);
+                        }
                     }
                 }
 
-                setConfig(activeConfig);
-                localStorage.setItem("pharmasocii_contact_config", JSON.stringify(activeConfig));
+                if (isMounted) {
+                    setConfig(activeConfig);
+                    localStorage.setItem("pharmasocii_contact_config", JSON.stringify(activeConfig));
+                }
             } catch (err: any) {
-                console.warn("Notice while fetching contact config (fallback in use):", err);
+                console.warn("Notice while fetching contact config:", err);
             } finally {
-                setLoading(false);
+                if (isMounted) {
+                    setLoading(false);
+                }
             }
         };
 
         fetchConfig();
+        return () => { isMounted = false; };
     }, []);
 
     const handleSave = async () => {
@@ -91,25 +130,69 @@ export function AdminContactPanel() {
         setSaveSuccess("");
         setError("");
 
-        // Immediate local sync
-        localStorage.setItem("pharmasocii_contact_config", JSON.stringify(config));
+        // Sanitize every field so NO property is undefined (Firebase rejects undefined values)
+        const cleanPayload: ContactConfig = {
+            headline: config.headline || "Contact Us",
+            subtitle: config.subtitle || "Got Questions?",
+            description: config.description || "",
+            globalPhone: config.globalPhone || "",
+            globalAddress: config.globalAddress || "",
+            globalHours: config.globalHours || "Monday – Friday: 9:00 AM – 6:00 PM EST",
+            showContactForm: config.showContactForm !== false,
+            departments: config.departments.map(d => ({
+                id: d.id || `dept_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                title: d.title || "",
+                email: d.email || "",
+                phone: d.phone || "",
+                description: d.description || "",
+                hours: d.hours || "",
+                icon: d.icon || "HelpCircle",
+            })),
+        };
 
+        // Immediate local sync
+        localStorage.setItem("pharmasocii_contact_config", JSON.stringify(cleanPayload));
+
+        let saved = false;
+
+        // 1. Try server API endpoint (uses Admin SDK - reliable, bypasses client rule issues)
+        try {
+            const token = auth.currentUser ? await auth.currentUser.getIdToken() : "";
+            const res = await fetch("/api/admin/contact-config", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(token ? { Authorization: `Bearer ${token}` } : {})
+                },
+                body: JSON.stringify(cleanPayload)
+            });
+            if (res.ok) {
+                saved = true;
+            }
+        } catch (apiErr) {
+            console.warn("API contact-config save notice, attempting direct Firestore write:", apiErr);
+        }
+
+        // 2. Direct Firestore write (with serverTimestamp)
         try {
             const docRef = doc(db, "config", "contactConfig");
             await setDoc(docRef, {
-                ...config,
+                ...cleanPayload,
                 updatedAt: serverTimestamp(),
             }, { merge: true });
-
-            setSaveSuccess("Contact page settings & phone numbers saved and published successfully!");
-            setTimeout(() => setSaveSuccess(""), 5000);
-        } catch (err: any) {
-            console.warn("Firestore save notice:", err);
-            setSaveSuccess("Settings saved locally for this session!");
-            setTimeout(() => setSaveSuccess(""), 5000);
-        } finally {
-            setSaving(false);
+            saved = true;
+        } catch (fsErr: any) {
+            console.warn("Direct Firestore contact-config save notice:", fsErr);
         }
+
+        if (saved) {
+            setSaveSuccess("Contact page settings saved and published successfully!");
+            setTimeout(() => setSaveSuccess(""), 5000);
+        } else {
+            setError("Could not save settings to the remote database. Changes have been preserved locally.");
+            setTimeout(() => setError(""), 5000);
+        }
+        setSaving(false);
     };
 
     const handleReset = () => {

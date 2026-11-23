@@ -8641,6 +8641,75 @@ app.post("/api/backfill-upgrade-transactions", async (req, res) => {
     }
 });
 
+// ─── Contact Us Config Endpoints ───
+app.get("/api/contact-config", async (req, res) => {
+    try {
+        const docSnap = await db.collection("config").doc("contactConfig").get();
+        if (docSnap.exists) {
+            return res.json(docSnap.data());
+        }
+        return res.json(null);
+    } catch (err) {
+        console.error("Error reading contactConfig:", err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.post("/api/admin/contact-config", async (req, res) => {
+    try {
+        const idToken = req.headers.authorization?.split("Bearer ")[1];
+        if (idToken) {
+            try {
+                const decodedToken = await admin.auth().verifyIdToken(idToken);
+                const adminDoc = await db.collection("adminCollection").doc(decodedToken.uid).get();
+                if (!adminDoc.exists) {
+                    console.warn("UID not in adminCollection:", decodedToken.uid);
+                }
+            } catch (authErr) {
+                console.warn("Token verification notice:", authErr.message);
+            }
+        }
+
+        const {
+            headline,
+            subtitle,
+            description,
+            globalPhone,
+            globalAddress,
+            globalHours,
+            showContactForm,
+            departments
+        } = req.body;
+
+        const payload = {
+            headline: headline || "Contact Us",
+            subtitle: subtitle || "Got Questions?",
+            description: description || "",
+            globalPhone: globalPhone || "",
+            globalAddress: globalAddress || "",
+            globalHours: globalHours || "Monday – Friday: 9:00 AM – 6:00 PM EST",
+            showContactForm: showContactForm !== false,
+            departments: Array.isArray(departments) ? departments.map(d => ({
+                id: d.id || `dept_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+                title: d.title || "",
+                email: d.email || "",
+                phone: d.phone || "",
+                description: d.description || "",
+                hours: d.hours || "",
+                icon: d.icon || "HelpCircle"
+            })) : [],
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        };
+
+        await db.collection("config").doc("contactConfig").set(payload, { merge: true });
+        console.log("Successfully saved contactConfig via API endpoint.");
+        return res.json({ success: true, config: payload });
+    } catch (err) {
+        console.error("Error saving contactConfig:", err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
 // ─── Admin Partner Creation ───
 app.post("/api/admin/create-partner", async (req, res) => {
     try {
