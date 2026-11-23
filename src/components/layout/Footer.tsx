@@ -48,10 +48,10 @@ export function Footer() {
                 <div className="pt-8 border-t border-foreground/10 flex flex-col md:flex-row items-center justify-between gap-4">
                     <div className="flex flex-col items-center md:items-start gap-2 text-xs text-muted-foreground text-center md:text-left">
                         <p>
-                            &copy; {new Date().getFullYear()} Pharma SocII. All rights reserved.
+                            &copy; {new Date().getFullYear()} Pharma SocII&reg;. All rights reserved.
                         </p>
                         <p>
-                            Pharma SocII is a trademark of Pharma SocII.
+                            Pharma SocII&reg; is a registered trademark of Pharma SocII.
                         </p>
                         <p>
                             Pharma SocII is currently offered as an open beta. Features may evolve as we continue to improve the platform — see <Link to="/faq" className="underline hover:text-primary transition-colors">FAQ</Link>.
