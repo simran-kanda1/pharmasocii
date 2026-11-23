@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   Ban,
+  Calendar,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -7135,6 +7136,39 @@ function TransactionList({
 }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "completed" | "pending" | "failed" | "incomplete">(initialStatusFilter);
+  const [dateFilter, setDateFilter] = useState("");
+  const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const formatDisplayDate = (dStr: string): string => {
+    if (!dStr) return "";
+    const parts = dStr.split("-").map(Number);
+    if (parts.length !== 3 || parts.some(isNaN)) return dStr;
+    const [y, m, d] = parts;
+    const dateObj = new Date(y, m - 1, d);
+    return dateObj.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    });
+  };
+
+  const matchesDateFilter = (r: PartnerTransactionRow, filterStr: string): boolean => {
+    if (!filterStr) return true;
+    const [y, m, d] = filterStr.split("-");
+    const targetDateDisplay = `${m}/${d}/${y}`;
+    if (r.dateDisplay === targetDateDisplay) return true;
+    if (r.createdAtIso) {
+      if (r.createdAtIso.startsWith(filterStr)) return true;
+      const dt = new Date(r.createdAtIso);
+      if (!isNaN(dt.getTime())) {
+        const dtY = dt.getFullYear();
+        const dtM = String(dt.getMonth() + 1).padStart(2, "0");
+        const dtD = String(dt.getDate()).padStart(2, "0");
+        if (`${dtY}-${dtM}-${dtD}` === filterStr) return true;
+      }
+    }
+    return false;
+  };
 
   useEffect(() => {
     if (initialStatusFilter) {
@@ -7500,11 +7534,12 @@ function TransactionList({
   }, [transactions, auditLogs, listings, partnerPlans, featuredPlans, listingInsights, partnerMap, listingNameLookup]);
 
   const counts = useMemo(() => {
+    const baseList = dateFilter ? rows.filter((r) => matchesDateFilter(r, dateFilter)) : rows;
     let completed = 0;
     let pending = 0;
     let incomplete = 0;
     let failed = 0;
-    for (const r of rows) {
+    for (const r of baseList) {
       if (r.statusLabel === "Completed") {
         completed++;
       } else if (r.statusLabel === "Pending" || r.statusLabel === "Pending Payment") {
@@ -7515,8 +7550,8 @@ function TransactionList({
         failed++;
       }
     }
-    return { all: rows.length, completed, pending, incomplete, failed };
-  }, [rows]);
+    return { all: baseList.length, completed, pending, incomplete, failed };
+  }, [rows, dateFilter]);
 
   const filtered = useMemo(() => {
     let list = rows;
@@ -7528,6 +7563,10 @@ function TransactionList({
       list = list.filter((r) => r.statusLabel === "Incomplete Payment" || r.statusLabel.toLowerCase().includes("incomplete"));
     } else if (statusFilter === "failed") {
       list = list.filter((r) => r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail"));
+    }
+
+    if (dateFilter) {
+      list = list.filter((r) => matchesDateFilter(r, dateFilter));
     }
 
     const q = search.trim().toLowerCase();
@@ -7558,7 +7597,7 @@ function TransactionList({
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, statusFilter, search, partnerMap]);
+  }, [rows, statusFilter, dateFilter, search, partnerMap]);
 
   const {
     page: txnPage,
@@ -7574,7 +7613,7 @@ function TransactionList({
 
   useEffect(() => {
     setTxnPage(1);
-  }, [statusFilter, search, setTxnPage]);
+  }, [statusFilter, search, dateFilter, setTxnPage]);
 
   const handleExport = (format: "csv" | "xlsx" | "pdf") => {
     if (filtered.length === 0) return;
@@ -7650,8 +7689,51 @@ function TransactionList({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search partner, business, listing, plan, status…"
-              className="pl-9 h-10 w-full sm:w-72 bg-white"
+              className="pl-9 h-10 w-full sm:w-64 bg-white"
             />
+          </div>
+          <div className="relative inline-flex items-center">
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+              title="Click to select a date on calendar"
+              onClick={(e) => {
+                if (typeof (e.currentTarget as any).showPicker === "function") {
+                  try {
+                    (e.currentTarget as any).showPicker();
+                  } catch {}
+                }
+              }}
+            />
+            <Button
+              type="button"
+              variant={dateFilter ? "default" : "outline"}
+              className={`h-10 text-xs shrink-0 font-medium ${
+                dateFilter
+                  ? "bg-slate-900 text-white shadow-sm pr-8"
+                  : "bg-white text-slate-700 hover:bg-slate-50 border-slate-200"
+              }`}
+            >
+              <Calendar className={`w-4 h-4 mr-2 ${dateFilter ? "text-white" : "text-slate-500"}`} />
+              <span>{dateFilter ? formatDisplayDate(dateFilter) : "Filter by date"}</span>
+            </Button>
+            {dateFilter && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  e.preventDefault();
+                  setDateFilter("");
+                }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 p-1 text-slate-400 hover:text-white rounded-full transition-colors"
+                title="Clear date filter"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -7687,7 +7769,21 @@ function TransactionList({
       ) : filtered.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-xl p-12 text-center">
           <SearchX className="w-8 h-8 text-slate-300 mb-2 mx-auto" />
-          <p className="text-sm text-slate-600">No transactions match “{search.trim()}”.</p>
+          <p className="text-sm text-slate-600">
+            {dateFilter
+              ? `No transactions recorded on ${formatDisplayDate(dateFilter)}${search.trim() ? ` matching “${search.trim()}”` : ""}.`
+              : `No transactions match “${search.trim()}”.`}
+          </p>
+          {dateFilter && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setDateFilter("")}
+              className="mt-3 text-xs"
+            >
+              Clear date filter
+            </Button>
+          )}
         </div>
       ) : (
         <Card className="bg-white border-slate-200 shadow-sm">
