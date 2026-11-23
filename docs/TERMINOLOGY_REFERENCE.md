@@ -70,3 +70,4 @@ This document preserves the official definitions and rules for listing, plan, an
 * When a customer upgrades a spotlight/featured placement:
   * The existing spotlight record (`featureSpotlightId` or `featureDocId`) is updated in place with new placement tier and dates.
   * No duplicate feature document is created.
+

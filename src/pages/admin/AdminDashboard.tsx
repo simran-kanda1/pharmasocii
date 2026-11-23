@@ -5310,11 +5310,31 @@ function OverviewTab({
         : formatAuditPlanType(meta.planId || meta.plan || linkedListing?.selectedPlan, grp);
       const dateObj = toDateSafe(log.timestamp);
 
-      if (action === "PAYMENT_FAILED") {
-        const key = String(invId || sid || lid || log.id);
+      const isFailedAudit =
+        action === "PAYMENT_FAILED" ||
+        action.includes("PAYMENT_FAIL") ||
+        String(meta.paymentStatus || "").toLowerCase() === "failed" ||
+        String(meta.status || "").toLowerCase() === "incomplete payment" ||
+        String(meta.status || "").toLowerCase() === "failed payment" ||
+        String(log.details || "").toLowerCase().includes("payment failed");
+
+      if (isFailedAudit) {
+        const key = String(invId || sid || (lid ? `${lid}:${action}` : "") || log.id);
         if (seenFailedKeys.has(key)) continue;
         seenFailedKeys.add(key);
-        const amt = typeof meta.amountDue === "number" ? meta.amountDue : typeof meta.amount === "number" ? meta.amount : 0;
+        const resolvedPlanAmt = resolvePlanRenewalAmount(
+          { planId: meta.planId || meta.plan || linkedListing?.selectedPlan, group: meta.group || meta.type || linkedListing?.selectedGroup },
+          linkedListing,
+          transactions
+        );
+        const amt =
+          typeof meta.amountDue === "number" && meta.amountDue > 0
+            ? meta.amountDue
+            : typeof meta.amount === "number" && meta.amount > 0
+              ? meta.amount
+              : resolvedPlanAmt > 0
+                ? resolvedPlanAmt
+                : 0;
         failed.push({
           id: `log-fail-${log.id}`,
           businessName,
@@ -5327,20 +5347,25 @@ function OverviewTab({
         });
       } else if (
         action === "PAYMENT_PENDING" ||
+        String(meta.paymentStatus || "").toLowerCase() === "pending" ||
         (action === "LISTING_CREATED" &&
           (listingStatus === "Pending Payment" || String(meta.paymentStatus || "").toLowerCase().includes("pending")))
       ) {
         if (sid && completedSessionIds.has(sid)) continue;
-        if (lid && (completedListingIds.has(lid) || (listingStatus && listingStatus !== "Pending Payment"))) continue;
-        const key = String(sid || lid || log.id);
+        const key = String(sid || (lid && dateObj ? `${lid}:${dateObj.getTime()}` : "") || log.id);
         if (seenIncompleteKeys.has(key)) continue;
         seenIncompleteKeys.add(key);
+        const resolvedPlanAmt = resolvePlanRenewalAmount(
+          { planId: meta.planId || meta.plan || linkedListing?.selectedPlan, group: meta.group || meta.type || linkedListing?.selectedGroup },
+          linkedListing,
+          transactions
+        );
         incomplete.push({
           id: `log-inc-${log.id}`,
           businessName,
           listingName,
           itemLabel: itemLabel !== "-" ? itemLabel : "Checkout Started",
-          amountDisplay: "—",
+          amountDisplay: resolvedPlanAmt > 0 ? `$${resolvedPlanAmt.toFixed(2)}` : "—",
           dateObj,
           statusLabel: "Pending Payment",
           listing: linkedListing,
@@ -6923,8 +6948,10 @@ function TransactionList({
     }
 
     const syntheticRows: PartnerTransactionRow[] = [];
+    const seenFailedKeys = new Set<string>();
+    const seenPendingKeys = new Set<string>();
 
-    // 1. Include PAYMENT_FAILED and active PAYMENT_PENDING / unpaid LISTING_CREATED audit logs not already in transactionsCollection
+    // 1. Include PAYMENT_FAILED and active/past PAYMENT_PENDING / unpaid LISTING_CREATED audit logs not already in transactionsCollection
     for (const log of auditLogs) {
       if (!log || isMemberAuditLog(log)) continue;
       const action = String(log.action || "").toUpperCase().trim();
@@ -6939,9 +6966,17 @@ function TransactionList({
         ? getEffectiveListingStatus(linkedListing, listingInsights[linkedListing.id])
         : "";
 
-      const isFailedLog = action === "PAYMENT_FAILED";
+      const isFailedLog =
+        action === "PAYMENT_FAILED" ||
+        action.includes("PAYMENT_FAIL") ||
+        String(meta.paymentStatus || "").toLowerCase() === "failed" ||
+        String(meta.status || "").toLowerCase() === "incomplete payment" ||
+        String(meta.status || "").toLowerCase() === "failed payment" ||
+        String(log.details || "").toLowerCase().includes("payment failed");
+
       const isPendingLog =
         action === "PAYMENT_PENDING" ||
+        String(meta.paymentStatus || "").toLowerCase() === "pending" ||
         (action === "LISTING_CREATED" &&
           (listingStatus === "Pending Payment" ||
             String(meta.paymentStatus || "").toLowerCase().includes("pending")));
@@ -6949,8 +6984,23 @@ function TransactionList({
       if (!isFailedLog && !isPendingLog) continue;
       if (sid && knownSessionIds.has(sid)) continue;
       if (invId && knownInvoiceIds.has(invId)) continue;
-      if (isPendingLog && lid && (paidListingIds.has(lid) || (listingStatus && listingStatus !== "Pending Payment"))) {
-        continue;
+
+      const logTsMs = log.timestamp
+        ? typeof log.timestamp.toMillis === "function"
+          ? log.timestamp.toMillis()
+          : typeof log.timestamp.toDate === "function"
+            ? log.timestamp.toDate().getTime()
+            : new Date(log.timestamp).getTime()
+        : 0;
+
+      if (isFailedLog) {
+        const failKey = invId || sid || (lid ? `${lid}:${action}` : "") || `log-${log.id}`;
+        if (seenFailedKeys.has(failKey)) continue;
+        seenFailedKeys.add(failKey);
+      } else if (isPendingLog) {
+        const pendKey = sid || (lid && logTsMs ? `${lid}:${logTsMs}` : "") || `log-${log.id}`;
+        if (seenPendingKeys.has(pendKey)) continue;
+        seenPendingKeys.add(pendKey);
       }
 
       if (sid) knownSessionIds.add(sid);
@@ -6958,19 +7008,34 @@ function TransactionList({
       if (lid) nonCompletedListingIds.add(lid);
       if (subId) nonCompletedSubIds.add(subId);
 
-      const partner = log.partnerId ? partnerMap.byId.get(String(log.partnerId)) : undefined;
+      const partner = (log.partnerId ? partnerMap.byId.get(String(log.partnerId)) : undefined) ||
+        (linkedListing?.partnerId ? partnerMap.byId.get(String(linkedListing.partnerId)) : undefined);
+      const planOrFeatureAmt = resolvePlanRenewalAmount(
+        { planId: meta.planId || meta.plan || linkedListing?.selectedPlan, group: meta.group || meta.type || linkedListing?.selectedGroup },
+        linkedListing,
+        transactions
+      );
       const rawAmount =
-        typeof meta.amountDue === "number"
+        typeof meta.amountDue === "number" && meta.amountDue > 0
           ? meta.amountDue
-          : typeof meta.amount === "number"
+          : typeof meta.amount === "number" && meta.amount > 0
             ? meta.amount
-            : 0;
+            : planOrFeatureAmt > 0
+              ? planOrFeatureAmt
+              : 0;
+
+      const grp = formatAuditGroupCode(meta.group || meta.type || linkedListing?.selectedGroup || linkedListing?.__col, meta.planId || meta.plan || linkedListing?.selectedPlan);
+      const planLabel = meta.featureId
+        ? formatAuditFeatureType(meta.featureId)
+        : formatAuditPlanType(meta.planId || meta.plan || linkedListing?.selectedPlan, grp);
+
       const syntheticDoc: Record<string, unknown> & { id: string } = {
         id: `audit-${log.id}`,
-        partnerId: log.partnerId || "",
+        partnerId: log.partnerId || linkedListing?.partnerId || "",
         createdAt: log.timestamp || linkedListing?.createdAt || null,
         type: meta.featureId ? "feature" : "listing",
         planId: meta.planId || meta.plan || linkedListing?.selectedPlan || null,
+        planName: planLabel !== "-" ? planLabel : undefined,
         featureId: meta.featureId || (linkedListing as any)?.selectedAddon || null,
         group: meta.group || meta.type || linkedListing?.selectedGroup || null,
         listingId: lid || null,
@@ -6988,14 +7053,14 @@ function TransactionList({
           linkedListing?.title ||
           linkedListing?.businessName ||
           null,
-        businessName: partner?.businessName || linkedListing?.businessName || log.partnerName || "",
-        customerEmail: partner?.primaryEmail || "",
-        primaryContact: partner?.primaryName || "",
+        businessName: partner?.businessName || linkedListing?.businessName || meta.listingName || log.partnerName || "",
+        customerEmail: partner?.primaryEmail || (linkedListing as any)?.contactEmail || (linkedListing as any)?.email || "",
+        primaryContact: partner?.primaryName || (linkedListing as any)?.contactName || "",
         description: isFailedLog
           ? String(log.details || "").trim() && String(log.details || "").trim() !== "N/A"
             ? String(log.details)
             : undefined
-          : undefined,
+          : planLabel !== "-" ? planLabel : undefined,
       };
       const formatted = formatPartnerTransaction(syntheticDoc);
       syntheticRows.push({
