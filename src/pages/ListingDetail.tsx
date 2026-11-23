@@ -265,6 +265,20 @@ export default function ListingDetail() {
             "materials/ excipients / cells": "Materials, Excipients & Bioprocess Supplies",
             "materials excipients cells": "Materials, Excipients & Bioprocess Supplies",
             "medical devices": "Medical Devices & Delivery Systems",
+            "laboratory & related services": "Laboratory & Analytical Services",
+            "laboratory and related services": "Laboratory & Analytical Services",
+            "regulatory services": "Regulatory Services",
+        };
+
+        const KNOWN_SPECIALIZATION_PARENT_MAP: Record<string, { area: string; sub?: string }> = {
+            "equipment maintenance & calibration": { area: "Laboratory & Analytical Services" },
+            "extractable and leachable studies": { area: "Laboratory & Analytical Services" },
+            "filter compatibility studies": { area: "Laboratory & Analytical Services" },
+            "laboratory informatics": { area: "Laboratory & Analytical Services" },
+            "laboratory network": { area: "Laboratory & Analytical Services" },
+            "clinical writing": { area: "Regulatory Services" },
+            "cmc writing": { area: "Regulatory Services" },
+            "non-clinical writing": { area: "Regulatory Services" },
         };
 
         // Build active taxonomy lookup indices
@@ -435,6 +449,26 @@ export default function ListingDetail() {
                         return;
                     }
                 }
+            }
+        });
+
+        // C) Check known parent category mapping for legacy specializations
+        allTokens.forEach(({ raw }) => {
+            const leaf = raw.includes(" > ") ? raw.split(" > ").pop()?.trim() || raw : raw;
+            const normRaw = normalize(raw);
+            const normLeaf = normalize(leaf);
+            if (claimedTokens.has(normRaw) || claimedTokens.has(normLeaf)) return;
+
+            const fallback = KNOWN_SPECIALIZATION_PARENT_MAP[normLeaf] || KNOWN_SPECIALIZATION_PARENT_MAP[normRaw];
+            if (fallback) {
+                const targetArea = resolveAreaName(fallback.area) || fallback.area;
+                const subMap = getOrCreateArea(targetArea);
+                const subLabel = fallback.sub || leaf;
+                if (!subMap.has(subLabel)) {
+                    subMap.set(subLabel, new Set<string>());
+                }
+                claimedTokens.add(normRaw);
+                claimedTokens.add(normLeaf);
             }
         });
 
