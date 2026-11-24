@@ -521,14 +521,10 @@ export function PartnerPlanHistoryModal({
       const key = String(feat.listingId || feat.id);
       const siblings = listingFeatsMap.get(key) || [feat];
 
-      // Is superseded if explicit supersededBy, supersededAt, or older inactive sibling
+      // If multiple siblings exist for the same listing, only the newest is primary; older ones are superseded
+      const isNewestSibling = siblings[0]?.id === feat.id;
       const isExplicitSuperseded = Boolean(feat.supersededBy || feat.supersededAt);
-      const newerActiveSibling = siblings.find(
-        (s) =>
-          s.id !== feat.id &&
-          (s.active === true || (s.lastPaymentReceived?.seconds || 0) > (feat.lastPaymentReceived?.seconds || 0))
-      );
-      const isSuperseded = isExplicitSuperseded || (feat.active === false && Boolean(newerActiveSibling));
+      const isSuperseded = siblings.length > 1 ? !isNewestSibling : Boolean(isExplicitSuperseded && feat.active === false);
 
       // Is upgraded if an older sibling exists with supersededBy/supersededAt or active=false
       const olderSupersededSibling = siblings.find(

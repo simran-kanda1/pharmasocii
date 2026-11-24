@@ -2421,7 +2421,7 @@ export default function AdminDashboard() {
     });
 
     featuredPlans.forEach((feature) => {
-      if ((feature as any)?.supersededBy) return;
+      if ((feature as any)?.supersededBy || (feature as any)?.supersededAt) return;
       const currentTs =
         (feature as any)?.lastPaymentReceived?.seconds ||
         feature?.createdAt?.seconds ||
@@ -2701,9 +2701,9 @@ export default function AdminDashboard() {
       });
 
       // Deduplicate features per listing so feature upgrades keep the same feature count
-      const pFeaturesRaw = featuredPlans.filter((f) => f.partnerId === partner.id && !(f as any).supersededBy);
+      const partnerFeatures = featuredPlans.filter((f) => f.partnerId === partner.id);
       const uniqueFeatureKeys = new Set<string>();
-      pFeaturesRaw.forEach((f) => {
+      partnerFeatures.forEach((f) => {
         uniqueFeatureKeys.add(String((f as any).listingId || f.id));
       });
       const listingFeaturedCount = pListings.filter((l) => {
@@ -2713,14 +2713,22 @@ export default function AdminDashboard() {
       }).length;
       const totalFeaturedCount = Math.max(uniqueFeatureKeys.size, listingFeaturedCount);
 
-      let activeFeaturedCount = 0;
+      const activeFeatureKeys = new Set<string>();
       activeListings.forEach((listing) => {
         const insight = listingInsights[listing.id];
         const featStatus = insight?.featureStatus || getEffectiveFeatureStatus(insight?.feature, listing);
         if (featStatus === "Active") {
-          activeFeaturedCount += 1;
+          activeFeatureKeys.add(String(listing.id));
         }
       });
+      partnerFeatures.forEach((f) => {
+        if (f.active === true && !(f as any).supersededBy && !(f as any).supersededAt) {
+          if (getEffectiveFeatureStatus(f) === "Active") {
+            activeFeatureKeys.add(String((f as any).listingId || f.id));
+          }
+        }
+      });
+      const activeFeaturedCount = activeFeatureKeys.size;
 
       acc[partner.id] = {
         latestPlan: formatUserPlan(rawPlan, latestPlan),
@@ -6115,7 +6123,7 @@ function PartnerList({
   partnerInsights,
   onView,
   onSetStatus,
-  onOpenHistory: _onOpenHistory,
+  onOpenHistory,
 }: {
   partners: PartnerRecord[];
   partnerInsights: Record<
@@ -6192,8 +6200,8 @@ function PartnerList({
                     <TableCell className="px-2 py-2 text-sm max-w-[110px] truncate" title={partner.primaryEmail || ""}>
                       {partner.primaryEmail || "-"}
                     </TableCell>
-                    <TableCell className="px-2 py-2 text-sm max-w-[110px] truncate" title={partner.phoneNumber || ""}>
-                      {partner.phoneNumber || "-"}
+                    <TableCell className="px-2 py-2 text-sm max-w-[110px] truncate" title={partner.phoneNumber || partner.phone || partner.businessPhone || partner.contactPhone || ""}>
+                      {partner.phoneNumber || partner.phone || partner.businessPhone || partner.contactPhone || "-"}
                     </TableCell>
                     <TableCell className="px-2 py-2 whitespace-nowrap">
                       {created.date !== "-" ? (
@@ -6210,8 +6218,14 @@ function PartnerList({
                         href={historyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                        title="Open active listings history in new tab"
+                        onClick={(e) => {
+                          if (!e.metaKey && !e.ctrlKey) {
+                            e.preventDefault();
+                            onOpenHistory?.(partner);
+                          }
+                        }}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-blue-50 hover:text-blue-600 transition-colors cursor-pointer"
+                        title="View active listings history"
                       >
                         {insight?.listingCount || 0}
                       </a>
@@ -6221,8 +6235,14 @@ function PartnerList({
                         href={historyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors"
-                        title="Open all-time listings history in new tab"
+                        onClick={(e) => {
+                          if (!e.metaKey && !e.ctrlKey) {
+                            e.preventDefault();
+                            onOpenHistory?.(partner);
+                          }
+                        }}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer"
+                        title="View all-time listings history"
                       >
                         {insight?.totalListingsCount || 0}
                       </a>
@@ -6232,8 +6252,14 @@ function PartnerList({
                         href={historyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-purple-50 hover:text-purple-600 transition-colors"
-                        title="Open active features history in new tab"
+                        onClick={(e) => {
+                          if (!e.metaKey && !e.ctrlKey) {
+                            e.preventDefault();
+                            onOpenHistory?.(partner);
+                          }
+                        }}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold text-slate-800 hover:bg-purple-50 hover:text-purple-600 transition-colors cursor-pointer"
+                        title="View active features history"
                       >
                         {insight?.featuredCount || 0}
                       </a>
@@ -6243,15 +6269,21 @@ function PartnerList({
                         href={historyUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors"
-                        title="Open all-time features history in new tab"
+                        onClick={(e) => {
+                          if (!e.metaKey && !e.ctrlKey) {
+                            e.preventDefault();
+                            onOpenHistory?.(partner);
+                          }
+                        }}
+                        className="inline-flex items-center justify-center min-w-[28px] px-1.5 py-0.5 rounded text-xs font-semibold bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors cursor-pointer"
+                        title="View all-time features history"
                       >
                         {insight?.totalFeaturedCount || 0}
                       </a>
                     </TableCell>
                     <TableCell className="px-2 py-2">
-                      <p className="text-sm max-w-[120px] truncate font-medium text-slate-800" title={partner.primaryName || ""}>
-                        {partner.primaryName || "-"}
+                      <p className="text-sm max-w-[120px] truncate font-medium text-slate-800" title={partner.primaryName || partner.contactName || partner.fullName || (partner.firstName && partner.lastName ? `${partner.firstName} ${partner.lastName}` : "")}>
+                        {partner.primaryName || partner.contactName || partner.fullName || (partner.firstName && partner.lastName ? `${partner.firstName} ${partner.lastName}` : "-")}
                       </p>
                     </TableCell>
                     <TableCell className="px-2 py-2">
@@ -6271,12 +6303,9 @@ function PartnerList({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="min-w-[220px]">
                           <DropdownMenuLabel>Partner Actions</DropdownMenuLabel>
-                          <DropdownMenuItem asChild>
-                            <a href={historyUrl} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer">
-                              <History className="w-4 h-4 mr-2 text-blue-600" />
-                              <span className="flex-1">Plan &amp; feature history</span>
-                              <ExternalLink className="w-3.5 h-3.5 ml-2 text-slate-400" />
-                            </a>
+                          <DropdownMenuItem onClick={() => onOpenHistory?.(partner)} className="flex items-center cursor-pointer">
+                            <History className="w-4 h-4 mr-2 text-blue-600" />
+                            <span className="flex-1">Plan &amp; feature history</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem asChild>
                             <a href={partnerAuditUrl} target="_blank" rel="noopener noreferrer" className="flex items-center cursor-pointer">
