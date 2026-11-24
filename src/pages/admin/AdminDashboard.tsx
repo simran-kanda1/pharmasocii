@@ -39,6 +39,7 @@ import {
   User,
   Users,
   Mail,
+  Phone,
   Trash2,
   Info,
   Upload,
@@ -2216,6 +2217,7 @@ export default function AdminDashboard() {
       businessCountry: resolvedBusinessCountry,
       bioSafetyLevelCsv: resolvedBSL.join(", "),
       certificationsCsv: resolvedCerts.join(", "),
+      companyRepresentatives: Array.isArray(resolvedReps) ? resolvedReps : parseRepresentatives(resolvedReps),
       companyRepresentativesJson: resolvedReps ? JSON.stringify(resolvedReps, null, 2) : "",
       // Event fields
       eventName: listing.eventName || "",
@@ -5093,15 +5095,7 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
                       </div>
                       <Field label="Bio Safety Level (BSL) (Comma-Separated, e.g. 1, 2, 3)" value={listingEditor.bioSafetyLevelCsv || ""} onChange={() => {}} disabled={true} />
                       <Field label="Certifications (Comma-Separated, e.g. GMP, ISO 9001)" value={listingEditor.certificationsCsv || ""} onChange={() => {}} disabled={true} />
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium text-slate-500">Company Representatives (JSON)</p>
-                        <Textarea
-                          value={listingEditor.companyRepresentativesJson || ""}
-                          disabled={true}
-                          className="min-h-24 font-mono text-xs bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed"
-                          placeholder='[{"firstName":"","lastName":"","email":""}]'
-                        />
-                      </div>
+                      <CompanyRepresentativesView representatives={listingEditor.companyRepresentatives || parseRepresentatives(listingEditor.companyRepresentativesJson)} />
                     </>
                   )}
 
@@ -5201,16 +5195,7 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
                         <p className="text-sm font-medium text-slate-500">Job Summary</p>
                         <Textarea value={listingEditor.jobSummary || ""} disabled={true} className="min-h-20 bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" />
                       </div>
-                      {listingEditor.companyRepresentativesJson && (
-                        <div className="space-y-1">
-                          <p className="text-sm font-medium text-slate-500">Company Representatives (JSON)</p>
-                          <Textarea
-                            value={listingEditor.companyRepresentativesJson}
-                            disabled={true}
-                            className="min-h-24 font-mono text-xs bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed"
-                          />
-                        </div>
-                      )}
+                      <CompanyRepresentativesView representatives={listingEditor.companyRepresentatives || parseRepresentatives(listingEditor.companyRepresentativesJson)} />
                     </>
                   )}
                 </>
@@ -8145,6 +8130,70 @@ function Field({
         disabled={disabled}
         className={disabled ? "bg-slate-50 text-slate-500 border-slate-200 cursor-not-allowed" : ""}
       />
+    </div>
+  );
+}
+
+function parseRepresentatives(raw: any): Array<{ firstName?: string; lastName?: string; email?: string; phone?: string; role?: string; jobTitle?: string }> {
+  if (Array.isArray(raw)) return raw;
+  if (typeof raw === "string" && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+      if (typeof parsed === "object" && parsed !== null) return [parsed];
+    } catch {}
+  }
+  return [];
+}
+
+function CompanyRepresentativesView({ representatives }: { representatives: any[] }) {
+  const reps = Array.isArray(representatives) ? representatives.filter(Boolean) : [];
+  if (reps.length === 0) {
+    return (
+      <div className="space-y-1.5">
+        <p className="text-sm font-medium text-slate-700">Company Representative(s)</p>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+          No company representatives added.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium text-slate-700">Company Representative(s)</p>
+      <div className="rounded-xl border border-slate-200 bg-white overflow-hidden divide-y divide-slate-100 shadow-xs">
+        {reps.map((rep, idx) => {
+          const fullName = [rep.firstName, rep.lastName].filter(Boolean).join(" ").trim() || rep.name || "Representative";
+          const title = rep.jobTitle || rep.role || rep.title || "";
+          return (
+            <div key={idx} className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs hover:bg-slate-50/70 transition-colors">
+              <div className="min-w-0">
+                <p className="font-semibold text-slate-900 text-sm truncate">{fullName}</p>
+                {title && <p className="text-slate-500 text-xs mt-0.5 truncate">{title}</p>}
+              </div>
+              <div className="flex flex-col sm:items-end gap-1 text-slate-600 shrink-0">
+                {rep.email && (
+                  <a
+                    href={`mailto:${rep.email}`}
+                    className="text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1.5 font-medium"
+                    title={`Email ${rep.email}`}
+                  >
+                    <Mail className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{rep.email}</span>
+                  </a>
+                )}
+                {rep.phone && (
+                  <span className="text-slate-500 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-slate-400" />
+                    <span>{rep.phone}</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
