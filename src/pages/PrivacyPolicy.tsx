@@ -31,9 +31,6 @@ export default function PrivacyPolicy() {
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-foreground">
             Privacy Policy
           </h1>
-          <p className="text-lg md:text-xl text-primary font-medium">
-            Effective Date: July 17, 2026
-          </p>
         </div>
 
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-150 fill-mode-both">
