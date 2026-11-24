@@ -125,6 +125,7 @@ import { AdminContactPanel } from "@/components/admin/AdminContactPanel";
 import { AdminHealthAuthoritiesPanel } from "@/components/admin/AdminHealthAuthoritiesPanel";
 import { AdminEditCategoryModal } from "@/components/admin/AdminEditCategoryModal";
 import { PartnerPlanHistoryModal } from "@/components/admin/PartnerPlanHistoryModal";
+import { DateRangeFilter, type DateRangeValue } from "@/components/admin/DateRangeFilter";
 import { AdminTablePagination } from "@/components/admin/AdminTablePagination";
 import {
   getEffectiveListingStatus,
@@ -905,9 +906,21 @@ export default function AdminDashboard() {
   const [featuredPlans, setFeaturedPlans] = useState<FeaturedPlanPurchase[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [partnerAdminFilter, setPartnerAdminFilter] = useState<"all" | "admin" | "non-admin">("all");
+  const [partnerDateRange, setPartnerDateRange] = useState<DateRangeValue>({
+    startDate: "",
+    endDate: "",
+    month: "",
+    year: "",
+  });
   const [listingSearchTerm, setListingSearchTerm] = useState("");
   const [listingFilter, setListingFilter] = useState<ListingFilter>("all");
   const [listingTypeFilter, setListingTypeFilter] = useState<string>("all");
+  const [listingDateRange, setListingDateRange] = useState<DateRangeValue>({
+    startDate: "",
+    endDate: "",
+    month: "",
+    year: "",
+  });
   const [isAddingPartner, setIsAddingPartner] = useState(false);
   const [isAddingCategory, setIsAddingCategory] = useState(false);
 
@@ -2350,13 +2363,44 @@ export default function AdminDashboard() {
   const filteredPartners = useMemo(
     () =>
       partners.filter((p) => {
-        const q = searchTerm.toLowerCase().trim();
-        if (!q) {
-          const isAdmin = Boolean((p as any).createdByAdmin);
-          if (partnerAdminFilter === "admin") return isAdmin;
-          if (partnerAdminFilter === "non-admin") return !isAdmin;
-          return true;
+        const isAdmin = Boolean((p as any).createdByAdmin);
+        if (partnerAdminFilter === "admin" && !isAdmin) return false;
+        if (partnerAdminFilter === "non-admin" && isAdmin) return false;
+
+        // Date Range / Month filter
+        if (partnerDateRange.startDate || partnerDateRange.endDate || partnerDateRange.month || partnerDateRange.year) {
+          const rawDate = p.createdAt || p.created || p.registeredAt;
+          let d: Date | null = null;
+          if (rawDate) {
+            if (typeof rawDate.toDate === "function") d = rawDate.toDate();
+            else if (rawDate.seconds != null) d = new Date(rawDate.seconds * 1000);
+            else if (rawDate instanceof Date) d = rawDate;
+            else if (typeof rawDate === "string" || typeof rawDate === "number") {
+              const parsed = new Date(rawDate);
+              if (!isNaN(parsed.getTime())) d = parsed;
+            }
+          }
+          if (!d) return false;
+
+          if (partnerDateRange.startDate) {
+            const startMs = new Date(partnerDateRange.startDate + "T00:00:00").getTime();
+            if (d.getTime() < startMs) return false;
+          }
+          if (partnerDateRange.endDate) {
+            const endMs = new Date(partnerDateRange.endDate + "T23:59:59.999").getTime();
+            if (d.getTime() > endMs) return false;
+          }
+          if (partnerDateRange.year && !partnerDateRange.startDate && !partnerDateRange.endDate) {
+            if (d.getFullYear().toString() !== partnerDateRange.year) return false;
+          }
+          if (partnerDateRange.month && !partnerDateRange.startDate && !partnerDateRange.endDate) {
+            const mStr = (d.getMonth() + 1).toString();
+            if (mStr !== partnerDateRange.month) return false;
+          }
         }
+
+        const q = searchTerm.toLowerCase().trim();
+        if (!q) return true;
 
         // 1. Basic textual fields
         const matchesBasic =
@@ -2409,15 +2453,9 @@ export default function AdminDashboard() {
           }
         }
 
-        const matchesSearch = matchesBasic || matchesCountry || matchesDate;
-        if (!matchesSearch) return false;
-
-        const isAdmin = Boolean((p as any).createdByAdmin);
-        if (partnerAdminFilter === "admin") return isAdmin;
-        if (partnerAdminFilter === "non-admin") return !isAdmin;
-        return true;
+        return matchesBasic || matchesCountry || matchesDate;
       }),
-    [partners, searchTerm, partnerAdminFilter],
+    [partners, searchTerm, partnerAdminFilter, partnerDateRange],
   );
 
   const typeFilteredListings = useMemo(() => {
@@ -3467,6 +3505,27 @@ export default function AdminDashboard() {
     return counts;
   }, [typeFilteredListings, listingInsights]);
 
+function getListingCreatedDate(listing: any, insight?: any): Date | null {
+  const raw =
+    insight?.subscribedOn ||
+    insight?.plan?.startDate ||
+    insight?.plan?.createdAt ||
+    listing.lastPaymentReceivedAt ||
+    listing.createdAt ||
+    listing.created ||
+    listing.registeredAt;
+
+  if (!raw) return null;
+  if (typeof raw.toDate === "function") return raw.toDate();
+  if (raw.seconds != null) return new Date(raw.seconds * 1000);
+  if (raw instanceof Date) return raw;
+  if (typeof raw === "string" || typeof raw === "number") {
+    const d = new Date(raw);
+    if (!isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
   const filteredListings = useMemo(() => {
     return typeFilteredListings.filter((l) => {
       const insight = listingInsights[l.id];
@@ -3481,19 +3540,75 @@ export default function AdminDashboard() {
       if (listingFilter === "payment_error" && status !== "Failed Payment" && status !== "Incomplete Payment") return false;
       if (listingFilter === "pending_payment" && status !== "Pending Payment") return false;
 
+      const createdDate = getListingCreatedDate(l, insight);
+
+      // 1. Date Range / Month filter
+      if (listingDateRange.startDate || listingDateRange.endDate || listingDateRange.month || listingDateRange.year) {
+        if (!createdDate) return false;
+
+        if (listingDateRange.startDate) {
+          const startMs = new Date(listingDateRange.startDate + "T00:00:00").getTime();
+          if (createdDate.getTime() < startMs) return false;
+        }
+
+        if (listingDateRange.endDate) {
+          const endMs = new Date(listingDateRange.endDate + "T23:59:59.999").getTime();
+          if (createdDate.getTime() > endMs) return false;
+        }
+
+        if (listingDateRange.year && !listingDateRange.startDate && !listingDateRange.endDate) {
+          if (createdDate.getFullYear().toString() !== listingDateRange.year) return false;
+        }
+
+        if (listingDateRange.month && !listingDateRange.startDate && !listingDateRange.endDate) {
+          const mStr = (createdDate.getMonth() + 1).toString();
+          if (mStr !== listingDateRange.month) return false;
+        }
+      }
+
       if (!listingSearchTerm) return true;
 
-      const q = listingSearchTerm.toLowerCase();
-      return (
+      const q = listingSearchTerm.toLowerCase().trim();
+      const matchesText =
         l.businessName?.toLowerCase().includes(q) ||
         insight?.businessName?.toLowerCase().includes(q) ||
         insight?.listingName?.toLowerCase().includes(q) ||
         l.selectedCategories?.some((c) => c.toLowerCase().includes(q)) ||
         l.selectedPlan?.toLowerCase().includes(q) ||
-        status.toLowerCase().includes(q)
-      );
+        status.toLowerCase().includes(q);
+
+      if (matchesText) return true;
+
+      // Also match date text in search (e.g. "november 2026", "nov 2026", "22-11-2026")
+      if (createdDate) {
+        const fullMonth = createdDate.toLocaleDateString("en-US", { month: "long" }).toLowerCase();
+        const shortMonth = createdDate.toLocaleDateString("en-US", { month: "short" }).toLowerCase();
+        const year = createdDate.getFullYear().toString();
+        const day = createdDate.getDate().toString().padStart(2, "0");
+        const monthNum = (createdDate.getMonth() + 1).toString().padStart(2, "0");
+
+        const fullMonthYear = `${fullMonth} ${year}`;
+        const shortMonthYear = `${shortMonth} ${year}`;
+        const dateDash = `${day}-${monthNum}-${year}`;
+        const dateSlash = `${monthNum}/${day}/${year}`;
+
+        if (
+          fullMonthYear.includes(q) ||
+          shortMonthYear.includes(q) ||
+          dateDash.includes(q) ||
+          dateSlash.includes(q) ||
+          q === fullMonth ||
+          q === shortMonth ||
+          (q.includes(fullMonth) && q.includes(year)) ||
+          (q.includes(shortMonth) && q.includes(year))
+        ) {
+          return true;
+        }
+      }
+
+      return false;
     });
-  }, [listingFilter, listingSearchTerm, typeFilteredListings, listingInsights]);
+  }, [listingFilter, listingSearchTerm, listingDateRange, typeFilteredListings, listingInsights]);
 
   const stats = {
     totalRevenue: transactions
@@ -3650,7 +3765,7 @@ export default function AdminDashboard() {
             ) : (
               <div className="space-y-4">
                 <div className="flex flex-col md:flex-row gap-4 justify-between md:items-center">
-                  <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                  <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-center flex-wrap">
                     <div className="relative w-full md:w-80">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input
@@ -3669,6 +3784,11 @@ export default function AdminDashboard() {
                       <option value="admin">Created by Admin ({adminPartnerCount})</option>
                       <option value="non-admin">Self-Registered / User ({nonAdminPartnerCount})</option>
                     </select>
+                    <DateRangeFilter
+                      value={partnerDateRange}
+                      onChange={setPartnerDateRange}
+                      label="Date Created"
+                    />
                   </div>
                   <div className="flex items-center gap-2">
                     <Button variant="outline" onClick={() => exportPartners("csv")}>
@@ -3696,11 +3816,11 @@ export default function AdminDashboard() {
           {activeTab === "listings" && (
             <div className="space-y-4">
               <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center w-full">
-                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto">
+                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-center flex-wrap">
                   <div className="relative w-full md:w-80">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                     <Input
-                      placeholder="Search listings by business, category, or plan..."
+                      placeholder="Search listings by business, category, plan, or date..."
                       value={listingSearchTerm}
                       onChange={(e) => setListingSearchTerm(e.target.value)}
                       className="pl-10 h-11 bg-white border-slate-200"
@@ -3709,7 +3829,7 @@ export default function AdminDashboard() {
                   <select
                     value={listingTypeFilter}
                     onChange={(e) => setListingTypeFilter(e.target.value)}
-                    className="flex h-11 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-w-[180px] text-slate-700"
+                    className="flex h-11 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-w-[180px] text-slate-700 font-medium"
                   >
                     <option value="all">All Types</option>
                     <option value="business_offerings">Business Offering</option>
@@ -3717,6 +3837,11 @@ export default function AdminDashboard() {
                     <option value="jobs">Job</option>
                     <option value="events">Event</option>
                   </select>
+                  <DateRangeFilter
+                    value={listingDateRange}
+                    onChange={setListingDateRange}
+                    label="Date Created"
+                  />
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
