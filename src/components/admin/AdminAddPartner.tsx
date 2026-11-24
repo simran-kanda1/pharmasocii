@@ -324,6 +324,22 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
     setEventData((prev) => (prev.endDate === prev.startDate ? prev : { ...prev, endDate: prev.startDate }));
   }, [formData.selectedPlan, eventData.startDate]);
 
+  // Ensure selectedPlan always has a valid value for the current group
+  useEffect(() => {
+    const plans = getPlansForGroup(formData.selectedGroup);
+    if (plans && plans.length > 0) {
+      const isCurrentValid = plans.some(p => p.value === formData.selectedPlan);
+      if (!isCurrentValid) {
+        // Prefer basic/monthly plan if found, otherwise first available
+        const basicOption = plans.find(p => /basic/i.test(p.value) || /basic/i.test(p.label)) || plans[0];
+        setFormData(prev => ({
+          ...prev,
+          selectedPlan: basicOption.value,
+        }));
+      }
+    }
+  }, [plansConfig, formData.selectedGroup]);
+
   const handleChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
@@ -430,25 +446,49 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
   };
 
   const getPlanDetailsText = (planId: string): string[] => {
-    if (!planId || planId === 'none') return [];
-    const features = getFeaturesForPlanId(planId);
-    if (features && features.length > 0) return features;
     const gk = getGroupKey(formData.selectedGroup);
-    if (gk === "events" || gk === "jobs") {
-      return EVENT_JOB_PLAN_DETAILS[planId] || [];
+    const effPlanId = planId && planId !== "none"
+      ? planId
+      : (getPlansForGroup(formData.selectedGroup)[0]?.value || "basic_mo");
+
+    // 1. Try getFeaturesForPlanId from plansConfig
+    let features = getFeaturesForPlanId(effPlanId);
+    if (features && features.length > 0) return features;
+
+    // 2. Try looking up plan in plansConfig by id, monthlyId, yearlyId, or badge
+    if (plansConfig && plansConfig.groups) {
+      for (const group of plansConfig.groups) {
+        for (const plan of group.plans) {
+          if (
+            plan.stripeMonthlyId === effPlanId ||
+            plan.stripeYearlyId === effPlanId ||
+            plan.id === effPlanId ||
+            plan.badge?.toLowerCase() === effPlanId.toLowerCase()
+          ) {
+            if (plan.features && plan.features.length > 0) return plan.features;
+          }
+        }
+      }
     }
-    const limits = PLAN_LIMITS[planId];
-    if (!limits) return [];
-    const cats = limits.maxCategories === -1 ? "Unlimited" : `up to ${limits.maxCategories}`;
-    const countries = limits.maxCountries === -1 ? "Unlimited" : `up to ${limits.maxCountries}`;
+
+    if (gk === "events" || gk === "jobs") {
+      return EVENT_JOB_PLAN_DETAILS[effPlanId] || [];
+    }
+
+    // 3. Fallback for Business Offerings and Consulting Services
+    const limits = PLAN_LIMITS[effPlanId] || currentLimits || PLAN_LIMITS["basic_mo"];
+    const cats = !limits || limits.maxCategories === -1 ? "Unlimited" : `up to ${limits.maxCategories}`;
+    const countries = !limits || limits.maxCountries === -1 ? "Unlimited" : `up to ${limits.maxCountries}`;
     return [
-      `Access to specialized categories — ${cats}`,
-      `Service countries — ${countries}`,
-      "Company profile to highlight your key offerings",
-      "Display your logo for branding",
-      "Direct website link",
-      "Add representative(s) for direct communication",
-      ...(gk === "business_offerings" ? ["Certifications (optional)", "Biosafety level (optional) — BSL disclosure"] : []),
+      `Add ${cats === "Unlimited" ? "unlimited" : cats} specialized categories`,
+      `Add ${countries === "Unlimited" ? "unlimited" : countries} primary service countr${countries === "1" ? "y" : "ies"}`,
+      "Company profile",
+      "Website link",
+      "LinkedIn profile",
+      "Logo display",
+      "Representative contacts",
+      "Certifications",
+      "Biosafety Level (if applicable)",
     ];
   };
 
@@ -1406,31 +1446,45 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                 <p className="text-[11px] text-slate-500 mt-2">Assign a featured plan to the partner manually.</p>
               </div>
 
-              {formData.selectedPlan && formData.selectedPlan !== "none" && (
-                <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 space-y-2.5">
-                  <h4 className="font-bold text-slate-800 text-xs tracking-wider mb-2">Plan Features Included</h4>
-                  {(() => {
-                    const baseFeatures = getPlanDetailsText(formData.selectedPlan);
-                    const featureLabel =
-                      formData.featuredPlan === "home_page"
-                        ? "Extra Feature: Home page feature for maximum visibility"
-                        : formData.featuredPlan === "landing_page"
-                        ? "Extra Feature: Landing page feature for increased visibility"
-                        : formData.featuredPlan === "both"
-                        ? "Extra Feature: Home + Landing page feature for maximum visibility"
-                        : null;
-                    const allFeatures = featureLabel && !baseFeatures.some(f => f.includes("Extra Feature"))
-                      ? [featureLabel, ...baseFeatures]
-                      : baseFeatures;
-                    return allFeatures.map((f, i) => (
+              {(() => {
+                const gk = getGroupKey(formData.selectedGroup);
+                const isBusinessOrConsulting = gk === "business_offerings" || gk === "consulting";
+                const hasValidPlan = Boolean(formData.selectedPlan) && formData.selectedPlan !== "none";
+                
+                // Always show for Business Offerings and Consulting Services, or whenever any valid plan is selected
+                if (!isBusinessOrConsulting && !hasValidPlan) return null;
+
+                const planToDisplay = hasValidPlan
+                  ? formData.selectedPlan
+                  : (getPlansForGroup(formData.selectedGroup)[0]?.value || "basic_mo");
+
+                const baseFeatures = getPlanDetailsText(planToDisplay);
+                const featureLabel =
+                  formData.featuredPlan === "home_page"
+                    ? "Extra Feature: Home page feature for maximum visibility"
+                    : formData.featuredPlan === "landing_page"
+                    ? "Extra Feature: Landing page feature for increased visibility"
+                    : formData.featuredPlan === "both"
+                    ? "Extra Feature: Home + Landing page feature for maximum visibility"
+                    : null;
+                const allFeatures = featureLabel && !baseFeatures.some(f => f.includes("Extra Feature"))
+                  ? [featureLabel, ...baseFeatures]
+                  : baseFeatures;
+
+                if (!allFeatures || allFeatures.length === 0) return null;
+
+                return (
+                  <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 space-y-2.5">
+                    <h4 className="font-bold text-slate-800 text-xs tracking-wider mb-2">Plan Features Included</h4>
+                    {allFeatures.map((f, i) => (
                       <div key={i} className="flex items-start gap-2 text-xs text-slate-600 font-medium">
                         <Check className={`w-4 h-4 shrink-0 mt-0.5 ${f.includes("Extra Feature") ? "text-blue-600" : "text-green-500"}`} />
                         <span className={f.includes("Extra Feature") ? "text-blue-600 font-bold" : ""}>{f}</span>
                       </div>
-                    ));
-                  })()}
-                </div>
-              )}
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
