@@ -5709,8 +5709,9 @@ function OverviewTab({
       const formatted = formatPartnerTransaction({ id: t.id, ...t });
       const dateObj = toDateSafe(t.createdAt);
 
-      const isIncompleteCheckout = ["incomplete", "incomplete_payment", "incomplete payment", "pending", "pending_payment", "pending payment", "open", "expired"].includes(s);
-      if (isIncompleteCheckout) {
+      const isPendingCheckout = ["pending", "pending_payment", "pending payment", "open"].includes(s);
+      const isFailedOrIncomplete = ["incomplete", "incomplete_payment", "incomplete payment", "failed", "payment_failed", "payment failed", "past_due", "unpaid", "expired", "declined", "requires_action"].includes(s);
+      if (isPendingCheckout) {
         const key = String(t.sessionId || t.listingId || t.id);
         if (seenIncompleteKeys.has(key)) continue;
         seenIncompleteKeys.add(key);
@@ -5721,10 +5722,10 @@ function OverviewTab({
           itemLabel: formatted.planDisplay || formatted.description || "Checkout",
           amountDisplay: formatted.amountNumeric > 0 ? formatted.amountDisplay : "—",
           dateObj,
-          statusLabel: s.includes("pending") ? "Pending Payment" : "Incomplete Payment",
+          statusLabel: "Pending Payment",
           listing: linkedListing,
         });
-      } else {
+      } else if (isFailedOrIncomplete) {
         const key = String(t.invoiceId || t.sessionId || t.listingId || t.id);
         if (seenFailedKeys.has(key)) continue;
         seenFailedKeys.add(key);
@@ -5741,7 +5742,7 @@ function OverviewTab({
       }
     }
 
-    // 2. Audit logs: PAYMENT_FAILED -> Failed Payments; PAYMENT_PENDING / PAYMENT_INCOMPLETE / unpaid LISTING_CREATED -> Incomplete Payments
+    // 2. Audit logs: PAYMENT_FAILED / PAYMENT_INCOMPLETE -> Failed Payments; PAYMENT_PENDING / unpaid LISTING_CREATED -> Pending Payments
     for (const log of auditLogs) {
       if (!log || isMemberAuditLog(log)) continue;
       const action = String(log.action || "").toUpperCase().trim();
@@ -5763,14 +5764,12 @@ function OverviewTab({
       const dateObj = toDateSafe(log.timestamp);
 
       const isFailedAudit =
-        (action === "PAYMENT_FAILED" ||
-          action.includes("PAYMENT_FAIL") ||
-          String(meta.paymentStatus || "").toLowerCase() === "failed" ||
-          String(meta.paymentStatus || "").toLowerCase() === "payment failed" ||
-          String(meta.status || "").toLowerCase() === "failed payment" ||
-          String(log.details || "").toLowerCase().includes("payment failed")) &&
-        String(meta.status || "").toLowerCase() !== "incomplete payment" &&
-        !String(meta.paymentStatus || "").toLowerCase().includes("incomplete");
+        action === "PAYMENT_FAILED" ||
+        action.includes("PAYMENT_FAIL") ||
+        String(meta.paymentStatus || "").toLowerCase() === "failed" ||
+        String(meta.paymentStatus || "").toLowerCase() === "payment failed" ||
+        String(meta.status || "").toLowerCase() === "failed payment" ||
+        String(log.details || "").toLowerCase().includes("payment failed");
 
       const isIncompleteAudit =
         action === "PAYMENT_INCOMPLETE" ||
@@ -5781,7 +5780,7 @@ function OverviewTab({
         String(meta.status || "").toLowerCase() === "incomplete payment" ||
         String(log.details || "").toLowerCase().includes("incomplete");
 
-      if (isFailedAudit && !isIncompleteAudit) {
+      if (isFailedAudit || isIncompleteAudit) {
         const key = String(invId || sid || (lid ? `${lid}:${action}` : "") || log.id);
         if (seenFailedKeys.has(key)) continue;
         seenFailedKeys.add(key);
@@ -5802,21 +5801,18 @@ function OverviewTab({
           id: `log-fail-${log.id}`,
           businessName,
           listingName,
-          itemLabel: itemLabel !== "-" ? itemLabel : "Stripe Payment",
+          itemLabel: itemLabel !== "-" ? itemLabel : "Payment Failure",
           amountDisplay: amt > 0 ? `$${amt.toFixed(2)}` : "—",
           dateObj,
           statusLabel: "Failed Payment",
           listing: linkedListing,
         });
       } else if (
-        isIncompleteAudit ||
         action === "PAYMENT_PENDING" ||
         String(meta.paymentStatus || "").toLowerCase() === "pending" ||
         (action === "LISTING_CREATED" &&
           (listingStatus === "Pending Payment" ||
-            listingStatus === "Incomplete Payment" ||
-            String(meta.paymentStatus || "").toLowerCase().includes("pending") ||
-            String(meta.paymentStatus || "").toLowerCase().includes("incomplete")))
+            String(meta.paymentStatus || "").toLowerCase().includes("pending")))
       ) {
         if (sid && completedSessionIds.has(sid)) continue;
         const key = String(sid || (lid && dateObj ? `${lid}:${dateObj.getTime()}` : "") || log.id);
@@ -5834,13 +5830,13 @@ function OverviewTab({
           itemLabel: itemLabel !== "-" ? itemLabel : "Checkout Started",
           amountDisplay: resolvedPlanAmt > 0 ? `$${resolvedPlanAmt.toFixed(2)}` : "—",
           dateObj,
-          statusLabel: isIncompleteAudit ? "Incomplete Payment" : "Pending Payment",
+          statusLabel: "Pending Payment",
           listing: linkedListing,
         });
       }
     }
 
-    // 3. Listings / plans / features currently in Pending Payment, Incomplete Payment, or Failed Payment status
+    // 3. Listings / plans / features currently in Pending Payment or Failed/Incomplete Payment status
     for (const l of listings) {
       if (!l?.id) continue;
       const rawStatus = String(l.status || "").trim().toLowerCase();
@@ -5866,18 +5862,12 @@ function OverviewTab({
       const resolvedPlanAmt = resolvePlanRenewalAmount({ planId: l.selectedPlan, group: l.selectedGroup } as any, l, transactions);
       const planAmountDisplay = resolvedPlanAmt > 0 ? `$${resolvedPlanAmt.toFixed(2)}` : "—";
 
-      const isIncomplete =
-        normEff === "incomplete payment" ||
-        rawStatus === "incomplete payment" ||
-        rawStatus === "incomplete_payment" ||
-        rawStatus === "incomplete";
-
       const isPending =
         normEff === "pending payment" ||
         rawStatus === "pending payment" ||
         rawStatus === "pending_payment";
 
-      if (isIncomplete || isPending) {
+      if (isPending) {
         if (seenIncompleteKeys.has(String(l.id))) continue;
         seenIncompleteKeys.add(String(l.id));
         incomplete.push({
@@ -5887,7 +5877,7 @@ function OverviewTab({
           itemLabel: itemLabel !== "-" ? itemLabel : "Checkout",
           amountDisplay: planAmountDisplay,
           dateObj,
-          statusLabel: isPending && !isIncomplete ? "Pending Payment" : "Incomplete Payment",
+          statusLabel: "Pending Payment",
           listing: l,
         });
       } else {
@@ -5965,7 +5955,7 @@ function OverviewTab({
           label={`Upcoming Renewals (${renewalWindow === "week" ? "Week" : "Month"})`}
           value={renewalWindow === "week" ? renewalsThisWeek.length : renewalsThisMonth.length}
         />
-        <StatCard label="Incomplete Payments" value={pendingPayments.length} />
+        <StatCard label="Pending Payments" value={pendingPayments.length} />
         <StatCard label="Failed Payments" value={failedPayments.length} />
       </div>
 
@@ -6106,21 +6096,21 @@ function OverviewTab({
         </CardContent>
       </Card>
 
-      {/* Incomplete Payments + Failed Payments */}
+      {/* Pending Payments + Failed Payments */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="bg-white border-slate-200 shadow-sm">
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <div className="space-y-1.5">
-              <CardTitle className="tracking-normal">Incomplete Payments</CardTitle>
+              <CardTitle className="tracking-normal">Pending Payments</CardTitle>
               <CardDescription className="leading-relaxed">Checkouts started that have not been completed.</CardDescription>
             </div>
-            <Button variant="ghost" size="sm" onClick={() => onOpenTransactions("incomplete")} className="text-xs text-slate-600 hover:text-slate-900">
+            <Button variant="ghost" size="sm" onClick={() => onOpenTransactions("pending")} className="text-xs text-slate-600 hover:text-slate-900">
               View all
             </Button>
           </CardHeader>
           <CardContent className="p-0">
             {pendingPayments.length === 0 ? (
-              <p className="text-sm text-slate-500 px-6 pb-6">No incomplete checkouts for the current month.</p>
+              <p className="text-sm text-slate-500 px-6 pb-6">No pending checkouts for the current month.</p>
             ) : (
               <div className="overflow-auto max-h-[420px] admin-table-scrollbar">
                 <Table className="min-w-max">
@@ -6148,7 +6138,7 @@ function OverviewTab({
                         <TableCell className="text-xs text-slate-700">{item.itemLabel}</TableCell>
                         <TableCell>
                           <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-xs font-medium whitespace-nowrap">
-                            {item.statusLabel}
+                            Pending Payment
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right pr-6 text-slate-500 text-xs whitespace-nowrap">
@@ -6167,7 +6157,7 @@ function OverviewTab({
           <CardHeader className="flex flex-row items-center justify-between gap-2">
             <div className="space-y-1.5">
               <CardTitle className="tracking-normal">Failed Payments</CardTitle>
-              <CardDescription className="leading-relaxed">Charges or renewals where payment did not go through.</CardDescription>
+              <CardDescription className="leading-relaxed">Charges, renewals, or checkouts where payment did not go through.</CardDescription>
             </div>
             <Button variant="ghost" size="sm" onClick={() => onOpenTransactions("failed")} className="text-xs text-slate-600 hover:text-slate-900">
               View all
@@ -6203,7 +6193,7 @@ function OverviewTab({
                         <TableCell className="text-xs text-slate-700">
                           <div>{item.itemLabel}</div>
                           <Badge className="bg-red-50 text-red-700 border-red-200 text-[10px] font-medium mt-0.5">
-                            {item.statusLabel}
+                            Failed Payment
                           </Badge>
                         </TableCell>
                         <TableCell className="font-semibold text-rose-600 text-sm whitespace-nowrap">
@@ -7754,20 +7744,22 @@ function TransactionList({
     const baseList = dateFilter ? rows.filter((r) => matchesDateFilter(r, dateFilter)) : rows;
     let completed = 0;
     let pending = 0;
-    let incomplete = 0;
     let failed = 0;
     for (const r of baseList) {
       if (r.statusLabel === "Completed") {
         completed++;
       } else if (r.statusLabel === "Pending" || r.statusLabel === "Pending Payment") {
         pending++;
-      } else if (r.statusLabel === "Incomplete Payment" || r.statusLabel.toLowerCase().includes("incomplete")) {
-        incomplete++;
-      } else if (r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail")) {
+      } else if (
+        r.statusLabel === "Failed Payment" ||
+        r.statusLabel.toLowerCase().includes("fail") ||
+        r.statusLabel === "Incomplete Payment" ||
+        r.statusLabel.toLowerCase().includes("incomplete")
+      ) {
         failed++;
       }
     }
-    return { all: baseList.length, completed, pending, incomplete, failed };
+    return { all: baseList.length, completed, pending, failed };
   }, [rows, dateFilter]);
 
   const filtered = useMemo(() => {
@@ -7776,10 +7768,14 @@ function TransactionList({
       list = list.filter((r) => r.statusLabel === "Completed");
     } else if (statusFilter === "pending") {
       list = list.filter((r) => r.statusLabel === "Pending Payment" || r.statusLabel === "Pending");
-    } else if (statusFilter === "incomplete") {
-      list = list.filter((r) => r.statusLabel === "Incomplete Payment" || r.statusLabel.toLowerCase().includes("incomplete"));
-    } else if (statusFilter === "failed") {
-      list = list.filter((r) => r.statusLabel === "Failed Payment" || r.statusLabel.toLowerCase().includes("fail"));
+    } else if (statusFilter === "failed" || statusFilter === "incomplete") {
+      list = list.filter(
+        (r) =>
+          r.statusLabel === "Failed Payment" ||
+          r.statusLabel.toLowerCase().includes("fail") ||
+          r.statusLabel === "Incomplete Payment" ||
+          r.statusLabel.toLowerCase().includes("incomplete")
+      );
     }
 
     if (dateFilter) {
@@ -7878,20 +7874,9 @@ function TransactionList({
           </button>
           <button
             type="button"
-            onClick={() => setStatusFilter("incomplete")}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              statusFilter === "incomplete"
-                ? "bg-amber-600 text-white shadow-sm"
-                : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
-            }`}
-          >
-            Incomplete Payments ({counts.incomplete})
-          </button>
-          <button
-            type="button"
             onClick={() => setStatusFilter("failed")}
             className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              statusFilter === "failed"
+              statusFilter === "failed" || statusFilter === "incomplete"
                 ? "bg-red-600 text-white shadow-sm"
                 : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200"
             }`}
@@ -7989,17 +7974,45 @@ function TransactionList({
           <p className="text-sm text-slate-600">
             {dateFilter
               ? `No transactions recorded on ${formatDisplayDate(dateFilter)}${search.trim() ? ` matching “${search.trim()}”` : ""}.`
-              : `No transactions match “${search.trim()}”.`}
+              : statusFilter !== "all"
+                ? `No ${statusFilter === "pending" ? "pending" : "failed"} payments found${search.trim() ? ` matching “${search.trim()}”` : ""}.`
+                : search.trim()
+                  ? `No transactions match “${search.trim()}”.`
+                  : "No transactions match your current filters."}
           </p>
-          {dateFilter && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setDateFilter("")}
-              className="mt-3 text-xs"
-            >
-              Clear date filter
-            </Button>
+          {(dateFilter || statusFilter !== "all" || search.trim()) && (
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-4">
+              {dateFilter && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setDateFilter("")}
+                  className="text-xs"
+                >
+                  Clear date filter
+                </Button>
+              )}
+              {search.trim() && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSearch("")}
+                  className="text-xs"
+                >
+                  Clear search
+                </Button>
+              )}
+              {statusFilter !== "all" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setStatusFilter("all")}
+                  className="text-xs"
+                >
+                  Show all transactions
+                </Button>
+              )}
+            </div>
           )}
         </div>
       ) : (
