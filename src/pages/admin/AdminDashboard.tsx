@@ -1575,6 +1575,12 @@ export default function AdminDashboard() {
       return;
     }
 
+    const isTargetAdminCreated = Boolean((effPartner as any)?.createdByAdmin) || Boolean((effListing as any)?.createdByAdmin);
+    if (!isTargetAdminCreated) {
+      alert("Only admin-created plans can be extended manually.");
+      return;
+    }
+
     try {
       let latestPlan = effListing ? partnerPlans.find((plan) => (plan as any).listingId === effListing.id) : null;
       if (!latestPlan) {
@@ -4925,6 +4931,9 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
                       lPartnerId = selectedListing.__path.split("/")[1];
                     }
                     const lPartner = partners.find((p) => p.id === lPartnerId) || null;
+                    const isListingAdminCreated = Boolean((selectedListing as any)?.createdByAdmin) || Boolean((lPartner as any)?.createdByAdmin);
+                    if (!isListingAdminCreated) return null;
+
                     const lInsight = listingInsights[selectedListing.id];
                     const lPlan = lInsight?.plan || partnerPlans.find((p) => (p as any).listingId === selectedListing.id) || (lPartnerId ? partnerPlans.filter((p) => p.partnerId === lPartnerId).sort((a, b) => (b.startDate?.seconds || 0) - (a.startDate?.seconds || 0))[0] : null);
 
