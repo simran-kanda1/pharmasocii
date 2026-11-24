@@ -2351,12 +2351,65 @@ export default function AdminDashboard() {
     () =>
       partners.filter((p) => {
         const q = searchTerm.toLowerCase().trim();
-        const matchesSearch =
-          !q ||
+        if (!q) {
+          const isAdmin = Boolean((p as any).createdByAdmin);
+          if (partnerAdminFilter === "admin") return isAdmin;
+          if (partnerAdminFilter === "non-admin") return !isAdmin;
+          return true;
+        }
+
+        // 1. Basic textual fields
+        const matchesBasic =
           p.businessName?.toLowerCase().includes(q) ||
           p.primaryEmail?.toLowerCase().includes(q) ||
-          p.primaryName?.toLowerCase().includes(q);
+          p.primaryName?.toLowerCase().includes(q) ||
+          p.phoneNumber?.toLowerCase().includes(q) ||
+          p.companyWebsite?.toLowerCase().includes(q);
 
+        // 2. Country search (e.g. "India", "Brazil", "France", "Cambodia")
+        const country = [p.businessCountry, p.headOfficeCountry, p.headquartersCountry, p.country]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        const matchesCountry = country.includes(q);
+
+        // 3. Month & Year / Date search (e.g. "november 2026", "nov 2026", "oct 2026", "nov 22")
+        let matchesDate = false;
+        const rawDate = p.createdAt || p.created || p.registeredAt;
+        if (rawDate) {
+          let d: Date | null = null;
+          if (typeof rawDate.toDate === "function") d = rawDate.toDate();
+          else if (rawDate.seconds != null) d = new Date(rawDate.seconds * 1000);
+          else if (rawDate instanceof Date) d = rawDate;
+          else if (typeof rawDate === "string" || typeof rawDate === "number") {
+            const parsed = new Date(rawDate);
+            if (!isNaN(parsed.getTime())) d = parsed;
+          }
+
+          if (d && !isNaN(d.getTime())) {
+            const fullMonth = d.toLocaleDateString("en-US", { month: "long" }).toLowerCase();
+            const shortMonth = d.toLocaleDateString("en-US", { month: "short" }).toLowerCase();
+            const year = d.getFullYear().toString();
+            const day = d.getDate().toString();
+
+            const fullMonthYear = `${fullMonth} ${year}`;
+            const shortMonthYear = `${shortMonth} ${year}`;
+            const shortDateStr = `${shortMonth} ${day}, ${year}`.toLowerCase();
+            const fullDateStr = `${fullMonth} ${day}, ${year}`.toLowerCase();
+
+            matchesDate =
+              fullMonthYear.includes(q) ||
+              shortMonthYear.includes(q) ||
+              fullDateStr.includes(q) ||
+              shortDateStr.includes(q) ||
+              q === fullMonth ||
+              q === shortMonth ||
+              (q.includes(fullMonth) && q.includes(year)) ||
+              (q.includes(shortMonth) && q.includes(year));
+          }
+        }
+
+        const matchesSearch = matchesBasic || matchesCountry || matchesDate;
         if (!matchesSearch) return false;
 
         const isAdmin = Boolean((p as any).createdByAdmin);
@@ -3601,7 +3654,7 @@ export default function AdminDashboard() {
                     <div className="relative w-full md:w-80">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       <Input
-                        placeholder="Search partners by business or email..."
+                        placeholder="Search by business, email, country, month (e.g. Nov 2026)..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="pl-10 h-11 bg-white border-slate-200"
