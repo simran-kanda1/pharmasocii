@@ -625,9 +625,9 @@ export default function CommunityPostDetail() {
 
           {Array.isArray(post.externalLinks) && (post.externalLinks as string[]).length > 0 && (
             <div className="space-y-1">
-              <p className="text-sm font-medium">{(post.externalLinks as string[]).length > 1 ? "Links" : "Link"}</p>
+              <p className="text-sm font-medium">Link</p>
               <ul className="text-sm text-primary space-y-1">
-                {(post.externalLinks as string[]).map((url) => (
+                {(post.externalLinks as string[]).slice(0, 1).map((url) => (
                   <li key={url}>
                     <a href={url} target="_blank" rel="noopener noreferrer" className="underline break-all">
                       {url}

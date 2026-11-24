@@ -289,7 +289,7 @@ export function PostCard({
 
         {!hideContent && links.length > 0 && (
           <ul className="mt-3 space-y-1">
-            {links.map((url) => (
+            {links.slice(0, 1).map((url) => (
               <li key={url}>
                 <a
                   href={url}
