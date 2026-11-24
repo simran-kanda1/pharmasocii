@@ -345,7 +345,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
         ...prev,
         selectedGroup: value,
         selectedPlan: defaultPlan,
-        featuredPlan: getIncludedFeaturedForPlan(defaultPlan, nextGk),
+        featuredPlan: getIncludedFeaturedForPlan(defaultPlan, nextGk) || prev.featuredPlan || "none",
         trialPeriod: "30_days",
       }));
       setSelectedBSL([]); setSelectedCerts([]); setSelectedRegions([]);
@@ -354,13 +354,9 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       setSelectedSubcategories([]); setSelectedSubSubcategories([]);
       setExpandedCategories([]); setExpandedSubcategories([]);
     } else if (field === "selectedPlan") {
-      const curGk = getGroupKey(formData.selectedGroup);
       setFormData((prev) => ({
         ...prev,
         selectedPlan: value,
-        ...(curGk === "events" || curGk === "jobs"
-          ? { featuredPlan: getIncludedFeaturedForPlan(value, curGk) }
-          : {}),
       }));
       setEventAgendaPdfFile(null);
       setJobPdfFile(null);
@@ -1382,7 +1378,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
               <div>
                 <Label className="text-slate-600 font-bold mb-1.5 block">
-                  Trial Period {groupKey !== "events" && groupKey !== "jobs" ? "(for selected plan & feature)" : "(for selected plan)"}
+                  Trial Period (for selected plan &amp; feature)
                 </Label>
                 <Select value={formData.trialPeriod} onValueChange={(val) => handleSelectChange("trialPeriod", val)}>
                   <SelectTrigger className="w-full h-11 bg-white border-slate-200">
@@ -1393,36 +1389,46 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
                   </SelectContent>
                 </Select>
                 <p className="text-[11px] text-slate-500 mt-2">
-                  {groupKey !== "events" && groupKey !== "jobs" 
-                    ? "Sets the trial duration for both the plan and featured placement. The profile expires when the trial ends."
-                    : "Limits the plan duration. The profile expires when the trial ends."}
+                  Sets the trial duration for both the plan and featured placement. The profile expires when the trial ends.
                 </p>
               </div>
 
-              {groupKey !== "events" && groupKey !== "jobs" && (
-                <div>
-                  <Label className="text-slate-600 font-bold mb-1.5 block">Featured Partner Plan</Label>
-                  <Select value={formData.featuredPlan} onValueChange={(val) => handleSelectChange("featuredPlan", val)}>
-                    <SelectTrigger className="w-full h-11 bg-white border-slate-200">
-                      <SelectValue placeholder="No Feature" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {dynamicFeatureOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-[11px] text-slate-500 mt-2">Assign a featured plan to the partner manually.</p>
-                </div>
-              )}
+              <div>
+                <Label className="text-slate-600 font-bold mb-1.5 block">Featured Partner Plan</Label>
+                <Select value={formData.featuredPlan} onValueChange={(val) => handleSelectChange("featuredPlan", val)}>
+                  <SelectTrigger className="w-full h-11 bg-white border-slate-200">
+                    <SelectValue placeholder="No Feature" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dynamicFeatureOptions.map(opt => <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-slate-500 mt-2">Assign a featured plan to the partner manually.</p>
+              </div>
 
               {formData.selectedPlan && formData.selectedPlan !== "none" && (
                 <div className="bg-blue-50/30 border border-blue-100 rounded-xl p-5 space-y-2.5">
                   <h4 className="font-bold text-slate-800 text-xs tracking-wider mb-2">Plan Features Included</h4>
-                  {getPlanDetailsText(formData.selectedPlan).map((f, i) => (
-                    <div key={i} className="flex items-start gap-2 text-xs text-slate-600 font-medium">
-                      <Check className={`w-4 h-4 shrink-0 mt-0.5 ${f.includes("Extra Feature") ? "text-blue-600" : "text-green-500"}`} />
-                      <span className={f.includes("Extra Feature") ? "text-blue-600 font-bold" : ""}>{f}</span>
-                    </div>
-                  ))}
+                  {(() => {
+                    const baseFeatures = getPlanDetailsText(formData.selectedPlan);
+                    const featureLabel =
+                      formData.featuredPlan === "home_page"
+                        ? "Extra Feature: Home page feature for maximum visibility"
+                        : formData.featuredPlan === "landing_page"
+                        ? "Extra Feature: Landing page feature for increased visibility"
+                        : formData.featuredPlan === "both"
+                        ? "Extra Feature: Home + Landing page feature for maximum visibility"
+                        : null;
+                    const allFeatures = featureLabel && !baseFeatures.some(f => f.includes("Extra Feature"))
+                      ? [featureLabel, ...baseFeatures]
+                      : baseFeatures;
+                    return allFeatures.map((f, i) => (
+                      <div key={i} className="flex items-start gap-2 text-xs text-slate-600 font-medium">
+                        <Check className={`w-4 h-4 shrink-0 mt-0.5 ${f.includes("Extra Feature") ? "text-blue-600" : "text-green-500"}`} />
+                        <span className={f.includes("Extra Feature") ? "text-blue-600 font-bold" : ""}>{f}</span>
+                      </div>
+                    ));
+                  })()}
                 </div>
               )}
             </div>

@@ -8858,13 +8858,15 @@ app.post("/api/admin/create-partner", async (req, res) => {
 
         const resolvedStatus = status || "Approved";
         const effectiveFeaturedPlan =
-            groupKey === "events" || groupKey === "jobs"
-                ? (selectedPlan === "premium_plus_event" || selectedPlan === "premium_plus_job"
-                    ? "home_page"
-                    : selectedPlan === "premium_event" || selectedPlan === "premium_job"
-                        ? "landing_page"
-                        : "none")
-                : (featuredPlan && featuredPlan !== "none" ? featuredPlan : "none");
+            featuredPlan && featuredPlan !== "none"
+                ? featuredPlan
+                : (groupKey === "events" || groupKey === "jobs"
+                    ? (selectedPlan === "premium_plus_event" || selectedPlan === "premium_plus_job"
+                        ? "home_page"
+                        : selectedPlan === "premium_event" || selectedPlan === "premium_job"
+                            ? "landing_page"
+                            : "none")
+                    : "none");
 
         // Build listing payload
         const listingData = {
