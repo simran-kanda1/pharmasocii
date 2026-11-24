@@ -31,9 +31,6 @@ export default function CommunityGuidelines() {
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-foreground">
             Community Guidelines
           </h1>
-          <p className="text-lg md:text-xl text-primary font-medium">
-            Fostering a professional, safe, and collaborative space
-          </p>
         </div>
 
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-150 fill-mode-both">
