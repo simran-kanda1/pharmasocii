@@ -31,9 +31,6 @@ export default function TermsOfUse() {
           <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight mb-4 text-foreground">
             Terms of Use
           </h1>
-          <p className="text-lg md:text-xl text-primary font-medium">
-            Pharma SocII Platform Terms of Use
-          </p>
         </div>
 
         <div className="animate-in fade-in slide-in-from-bottom-12 duration-1000 delay-150 fill-mode-both">
