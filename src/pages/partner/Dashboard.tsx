@@ -364,7 +364,7 @@ const getPlanPeriodEndDate = (plan: any): Date | null =>
     toDateValue(plan?.billingPeriodEnd) || toDateValue(plan?.cancelAt);
 
 const formatBillingDate = (date: Date | null | undefined): string =>
-    date ? date.toLocaleDateString() : "N/A";
+    date ? `${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}/${date.getFullYear()}` : "N/A";
 
 /** Stripe period_end is exclusive — last paid calendar day is the day before. */
 const getInclusivePeriodLastDay = (periodEnd: Date | null): Date | null => {

@@ -50,11 +50,10 @@ function formatDate(val: any): string {
       if (!isNaN(parsed.getTime())) d = parsed;
     }
     if (!d || isNaN(d.getTime())) return "—";
-    return d.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-    });
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const year = d.getFullYear();
+    return `${month}/${day}/${year}`;
   } catch {
     return "—";
   }

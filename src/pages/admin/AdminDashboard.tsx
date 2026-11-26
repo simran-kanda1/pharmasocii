@@ -754,11 +754,11 @@ const formatAdminDate = (val: any) => {
     d = new Date(val);
   }
   if (isNaN(d.getTime())) return "-";
-  // Format as dd-mm-yyyy
-  const day = String(d.getDate()).padStart(2, '0');
+  // Format as mm/dd/yyyy (m/d/yr)
   const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
   const year = d.getFullYear();
-  return `${day}-${month}-${year}`;
+  return `${month}/${day}/${year}`;
 };
 
 const getStatusBadge = (status?: string) => {
@@ -6033,7 +6033,7 @@ function OverviewTab({
                         className={item.listing ? "hover:bg-slate-50/70" : ""}
                       >
                         <TableCell className="pl-6 font-medium text-slate-700 whitespace-nowrap">
-                          {item.renewalDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                          {formatAdminDate(item.renewalDate)}
                         </TableCell>
                         <TableCell className="font-medium text-slate-900 max-w-[160px] truncate" title={item.businessName}>
                           {item.businessName}
@@ -6136,7 +6136,7 @@ function OverviewTab({
                           </Badge>
                         </TableCell>
                         <TableCell className="text-right pr-6 text-slate-500 text-xs whitespace-nowrap">
-                          {item.dateObj ? item.dateObj.toLocaleDateString() : "—"}
+                          {formatAdminDate(item.dateObj)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -6194,7 +6194,7 @@ function OverviewTab({
                           {item.amountDisplay}
                         </TableCell>
                         <TableCell className="text-right pr-6 text-slate-500 text-xs whitespace-nowrap">
-                          {item.dateObj ? item.dateObj.toLocaleDateString() : "—"}
+                          {formatAdminDate(item.dateObj)}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -6233,7 +6233,7 @@ function OverviewTab({
                     <TableCell className="pl-6">{t.customerEmail || "-"}</TableCell>
                     <TableCell className="font-semibold text-emerald-700">${t.amount?.toFixed(2) || "0.00"}</TableCell>
                     <TableCell className="text-right pr-6 text-slate-500">
-                      {t.createdAt?.seconds ? new Date(t.createdAt.seconds * 1000).toLocaleDateString() : "-"}
+                      {formatAdminDate(t.createdAt)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -9063,7 +9063,7 @@ function buildNormalizedListingAuditRows({
       : typeof log.timestamp?.toDate === "function"
         ? log.timestamp.toDate().getTime()
         : 0;
-    const dateTimeStr = timestampMs ? new Date(timestampMs).toLocaleString() : "Recently";
+    const dateTimeStr = timestampMs ? new Date(timestampMs).toLocaleString("en-US") : "Recently";
 
     const actionId =
       sid ||
@@ -9159,7 +9159,7 @@ function buildNormalizedListingAuditRows({
       : typeof txn.createdAt?.toDate === "function"
         ? txn.createdAt.toDate().getTime()
         : txn.date ? new Date(txn.date).getTime() : 0;
-    const dateTimeStr = timestampMs ? new Date(timestampMs).toLocaleString() : "Recently";
+    const dateTimeStr = timestampMs ? new Date(timestampMs).toLocaleString("en-US") : "Recently";
     const actionId = txnSid || txnInvId || txnId || "-";
 
     rows.push({
@@ -9574,7 +9574,7 @@ function PartnerAuditLogList({ logs }: { logs: any[] }) {
                   <TableRow key={log.id} className="hover:bg-slate-50/50">
                     <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
                       {log.timestamp?.seconds
-                        ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+                        ? new Date(log.timestamp.seconds * 1000).toLocaleString("en-US")
                         : "Recently"}
                     </TableCell>
                     <TableCell className="font-medium whitespace-nowrap">
@@ -9823,7 +9823,7 @@ function MemberAuditLogList({ logs }: { logs: any[] }) {
                   <TableRow key={log.id} className="hover:bg-slate-50/50">
                     <TableCell className="pl-6 text-sm text-slate-500 whitespace-nowrap">
                       {log.timestamp?.seconds
-                        ? new Date(log.timestamp.seconds * 1000).toLocaleString()
+                        ? new Date(log.timestamp.seconds * 1000).toLocaleString("en-US")
                         : "Recently"}
                     </TableCell>
                     <TableCell className="font-medium whitespace-nowrap">

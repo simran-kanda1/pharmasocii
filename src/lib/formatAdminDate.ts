@@ -1,7 +1,7 @@
 export function formatAdminDate(value?: Date | null): string {
   if (!value || Number.isNaN(value.getTime())) return "—";
   const pad = (n: number) => String(n).padStart(2, "0");
-  return `${pad(value.getDate())}-${pad(value.getMonth() + 1)}-${value.getFullYear()}`;
+  return `${pad(value.getMonth() + 1)}/${pad(value.getDate())}/${value.getFullYear()}`;
 }
 
 export function formatAdminDateTime(value?: Date | null): string {

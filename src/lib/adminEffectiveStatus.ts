@@ -112,14 +112,24 @@ export function getEffectiveListingStatus(listing: any, insight?: any): string {
     normPlanStatus === "expired" ||
     plan?.expiredAt != null;
 
-  if (
-    isExplicitExpired ||
-    (isDateExpired &&
-      (isCancelledSignal ||
-        isAdminGranted ||
-        (stripeStatus !== "active" && stripeStatus !== "trialing")))
-  ) {
-    return "Expired";
+  const isExtendedOrFutureActive =
+    expiryMs != null &&
+    expiryMs > Date.now() &&
+    (listing.status === "Extended" ||
+      listing.status === "Approved" ||
+      listing.status === "Active" ||
+      listing.active === true);
+
+  if (!isExtendedOrFutureActive) {
+    if (
+      isExplicitExpired ||
+      (isDateExpired &&
+        (isCancelledSignal ||
+          isAdminGranted ||
+          (stripeStatus !== "active" && stripeStatus !== "trialing")))
+    ) {
+      return "Expired";
+    }
   }
 
   if (isCancelledSignal) {
@@ -251,14 +261,26 @@ export function getEffectiveFeatureStatus(feature?: any, listing?: any): string 
     feature?.expiredAt != null ||
     (feature?.active === false && Boolean(feature?.deactivatedAt) && !feature?.supersededBy);
 
-  if (
-    isExplicitExpired ||
-    (isDateExpired &&
-      (isCancelledSignal ||
-        isAdminGranted ||
-        (stripeStatus !== "active" && stripeStatus !== "trialing")))
-  ) {
-    return "Expired";
+  const isFeatureFutureActive =
+    expiryMs != null &&
+    expiryMs > Date.now() &&
+    (feature?.active === true ||
+      listing?.isFeatured === true ||
+      listing?.status === "Extended" ||
+      listing?.status === "Approved" ||
+      listing?.status === "Active" ||
+      listing?.active === true);
+
+  if (!isFeatureFutureActive) {
+    if (
+      isExplicitExpired ||
+      (isDateExpired &&
+        (isCancelledSignal ||
+          isAdminGranted ||
+          (stripeStatus !== "active" && stripeStatus !== "trialing")))
+    ) {
+      return "Expired";
+    }
   }
 
   if (isCancelledSignal) {
