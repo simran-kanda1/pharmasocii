@@ -463,10 +463,6 @@ export default function AddListing() {
 
         const options = [];
         for (const p of groupConfig.plans) {
-            if (groupId === "events" || groupId === "jobs") {
-                const isPremium = /premium/i.test(p.id || "") || /premium/i.test(p.badge || "") || /premium/i.test(p.stripeMonthlyId || "");
-                if (isPremium) continue;
-            }
             if (p.stripeMonthlyId) {
                 options.push({
                     value: p.stripeMonthlyId,
