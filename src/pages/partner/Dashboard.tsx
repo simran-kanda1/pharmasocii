@@ -102,7 +102,9 @@ const PLAN_UPGRADE_TIER_ORDER: Record<string, number> = {
     basic_mo: 1, standard_mo: 2, premium_mo: 3, premium_plus_mo: 4,
     basic_yr: 1, standard_yr: 2, premium_yr: 3, premium_plus_yr: 4,
     basic_event: 1, standard_event: 2, premium_event: 3, premium_plus_event: 4,
+    event_basic: 1, event_standard: 2, event_premium: 3, event_premium_plus: 4,
     standard_job: 1, premium_job: 2, premium_plus_job: 3,
+    job_standard: 1, job_premium: 2, job_premium_plus: 3,
 };
 
 function planFamilyFromId(planId?: string | null): "business" | "event" | "job" | null {
@@ -750,7 +752,11 @@ export default function Dashboard() {
                         maxCategories: plan.maxCategories ?? -1,
                         maxCountries: plan.maxCountries ?? -1,
                         features: plan.features || [],
-                        featurePlan: plan.id === "premium_event" || plan.id === "premium_job" ? "landing_page" : plan.id === "premium_plus_event" || plan.id === "premium_plus_job" ? "home_page" : undefined,
+                        featurePlan: (plan.id === "premium_event" || plan.id === "event_premium" || plan.stripeMonthlyId === "premium_event" || plan.id === "premium_job" || plan.id === "job_premium" || plan.stripeMonthlyId === "premium_job")
+                            ? "landing_page"
+                            : (plan.id === "premium_plus_event" || plan.id === "event_premium_plus" || plan.stripeMonthlyId === "premium_plus_event" || plan.id === "premium_plus_job" || plan.id === "job_premium_plus" || plan.stripeMonthlyId === "premium_plus_job")
+                            ? "home_page"
+                            : undefined,
                     };
 
                     if (planKey) {

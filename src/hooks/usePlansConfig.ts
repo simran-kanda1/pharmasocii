@@ -143,7 +143,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
             order: 2,
             plans: [
                 {
-                    id: "basic_event",
+                    id: "event_basic",
                     badge: "Basic",
                     subtitle: "Single day conference/event",
                     monthlyPrice: 500,
@@ -167,7 +167,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     ],
                 },
                 {
-                    id: "standard_event",
+                    id: "event_standard",
                     badge: "Standard",
                     subtitle: "Multi day conference/event",
                     monthlyPrice: 850,
@@ -191,7 +191,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     ],
                 },
                 {
-                    id: "premium_event",
+                    id: "event_premium",
                     badge: "Premium",
                     subtitle: "Event listing + landing page feature",
                     monthlyPrice: 1250,
@@ -201,7 +201,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     maxCategories: -1,
                     maxCountries: -1,
                     tierRank: 3,
-                    isFeatured: false,
+                    isFeatured: true,
                     features: [
                         "Extra Feature: Landing page feature for increased visibility",
                         "Event profile",
@@ -216,7 +216,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     ],
                 },
                 {
-                    id: "premium_plus_event",
+                    id: "event_premium_plus",
                     badge: "Premium Plus",
                     subtitle: "Event listing + home page feature",
                     monthlyPrice: 1450,
@@ -226,7 +226,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     maxCategories: -1,
                     maxCountries: -1,
                     tierRank: 4,
-                    isFeatured: true,
+                    isFeatured: false,
                     features: [
                         "Extra Feature: Home page feature for maximum visibility",
                         "Event profile",
@@ -249,7 +249,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
             order: 3,
             plans: [
                 {
-                    id: "standard_job",
+                    id: "job_standard",
                     badge: "Standard",
                     subtitle: "Job posting",
                     monthlyPrice: 400,
@@ -272,7 +272,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     ],
                 },
                 {
-                    id: "premium_job",
+                    id: "job_premium",
                     badge: "Premium",
                     subtitle: "Job posting & landing page feature",
                     monthlyPrice: 800,
@@ -282,7 +282,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     maxCategories: -1,
                     maxCountries: -1,
                     tierRank: 2,
-                    isFeatured: false,
+                    isFeatured: true,
                     features: [
                         "Extra Feature: Landing page feature for increased visibility",
                         "Position title for quick search",
@@ -296,7 +296,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     ],
                 },
                 {
-                    id: "premium_plus_job",
+                    id: "job_premium_plus",
                     badge: "Premium Plus",
                     subtitle: "Job posting + home page feature",
                     monthlyPrice: 1000,
@@ -306,7 +306,7 @@ export const DEFAULT_PLANS_CONFIG: PlansConfig = {
                     maxCategories: -1,
                     maxCountries: -1,
                     tierRank: 3,
-                    isFeatured: true,
+                    isFeatured: false,
                     features: [
                         "Extra Feature: Home page feature for maximum visibility",
                         "Position title for quick search",
