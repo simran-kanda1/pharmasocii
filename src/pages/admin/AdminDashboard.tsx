@@ -5607,6 +5607,17 @@ function OverviewTab({
 
     for (const plan of partnerPlans) {
       const linkedListing = plan.listingId ? listingById.get(String(plan.listingId)) : undefined;
+      const partner = partnerById.get(plan.partnerId);
+      const isPlanAdminCreated = Boolean(
+        (partner as any)?.createdByAdmin ||
+        (linkedListing as any)?.createdByAdmin ||
+        (plan as any)?.createdByAdmin ||
+        plan.source === "admin_granted" ||
+        (plan as any)?.isTrial
+      );
+      if (isPlanAdminCreated) {
+        continue;
+      }
       const insight = linkedListing ? listingInsights[linkedListing.id] : undefined;
       const effStatus = getEffectiveListingStatus(
         { status: plan.status, active: plan.active !== false },
@@ -5627,7 +5638,6 @@ function OverviewTab({
       if (!renewalDate) continue;
       if (renewalDate.getTime() < windows.startOfToday.getTime()) continue;
 
-      const partner = partnerById.get(plan.partnerId);
       const businessName =
         partner?.businessName ||
         linkedListing?.businessName ||
@@ -5680,6 +5690,17 @@ function OverviewTab({
     for (const feat of featuredPlans) {
       if ((feat as any).supersededBy) continue;
       const linkedListing = feat.listingId ? listingById.get(String(feat.listingId)) : undefined;
+      const partner = partnerById.get(feat.partnerId);
+      const isFeatureAdminCreated = Boolean(
+        (partner as any)?.createdByAdmin ||
+        (linkedListing as any)?.createdByAdmin ||
+        (feat as any)?.createdByAdmin ||
+        (feat as any)?.source === "admin_granted" ||
+        (feat as any)?.isTrial
+      );
+      if (isFeatureAdminCreated) {
+        continue;
+      }
       const effFeat = getEffectiveFeatureStatus(feat, linkedListing);
       if (
         effFeat !== "Active" ||
@@ -5694,7 +5715,6 @@ function OverviewTab({
       if (!renewalDate) continue;
       if (renewalDate.getTime() < windows.startOfToday.getTime()) continue;
 
-      const partner = partnerById.get(feat.partnerId);
       const businessName = partner?.businessName || linkedListing?.businessName || "—";
       const listingName = getListingTitle(linkedListing, businessName);
       const groupLabel = formatAuditGroupCode(linkedListing?.selectedGroup || linkedListing?.__col, linkedListing?.selectedPlan);
