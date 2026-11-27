@@ -2774,6 +2774,12 @@ export default function Dashboard() {
             const featureActionsLocked = isPast || areFeatureActionsLocked(plan, linkedListing);
             const canListingPlanUpgradeAction =
                 !isPast && getAvailablePlanUpgradeIds(plan.planId, plan.collectionName).length > 0 && !planActionsLocked;
+            const isAdminCreated = Boolean(
+                partnerData?.createdByAdmin ||
+                (linkedListing as any)?.createdByAdmin ||
+                plan?.createdByAdmin ||
+                plan?.source === "admin_granted"
+            );
             const cardShell = isPast
                 ? "rounded-xl border border-slate-200/90 bg-slate-50 dark:bg-slate-900/40 dark:border-slate-800 p-5 shadow-xs"
                 : isEnding
@@ -2797,12 +2803,12 @@ export default function Dashboard() {
                                 {listingName && planSummaryParts.length > 0 && (
                                     <p className="text-sm text-muted-foreground mb-1">{planSummaryParts.join(" · ")}</p>
                                 )}
-                                {!isPast && !isEnding && periodEnd && periodEnd.getTime() < Date.now() && (
+                                {!isPast && !isEnding && !isAdminCreated && periodEnd && periodEnd.getTime() < Date.now() && (
                                     <p className="text-xs mt-1 mb-1 text-muted-foreground">
                                         Renewal is processing. These dates update when billing confirms the next period. This plan was not cancelled.
                                     </p>
                                 )}
-                                {isEnding && !isPast && (
+                                {isEnding && !isPast && !isAdminCreated && (
                                     <p className="text-xs mt-1 mb-1" style={{ color: '#78350f' }}>
                                         {featureEndsWithPlan
                                             ? `Plan and ${spotlightLabel.toLowerCase().includes("feature") || spotlightLabel.toLowerCase().includes("both") ? spotlightLabel : `${spotlightLabel} feature`} end on ${lastPaidDay ? lastPaidDay.toLocaleDateString() : "the plan end date"}.`
@@ -2852,14 +2858,16 @@ export default function Dashboard() {
                                             {formatPlanDuration(displayPeriodStart, displayPeriodEnd)}
                                         </p>
                                     </div>
-                                    <div className="min-w-[140px]">
-                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
-                                            {isPast ? "Ended On" : isEnding ? "Ends On" : "Renewal Date"}
-                                        </p>
-                                        <p className="text-sm text-foreground font-medium">
-                                            {lastPaidDay ? lastPaidDay.toLocaleDateString() : "N/A"}
-                                        </p>
-                                    </div>
+                                    {!isAdminCreated && (
+                                        <div className="min-w-[140px]">
+                                            <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
+                                                {isPast ? "Ended On" : isEnding ? "Ends On" : "Renewal Date"}
+                                            </p>
+                                            <p className="text-sm text-foreground font-medium">
+                                                {lastPaidDay ? lastPaidDay.toLocaleDateString() : "N/A"}
+                                            </p>
+                                        </div>
+                                    )}
                                     {isPast && (
                                         <div className="min-w-[140px]">
                                             <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Cancelled On</p>
@@ -2878,10 +2886,12 @@ export default function Dashboard() {
                                             </p>
                                         </div>
                                     )}
-                                    <div className="min-w-[120px]">
-                                        <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Price</p>
-                                        <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
-                                    </div>
+                                    {!isAdminCreated && (
+                                        <div className="min-w-[120px]">
+                                            <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Price</p>
+                                            <p className="text-sm text-foreground font-medium">{planConfig?.price || "N/A"}{planConfig?.period}</p>
+                                        </div>
+                                    )}
                                 </div>
                                 {!isPast && hasStandaloneAddon && (
                                     <div className="mt-4 pt-4 border-t border-foreground/10">
@@ -2905,25 +2915,29 @@ export default function Dashboard() {
                                                     {formatPlanDuration(standaloneSpotlightStart, displayFeatureDurationEnd)}
                                                 </p>
                                             </div>
-                                            <div className="min-w-[140px]">
-                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
-                                                    {spotlightCancelPending ? "Ends On" : "Renewal Date"}
-                                                </p>
-                                                <p className="text-sm text-foreground font-medium">
-                                                    {featureLastPaidDay ? featureLastPaidDay.toLocaleDateString() : "N/A"}
-                                                </p>
-                                            </div>
-                                            <div className="min-w-[120px]">
-                                                <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Price</p>
-                                                <p className="text-sm text-foreground font-medium">
-                                                    {standaloneSpotlightPlan?.price || "N/A"}/month
-                                                </p>
-                                            </div>
+                                            {!isAdminCreated && (
+                                                <div className="min-w-[140px]">
+                                                    <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">
+                                                        {spotlightCancelPending ? "Ends On" : "Renewal Date"}
+                                                    </p>
+                                                    <p className="text-sm text-foreground font-medium">
+                                                        {featureLastPaidDay ? featureLastPaidDay.toLocaleDateString() : "N/A"}
+                                                    </p>
+                                                </div>
+                                            )}
+                                            {!isAdminCreated && (
+                                                <div className="min-w-[120px]">
+                                                    <p className="text-xs text-muted-foreground tracking-wider font-bold mb-1 whitespace-nowrap">Price</p>
+                                                    <p className="text-sm text-foreground font-medium">
+                                                        {standaloneSpotlightPlan?.price || "N/A"}/month
+                                                    </p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
                             </div>
-                            {!isPast && (
+                            {!isPast && !isAdminCreated && (
                             <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                                 {linkedListing && (
                                     <Button

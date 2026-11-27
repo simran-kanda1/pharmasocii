@@ -8871,6 +8871,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
         // Build listing payload
         const listingData = {
             partnerId: uid,
+            createdByAdmin: true,
             businessName: companyName,
             companyWebsite: companyWebsite || null,
             companyWebsiteLink: companyWebsite || null,
@@ -9072,6 +9073,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
                 partnerId: uid,
                 collectionName,
                 source: "admin_granted",
+                createdByAdmin: true,
                 isTrial: isTrial,
                 trialPeriod: trialPeriod || null,
                 listingId: listingDocId
@@ -9095,6 +9097,7 @@ app.post("/api/admin/create-partner", async (req, res) => {
                 group: groupKey,
                 planId: selectedPlan || "",
                 source: isEventOrJob ? "included_plan" : "admin_granted",
+                createdByAdmin: true,
                 isTrial: isTrial,
                 trialPeriod: trialPeriod || null
             });
