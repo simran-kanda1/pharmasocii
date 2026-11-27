@@ -12,7 +12,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { auth, db } from "@/firebase";
 import { doc, getDoc, updateDoc, collection, addDoc, serverTimestamp, getDocs, query, where } from "firebase/firestore";
 import { logActivity } from "@/lib/auditLogger";
@@ -1083,7 +1083,6 @@ export default function CompleteProfile() {
                         <Card className="bg-foreground/5 border-foreground/10 backdrop-blur-md">
                             <CardHeader className="border-b border-foreground/10 pb-4">
                                 <CardTitle className="text-xl">Business Details</CardTitle>
-                                <CardDescription>Company information visible to the network</CardDescription>
                             </CardHeader>
                             <CardContent className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
