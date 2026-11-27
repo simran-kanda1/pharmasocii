@@ -131,6 +131,7 @@ import { AdminTablePagination } from "@/components/admin/AdminTablePagination";
 import {
   getEffectiveListingStatus,
   getEffectiveFeatureStatus,
+  parseTimestampMs,
 } from "@/lib/adminEffectiveStatus";
 
 import { SERVICE_COUNTRIES, SERVICE_REGIONS } from "@/constants/regions";
@@ -8837,16 +8838,10 @@ function buildNormalizedListingAuditRows({
   const specificActionSessionIds = new Set<string>();
   const paidListingIdsWithPurchaseLog = new Set<string>();
 
-  // Mark all listings that have paid transactions or active status
+  // Mark all listings that have paid transactions
   transactions.forEach((t) => {
     if (t.listingId && (t.status === "succeeded" || t.status === "paid" || (t.amount && t.amount > 0))) {
       paidListingIdsWithPurchaseLog.add(String(t.listingId));
-    }
-  });
-  listings.forEach((l) => {
-    const s = String(l.status || "").toLowerCase().trim();
-    if (s && s !== "pending_payment" && s !== "pending payment" && s !== "pending") {
-      paidListingIdsWithPurchaseLog.add(String(l.id));
     }
   });
 
@@ -9231,6 +9226,112 @@ function buildNormalizedListingAuditRows({
       paymentStatusLabel,
       actionId,
     });
+  }
+
+  // Track which listingIds already have at least one audit entry in rows
+  const coveredListingIds = new Set<string>();
+  rows.forEach((r) => {
+    if (r.listingId) coveredListingIds.add(String(r.listingId));
+  });
+
+  // Synthesize an initial New Listing (and Feature Added if applicable) for any listing without existing audit entries
+  for (const listing of listings) {
+    if (!listing.id || coveredListingIds.has(String(listing.id))) {
+      continue;
+    }
+
+    const pid =
+      listing.partnerId ||
+      (listing.__path?.startsWith("partnersCollection/") ? listing.__path.split("/")[1] : "");
+    const partner = pid ? partnerById.get(pid) : undefined;
+    const companyName = partner?.businessName || listing.businessName || "-";
+    const listingName =
+      listing.title ||
+      listing.eventName ||
+      listing.jobTitle ||
+      listing.businessName ||
+      companyName ||
+      "-";
+
+    const listingPlans = plansByListingId.get(listing.id) || (pid ? plansByListingId.get(pid) : []) || [];
+    const primaryPlan = listingPlans[0] || null;
+    const resolvedPlanId = primaryPlan?.planId || listing.selectedPlan || "";
+
+    const grpLabel = formatAuditGroupCode(listing.selectedGroup || listing.__col, resolvedPlanId);
+    const typeLabel = formatAuditPlanType(resolvedPlanId, grpLabel);
+
+    const isPendingPayment =
+      String(listing.status || "").toLowerCase().trim() === "pending_payment" ||
+      String(listing.status || "").toLowerCase().trim() === "pending payment";
+
+    const eventKind: ListingAuditEventKind = isPendingPayment ? "payment_pending" : "subscription_purchased";
+    const actionLabel = isPendingPayment ? "Payment Pending" : "New Listing";
+    const detailsLabel = isPendingPayment ? "Pending checkout payment" : "Initial Listing";
+    const paymentStatusLabel: "Complete" | "Pending" | "Payment Failed" | "N/A" = isPendingPayment ? "Pending" : "Complete";
+    const byLabel: "Partner" | "System" | "Stripe" | "Admin" =
+      Boolean((partner as any)?.createdByAdmin || (listing as any).createdByAdmin || primaryPlan?.source === "admin_granted")
+        ? "Admin"
+        : "Partner";
+
+    const timestampMs = parseTimestampMs(
+      primaryPlan?.startDate ||
+      primaryPlan?.createdAt ||
+      listing.createdAt ||
+      (partner as any)?.createdAt
+    ) || Date.now();
+
+    const dateTimeStr = timestampMs ? new Date(timestampMs).toLocaleString("en-US") : "Recently";
+    const actionId = `init-${listing.id}`;
+
+    rows.push({
+      id: `synth-listing-${listing.id}`,
+      rawLog: listing,
+      timestampMs,
+      dateTimeStr,
+      partnerId: pid || "",
+      companyName,
+      listingId: listing.id,
+      listingName,
+      eventKind,
+      actionLabel,
+      grpLabel,
+      typeLabel,
+      byLabel,
+      detailsLabel,
+      paymentStatusLabel,
+      actionId,
+    });
+
+    // If listing has feature spotlight, synthesize Feature Added event
+    const listingFeatures = featuresByListingId.get(listing.id) || (pid ? featuresByListingId.get(pid) : []) || [];
+    const hasFeature =
+      listing.isFeatured ||
+      Boolean((listing as any).selectedAddon) ||
+      Boolean((listing as any).featuredPlacement) ||
+      listingFeatures.length > 0;
+
+    if (hasFeature && !isPendingPayment) {
+      const feat = listingFeatures[0] || null;
+      const featId = feat?.featureId || (listing as any).selectedAddon || (listing as any).featuredPlacement || "home_page";
+      rows.push({
+        id: `synth-feature-${listing.id}`,
+        rawLog: feat || listing,
+        timestampMs: timestampMs + 1000,
+        dateTimeStr: new Date(timestampMs + 1000).toLocaleString("en-US"),
+        partnerId: pid || "",
+        companyName,
+        listingId: listing.id,
+        listingName,
+        eventKind: "feature_added",
+        actionLabel: "Feature Added",
+        grpLabel,
+        typeLabel: formatAuditFeatureType(featId),
+        byLabel,
+        detailsLabel: "Feature added",
+        paymentStatusLabel: "Complete",
+        actionId: `init-feat-${listing.id}`,
+      });
+    }
   }
 
   // Ensure newest events appear first
