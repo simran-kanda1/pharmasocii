@@ -20,7 +20,7 @@ import { formatEventLocation, formatJobLocation } from "@/lib/utils";
 const Skeleton = ({ className }: { className: string }) => <div className={`animate-pulse bg-muted rounded ${className}`} />;
 
 export default function ListingDetail() {
-    const { businessCategories, consultingCategories } = useDirectoryCategories();
+    const { businessCategories, consultingCategories, eventsCategories, jobsCategories } = useDirectoryCategories();
     const BUSINESS_LOOKUP_LIMIT = 10000;
     const { type, id } = useParams<{ type: string; id: string }>();
     const [item, setItem] = useState<any>(null);
@@ -253,8 +253,6 @@ export default function ListingDetail() {
 
     // Helper to group subcategories by Area as per the new taxonomy setup
     const getGroupedCategories = () => {
-        if (type !== "business" && type !== "consulting") return [];
-
         // Comprehensive fallbacks for different field names used in Firestore
         const selectedAreas = Array.isArray(item.selectedCategoriesDisplay) ? item.selectedCategoriesDisplay :
             (Array.isArray(item.selectedCategories) ? item.selectedCategories :
@@ -262,9 +260,12 @@ export default function ListingDetail() {
                     (item.category ? [item.category] :
                         (item.consultingCategory ? [item.consultingCategory] : []))));
 
-        const allSelectedSubs = Array.isArray(item.selectedSubcategoriesDisplay) ? item.selectedSubcategoriesDisplay :
-            (Array.isArray(item.selectedSubcategories) ? item.selectedSubcategories :
-                (Array.isArray(item.subcategories) ? item.subcategories : []));
+        const rawSubList: string[] = [];
+        if (Array.isArray(item.selectedSubcategories)) rawSubList.push(...item.selectedSubcategories);
+        if (Array.isArray(item.selectedSubcategoriesDisplay)) rawSubList.push(...item.selectedSubcategoriesDisplay);
+        if (Array.isArray(item.subcategories)) rawSubList.push(...item.subcategories);
+        const allSelectedSubs = Array.from(new Set(rawSubList));
+
         const allSelectedSubSubs = Array.isArray(item.selectedSubSubcategories) ? item.selectedSubSubcategories :
             (Array.isArray(item.subSubcategories) ? item.subSubcategories : []);
 
@@ -273,7 +274,13 @@ export default function ListingDetail() {
 
         const normalize = (s: any) => (typeof s === 'string' ? s.toLowerCase().trim() : "");
 
-        const categoriesDict = type === "business" ? businessCategories : consultingCategories;
+        const categoriesDict = type === "business" 
+            ? businessCategories 
+            : type === "consulting" 
+            ? consultingCategories 
+            : type === "events" 
+            ? eventsCategories 
+            : jobsCategories;
 
         // Legacy area aliases mapping old taxonomy category names to active categories
         const LEGACY_AREA_ALIASES: Record<string, string> = {
@@ -376,6 +383,7 @@ export default function ListingDetail() {
 
         // Resolve an Area name (active taxonomy, case-insensitive, or legacy alias)
         const resolveAreaName = (area: string): string | undefined => {
+            if (!area) return undefined;
             const norm = normalize(area);
             for (const active of activeAreas) {
                 if (normalize(active) === norm) return active;
@@ -387,7 +395,7 @@ export default function ListingDetail() {
                 }
                 return alias;
             }
-            return undefined;
+            return area.trim();
         };
 
         // Map: Area -> Map of (SubcategoryLabel -> Set of Sub-subcategories)
@@ -536,10 +544,13 @@ export default function ListingDetail() {
             // 1. It has matched subcategories (subs.length > 0), OR
             // 2. It is an active category in categoriesDict whose taxonomy legitimately has no subcategories (leaf category).
             // Do NOT render empty legacy areas (like old "Container Closures & Packaging" when all its subs moved to "Packaging & Delivery Systems").
-            const areaInTaxonomy = (categoriesDict as any)[areaName];
+            const isExplicitlySelected = (selectedAreas as string[]).some(
+                (sa) => normalize(sa) === normalize(areaName)
+            );
+            const areaInTaxonomy = (categoriesDict as any)?.[areaName];
             const isLegitLeafArea = Array.isArray(areaInTaxonomy) && areaInTaxonomy.length === 0;
 
-            if (subs.length > 0 || isLegitLeafArea) {
+            if (subs.length > 0 || isLegitLeafArea || isExplicitlySelected) {
                 grouped.push({
                     area: areaName,
                     subs,
@@ -711,6 +722,48 @@ export default function ListingDetail() {
                                             </div>
                                         )}
                                         {(() => {
+                                            if (groupedCategories.length > 0) {
+                                                const initialLimit = 2;
+                                                const hasMore = groupedCategories.length > initialLimit;
+                                                const visibleGroups = showAllCategories ? groupedCategories : groupedCategories.slice(0, initialLimit);
+
+                                                return (
+                                                    <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10 h-full">
+                                                        <Globe className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-1.5">Categories & Subcategories</p>
+                                                            <div className="space-y-2 text-xs">
+                                                                {visibleGroups.map((group, gIdx) => {
+                                                                    const subNames = group.subs.map((s: any) => s.label.split(" > ").pop()?.trim()).filter(Boolean);
+                                                                    return (
+                                                                        <div key={gIdx} className="leading-snug">
+                                                                            <span className="font-bold text-foreground text-[12px] text-primary/95 block sm:inline">
+                                                                                {group.area}
+                                                                                {subNames.length > 0 ? ": " : ""}
+                                                                            </span>
+                                                                            {subNames.length > 0 && (
+                                                                                <span className="text-muted-foreground font-normal sm:ml-1">
+                                                                                    {subNames.join(", ")}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            {hasMore && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setShowAllCategories(!showAllCategories)}
+                                                                    className="mt-2 text-[11px] text-primary hover:underline font-bold tracking-tight inline-block"
+                                                                >
+                                                                    {showAllCategories ? "Show less" : `+${groupedCategories.length - initialLimit} more categories`}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
                                             const cats = (() => {
                                                 const list: string[] = [];
                                                 if (Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0) {
@@ -834,7 +887,51 @@ export default function ListingDetail() {
                                                 </div>
                                             </div>
                                         )}
-                                        {jobCatsArray.length > 0 && (() => {
+                                        {(() => {
+                                            if (groupedCategories.length > 0) {
+                                                const initialLimit = 2;
+                                                const hasMore = groupedCategories.length > initialLimit;
+                                                const visibleGroups = showAllCategories ? groupedCategories : groupedCategories.slice(0, initialLimit);
+
+                                                return (
+                                                    <div className="flex items-start gap-3 bg-background/60 rounded-xl px-4 py-3 border border-foreground/10 h-full">
+                                                        <LayoutList className="w-5 h-5 text-primary shrink-0 mt-0.5" />
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-[10px] font-bold text-muted-foreground tracking-widest mb-1.5">Categories & Specializations</p>
+                                                            <div className="space-y-2 text-xs">
+                                                                {visibleGroups.map((group, gIdx) => {
+                                                                    const subNames = group.subs.map((s: any) => s.label.split(" > ").pop()?.trim()).filter(Boolean);
+                                                                    return (
+                                                                        <div key={gIdx} className="leading-snug">
+                                                                            <span className="font-bold text-foreground text-[12px] text-primary/95 block sm:inline">
+                                                                                {group.area}
+                                                                                {subNames.length > 0 ? ": " : ""}
+                                                                            </span>
+                                                                            {subNames.length > 0 && (
+                                                                                <span className="text-muted-foreground font-normal sm:ml-1">
+                                                                                    {subNames.join(", ")}
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                            {hasMore && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setShowAllCategories(!showAllCategories)}
+                                                                    className="mt-2 text-[11px] text-primary hover:underline font-bold tracking-tight inline-block"
+                                                                >
+                                                                    {showAllCategories ? "Show less" : `+${groupedCategories.length - initialLimit} more categories`}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            }
+
+                                            if (jobCatsArray.length === 0) return null;
+
                                             const initialLimit = 3;
                                             const hasMore = jobCatsArray.length > initialLimit;
 
@@ -1115,12 +1212,12 @@ export default function ListingDetail() {
                 )}
 
                 {/* Tier 1 & 2: Categories & Subcategories Table */}
-                {(type === "business" || type === "consulting") && groupedCategories.length > 0 && (
+                {(type === "business" || type === "consulting" || type === "events") && groupedCategories.length > 0 && (
                     <div className="mb-12">
                         <Card className="rounded-3xl border-foreground/10 shadow-lg overflow-hidden">
                             <div className="bg-muted/30 px-8 py-5 border-b border-foreground/10">
-                                <h3 className="text-lg font-black text-foreground tracking-wider">
-                                    Areas & Categories
+                                <h3 className="text-lg font-black text-foreground tracking-wider flex items-center gap-2">
+                                    <Globe className="w-5 h-5 text-primary" /> {type === "events" ? "Event Categories & Topics" : "Areas & Categories"}
                                 </h3>
                             </div>
                             <table className="w-full text-left border-collapse">
