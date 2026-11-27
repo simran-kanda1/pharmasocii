@@ -34,6 +34,7 @@ import {
   SearchX,
   Settings,
   ShieldCheck,
+  Sparkles,
   Star,
   Tags,
   User,
@@ -4603,6 +4604,95 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
               );
             })()}
 
+            {selectedPartner && (() => {
+              const partnerFeature = featuredPlans.find((f) => f.partnerId === selectedPartner.id);
+              const partnerListing = listings.find((l) => l.partnerId === selectedPartner.id);
+              const addon =
+                selectedPartner.selectedAddon ||
+                partnerFeature?.featureId ||
+                partnerFeature?.featureName ||
+                partnerListing?.selectedAddon ||
+                (partnerListing as any)?.featuredPlacement;
+              const hasAddon = Boolean(
+                addon &&
+                addon !== "none" &&
+                addon !== "null" &&
+                String(addon).trim() !== ""
+              ) || Boolean(selectedPartner.isFeatured || partnerListing?.isFeatured);
+
+              if (!partnerFeature && !hasAddon) return null;
+
+              const accessDate = partnerFeature?.accessThrough
+                ? new Date(typeof (partnerFeature.accessThrough as any).toDate === 'function' ? (partnerFeature.accessThrough as any).toDate() : partnerFeature.accessThrough)
+                : (selectedPartner.featureSpotlightPaidThrough
+                    ? new Date(typeof (selectedPartner.featureSpotlightPaidThrough as any).toDate === 'function' ? (selectedPartner.featureSpotlightPaidThrough as any).toDate() : selectedPartner.featureSpotlightPaidThrough)
+                    : (partnerListing?.featureSpotlightPaidThrough
+                        ? new Date(typeof (partnerListing.featureSpotlightPaidThrough as any).toDate === 'function' ? (partnerListing.featureSpotlightPaidThrough as any).toDate() : partnerListing.featureSpotlightPaidThrough)
+                        : null));
+
+              const isExpired = accessDate ? accessDate.getTime() < Date.now() : false;
+              const rawName = partnerFeature?.featureName || partnerFeature?.featureId || addon || "Feature Add-on";
+              const featureName =
+                rawName === "home_page"
+                  ? "Home Page Feature"
+                  : rawName === "landing_page"
+                  ? "Landing Page Feature"
+                  : rawName === "both"
+                  ? "Both (Home & Landing Page)"
+                  : String(rawName).replace(/_/g, ' ');
+
+              return (
+                <div className="bg-amber-50/50 p-4 rounded-lg border border-amber-200 space-y-3 mt-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold tracking-wider text-amber-800 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                      Feature Spotlight Status
+                    </span>
+                    {isExpired ? (
+                      <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">Expired</Badge>
+                    ) : (
+                      <Badge className="bg-amber-100 text-amber-800 border-amber-300">Active Spotlight</Badge>
+                    )}
+                  </div>
+                  <div className="text-sm text-slate-700 space-y-1">
+                    <p><strong>Feature:</strong> {featureName}</p>
+                    {accessDate && <p><strong>Expiration:</strong> {accessDate.toLocaleDateString()}</p>}
+                  </div>
+                  {Boolean((selectedPartner as any).createdByAdmin) && (
+                    <div className="space-y-1.5 pt-1">
+                      <p className="text-xs font-medium text-amber-900">Extend Feature Spotlight Period:</p>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
+                          onClick={() => extendTrial(7)}
+                        >
+                          +7 Days
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
+                          onClick={() => extendTrial(30)}
+                        >
+                          +30 Days
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
+                          onClick={() => extendTrial(90)}
+                        >
+                          +90 Days
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+
             {/* Section 2: Contact Information */}
             <div className="border-b pb-2 pt-4 mb-2">
               <h3 className="font-semibold text-slate-900 text-sm">Contact Information</h3>
@@ -5110,6 +5200,92 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
                           >
                             Cancel Plan / Trial
                           </Button>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {selectedListing && (() => {
+                    let lPartnerId = selectedListing.partnerId || "";
+                    if (!lPartnerId && (selectedListing.__col === "businessOfferingsCollection" || selectedListing.__path?.includes("partnersCollection"))) {
+                      lPartnerId = selectedListing.__path.split("/")[1];
+                    }
+                    const lPartner = partners.find((p) => p.id === lPartnerId) || null;
+                    const isListingAdminCreated = Boolean((selectedListing as any)?.createdByAdmin) || Boolean((lPartner as any)?.createdByAdmin);
+                    if (!isListingAdminCreated) return null;
+
+                    const lFeature = featuredPlans.find((f) => (f as any).listingId === selectedListing.id || (lPartnerId && f.partnerId === lPartnerId));
+                    const lAddon = selectedListing.selectedAddon || (selectedListing as any).featuredPlacement || lPartner?.selectedAddon || lFeature?.featureId || lFeature?.featureName;
+                    const hasListingFeature = Boolean(
+                      lAddon && lAddon !== "none" && lAddon !== "null" && String(lAddon).trim() !== ""
+                    ) || Boolean(selectedListing.isFeatured || lPartner?.isFeatured);
+
+                    if (!lFeature && !hasListingFeature) return null;
+
+                    const accessDate = lFeature?.accessThrough
+                      ? new Date(typeof (lFeature.accessThrough as any).toDate === 'function' ? (lFeature.accessThrough as any).toDate() : lFeature.accessThrough)
+                      : (selectedListing.featureSpotlightPaidThrough
+                          ? new Date(typeof (selectedListing.featureSpotlightPaidThrough as any).toDate === 'function' ? (selectedListing.featureSpotlightPaidThrough as any).toDate() : selectedListing.featureSpotlightPaidThrough)
+                          : (lPartner?.featureSpotlightPaidThrough
+                              ? new Date(typeof (lPartner.featureSpotlightPaidThrough as any).toDate === 'function' ? (lPartner.featureSpotlightPaidThrough as any).toDate() : lPartner.featureSpotlightPaidThrough)
+                              : null));
+
+                    const isExpired = accessDate ? accessDate.getTime() < Date.now() : false;
+                    const rawName = lFeature?.featureName || lFeature?.featureId || lAddon || "Feature Add-on";
+                    const featureName =
+                      rawName === "home_page"
+                        ? "Home Page Feature"
+                        : rawName === "landing_page"
+                        ? "Landing Page Feature"
+                        : rawName === "both"
+                        ? "Both (Home & Landing Page)"
+                        : String(rawName).replace(/_/g, ' ');
+
+                    return (
+                      <div className="bg-amber-50/50 p-4 rounded-lg border border-amber-200 space-y-3 mt-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold tracking-wider text-amber-800 flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                            Feature Spotlight Status
+                          </span>
+                          {isExpired ? (
+                            <Badge variant="secondary" className="bg-slate-100 text-slate-600 border-slate-200">Expired</Badge>
+                          ) : (
+                            <Badge className="bg-amber-100 text-amber-800 border-amber-300">Active Spotlight</Badge>
+                          )}
+                        </div>
+                        <div className="text-sm text-slate-700 space-y-1">
+                          <p><strong>Feature:</strong> {featureName}</p>
+                          {accessDate && <p><strong>Expiration:</strong> {accessDate.toLocaleDateString()}</p>}
+                        </div>
+                        <div className="space-y-1.5 pt-1">
+                          <p className="text-xs font-medium text-amber-900">Extend Feature Spotlight Period:</p>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
+                              onClick={() => extendTrial(7, lPartner, selectedListing)}
+                            >
+                              +7 Days
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
+                              onClick={() => extendTrial(30, lPartner, selectedListing)}
+                            >
+                              +30 Days
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 bg-white hover:bg-amber-100/60 text-xs py-1 border-amber-200"
+                              onClick={() => extendTrial(90, lPartner, selectedListing)}
+                            >
+                              +90 Days
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     );
