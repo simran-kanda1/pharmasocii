@@ -2587,15 +2587,31 @@ export default function AdminDashboard() {
             listing.active === true
         );
 
-      const isPlanCancelledOrExpired =
+      const isPlanCancelled =
         effectivePlanStatus === "Cancelled" ||
-        effectivePlanStatus === "Expired" ||
-        Boolean(
-          (plan as any)?.cancelAtPeriodEnd ||
-            (plan as any)?.cancelAt ||
-            (plan as any)?.canceledAt ||
-            (plan as any)?.cancelledAt
-        );
+        Boolean((plan as any)?.cancelAtPeriodEnd) ||
+        Boolean((plan as any)?.cancelledAt) ||
+        Boolean((plan as any)?.canceledAt) ||
+        Boolean((listing as any)?.cancelledAt) ||
+        Boolean((listing as any)?.canceledAt);
+
+      const planCancelledOn = isPlanCancelled
+        ? (plan as any)?.cancelledAt ||
+          (plan as any)?.canceledAt ||
+          (listing as any)?.cancelledAt ||
+          (listing as any)?.canceledAt ||
+          (plan as any)?.updatedAt ||
+          null
+        : null;
+
+      const planExpiryDate = isPlanPaidComplete
+        ? (plan as any)?.billingPeriodEnd ||
+          (plan as any)?.cancelAt ||
+          (listing as any)?.billingPeriodEnd ||
+          (listing as any)?.accessThrough ||
+          (listing as any)?.expiryDate ||
+          null
+        : null;
 
       const isFeaturePaidComplete =
         featureStatus !== "-" &&
@@ -2612,17 +2628,29 @@ export default function AdminDashboard() {
             (listing as any).createdByAdmin
         );
 
-      const isFeatureCancelledOrExpired =
+      const isFeatureCancelled =
         featureStatus === "Cancelled" ||
-        featureStatus === "Expired" ||
+        Boolean((feature as any)?.cancelPending) ||
+        Boolean((feature as any)?.cancelAtPeriodEnd) ||
+        Boolean((listing as any)?.featureSpotlightCancelPending) ||
+        Boolean((feature as any)?.cancelledAt) ||
+        Boolean((feature as any)?.canceledAt) ||
+        Boolean((feature as any)?.deactivatedAt) ||
         Boolean(
-          (feature as any)?.cancelPending ||
-            (feature as any)?.cancelAtPeriodEnd ||
-            (feature as any)?.cancelAt ||
-            (feature as any)?.canceledAt ||
-            (feature as any)?.deactivatedAt ||
-            (listing as any)?.featureSpotlightCancelPending
+          ((feature as any)?.cancelScope === "plan" || (feature as any)?.source === "included_plan") &&
+          isPlanCancelled
         );
+
+      const resolvedFeatureCancelDate = isFeatureCancelled
+        ? (feature as any)?.cancelledAt ||
+          (feature as any)?.canceledAt ||
+          (feature as any)?.deactivatedAt ||
+          ((feature as any)?.cancelScope === "plan" || (feature as any)?.source === "included_plan"
+            ? (plan as any)?.cancelledAt || (plan as any)?.canceledAt || (listing as any)?.cancelledAt
+            : null) ||
+          (feature as any)?.updatedAt ||
+          null
+        : null;
 
       const businessName =
         partner?.businessName ||
@@ -2694,33 +2722,21 @@ export default function AdminDashboard() {
           ? (plan as any)?.startDate || plan?.createdAt || listing.lastPaymentReceivedAt || null
           : null,
         upgradedOn: isPlanPaidComplete ? (plan as any)?.upgradedAt || null : null,
-        cancelledOn: isPlanCancelledOrExpired
-          ? (plan as any)?.cancelAt ||
-            (plan as any)?.canceledAt ||
-            (plan as any)?.cancelledAt ||
-            (effectivePlanStatus === "Expired" ? (plan as any)?.billingPeriodEnd : null) ||
-            null
-          : null,
-        expiryDate: isPlanPaidComplete ? (plan as any)?.billingPeriodEnd || null : null,
+        cancelledOn: planCancelledOn,
+        expiryDate: planExpiryDate,
         feature,
         featureStatus,
         isFeatured: featureStatus === "Active" || listing.isFeatured || feature?.active || false,
         featurePlan: featurePlanDisplay,
         featureDate: isFeaturePaidComplete
-          ? (feature as any)?.lastPaymentReceived ||
-            feature?.createdAt ||
+          ? feature?.createdAt ||
+            (feature as any)?.startDate ||
+            listing.createdAt ||
+            (feature as any)?.lastPaymentReceived ||
             listing.lastFeaturePaymentReceivedAt ||
             null
           : null,
-        featureCancelDate: isFeatureCancelledOrExpired
-          ? (feature as any)?.cancelAt ||
-            (feature as any)?.canceledAt ||
-            (feature as any)?.accessThrough ||
-            (listing as any)?.featureSpotlightAccessEnd ||
-            (listing as any)?.featureSpotlightPaidThrough ||
-            (feature as any)?.deactivatedAt ||
-            null
-          : null,
+        featureCancelDate: resolvedFeatureCancelDate,
       };
       return acc;
     }, {} as Record<string, any>);

@@ -920,10 +920,10 @@ export function PartnerPlanHistoryModal({
                                   </div>
                                 )}
                               </div>
-                              {(plan.cancelAt || plan.canceledAt) && (
+                              {(plan.cancelledAt || plan.canceledAt) && (
                                 <div>
                                   <span className="text-slate-400 block mb-0.5">Cancelled On</span>
-                                  <span className="text-rose-600 font-medium">{formatDate(plan.cancelAt || plan.canceledAt)}</span>
+                                  <span className="text-rose-600 font-medium">{formatDate(plan.cancelledAt || plan.canceledAt)}</span>
                                 </div>
                               )}
                               {plan.price != null && !isNaN(Number(plan.price)) && (
