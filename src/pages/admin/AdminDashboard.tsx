@@ -1727,6 +1727,8 @@ export default function AdminDashboard() {
       }
 
       const partnerListing = listings.find((l) => l.partnerId === partnerId);
+      const finalListingId = targetListingId || partnerListing?.id || (effListing as any)?.id || "";
+
       if (partnerListing && (!targetListingId || partnerListing.id !== targetListingId)) {
         let listingRef;
         const col = partnerListing.__col || (partnerListing.selectedGroup === "business_offerings" ? "businessOfferingsCollection" : (
@@ -1786,11 +1788,19 @@ export default function AdminDashboard() {
       await logActivity({
         partnerId,
         partnerName: effPartner?.businessName || (effListing as any)?.businessName || "Unnamed Business",
-        action: "ACCOUNT_UPDATED",
+        action: "PLAN_EXTENDED",
         details: actionMsg,
-        category: "admin",
+        category: "listing",
         performedBy: "admin",
-        metadata: { adminEmail, extendedDays: days, newExpiryDate: newEnd, performedBy: "admin", listingId: targetListingId }
+        metadata: {
+          adminEmail,
+          extendedDays: days,
+          newExpiryDate: newEnd,
+          performedBy: "admin",
+          listingId: finalListingId,
+          planId: latestPlan?.planId || effListing?.selectedPlan,
+          group: effListing?.selectedGroup || effPartner?.selectedGroup,
+        }
       });
 
       setSaveNotice(actionMsg);
@@ -2105,11 +2115,11 @@ export default function AdminDashboard() {
       await logActivity({
         partnerId,
         partnerName: effPartner?.businessName || (effListing as any)?.businessName || "Unnamed Business",
-        action: "ACCOUNT_UPDATED",
+        action: "PLAN_CANCELLED",
         details: `Trial, plan, and feature cancelled immediately by admin: ${adminEmail}`,
-        category: "admin",
+        category: "listing",
         performedBy: "admin",
-        metadata: { adminEmail, performedBy: "admin", listingId: effListing?.id },
+        metadata: { adminEmail, performedBy: "admin", listingId: effListing?.id || (selectedPartner as any)?.listingId },
       });
 
       setSaveNotice("Trial and plan cancelled successfully.");
@@ -4304,7 +4314,7 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
                       onChange={(e) => setAuditListingEventFilter(e.target.value)}
                       className="flex h-9 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 min-w-[210px]"
                     >
-                      <option value="all">All 10 Listing Events</option>
+                      <option value="all">All 11 Listing Events</option>
                       <option value="subscription_purchased">1. Listing/Subscription Purchased (New Listing)</option>
                       <option value="subscription_upgraded">2. Subscription Upgraded (Upgrade)</option>
                       <option value="feature_added">3. Feature Added (F added)</option>
@@ -4315,6 +4325,7 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
                       <option value="plan_renewed">8. Plan Renewed</option>
                       <option value="payment_failed">9. Payment Failed (Stripe)</option>
                       <option value="payment_pending">10. Payment Pending</option>
+                      <option value="plan_extended">11. Plan / Feature Extended (Extended)</option>
                     </select>
                   </div>
 
@@ -8771,7 +8782,8 @@ export type ListingAuditEventKind =
   | "feature_renewed"
   | "plan_renewed"
   | "payment_failed"
-  | "payment_pending";
+  | "payment_pending"
+  | "plan_extended";
 
 export interface NormalizedListingAuditRow {
   id: string;
@@ -8900,6 +8912,15 @@ function classifyListingAuditEventKind(log: any, listingStatusRaw?: string): Lis
   if (!log || isMemberAuditLog(log)) return null;
   const action = String(log.action || "").toUpperCase().trim();
   const details = String(log.details || "").toLowerCase();
+
+  // 11. Plan / Feature Extended
+  if (
+    action === "PLAN_EXTENDED" ||
+    action === "TRIAL_EXTENDED" ||
+    (action === "ACCOUNT_UPDATED" && (details.includes("extended by") || Boolean(log.metadata?.extendedDays)))
+  ) {
+    return "plan_extended";
+  }
 
   // Strictly exclude non-money, non-cancellation actions (profile edits, listing content edits, deletions, admin toggles)
   if (
@@ -9273,6 +9294,9 @@ function buildNormalizedListingAuditRows({
       case "payment_pending":
         actionLabel = "Payment Pending";
         break;
+      case "plan_extended":
+        actionLabel = "Extended";
+        break;
     }
 
     // By column (Partner | System | Stripe | Admin)
@@ -9330,11 +9354,36 @@ function buildNormalizedListingAuditRows({
       case "payment_pending":
         detailsLabel = "N/A";
         break;
+      case "plan_extended": {
+        const extDays = log.metadata?.extendedDays;
+        const newExpiry = log.metadata?.newExpiryDate;
+        const formattedExpiry = newExpiry
+          ? new Date(typeof newExpiry.toDate === "function" ? newExpiry.toDate() : newExpiry).toLocaleDateString()
+          : "";
+        if (extDays && formattedExpiry) {
+          detailsLabel = `+${extDays} days (New expiry: ${formattedExpiry})`;
+        } else if (extDays) {
+          detailsLabel = `+${extDays} days`;
+        } else if (log.details && log.details.includes("extended by")) {
+          const match = log.details.match(/extended by (\d+) days/i);
+          const expiryMatch = log.details.match(/new expiry:\s*([^\).]+)/i);
+          if (match && expiryMatch) {
+            detailsLabel = `+${match[1]} days (New expiry: ${expiryMatch[1].trim()})`;
+          } else if (match) {
+            detailsLabel = `+${match[1]} days`;
+          } else {
+            detailsLabel = log.details;
+          }
+        } else {
+          detailsLabel = log.details || "Extended";
+        }
+        break;
+      }
     }
 
     // Payment Status column (matching Slide 2: Complete | Pending | Payment Failed | N/A)
     let paymentStatusLabel: "Complete" | "Pending" | "Payment Failed" | "N/A" = "Complete";
-    if (eventKind === "plan_cancelled" || eventKind === "feature_cancelled") {
+    if (eventKind === "plan_cancelled" || eventKind === "feature_cancelled" || eventKind === "plan_extended") {
       paymentStatusLabel = "N/A";
     } else if (eventKind === "payment_pending") {
       paymentStatusLabel = "Pending";
@@ -9632,6 +9681,8 @@ function ListingAuditLogTable({
         return <Badge className="bg-red-50 text-red-700 border-red-200">{row.actionLabel}</Badge>;
       case "payment_pending":
         return <Badge className="bg-amber-50 text-amber-700 border-amber-200">{row.actionLabel}</Badge>;
+      case "plan_extended":
+        return <Badge className="bg-sky-50 text-sky-700 border-sky-200">{row.actionLabel}</Badge>;
     }
   };
 

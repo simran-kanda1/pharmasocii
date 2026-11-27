@@ -17,6 +17,8 @@ export type AuditLogAction =
     | "PLAN_UPGRADED"
     | "PLAN_RENEWED"
     | "PLAN_CANCELLED"
+    | "PLAN_EXTENDED"
+    | "TRIAL_EXTENDED"
     | "SUBSCRIPTION_CANCELLED"
     | "FEATURE_ADDED"
     | "FEATURE_UPGRADED"
