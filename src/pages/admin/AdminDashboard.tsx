@@ -1419,8 +1419,12 @@ export default function AdminDashboard() {
           businessName: pBusinessName,
           companyName: pBusinessName,
           companyWebsite: partnerEditor.companyWebsite || "",
+          companyWebsiteLink: partnerEditor.companyWebsite || "",
           businessPhone: partnerEditor.businessPhone || "",
           linkedinProfile: partnerEditor.linkedinProfile || "",
+          linkedInProfileLink: partnerEditor.linkedinProfile || "",
+          linkedin: partnerEditor.linkedinProfile || "",
+          linkedInJob: partnerEditor.linkedinProfile || "",
           businessAddress: partnerEditor.businessAddress || "",
           addressHtml: partnerEditor.businessAddress || "",
           businessCountry: partnerEditor.businessCountry || "",
@@ -1495,6 +1499,37 @@ export default function AdminDashboard() {
       setPartners((prev) =>
         prev.map((p) => (p.id === selectedPartner.id ? { ...p, ...payload } : p)),
       );
+
+      // Also sync company links & name to any listing belonging to this partner
+      const partnerListings = listings.filter((l) => {
+        const pId = l.partnerId || (l.__path?.startsWith("partnersCollection/") ? l.__path.split('/')[1] : "");
+        return pId === selectedPartner.id;
+      });
+
+      for (const pl of partnerListings) {
+        if (!pl.__path) continue;
+        try {
+          const lUpdates: Record<string, any> = {};
+          if (payload.businessName) lUpdates.businessName = payload.businessName;
+          if (payload.companyWebsite !== undefined) {
+            lUpdates.companyWebsite = payload.companyWebsite;
+            lUpdates.companyWebsiteLink = payload.companyWebsite;
+          }
+          if (payload.linkedinProfile !== undefined) {
+            lUpdates.linkedinProfile = payload.linkedinProfile;
+            lUpdates.linkedInProfileLink = payload.linkedinProfile;
+            lUpdates.linkedin = payload.linkedinProfile;
+            if (pl.selectedGroup === "jobs") {
+              lUpdates.linkedInJob = payload.linkedinProfile;
+            }
+          }
+          if (Object.keys(lUpdates).length > 0) {
+            await updateDoc(doc(db, pl.__path), lUpdates);
+          }
+        } catch (e) {
+          console.warn(`Failed to sync partner updates to listing ${pl.id}:`, e);
+        }
+      }
 
       const changes: string[] = [];
       const recordAdminDiff = (label: string, oldVal: any, newVal: any, summarizeValue = false) => {
@@ -2211,10 +2246,25 @@ export default function AdminDashboard() {
     const resolvedReps =
       listing.companyRepresentatives || partner?.companyRepresentatives || null;
 
+    const resolvedLinkedIn =
+      listing.linkedinProfile ||
+      listing.linkedInProfileLink ||
+      listing.linkedin ||
+      (listing as any).linkedIn ||
+      listing.linkedInJob ||
+      partner?.linkedinProfile ||
+      partner?.linkedInProfileLink ||
+      partner?.linkedin ||
+      (partner as any)?.linkedIn ||
+      "";
+
     setListingEditor({
       // Core
       businessName: resolvedBusinessName,
       companyWebsite: resolvedCompanyWebsite,
+      companyWebsiteLink: listing.companyWebsiteLink || resolvedCompanyWebsite || "",
+      linkedinProfile: resolvedLinkedIn,
+      linkedInProfileLink: resolvedLinkedIn,
       selectedPlan: listing.selectedPlan || "",
       selectedGroup: listing.selectedGroup || "",
       status: initialStatus,
@@ -2260,8 +2310,7 @@ export default function AdminDashboard() {
       workModel: listing.workModel || "",
       applicationDeadline: listing.applicationDeadline || "",
       jobDescriptionPdfUrl: listing.jobDescriptionPdfUrl || (listing as any).jobPdf || (listing as any).pdfUrl || partner?.jobDescriptionPdfUrl || "",
-      companyWebsiteLink: listing.companyWebsiteLink || resolvedCompanyWebsite || "",
-      linkedInJob: listing.linkedInJob || "",
+      linkedInJob: listing.linkedInJob || resolvedLinkedIn,
     });
     setListingEditorOpen(true);
   };
@@ -5076,7 +5125,8 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
                     onChange={() => {}} 
                     disabled={true} 
                   />
-                  <Field label="Company Website" value={listingEditor.companyWebsite || ""} onChange={() => {}} disabled={true} />
+                  <Field label="Company Website" value={listingEditor.companyWebsite || listingEditor.companyWebsiteLink || ""} onChange={() => {}} disabled={true} />
+                  <Field label="LinkedIn Profile" value={listingEditor.linkedinProfile || listingEditor.linkedInProfileLink || listingEditor.linkedInJob || ""} onChange={() => {}} disabled={true} />
                   
                   {isBusinessOrConsulting && (
                     <>

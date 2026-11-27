@@ -851,72 +851,116 @@ export default function ListingDetail() {
 
                                 {/* ── CTA buttons ── */}
                                 <div className="flex flex-wrap justify-start items-center gap-4 pt-4 border-t border-foreground/10">
-                                    {type === "events" ? (
-                                        <div className="flex flex-wrap gap-4">
-                                            {item.eventLink && item.eventLink !== "" && (
-                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
-                                                    <a href={item.eventLink} target="_blank" rel="noopener noreferrer">
-                                                        <Ticket className="mr-2 w-5 h-5" /> Register / View Event
-                                                    </a>
-                                                </Button>
-                                            )}
-                                            {(item.companyWebsite || partner?.companyWebsite) && (
-                                                <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
-                                                    <a href={item.companyWebsite || partner?.companyWebsite} target="_blank" rel="noopener noreferrer">
-                                                        Company Website <ExternalLink className="ml-2 w-4 h-4" />
-                                                    </a>
-                                                </Button>
-                                            )}
-                                            {(item.linkedInProfileLink || partner?.linkedInProfileLink) && (
-                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
-                                                    <a href={item.linkedInProfileLink || partner?.linkedInProfileLink} target="_blank" rel="noopener noreferrer">
-                                                        <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
-                                                    </a>
-                                                </Button>
-                                            )}
-                                        </div>
-                                    ) : type === "jobs" ? (
-                                        <div className="flex flex-wrap gap-3">
-                                            {item.positionLink && item.positionLink !== "" && (
-                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
-                                                    <a href={item.positionLink} target="_blank" rel="noopener noreferrer">
-                                                        <ExternalLink className="mr-2 w-5 h-5" /> Apply
-                                                    </a>
-                                                </Button>
-                                            )}
-                                            {(item.companyWebsiteLink || item.companyWebsite || partner?.companyWebsite) && String(item.companyWebsiteLink || item.companyWebsite || partner?.companyWebsite).trim() !== "" && (
-                                                <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
-                                                    <a href={item.companyWebsiteLink || item.companyWebsite || partner?.companyWebsite} target="_blank" rel="noopener noreferrer">
-                                                        Company Website <ExternalLink className="ml-2 w-4 h-4" />
-                                                    </a>
-                                                </Button>
-                                            )}
-                                            {item.linkedInJob && String(item.linkedInJob).trim() !== "" && (
-                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
-                                                    <a href={item.linkedInJob} target="_blank" rel="noopener noreferrer">
-                                                        <Linkedin className="mr-2 w-5 h-5" /> LinkedIn
-                                                    </a>
-                                                </Button>
-                                            )}
-                                        </div>
-                                    ) : (
-                                        <>
-                                            {(item.companyWebsite || partner?.companyWebsite) && (
-                                                <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
-                                                    <a href={item.companyWebsite || partner?.companyWebsite} target="_blank" rel="noopener noreferrer">
-                                                        Company Website <ExternalLink className="ml-2 w-4 h-4" />
-                                                    </a>
-                                                </Button>
-                                            )}
-                                            {(item.linkedInProfileLink || partner?.linkedInProfileLink) && (
-                                                <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
-                                                    <a href={item.linkedInProfileLink || partner?.linkedInProfileLink} target="_blank" rel="noopener noreferrer">
-                                                        <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
-                                                    </a>
-                                                </Button>
-                                            )}
-                                        </>
-                                    )}
+                                    {(() => {
+                                        const cleanExternalUrl = (url?: any): string => {
+                                            if (!url) return "";
+                                            const str = String(url).trim();
+                                            if (!str || str === "undefined" || str === "null" || str === "-") return "";
+                                            return /^https?:\/\//i.test(str) ? str : `https://${str}`;
+                                        };
+
+                                        const resolvedWebsite = cleanExternalUrl(
+                                            item.companyWebsiteLink ||
+                                            item.companyWebsite ||
+                                            item.website ||
+                                            partner?.companyWebsite ||
+                                            partner?.companyWebsiteLink ||
+                                            partner?.website
+                                        );
+
+                                        const resolvedLinkedIn = cleanExternalUrl(
+                                            item.linkedInProfileLink ||
+                                            item.linkedinProfile ||
+                                            item.linkedin ||
+                                            item.linkedIn ||
+                                            item.companyLinkedin ||
+                                            partner?.linkedInProfileLink ||
+                                            partner?.linkedinProfile ||
+                                            partner?.linkedin ||
+                                            partner?.linkedIn ||
+                                            partner?.companyLinkedin
+                                        );
+
+                                        const resolvedJobLinkedIn = cleanExternalUrl(
+                                            item.linkedInJob ||
+                                            resolvedLinkedIn
+                                        );
+
+                                        if (type === "events") {
+                                            return (
+                                                <div className="flex flex-wrap gap-4">
+                                                    {item.eventLink && item.eventLink !== "" && (
+                                                        <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
+                                                            <a href={cleanExternalUrl(item.eventLink)} target="_blank" rel="noopener noreferrer">
+                                                                <Ticket className="mr-2 w-5 h-5" /> Register / View Event
+                                                            </a>
+                                                        </Button>
+                                                    )}
+                                                    {Boolean(resolvedWebsite) && (
+                                                        <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
+                                                            <a href={resolvedWebsite} target="_blank" rel="noopener noreferrer">
+                                                                Company Website <ExternalLink className="ml-2 w-4 h-4" />
+                                                            </a>
+                                                        </Button>
+                                                    )}
+                                                    {Boolean(resolvedLinkedIn) && (
+                                                        <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
+                                                            <a href={resolvedLinkedIn} target="_blank" rel="noopener noreferrer">
+                                                                <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
+                                                            </a>
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
+
+                                        if (type === "jobs") {
+                                            return (
+                                                <div className="flex flex-wrap gap-3">
+                                                    {item.positionLink && item.positionLink !== "" && (
+                                                        <Button asChild size="lg" className="rounded-xl shadow-lg bg-primary hover:bg-primary/90 border-none px-8 font-bold text-primary-foreground transition-all">
+                                                            <a href={cleanExternalUrl(item.positionLink)} target="_blank" rel="noopener noreferrer">
+                                                                <ExternalLink className="mr-2 w-5 h-5" /> Apply
+                                                            </a>
+                                                        </Button>
+                                                    )}
+                                                    {Boolean(resolvedWebsite) && (
+                                                        <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
+                                                            <a href={resolvedWebsite} target="_blank" rel="noopener noreferrer">
+                                                                Company Website <ExternalLink className="ml-2 w-4 h-4" />
+                                                            </a>
+                                                        </Button>
+                                                    )}
+                                                    {Boolean(resolvedJobLinkedIn) && (
+                                                        <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
+                                                            <a href={resolvedJobLinkedIn} target="_blank" rel="noopener noreferrer">
+                                                                <Linkedin className="mr-2 w-5 h-5" /> LinkedIn
+                                                            </a>
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <>
+                                                {Boolean(resolvedWebsite) && (
+                                                    <Button asChild variant="outline" size="lg" className="rounded-xl shadow-sm border-primary text-primary hover:bg-primary/10 hover:text-primary px-6 font-bold transition-all">
+                                                        <a href={resolvedWebsite} target="_blank" rel="noopener noreferrer">
+                                                            Company Website <ExternalLink className="ml-2 w-4 h-4" />
+                                                        </a>
+                                                    </Button>
+                                                )}
+                                                {Boolean(resolvedLinkedIn) && (
+                                                    <Button asChild size="lg" className="rounded-xl shadow-lg bg-[#0077b5] hover:bg-[#005a8c] border-none px-6 font-bold text-white transition-all">
+                                                        <a href={resolvedLinkedIn} target="_blank" rel="noopener noreferrer">
+                                                            <Linkedin className="mr-2 w-4 h-4" /> LinkedIn
+                                                        </a>
+                                                    </Button>
+                                                )}
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
                         </div>

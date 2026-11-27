@@ -1086,6 +1086,34 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
       const listingId = result.listingId;
       const collectionName = result.collectionName;
 
+      // Ensure website and LinkedIn are populated on both partner and listing docs
+      if (uid && listingId) {
+        try {
+          const syncLinks: Record<string, any> = {};
+          if (formData.companyWebsite) {
+            syncLinks.companyWebsite = formData.companyWebsite.trim();
+            syncLinks.companyWebsiteLink = formData.companyWebsite.trim();
+          }
+          if (formData.linkedinProfile) {
+            syncLinks.linkedinProfile = formData.linkedinProfile.trim();
+            syncLinks.linkedInProfileLink = formData.linkedinProfile.trim();
+            syncLinks.linkedin = formData.linkedinProfile.trim();
+            if (getGroupKey(formData.selectedGroup) === "jobs") {
+              syncLinks.linkedInJob = formData.linkedinProfile.trim();
+            }
+          }
+          if (Object.keys(syncLinks).length > 0) {
+            await updateDoc(doc(db, "partnersCollection", uid), syncLinks);
+            const lRef = collectionName === "businessOfferingsCollection"
+              ? doc(db, "partnersCollection", uid, "businessOfferingsCollection", listingId)
+              : doc(db, collectionName, listingId);
+            await updateDoc(lRef, syncLinks);
+          }
+        } catch (e) {
+          console.warn("Failed to sync website/linkedin links on create:", e);
+        }
+      }
+
       // Handle file uploads (Logo)
       let logoUrl = "";
       if (logoFile && uid) {
