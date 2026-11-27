@@ -336,31 +336,20 @@ export default function ListingDetail() {
             });
         });
 
-        // Helper to match token in subSubIndex (with exact, matchCategoryOrSub, and compound '&' or '/' support)
+        // Helper to match token in subSubIndex
         const findSubSubHit = (token: string): SubSubHit | undefined => {
             const raw = token.includes(" > ") ? token.split(" > ").pop()?.trim() || token : token;
-            const normRaw = normalize(raw);
 
             // 1. Exact or matchCategoryOrSub
             let found = subSubIndex.find((hit) => matchCategoryOrSub(raw, hit.subSub));
             if (found) return found;
 
-            // 2. Compound matching (e.g. "Ampoules & Vials" matches "Ampoules" or "Vials")
+            // 2. Compound matching (token has "Ampoules & Vials", matches hit "Ampoules")
             if (raw.includes("&") || raw.includes("/")) {
                 const parts = raw.split(/[&/]/).map((p) => normalize(p)).filter(Boolean);
                 found = subSubIndex.find((hit) => parts.includes(normalize(hit.subSub)));
                 if (found) return found;
             }
-
-            // 3. Reversed compound matching (e.g. hit.subSub has "Bottles & Jars", token has "Bottles")
-            found = subSubIndex.find((hit) => {
-                if (hit.subSub.includes("&") || hit.subSub.includes("/")) {
-                    const hitParts = hit.subSub.split(/[&/]/).map((p) => normalize(p)).filter(Boolean);
-                    return hitParts.includes(normRaw);
-                }
-                return false;
-            });
-            if (found) return found;
 
             return undefined;
         };
@@ -409,15 +398,19 @@ export default function ListingDetail() {
             return m;
         };
 
-        // Pre-register any active or resolved areas from selectedAreas to preserve original order
+        // Resolved selected areas for this listing
+        const resolvedSelectedAreas = new Set<string>();
         (selectedAreas as string[]).forEach((area) => {
             const resolved = resolveAreaName(area);
             if (resolved) {
+                resolvedSelectedAreas.add(resolved);
                 getOrCreateArea(resolved);
             }
         });
 
+        // Track claimed tokens and claimed area-sub pairs to avoid duplicates
         const claimedTokens = new Set<string>();
+        const claimedAreaSubs = new Set<string>(); // "normArea::normSub"
 
         // Combine all sub/sub-sub tokens from Firestore listing
         const allTokens = [
@@ -425,13 +418,134 @@ export default function ListingDetail() {
             ...allSelectedSubs.map((t: string) => ({ raw: t })),
         ];
 
-        // Process all selected tokens against active taxonomy
+        // ══════════════════════════════════════════════════════════════════════
+        // PASS 1: Explicit Composite Paths ("Area > Sub" or "Area > Sub > SubSub")
+        // These are authoritative explicit user selections. NEVER discard the parent area!
+        // ══════════════════════════════════════════════════════════════════════
         allTokens.forEach(({ raw }) => {
+            if (!raw || typeof raw !== "string" || !raw.includes(" > ")) return;
+            const parts = raw.split(" > ").map((p) => p.trim()).filter(Boolean);
+            if (parts.length < 2) return;
+
+            const area = resolveAreaName(parts[0]) || parts[0];
+            const sub = parts[1];
+            const subSub = parts[2];
+
+            const subMap = getOrCreateArea(area);
+            let ssSet = subMap.get(sub);
+            if (!ssSet) {
+                ssSet = new Set<string>();
+                subMap.set(sub, ssSet);
+            }
+            if (subSub) {
+                ssSet.add(subSub);
+            }
+
+            claimedTokens.add(normalize(raw));
+            claimedAreaSubs.add(`${normalize(area)}::${normalize(sub)}`);
+            if (subSub) {
+                claimedAreaSubs.add(`${normalize(area)}::${normalize(sub)}::${normalize(subSub)}`);
+            }
+        });
+
+        // ══════════════════════════════════════════════════════════════════════
+        // PASS 2: Bare / Unscoped Tokens (e.g. "Packaging", "Filling")
+        // ALWAYS scope to the listing's selected areas FIRST! Never blindly search
+        // unselected areas across the global taxonomy!
+        // ══════════════════════════════════════════════════════════════════════
+        const orphanEntries: { label: string; subSubs: string[] }[] = [];
+
+        allTokens.forEach(({ raw }) => {
+            if (!raw || typeof raw !== "string") return;
+            if (claimedTokens.has(normalize(raw))) return;
+
             const leaf = raw.includes(" > ") ? raw.split(" > ").pop()?.trim() || raw : raw;
-            const normRaw = normalize(raw);
             const normLeaf = normalize(leaf);
 
-            // A) Check sub-subcategory match first (e.g. Aerosols, Airless Systems, Ampoules & Vials -> Primary Packaging)
+            // If this leaf has already been claimed under any of the listing's selected areas, skip it!
+            let alreadyClaimedInSelectedArea = false;
+            for (const selArea of resolvedSelectedAreas) {
+                if (claimedAreaSubs.has(`${normalize(selArea)}::${normLeaf}`)) {
+                    alreadyClaimedInSelectedArea = true;
+                    break;
+                }
+            }
+            if (alreadyClaimedInSelectedArea) {
+                claimedTokens.add(normalize(raw));
+                return;
+            }
+
+            // Step 2A: Check if leaf matches a direct Subcategory (Level 2) in ANY of the listing's selected areas
+            let matchedInSelected = false;
+            for (const selArea of resolvedSelectedAreas) {
+                const entries = (categoriesDict as any)?.[selArea] || [];
+                for (const entry of entries) {
+                    const subLabel = typeof entry === "string" ? entry : entry.label;
+                    if (matchCategoryOrSub(leaf, subLabel)) {
+                        const subMap = getOrCreateArea(selArea);
+                        if (!subMap.has(subLabel)) {
+                            subMap.set(subLabel, new Set<string>());
+                        }
+                        claimedTokens.add(normalize(raw));
+                        claimedAreaSubs.add(`${normalize(selArea)}::${normalize(subLabel)}`);
+                        matchedInSelected = true;
+                        break;
+                    }
+                }
+                if (matchedInSelected) break;
+            }
+            if (matchedInSelected) return;
+
+            // Step 2B: Check if leaf matches a Sub-subcategory (Level 3) in ANY of the listing's selected areas
+            for (const selArea of resolvedSelectedAreas) {
+                const entries = (categoriesDict as any)?.[selArea] || [];
+                for (const entry of entries) {
+                    if (typeof entry !== "string" && Array.isArray(entry.subSubcategories)) {
+                        const matchedSubSub = entry.subSubcategories.find((ss: string) => matchCategoryOrSub(leaf, ss));
+                        if (matchedSubSub) {
+                            const subMap = getOrCreateArea(selArea);
+                            let ssSet = subMap.get(entry.label);
+                            if (!ssSet) {
+                                ssSet = new Set<string>();
+                                subMap.set(entry.label, ssSet);
+                            }
+                            ssSet.add(matchedSubSub);
+                            claimedTokens.add(normalize(raw));
+                            claimedAreaSubs.add(`${normalize(selArea)}::${normalize(entry.label)}::${normalize(matchedSubSub)}`);
+                            matchedInSelected = true;
+                            break;
+                        }
+                    }
+                }
+                if (matchedInSelected) break;
+            }
+            if (matchedInSelected) return;
+
+            // Step 2C: If listing has ONLY 1 selected area and leaf is still unmatched, attach it to that selected area
+            if (resolvedSelectedAreas.size === 1) {
+                const singleArea = Array.from(resolvedSelectedAreas)[0];
+                const subMap = getOrCreateArea(singleArea);
+                if (!subMap.has(leaf)) {
+                    subMap.set(leaf, new Set<string>());
+                }
+                claimedTokens.add(normalize(raw));
+                claimedAreaSubs.add(`${normalize(singleArea)}::${normLeaf}`);
+                return;
+            }
+
+            // Step 2D: Global taxonomy fallback - check Subcategory (Level 2) globally FIRST
+            const sHit = findSubHit(leaf);
+            if (sHit) {
+                const subMap = getOrCreateArea(sHit.area);
+                if (!subMap.has(sHit.sub)) {
+                    subMap.set(sHit.sub, new Set<string>());
+                }
+                claimedTokens.add(normalize(raw));
+                claimedAreaSubs.add(`${normalize(sHit.area)}::${normalize(sHit.sub)}`);
+                return;
+            }
+
+            // Step 2E: Global taxonomy fallback - check Sub-subcategory (Level 3) globally
             const ssHit = findSubSubHit(leaf);
             if (ssHit) {
                 const subMap = getOrCreateArea(ssHit.area);
@@ -441,60 +555,13 @@ export default function ListingDetail() {
                     subMap.set(ssHit.sub, ssSet);
                 }
                 ssSet.add(leaf);
-                claimedTokens.add(normRaw);
-                claimedTokens.add(normLeaf);
+                claimedTokens.add(normalize(raw));
+                claimedAreaSubs.add(`${normalize(ssHit.area)}::${normalize(ssHit.sub)}::${normalize(leaf)}`);
                 return;
             }
 
-            // B) Check subcategory match (e.g. Formulation Development -> Development Services)
-            const sHit = findSubHit(leaf);
-            if (sHit) {
-                const subMap = getOrCreateArea(sHit.area);
-                if (!subMap.has(sHit.sub)) {
-                    subMap.set(sHit.sub, new Set<string>());
-                }
-                claimedTokens.add(normRaw);
-                claimedTokens.add(normLeaf);
-                return;
-            }
-        });
-
-        // Fallback for composite paths e.g. "Area > Sub > SubSub"
-        allTokens.forEach(({ raw }) => {
-            const leaf = raw.includes(" > ") ? raw.split(" > ").pop()?.trim() || raw : raw;
-            const normRaw = normalize(raw);
-            const normLeaf = normalize(leaf);
-            if (claimedTokens.has(normRaw) || claimedTokens.has(normLeaf)) return;
-
-            if (raw.includes(" > ")) {
-                const parts = raw.split(" > ").map((p: string) => p.trim());
-                if (parts.length >= 2) {
-                    const resolvedArea = resolveAreaName(parts[0]);
-                    if (resolvedArea) {
-                        const subMap = getOrCreateArea(resolvedArea);
-                        const subName = parts[1];
-                        let ssSet = subMap.get(subName);
-                        if (!ssSet) {
-                            ssSet = new Set<string>();
-                            subMap.set(subName, ssSet);
-                        }
-                        if (parts[2]) ssSet.add(parts[2]);
-                        claimedTokens.add(normRaw);
-                        claimedTokens.add(normLeaf);
-                        return;
-                    }
-                }
-            }
-        });
-
-        // C) Check known parent category mapping for legacy specializations
-        allTokens.forEach(({ raw }) => {
-            const leaf = raw.includes(" > ") ? raw.split(" > ").pop()?.trim() || raw : raw;
-            const normRaw = normalize(raw);
-            const normLeaf = normalize(leaf);
-            if (claimedTokens.has(normRaw) || claimedTokens.has(normLeaf)) return;
-
-            const fallback = KNOWN_SPECIALIZATION_PARENT_MAP[normLeaf] || KNOWN_SPECIALIZATION_PARENT_MAP[normRaw];
+            // Step 2F: Known parent category mapping for legacy specializations
+            const fallback = KNOWN_SPECIALIZATION_PARENT_MAP[normLeaf];
             if (fallback) {
                 const targetArea = resolveAreaName(fallback.area) || fallback.area;
                 const subMap = getOrCreateArea(targetArea);
@@ -502,22 +569,14 @@ export default function ListingDetail() {
                 if (!subMap.has(subLabel)) {
                     subMap.set(subLabel, new Set<string>());
                 }
-                claimedTokens.add(normRaw);
-                claimedTokens.add(normLeaf);
+                claimedTokens.add(normalize(raw));
+                claimedAreaSubs.add(`${normalize(targetArea)}::${normalize(subLabel)}`);
+                return;
             }
-        });
 
-        // Truly unmatched orphans
-        const orphanEntries: { label: string; subSubs: string[] }[] = [];
-        allTokens.forEach(({ raw }) => {
-            const leaf = raw.includes(" > ") ? raw.split(" > ").pop()?.trim() || raw : raw;
-            const normRaw = normalize(raw);
-            const normLeaf = normalize(leaf);
-            if (claimedTokens.has(normRaw) || claimedTokens.has(normLeaf)) return;
-
-            claimedTokens.add(normRaw);
-            claimedTokens.add(normLeaf);
+            // Step 2G: Unmatched orphan
             orphanEntries.push({ label: leaf, subSubs: [] });
+            claimedTokens.add(normalize(raw));
         });
 
         // Build the final grouped list
