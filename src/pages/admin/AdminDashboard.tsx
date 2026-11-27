@@ -500,7 +500,7 @@ function CategoryTreeDropdown({
             <span className="text-slate-400">Select categories & specializations...</span>
           ) : (
             <>
-              {selectedCategories.map((c) => (
+              {[...selectedCategories].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })).map((c) => (
                 <span
                   key={c}
                   className="inline-flex items-center gap-1 pl-2 pr-1.5 py-0.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded border border-blue-100 animate-fadeIn"
@@ -520,7 +520,7 @@ function CategoryTreeDropdown({
                   )}
                 </span>
               ))}
-              {selectedSubcategories.map((s) => {
+              {[...selectedSubcategories].sort((a, b) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((s) => {
                 const parts = s.split(" > ");
                 const leaf = parts[parts.length - 1];
                 return (
@@ -545,7 +545,7 @@ function CategoryTreeDropdown({
                   </span>
                 );
               })}
-              {selectedSubSubcategories.map((ss) => {
+              {[...selectedSubSubcategories].sort((a, b) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map((ss) => {
                 const parts = ss.split(" > ");
                 const leaf = parts[parts.length - 1];
                 return (
@@ -584,7 +584,7 @@ function CategoryTreeDropdown({
             onClick={() => setOpen(false)}
           />
           <div className="absolute z-50 mt-1 w-full max-h-[380px] overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg p-4 space-y-2">
-            {Object.entries(catDict).map(([cat, subs]) => {
+            {Object.entries(catDict).sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: "base" })).map(([cat, subs]) => {
               const hasSubs = subs.length > 0;
               const isExpanded = expandedCats.includes(cat);
               const isParentSelected = selectedCategories.includes(cat);
@@ -642,7 +642,7 @@ function CategoryTreeDropdown({
 
                   {hasSubs && isExpanded && (
                     <div className="ml-8 pl-3 border-l-2 border-green-500/30 space-y-1 mb-2">
-                      {subs.map((entry: SubcategoryEntry) => {
+                      {[...(subs || [])].sort((a, b) => getSubLabel(a).localeCompare(getSubLabel(b), undefined, { sensitivity: "base" })).map((entry: SubcategoryEntry) => {
                         const subLabel = getSubLabel(entry);
                         const isNested = isBusinessGroup && hasSubSub(entry);
                         const compositeSubKey = `${cat} > ${subLabel}`;
@@ -685,7 +685,7 @@ function CategoryTreeDropdown({
                             {/* Sub-Subcategories (Indented) */}
                             {isNested && isSubExpanded && hasSubSub(entry) && (
                               <div className="ml-6 pl-3 border-l border-blue-500/20 space-y-0.5 mb-1">
-                                {entry.subSubcategories.map((ssLabel: string) => {
+                                {[...(entry.subSubcategories || [])].sort((a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" })).map((ssLabel: string) => {
                                   const compositeSsKey = `${cat} > ${subLabel} > ${ssLabel}`;
                                   const isSsChecked = selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ssLabel);
                                   return (

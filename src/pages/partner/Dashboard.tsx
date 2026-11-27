@@ -4228,7 +4228,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
         if (!catDict) return null;
         const isBusinessGroup = listingGroup === "business_offerings";
 
-        return Object.entries(catDict).map(([cat, subs]) => {
+        return Object.entries(catDict).sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: "base" })).map(([cat, subs]) => {
             const hasSubs = subs.length > 0;
             const isExpanded = expandedCategories.includes(cat);
             const isParentSelected = selectedCategories.includes(cat);
@@ -4268,7 +4268,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                     </div>
                     {hasSubs && isExpanded && (
                         <div className="ml-8 pl-3 border-l-2 border-green-500/30 space-y-1 mb-2">
-                            {subs.map((entry: SubcategoryEntry) => {
+                            {[...(subs || [])].sort((a, b) => getSubLabel(a).localeCompare(getSubLabel(b), undefined, { sensitivity: "base" })).map((entry: SubcategoryEntry) => {
                                 const subLabel = getSubLabel(entry);
                                 const isNested = isBusinessGroup && hasSubSub(entry);
                                 const compositeSubKey = `${cat} > ${subLabel}`;
@@ -4293,7 +4293,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                         </div>
                                         {isNested && isSubExpanded && hasSubSub(entry) && (
                                             <div className="ml-8 pl-3 border-l-2 border-primary/30 space-y-1 mb-1">
-                                                {entry.subSubcategories.map((ssLabel: string) => {
+                                                {[...(entry.subSubcategories || [])].sort((a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" })).map((ssLabel: string) => {
                                                     const compositeSsKey = `${cat} > ${subLabel} > ${ssLabel}`;
                                                     const isSSChecked = selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ssLabel);
                                                     return (

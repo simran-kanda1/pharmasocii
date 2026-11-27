@@ -817,12 +817,12 @@ export default function AllCategories() {
                 {/* Active filter chips */}
                 {isMainCategoryTab && (selectedCategories.length > 0 || selectedSubcategories.length > 0 || selectedSubSubcategories.length > 0) && (
                     <div className="flex flex-wrap gap-2 mb-4">
-                        {selectedCategories.map(s => (
+                        {[...selectedCategories].sort((a, b) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map(s => (
                             <span key={s} onClick={() => toggleCategory(s)} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs bg-primary text-primary-foreground cursor-pointer hover:bg-primary/80 transition-colors">
                                 {s.split(" > ").pop()} <X className="w-3 h-3" />
                             </span>
                         ))}
-                        {selectedSubcategories.map(s => {
+                        {[...selectedSubcategories].sort((a, b) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map(s => {
                             const parts = s.split(" > ");
                             const leaf = parts[parts.length - 1];
                             return (
@@ -834,7 +834,7 @@ export default function AllCategories() {
                                 </span>
                             );
                         })}
-                        {selectedSubSubcategories.map(s => {
+                        {[...selectedSubSubcategories].sort((a, b) => (a.split(" > ").pop() || a).localeCompare(b.split(" > ").pop() || b, undefined, { sensitivity: "base" })).map(s => {
                             const parts = s.split(" > ");
                             const leaf = parts[parts.length - 1];
                             return (
@@ -1240,7 +1240,12 @@ export default function AllCategories() {
                                         <div>
                                             <p className="font-bold mb-2">Topics & Areas</p>
                                             <div className="flex flex-wrap gap-2">
-                                                {selectedProfile.categories.map((c: string, j: number) => (
+                                                {(Array.isArray(selectedProfile.categories)
+                                                    ? [...selectedProfile.categories]
+                                                    : typeof selectedProfile.categories === "string"
+                                                    ? selectedProfile.categories.split(",").map((s: string) => s.trim()).filter(Boolean)
+                                                    : []
+                                                ).sort((a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base", numeric: true })).map((c: string, j: number) => (
                                                     <span key={j} className="bg-foreground/10 px-3 py-1 rounded-full text-sm">{c}</span>
                                                 ))}
                                             </div>

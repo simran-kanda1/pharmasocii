@@ -219,7 +219,34 @@ export default function ListingDetail() {
             )
             : "";
     const jobCatsArray = type === "jobs" 
-        ? (Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0 ? item.selectedCategoriesDisplay : Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0 ? item.selectedCategories : Array.isArray(item.categories) && item.categories.length > 0 ? item.categories : []) 
+        ? (() => {
+            const list: string[] = [];
+            if (Array.isArray(item.selectedCategoriesDisplay) && item.selectedCategoriesDisplay.length > 0) {
+                list.push(...item.selectedCategoriesDisplay);
+            } else if (Array.isArray(item.selectedCategories) && item.selectedCategories.length > 0) {
+                list.push(...item.selectedCategories);
+            } else if (Array.isArray(item.categories) && item.categories.length > 0) {
+                list.push(...item.categories);
+            } else if (typeof item.categories === "string" && item.categories.trim()) {
+                list.push(...item.categories.split(",").map((s: string) => s.trim()));
+            } else if (typeof item.category === "string" && item.category.trim()) {
+                list.push(item.category.trim());
+            }
+
+            if (Array.isArray(item.selectedSubcategoriesDisplay) && item.selectedSubcategoriesDisplay.length > 0) {
+                list.push(...item.selectedSubcategoriesDisplay);
+            } else if (Array.isArray(item.selectedSubcategories) && item.selectedSubcategories.length > 0) {
+                list.push(...item.selectedSubcategories.map((s: string) => s.split(" > ").pop()?.trim() || s.trim()));
+            }
+
+            if (Array.isArray(item.selectedSubSubcategories) && item.selectedSubSubcategories.length > 0) {
+                list.push(...item.selectedSubSubcategories.map((s: string) => s.split(" > ").pop()?.trim() || s.trim()));
+            }
+
+            return Array.from(new Set(list.filter(Boolean))).sort((a, b) =>
+                a.localeCompare(b, undefined, { sensitivity: "base", numeric: true })
+            );
+        })()
         : [];
     const jobTypeLabel = type === "jobs" ? (item.jobtype || item.positionType || "") : "";
     const jobDeadlineFormatted = type === "jobs" && item.applicationDeadline ? formatDate(item.applicationDeadline) : null;
@@ -708,7 +735,9 @@ export default function ListingDetail() {
                                                     list.push(...item.selectedSubSubcategories.map((s: string) => s.split(" > ").pop()?.trim() || s.trim()));
                                                 }
 
-                                                return Array.from(new Set(list.filter(Boolean)));
+                                                return Array.from(new Set(list.filter(Boolean))).sort((a, b) =>
+                                                    a.localeCompare(b, undefined, { sensitivity: "base", numeric: true })
+                                                );
                                             })();
 
                                             if (cats.length === 0) return null;

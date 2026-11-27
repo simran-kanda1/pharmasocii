@@ -668,7 +668,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
     const isBusinessGroup = groupKey === "business_offerings";
 
-    return Object.entries(catDict).map(([cat, subs]) => {
+    return Object.entries(catDict).sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: "base" })).map(([cat, subs]) => {
       const hasSubs = subs.length > 0;
       const isExpanded = expandedCategories.includes(cat);
       const isParentSelected = selectedCategories.includes(cat);
@@ -712,7 +712,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
           {hasSubs && isExpanded && (
             <div className="ml-8 pl-3 border-l-2 border-green-500/30 space-y-1 mb-2">
-              {subs.map((entry: SubcategoryEntry) => {
+              {[...(subs || [])].sort((a, b) => getSubLabel(a).localeCompare(getSubLabel(b), undefined, { sensitivity: "base" })).map((entry: SubcategoryEntry) => {
                 const subLabel = getSubLabel(entry);
                 const isNested = isBusinessGroup && hasSubSub(entry);
                 const compositeSubKey = `${cat} > ${subLabel}`;
@@ -742,7 +742,7 @@ export function AdminAddPartner({ onCancel, onSuccess }: { onCancel: () => void;
 
                     {isNested && isSubExpanded && hasSubSub(entry) && (
                       <div className="ml-6 pl-3 border-l border-blue-500/20 space-y-0.5 mb-1">
-                        {entry.subSubcategories.map(ssLabel => {
+                        {[...(entry.subSubcategories || [])].sort((a: string, b: string) => a.localeCompare(b, undefined, { sensitivity: "base" })).map(ssLabel => {
                           const compositeSsKey = `${cat} > ${subLabel} > ${ssLabel}`;
                           const isSsChecked = selectedSubSubcategories.includes(compositeSsKey) || selectedSubSubcategories.includes(ssLabel);
                           return (
