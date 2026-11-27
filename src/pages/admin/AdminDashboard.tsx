@@ -6977,22 +6977,21 @@ function CategoryBreakdownTable({
         </CardHeader>
         <CardContent className="p-0">
           <div className="overflow-auto max-h-[68vh] admin-table-scrollbar">
-            <Table className="min-w-max">
+            <Table className="w-full min-w-[850px] table-auto">
               <TableHeader>
               <TableRow>
-                <TableHead className="pl-6">Group</TableHead>
-                <TableHead>Category</TableHead>
-                <TableHead>Sub Category</TableHead>
+                <TableHead className="pl-6 w-[170px]">Group</TableHead>
+                <TableHead className="w-[240px]">Category</TableHead>
+                <TableHead className="w-[220px]">Sub Category</TableHead>
                 <TableHead>Sub Sub Categories</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="text-center">Featured Image</TableHead>
-                <TableHead className="pr-6 text-right">Actions</TableHead>
+                <TableHead className="w-[100px]">Status</TableHead>
+                <TableHead className="pr-6 text-right w-[160px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {rows.length === 0 ? (
                 <TableRow>
-                  <TableCell className="pl-6 py-12 text-center text-slate-500" colSpan={7}>
+                  <TableCell className="pl-6 py-12 text-center text-slate-500" colSpan={6}>
                     {searchQuery?.trim() ? (
                       <div className="space-y-2">
                         <p className="font-medium text-slate-700">No categories found matching "{searchQuery}"</p>
@@ -7020,43 +7019,38 @@ function CategoryBreakdownTable({
                           : "hover:bg-slate-50/50 transition-colors"
                       }
                     >
-                      <TableCell className="pl-6 font-medium text-slate-800">{row.group}</TableCell>
-                      <TableCell>
+                      <TableCell className="pl-6 font-medium text-slate-800 whitespace-nowrap">{row.group}</TableCell>
+                      <TableCell className="max-w-[240px]">
                         <div className="flex items-center gap-1.5">
-                          {!row.isParent && <span className="text-slate-400 text-xs pl-2 font-mono">↳</span>}
-                          <span className={row.isParent ? "font-semibold text-slate-900" : "text-slate-600"}>
+                          {!row.isParent && <span className="text-slate-400 text-xs pl-2 font-mono shrink-0">↳</span>}
+                          <span className={`${row.isParent ? "font-semibold text-slate-900" : "text-slate-600"} break-words`}>
                             {row.category}
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="max-w-[220px]">
                         {row.isParent ? (
-                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 whitespace-nowrap">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                             Parent Category
                           </span>
                         ) : (
-                          <span className="text-slate-800 font-medium">{row.subcategory}</span>
+                          <span className="text-slate-800 font-medium break-words">{row.subcategory}</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="max-w-md">
                         {row.isParent ? (
                           <span className="text-xs text-slate-500 italic">{row.subSubcategory}</span>
                         ) : (
-                          <span className="text-slate-600">{row.subSubcategory}</span>
+                          <span className="text-slate-600 break-words">{row.subSubcategory}</span>
                         )}
                       </TableCell>
-                      <TableCell>
+                      <TableCell className="whitespace-nowrap">
                         <Badge className={row.status === "Inactive" ? "bg-slate-100 text-slate-600 border-slate-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}>
                           {row.status || "Active"}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-center">
-                        <div className="w-10 h-8 mx-auto bg-slate-100 rounded border border-slate-200 flex items-center justify-center overflow-hidden">
-                          <img src={row.imageUrl || "https://images.unsplash.com/photo-1532187863486-abf9dbad1b69?auto=format&fit=crop&q=80&w=100&h=80"} alt="Thumbnail" className="w-full h-full object-cover opacity-80" />
-                        </div>
-                      </TableCell>
-                      <TableCell className="pr-6 text-right">
+                      <TableCell className="pr-6 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
                           <Button
                             variant="outline"
