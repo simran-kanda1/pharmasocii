@@ -92,10 +92,17 @@ const PLAN_CONFIGS: Record<string, PlanConfig> = {
     standard_event: { label: "Standard", subtitle: "Multi day conference/event", price: "$850.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
     premium_event: { label: "Premium", subtitle: "Event listing + landing page feature", price: "$1,250.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page feature for increased visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
     premium_plus_event: { label: "Premium Plus", subtitle: "Event listing + home page feature", price: "$1,450.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page feature for maximum visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    event_basic: { label: "Basic", subtitle: "Single day conference/event", price: "$500.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Agenda highlights + full agenda PDF", "Event date", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    event_standard: { label: "Standard", subtitle: "Multi day conference/event", price: "$850.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    event_premium: { label: "Premium", subtitle: "Event listing + landing page feature", price: "$1,250.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page feature for increased visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories for better visibility", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
+    event_premium_plus: { label: "Premium Plus", subtitle: "Event listing + home page feature", price: "$1,450.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page feature for maximum visibility", "Event profile", "Agenda highlights + full agenda PDF", "Event dates", "Event Location", "Select multiple categories", "Company profile", "Display your logo for branding", "Direct link to your site for easy sign up", "Add representative(s) for direct communication"] },
     // Jobs
     standard_job: { label: "Standard", subtitle: "Job posting", price: "$400.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
     premium_job: { label: "Premium", subtitle: "Job posting & landing page feature", price: "$800.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page feature for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
     premium_plus_job: { label: "Premium Plus", subtitle: "Job posting + home page feature", price: "$1,000.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page feature for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
+    job_standard: { label: "Standard", subtitle: "Job posting", price: "$400.00", period: "/month", maxCategories: -1, maxCountries: -1, features: ["Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
+    job_premium: { label: "Premium", subtitle: "Job posting & landing page feature", price: "$800.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "landing_page", features: ["Extra Feature: Landing page feature for increased visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
+    job_premium_plus: { label: "Premium Plus", subtitle: "Job posting + home page feature", price: "$1,000.00", period: "/month", maxCategories: -1, maxCountries: -1, featurePlan: "home_page", features: ["Extra Feature: Home page feature for maximum visibility", "Position title for quick search", "Job description outlining key responsibilities", "Company profile to showcase your brand and attract top talent", "Direct link to your site for easy applications", "Display your logo for branding", "Location for filtering and relevance", "Industry classification to improve discoverability", "Add representative(s) for direct communication"] },
 };
 
 const PLAN_UPGRADE_TIER_ORDER: Record<string, number> = {
@@ -740,9 +747,17 @@ export default function Dashboard() {
         const activeConfig = livePlansConfig || DEFAULT_PLANS_CONFIG;
         if (activeConfig && activeConfig.groups) {
             for (const group of activeConfig.groups) {
+                const isAnnualGroup = Boolean(group.hasAnnualToggle) && group.id !== "events" && group.id !== "jobs";
                 for (const plan of group.plans) {
                     const planKey = plan.stripeMonthlyId || plan.id;
-                    const yearlyKey = plan.stripeYearlyId;
+                    const isEventOrJob =
+                        group.id === "events" ||
+                        group.id === "jobs" ||
+                        plan.id.includes("event") ||
+                        plan.id.includes("job") ||
+                        (planKey && (planKey.includes("event") || planKey.includes("job")));
+
+                    const yearlyKey = (isAnnualGroup && !isEventOrJob) ? plan.stripeYearlyId : undefined;
 
                     const baseConfig: PlanConfig = {
                         label: plan.badge,
@@ -765,7 +780,7 @@ export default function Dashboard() {
                     if (plan.id) {
                         merged[plan.id] = { ...baseConfig };
                     }
-                    if (yearlyKey) {
+                    if (yearlyKey && isAnnualGroup && yearlyKey !== planKey && !isEventOrJob) {
                         merged[yearlyKey] = {
                             ...baseConfig,
                             label: `${plan.badge} (Yearly)`,
@@ -5092,9 +5107,29 @@ interface UpgradePlanModalProps {
 function UpgradePlanModal({ currentPlan, currentPlanConfig, allPlans, onClose, onUpgrade, processing }: UpgradePlanModalProps) {
     const [selectedPlan, setSelectedPlan] = useState<string>("");
 
+    const isEventOrJob =
+        currentPlan?.collectionName === "eventsCollection" ||
+        currentPlan?.collectionName === "jobsCollection" ||
+        String(currentPlan?.planId || "").includes("event") ||
+        String(currentPlan?.planId || "").includes("job");
+
     const upgradePlanIds = getAvailablePlanUpgradeIds(currentPlan.planId, currentPlan.collectionName);
     const upgradePlans = upgradePlanIds
-        .map((id) => [id, allPlans[id]] as const)
+        .map((id) => {
+            const rawConfig = allPlans[id];
+            if (!rawConfig) return [id, null] as const;
+            if (isEventOrJob) {
+                return [
+                    id,
+                    {
+                        ...rawConfig,
+                        label: rawConfig.label.replace(/\s*\(Yearly\)/i, ""),
+                        period: "/month",
+                    },
+                ] as const;
+            }
+            return [id, rawConfig] as const;
+        })
         .filter(([, config]) => Boolean(config))
         .sort((a, b) => {
             const ta = PLAN_UPGRADE_TIER_ORDER[a[0]] || 0;
