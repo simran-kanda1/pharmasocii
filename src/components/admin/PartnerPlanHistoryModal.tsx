@@ -842,6 +842,11 @@ export function PartnerPlanHistoryModal({
                                     Admin Trial
                                   </Badge>
                                 )}
+                                {(plan.isExtended || plan.status === "Extended") && (
+                                  <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[11px]">
+                                    Extended
+                                  </Badge>
+                                )}
                                 <StatusBadge status={effectivePlanStatus} />
                               </div>
                               <div className="text-xs text-slate-500 flex items-center gap-1">

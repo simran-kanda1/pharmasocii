@@ -1619,6 +1619,8 @@ export default function AdminDashboard() {
           billingPeriodEnd: newEnd,
           isTrial: true,
           active: true,
+          isExtended: true,
+          status: "Extended",
         });
       }
 
@@ -1675,6 +1677,8 @@ export default function AdminDashboard() {
         try {
           await updateDoc(listingRef, { 
             status: "Extended",
+            isExtended: true,
+            extendedAt: newEnd,
             billingPeriodEnd: newEnd,
             accessThrough: newEnd,
             active: true,
@@ -1701,6 +1705,8 @@ export default function AdminDashboard() {
         try {
           await updateDoc(listingRef, {
             status: "Extended",
+            isExtended: true,
+            extendedAt: newEnd,
             billingPeriodEnd: newEnd,
             accessThrough: newEnd,
             active: true,
@@ -1715,7 +1721,7 @@ export default function AdminDashboard() {
         setPartnerPlans((prev) =>
           prev.map((p) =>
             p.id === latestPlan?.id
-              ? { ...p, billingPeriodEnd: newEnd, isTrial: true, active: true }
+              ? { ...p, billingPeriodEnd: newEnd, isTrial: true, active: true, isExtended: true, status: "Extended" }
               : p
           )
         );
@@ -1724,12 +1730,13 @@ export default function AdminDashboard() {
         setListingEditor((prev) => ({
           ...prev,
           status: "Extended",
+          isExtended: true,
           active: "true",
         }));
         setListings((prev) =>
           prev.map((item) =>
             item.id === effListing.id
-              ? { ...item, status: "Extended", active: true, billingPeriodEnd: newEnd, accessThrough: newEnd }
+              ? { ...item, status: "Extended", isExtended: true, active: true, billingPeriodEnd: newEnd, accessThrough: newEnd }
               : item
           )
         );
@@ -2713,11 +2720,21 @@ export default function AdminDashboard() {
         }
       }
 
+      const isListingExtended = Boolean(
+        listing.status === "Extended" ||
+        (listing as any)?.isExtended ||
+        (listing as any)?.extendedAt != null ||
+        (plan as any)?.status === "Extended" ||
+        (plan as any)?.isExtended ||
+        (plan as any)?.extendedAt != null
+      );
+
       acc[listing.id] = {
         plan,
         trialInfo,
         businessName,
         listingName,
+        isExtended: isListingExtended,
         subscribedOn: isPlanPaidComplete
           ? (plan as any)?.startDate || plan?.createdAt || listing.lastPaymentReceivedAt || null
           : null,
@@ -7208,6 +7225,15 @@ function ListingsList({
             {pageItems.map((listing) => {
               const insight = listingInsights[listing.id];
               const effectiveStatus = getEffectiveListingStatus(listing, insight);
+              const isListingExtended = Boolean(
+                insight?.isExtended ||
+                listing?.status === "Extended" ||
+                (listing as any)?.isExtended ||
+                (listing as any)?.extendedAt != null ||
+                (insight?.plan as any)?.status === "Extended" ||
+                (insight?.plan as any)?.isExtended ||
+                (insight?.plan as any)?.extendedAt != null
+              );
               const businessName = insight?.businessName || listing.businessName || "Unnamed";
               const listingName = insight?.listingName || listing.eventName || listing.jobTitle || listing.businessName || "—";
               const listingAuditUrl = `/admin/dashboard?tab=audit&auditView=listing&auditListing=${encodeURIComponent(listing.id)}`;
@@ -7223,7 +7249,16 @@ function ListingsList({
                     <Badge variant="outline">{getCollectionLabel(listing.__col)}</Badge>
                   </TableCell>
                   <TableCell>{formatUserPlan(listing.selectedPlan, insight?.plan)}</TableCell>
-                  <TableCell>{getStatusBadge(effectiveStatus)}</TableCell>
+                  <TableCell>
+                    <div className="flex flex-col items-start gap-1">
+                      {getStatusBadge(effectiveStatus)}
+                      {isListingExtended && (effectiveStatus === "Active" || effectiveStatus === "Approved") && (
+                        <Badge className="bg-blue-50 text-blue-700 border-blue-200 text-[11px] font-medium leading-none px-2 py-0.5 shadow-none">
+                          Extended
+                        </Badge>
+                      )}
+                    </div>
+                  </TableCell>
                   <TableCell className="text-slate-500 text-sm">{formatAdminDate(insight?.subscribedOn)}</TableCell>
                   <TableCell className="text-slate-500 text-sm">{formatAdminDate(insight?.upgradedOn)}</TableCell>
                   <TableCell className="text-slate-500 text-sm">{formatAdminDate(insight?.expiryDate)}</TableCell>
