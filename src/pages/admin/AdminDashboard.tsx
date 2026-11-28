@@ -6889,17 +6889,13 @@ function PartnerList({
 
 
 function FeaturedPlansTab({
-  featuredPlans,
-  partners,
-  listings = [],
-  transactions = [],
   featuredPlansConfig,
   onEditPlan,
   onDeletePlan,
   onTogglePlanStatus,
 }: {
-  featuredPlans: FeaturedPlanPurchase[];
-  partners: PartnerRecord[];
+  featuredPlans?: FeaturedPlanPurchase[];
+  partners?: PartnerRecord[];
   listings?: ListingRecord[];
   transactions?: any[];
   featuredPlansConfig: FeaturedPlansConfig;
@@ -6907,62 +6903,6 @@ function FeaturedPlansTab({
   onDeletePlan: (plan: FeaturedPlanOption, groupName: string) => void;
   onTogglePlanStatus: (plan: FeaturedPlanOption, groupName: string) => void;
 }) {
-  const recentPurchases = useMemo(() => {
-    const resolveDateValue = (p: any) => {
-      const partner = partners.find((pt) => pt.id === p.partnerId);
-      const listing = p.listingId ? listings.find((l) => l.id === p.listingId) : undefined;
-      const matchTxn = transactions.find(
-        (t) =>
-          (p.listingId && t.listingId === p.listingId && (t.type === "feature" || t.featureId)) ||
-          (p.featureId && t.featureId === p.featureId && t.partnerId === p.partnerId) ||
-          (t.partnerId && t.partnerId === p.partnerId && (t.type === "feature" || t.featureId))
-      );
-
-      return (
-        p.lastPaymentReceived ||
-        p.lastPaymentReceivedAt ||
-        p.billingPeriodStart ||
-        p.createdAt ||
-        p.startDate ||
-        p.accessThrough ||
-        p.billingPeriodEnd ||
-        p.timestamp ||
-        p.date ||
-        listing?.featureSpotlightBillingPeriodStart ||
-        listing?.featureSpotlightBillingPeriodEnd ||
-        listing?.createdAt ||
-        partner?.lastPaymentReceivedAt ||
-        partner?.subscribedOn ||
-        partner?.createdAt ||
-        matchTxn?.createdAt
-      );
-    };
-
-    const sorted = [...featuredPlans].sort((a: any, b: any) => {
-      const getMs = (p: any) => {
-        const d = resolveDateValue(p);
-        if (!d) return 0;
-        if (typeof d?.toMillis === "function") return d.toMillis();
-        if (typeof d?.toDate === "function") return d.toDate().getTime();
-        if (typeof d?.seconds === "number") return d.seconds * 1000;
-        if (typeof d?._seconds === "number") return d._seconds * 1000;
-        const parsed = new Date(d).getTime();
-        return isNaN(parsed) ? 0 : parsed;
-      };
-      return getMs(b) - getMs(a);
-    });
-
-    return sorted.slice(0, 15).map((feature) => {
-      const partner = partners.find((p) => p.id === feature.partnerId);
-      const listing = feature.listingId ? listings.find((l) => l.id === feature.listingId) : undefined;
-      return {
-        ...feature,
-        partnerName: partner?.businessName || listing?.businessName || "Unknown partner",
-        resolvedDate: resolveDateValue(feature),
-      };
-    });
-  }, [featuredPlans, partners, listings, transactions]);
-
   const groups = featuredPlansConfig?.groups || [];
 
   return (
@@ -7050,59 +6990,6 @@ function FeaturedPlansTab({
               No featured plans configured. Click "Add Featured Plan" to create one.
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="bg-white border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle>Recent Featured Purchases</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-auto max-h-[50vh] admin-table-scrollbar">
-            <Table className="min-w-max">
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-6">Partner</TableHead>
-                  <TableHead>Feature</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="pr-6">Date</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {recentPurchases.length === 0 ? (
-                  <TableRow>
-                    <TableCell className="pl-6 text-slate-500" colSpan={4}>
-                      No featured purchases yet.
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  recentPurchases.map((purchase) => (
-                    <TableRow key={purchase.id}>
-                      <TableCell className="pl-6">{purchase.partnerName}</TableCell>
-                      <TableCell>{purchase.featureName || purchase.featureId || "-"}</TableCell>
-                      <TableCell>
-                        {getStatusBadge(getEffectiveFeatureStatus(purchase))}
-                      </TableCell>
-                      <TableCell className="pr-6 text-slate-500">
-                        {formatAdminDate(
-                          (purchase as any).resolvedDate ||
-                          purchase.lastPaymentReceived ||
-                          (purchase as any).lastPaymentReceivedAt ||
-                          (purchase as any).billingPeriodStart ||
-                          purchase.createdAt ||
-                          (purchase as any).startDate ||
-                          purchase.accessThrough ||
-                          (purchase as any).billingPeriodEnd ||
-                          (purchase as any).timestamp ||
-                          (purchase as any).date
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </div>
         </CardContent>
       </Card>
     </div>
