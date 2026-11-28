@@ -191,6 +191,22 @@ const isEventOrJobListing = (planId?: string | null, listing?: any) =>
     listing?.__col === "eventsCollection" ||
     listing?.__col === "jobsCollection";
 
+const JOB_INDUSTRY_OPTIONS = [
+    "Biotechnology",
+    "Pharmaceutical",
+    "Pharmaceuticals",
+    "Medical Devices",
+    "Medical Device",
+    "Clinical Research",
+    "Diagnostics",
+    "Digital Health",
+    "Life Sciences",
+    "Healthcare",
+    "Radiopharmaceuticals",
+    "Information Technology",
+    "Other",
+];
+
 const spotlightTierFromId = (featureId?: string | null) =>
     FEATURE_SPOTLIGHT_TIER[String(featureId || "").trim()] || 0;
 
@@ -1896,8 +1912,8 @@ export default function Dashboard() {
                     assertPlanUnlockedForChanges(planForEdit);
                 }
 
-                const isBusinessCollection = selectedListingForEdit.__col === "businessOfferingsCollection";
-                const listingRef = isBusinessCollection
+                const isEmbedded = selectedListingForEdit.__source === "partner" || selectedListingForEdit.__col === "businessOfferingsCollection";
+                const listingRef = isEmbedded
                     ? doc(
                         db,
                         "partnersCollection",
@@ -2022,6 +2038,37 @@ export default function Dashboard() {
                 }
 
                 await updateDoc(listingRef, updateObj);
+
+                if (listingGroup === "jobs" || selectedListingForEdit.__col === "jobsCollection") {
+                    if (isEmbedded) {
+                        try {
+                            await updateDoc(doc(db, "jobsCollection", selectedListingForEdit.id), updateObj);
+                        } catch (_) {}
+                    } else if (auth.currentUser?.uid) {
+                        try {
+                            await updateDoc(doc(db, "partnersCollection", auth.currentUser.uid, "jobsCollection", selectedListingForEdit.id), updateObj);
+                        } catch (_) {}
+                    }
+                    if (auth.currentUser?.uid) {
+                        try {
+                            const pDocUpdates: Record<string, any> = {};
+                            if (updateObj.industry !== undefined) pDocUpdates.industry = updateObj.industry;
+                            if (updateObj.jobTitle !== undefined) pDocUpdates.jobTitle = updateObj.jobTitle;
+                            if (updateObj.jobSummary !== undefined) pDocUpdates.jobSummary = updateObj.jobSummary;
+                            if (updateObj.positionType !== undefined) {
+                                pDocUpdates.positionType = updateObj.positionType;
+                                pDocUpdates.jobtype = updateObj.positionType;
+                            }
+                            if (Object.keys(pDocUpdates).length > 0) {
+                                await updateDoc(doc(db, "partnersCollection", auth.currentUser.uid), pDocUpdates);
+                            }
+                        } catch (_) {}
+                    }
+                }
+
+                setOfferings((prev) =>
+                    prev.map((o) => (o.id === selectedListingForEdit.id ? { ...o, ...updateObj } : o))
+                );
 
                 if (upgradePlanId) {
                     const checkoutResult = await startUpgradeCheckout(
@@ -4393,7 +4440,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
 
     const [jobTitle, setJobTitle] = useState(listing.jobTitle || "");
     const [jobSummary, setJobSummary] = useState(listing.jobSummary || "");
-    const [industry, setIndustry] = useState(listing.industry || "");
+    const [industry, setIndustry] = useState(listing.industry || (listing as any).jobIndustry || "");
     const [jobType, setJobType] = useState(listing.jobtype || listing.positionType || "");
     const [experienceLevel, setExperienceLevel] = useState(listing.experienceLevel || "");
     const [workModel, setWorkModel] = useState(listing.workModel || "");
@@ -4609,7 +4656,7 @@ function EditListingModal({ listing, planConfig, isUpgradeFlow = false, targetEv
                                     <Select value={industry} onValueChange={setIndustry}>
                                         <SelectTrigger className="bg-foreground/5 border-foreground/10 mt-1"><SelectValue placeholder="Select industry" /></SelectTrigger>
                                         <SelectContent>
-                                            {["Biotechnology", "Pharmaceuticals", "Medical Device", "Radiopharmaceuticals", "Clinical Research", "Healthcare", "Other"].map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                                            {Array.from(new Set([...JOB_INDUSTRY_OPTIONS, ...(industry ? [industry] : []), ...(listing.industry ? [listing.industry] : [])])).map(o => <SelectItem key={o} value={o}>{o}</SelectItem>)}
                                         </SelectContent>
                                     </Select>
                                 </div>

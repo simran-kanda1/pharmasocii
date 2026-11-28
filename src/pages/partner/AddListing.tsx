@@ -1231,7 +1231,7 @@ export default function AddListing() {
                                             <Select value={jobData.industry} onValueChange={val => setJobData(prev => ({ ...prev, industry: val }))}>
                                                 <SelectTrigger className="w-full h-12 bg-muted/40 border-foreground/10"><SelectValue placeholder="Select industry" /></SelectTrigger>
                                                 <SelectContent className="bg-background border-foreground/10 max-h-60">
-                                                    {["Biotechnology", "Pharmaceutical", "Medical Devices", "Clinical Research", "Diagnostics", "Digital Health", "Life Sciences", "Healthcare", "Other"].map(i => (
+                                                    {Array.from(new Set(["Biotechnology", "Pharmaceutical", "Medical Devices", "Clinical Research", "Diagnostics", "Digital Health", "Life Sciences", "Healthcare", "Radiopharmaceuticals", "Information Technology", "Other", ...(jobData.industry ? [jobData.industry] : [])])).map(i => (
                                                         <SelectItem key={i} value={i}>{i}</SelectItem>
                                                     ))}
                                                 </SelectContent>

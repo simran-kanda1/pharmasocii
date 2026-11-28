@@ -1520,9 +1520,24 @@ export default function AdminDashboard() {
             lUpdates.linkedinProfile = payload.linkedinProfile;
             lUpdates.linkedInProfileLink = payload.linkedinProfile;
             lUpdates.linkedin = payload.linkedinProfile;
-            if (pl.selectedGroup === "jobs") {
+            if (pl.selectedGroup === "jobs" || pl.__col === "jobsCollection") {
               lUpdates.linkedInJob = payload.linkedinProfile;
             }
+          }
+          if (pl.selectedGroup === "jobs" || pl.__col === "jobsCollection") {
+            if (payload.industry !== undefined) lUpdates.industry = payload.industry;
+            if (payload.jobTitle !== undefined) lUpdates.jobTitle = payload.jobTitle;
+            if (payload.jobSummary !== undefined) lUpdates.jobSummary = payload.jobSummary;
+            if (payload.positionType !== undefined) {
+              lUpdates.positionType = payload.positionType;
+              lUpdates.jobtype = payload.positionType;
+            }
+            if (payload.experienceLevel !== undefined) lUpdates.experienceLevel = payload.experienceLevel;
+            if (payload.workModel !== undefined) lUpdates.workModel = payload.workModel;
+            if (payload.education !== undefined) lUpdates.education = payload.education;
+            if (payload.jobCountry !== undefined) lUpdates.jobCountry = payload.jobCountry;
+            if (payload.stateRegion !== undefined) lUpdates.stateRegion = payload.stateRegion;
+            if (payload.city !== undefined) lUpdates.city = payload.city;
           }
           if (Object.keys(lUpdates).length > 0) {
             await updateDoc(doc(db, pl.__path), lUpdates);
@@ -2307,8 +2322,8 @@ export default function AdminDashboard() {
       agendaHighlights: listing.agendaHighlights || "",
       agendaPdfUrl: listing.agendaPdfUrl || (listing as any).agendaPdf || (listing as any).pdfUrl || partner?.agendaPdfUrl || "",
       // Job fields
-      jobTitle: listing.jobTitle || "",
-      industry: listing.industry || "",
+      jobTitle: listing.jobTitle || partner?.jobTitle || "",
+      industry: listing.industry || partner?.industry || "",
       positionType: listing.positionType || "",
       experienceLevel: listing.experienceLevel || "",
       positionLink: listing.positionLink || "",

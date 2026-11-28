@@ -114,6 +114,8 @@ const INDUSTRY_OPTIONS = [
   "Digital Health",
   "Life Sciences",
   "Healthcare",
+  "Radiopharmaceuticals",
+  "Information Technology",
   "Other",
 ];
 
