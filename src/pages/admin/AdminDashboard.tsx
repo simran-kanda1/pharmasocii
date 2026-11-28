@@ -3712,6 +3712,79 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
     });
   }, [listingFilter, listingSearchTerm, listingDateRange, typeFilteredListings, listingInsights]);
 
+  const exportListings = (format: "csv" | "excel") => {
+    const headers = [
+      "Business Name",
+      "Listing Name",
+      "Type",
+      "Plan",
+      "Status",
+      "Extended",
+      "Plan Created Date",
+      "Upgraded On",
+      "Expiry Date",
+      "Plan Cancel Date",
+      "Feature Status",
+      "Current Feature Plan",
+      "Feature Created Date",
+      "Feature Cancel Date",
+    ];
+
+    const rows = filteredListings.map((listing) => {
+      const insight = listingInsights[listing.id];
+      const effectiveStatus = getEffectiveListingStatus(listing, insight);
+      const isListingExtended = Boolean(
+        insight?.isExtended ||
+        listing?.status === "Extended" ||
+        (listing as any)?.isExtended ||
+        (listing as any)?.extendedAt != null ||
+        (insight?.plan as any)?.status === "Extended" ||
+        (insight?.plan as any)?.isExtended ||
+        (insight?.plan as any)?.extendedAt != null
+      );
+      const businessName = insight?.businessName || listing.businessName || "Unnamed";
+      const listingName = insight?.listingName || listing.eventName || listing.jobTitle || listing.businessName || "—";
+      const collectionLabel = getCollectionLabel(listing.__col);
+      const planLabel = formatUserPlan(listing.selectedPlan, insight?.plan);
+      const featStatus = insight?.featureStatus && insight?.featureStatus !== "-" ? insight?.featureStatus : "-";
+
+      return [
+        businessName,
+        listingName,
+        collectionLabel,
+        planLabel,
+        effectiveStatus,
+        isListingExtended ? "Yes" : "No",
+        formatAdminDate(insight?.subscribedOn),
+        formatAdminDate(insight?.upgradedOn),
+        formatAdminDate(insight?.expiryDate),
+        formatAdminDate(insight?.cancelledOn),
+        featStatus,
+        insight?.featurePlan || "-",
+        formatAdminDate(insight?.featureDate),
+        formatAdminDate(insight?.featureCancelDate),
+      ];
+    });
+
+    const separator = format === "excel" ? "\t" : ",";
+    const escapedRows = rows.map((row) =>
+      row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(separator),
+    );
+    const content = [headers.join(separator), ...escapedRows].join("\n");
+
+    const blob = new Blob([content], {
+      type: format === "excel" ? "application/vnd.ms-excel;charset=utf-8;" : "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `listings-export-${new Date().toISOString().slice(0, 10)}.${format === "excel" ? "xls" : "csv"}`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const stats = {
     totalRevenue: transactions
       .filter((t) => ["succeeded", "completed", "complete", "paid"].includes(String(t.status || "").toLowerCase()))
@@ -3917,33 +3990,44 @@ function getListingCreatedDate(listing: any, insight?: any): Date | null {
 
           {activeTab === "listings" && (
             <div className="space-y-4">
-              <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center w-full">
-                <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-center flex-wrap">
-                  <div className="relative w-full md:w-80">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    <Input
-                      placeholder="Search listings by business, category, plan, or date..."
-                      value={listingSearchTerm}
-                      onChange={(e) => setListingSearchTerm(e.target.value)}
-                      className="pl-10 h-11 bg-white border-slate-200"
+              <div className="flex flex-col gap-3 w-full">
+                <div className="flex flex-col md:flex-row gap-4 justify-between items-start md:items-center w-full">
+                  <div className="flex flex-col sm:flex-row gap-2 w-full md:w-auto items-center flex-wrap">
+                    <div className="relative w-full md:w-80">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Input
+                        placeholder="Search listings by business, category, plan, or date..."
+                        value={listingSearchTerm}
+                        onChange={(e) => setListingSearchTerm(e.target.value)}
+                        className="pl-10 h-11 bg-white border-slate-200"
+                      />
+                    </div>
+                    <select
+                      value={listingTypeFilter}
+                      onChange={(e) => setListingTypeFilter(e.target.value)}
+                      className="flex h-11 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-w-[180px] text-slate-700 font-medium"
+                    >
+                      <option value="all">All Types</option>
+                      <option value="business_offerings">Business Offering</option>
+                      <option value="consulting">Consulting Service</option>
+                      <option value="jobs">Job</option>
+                      <option value="events">Event</option>
+                    </select>
+                    <DateRangeFilter
+                      value={listingDateRange}
+                      onChange={setListingDateRange}
+                      label="Date Created"
                     />
                   </div>
-                  <select
-                    value={listingTypeFilter}
-                    onChange={(e) => setListingTypeFilter(e.target.value)}
-                    className="flex h-11 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 min-w-[180px] text-slate-700 font-medium"
-                  >
-                    <option value="all">All Types</option>
-                    <option value="business_offerings">Business Offering</option>
-                    <option value="consulting">Consulting Service</option>
-                    <option value="jobs">Job</option>
-                    <option value="events">Event</option>
-                  </select>
-                  <DateRangeFilter
-                    value={listingDateRange}
-                    onChange={setListingDateRange}
-                    label="Date Created"
-                  />
+
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => exportListings("csv")}>
+                      <Download className="w-4 h-4 mr-2" /> Export CSV
+                    </Button>
+                    <Button variant="outline" onClick={() => exportListings("excel")}>
+                      <Download className="w-4 h-4 mr-2" /> Export Excel
+                    </Button>
+                  </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
