@@ -351,12 +351,12 @@ export function formatPartnerTransaction(doc: { id: string } & Record<string, un
 
     const arr = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]).map(String) : []);
     const reps = Array.isArray(t.companyRepresentatives) ? (t.companyRepresentatives as CompanyRep[]) : [];
-    const repName = reps.length > 0 ? [reps[0].firstName, reps[0].lastName].filter(Boolean).join(" ").trim() : "";
+    // Company representatives are secondary contacts for a listing and should not be used as the primary contact
     const primaryContact = (t.primaryContact as string) ||
         (t.primaryName as string) ||
         (t.contactName as string) ||
         (t.contactPerson as string) ||
-        (repName || null);
+        null;
 
     const collectionName = t.collectionName ? String(t.collectionName) : null;
     const groupDisplay = resolveCleanGroup(t, collectionName, planId);

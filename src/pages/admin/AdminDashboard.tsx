@@ -7767,12 +7767,66 @@ function TransactionList({
   const partnerMap = useMemo(() => {
     const byId = new Map<string, PartnerRecord>();
     const byEmail = new Map<string, PartnerRecord>();
+    const byBusiness = new Map<string, PartnerRecord>();
     for (const p of partners) {
       if (p.id) byId.set(p.id, p);
-      if (p.primaryEmail) byEmail.set(p.primaryEmail.toLowerCase(), p);
+      if (p.primaryEmail) byEmail.set(p.primaryEmail.toLowerCase().trim(), p);
+      if (p.businessName) byBusiness.set(p.businessName.toLowerCase().trim(), p);
     }
-    return { byId, byEmail };
+    return { byId, byEmail, byBusiness };
   }, [partners]);
+
+  const listingById = useMemo(() => {
+    const map = new Map<string, ListingRecord>();
+    for (const l of listings) {
+      if (l.id) map.set(String(l.id), l);
+    }
+    return map;
+  }, [listings]);
+
+  const getPartnerPrimaryName = useCallback((p?: PartnerRecord | null): string => {
+    if (!p) return "";
+    const name =
+      p.primaryName ||
+      (p as any).primaryContactName ||
+      (p.firstName && p.lastName ? `${p.firstName} ${p.lastName}`.trim() : "") ||
+      p.contactName ||
+      p.contactPerson ||
+      p.fullName ||
+      "";
+    return name.trim();
+  }, []);
+
+  const resolvePartnerForTxn = useCallback(
+    (t: {
+      partnerId?: string | null;
+      listingId?: string | null;
+      customerEmail?: string | null;
+      businessName?: string | null;
+    }): PartnerRecord | undefined => {
+      if (t.partnerId) {
+        const p = partnerMap.byId.get(String(t.partnerId));
+        if (p) return p;
+      }
+      if (t.listingId) {
+        const l = listingById.get(String(t.listingId));
+        if (l?.partnerId) {
+          const p = partnerMap.byId.get(String(l.partnerId));
+          if (p) return p;
+        }
+      }
+      if (t.customerEmail) {
+        const p = partnerMap.byEmail.get(String(t.customerEmail).toLowerCase().trim());
+        if (p) return p;
+      }
+      if (t.businessName) {
+        const p = partnerMap.byBusiness.get(String(t.businessName).toLowerCase().trim());
+        if (p) return p;
+      }
+      return undefined;
+    },
+    [partnerMap, listingById],
+  );
 
   const listingNameLookup = useMemo(() => {
     const byId = new Map<string, string>();
@@ -7841,8 +7895,12 @@ function TransactionList({
 
     const rawTxns = transactions.map((t) => {
       const formatted = formatPartnerTransaction({ id: t.id, ...t });
+      const partner = resolvePartnerForTxn(formatted);
+      const partnerPrimary = getPartnerPrimaryName(partner);
+      const primaryContact = partnerPrimary || formatted.primaryContact || null;
       return {
         ...formatted,
+        primaryContact,
         targetTitle: resolveTitleForRow(formatted),
       };
     });
@@ -7864,11 +7922,6 @@ function TransactionList({
       if (!isPaid && r.stripeSubscriptionId) {
         nonCompletedSubIds.add(String(r.stripeSubscriptionId));
       }
-    }
-
-    const listingById = new Map<string, ListingRecord>();
-    for (const l of listings) {
-      if (l.id) listingById.set(String(l.id), l);
     }
 
     const syntheticRows: PartnerTransactionRow[] = [];
@@ -7988,7 +8041,7 @@ function TransactionList({
           null,
         businessName: partner?.businessName || linkedListing?.businessName || meta.listingName || log.partnerName || "",
         customerEmail: partner?.primaryEmail || (linkedListing as any)?.contactEmail || (linkedListing as any)?.email || "",
-        primaryContact: partner?.primaryName || (linkedListing as any)?.contactName || "",
+        primaryContact: getPartnerPrimaryName(partner) || (linkedListing as any)?.contactName || "",
         description: isFailedLog
           ? String(log.details || "").trim() && String(log.details || "").trim() !== "N/A"
             ? String(log.details)
@@ -8034,7 +8087,7 @@ function TransactionList({
         listingTitle: l.eventName || l.jobTitle || l.title || l.businessName || null,
         businessName: l.businessName || partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
-        primaryContact: partner?.primaryName || "",
+        primaryContact: getPartnerPrimaryName(partner) || "",
       };
       const formatted = formatPartnerTransaction(syntheticDoc);
       syntheticRows.push({
@@ -8075,7 +8128,7 @@ function TransactionList({
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
-        primaryContact: partner?.primaryName || "",
+        primaryContact: getPartnerPrimaryName(partner) || "",
       };
       const formatted = formatPartnerTransaction(syntheticDoc);
       syntheticRows.push({
@@ -8109,7 +8162,7 @@ function TransactionList({
         eventType: "initial",
         businessName: partner?.businessName || "",
         customerEmail: partner?.primaryEmail || "",
-        primaryContact: partner?.primaryName || "",
+        primaryContact: getPartnerPrimaryName(partner) || "",
       };
       const formatted = formatPartnerTransaction(syntheticDoc);
       syntheticRows.push({
@@ -8119,7 +8172,7 @@ function TransactionList({
     }
 
     return [...rawTxns, ...syntheticRows].sort(sortPartnerTransactionsNewestFirst);
-  }, [transactions, auditLogs, listings, partnerPlans, featuredPlans, listingInsights, partnerMap, listingNameLookup]);
+  }, [transactions, auditLogs, listings, partnerPlans, featuredPlans, listingInsights, partnerMap, listingNameLookup, resolvePartnerForTxn, getPartnerPrimaryName]);
 
   const counts = useMemo(() => {
     const baseList = dateFilter ? rows.filter((r) => matchesDateFilter(r, dateFilter)) : rows;
@@ -8166,8 +8219,8 @@ function TransactionList({
     const q = search.trim().toLowerCase();
     if (!q) return list;
     return list.filter((r) => {
-      const p = (r.partnerId ? partnerMap.byId.get(r.partnerId) : null) || (r.customerEmail ? partnerMap.byEmail.get(r.customerEmail.toLowerCase()) : null);
-      const contact = r.primaryContact || p?.primaryName || "";
+      const p = resolvePartnerForTxn(r);
+      const contact = getPartnerPrimaryName(p) || r.primaryContact || "";
       const bName = r.businessName || p?.businessName || "";
       const em = r.customerEmail || p?.primaryEmail || "";
       const listingName = r.targetTitle || "";
@@ -8191,7 +8244,7 @@ function TransactionList({
         .toLowerCase();
       return hay.includes(q);
     });
-  }, [rows, statusFilter, dateFilter, search, partnerMap]);
+  }, [rows, statusFilter, dateFilter, search, partnerMap, resolvePartnerForTxn, getPartnerPrimaryName]);
 
   const {
     page: txnPage,
@@ -8418,9 +8471,9 @@ function TransactionList({
                 </TableHeader>
                 <TableBody>
                   {paginatedTxns.map((t: PartnerTransactionRow) => {
-                    const partner = (t.partnerId ? partnerMap.byId.get(t.partnerId) : null) || (t.customerEmail ? partnerMap.byEmail.get(t.customerEmail.toLowerCase()) : null);
+                    const partner = resolvePartnerForTxn(t);
                     const email = t.customerEmail || partner?.primaryEmail || "—";
-                    const primaryContact = t.primaryContact || partner?.primaryName || "—";
+                    const primaryContact = getPartnerPrimaryName(partner) || t.primaryContact || "—";
                     const businessName = t.businessName || partner?.businessName || "—";
                     const listingName = t.targetTitle || "—";
                     const event = t.eventDisplay || "Initial";
