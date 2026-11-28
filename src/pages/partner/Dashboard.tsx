@@ -5416,7 +5416,7 @@ function CancelPlanModal({
                     <div className="bg-foreground/5 border border-foreground/10 rounded-lg p-4">
                         <p className="text-sm text-foreground">
                             {isFeatureCancel ? (
-                                <>Your feature stays active until the end of the paid period, then won&apos;t renew.</>
+                                <>Your feature stays active until the end of the paid period, after that it won&apos;t renew.</>
                             ) : hasPurchasedFeatureAddon ? (
                                 <>Your plan stays active until the end of the paid period. Any associated feature also ends and will not renew.</>
                             ) : (
